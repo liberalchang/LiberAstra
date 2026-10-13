@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from liberastra import __version__
-from liberastra.api import api_router, openai_audio
+from liberastra.api import api_router, openai_audio, openai_compat
 from liberastra.core.config import get_settings
 from liberastra.core.db import run_migrations
 from liberastra.core.logging import setup_logging
@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(api_router)
     app.include_router(openai_audio.router)
+    app.include_router(openai_compat.router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
