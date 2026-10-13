@@ -1,14 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AudioLines } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
 
 export function TtsPage() {
@@ -25,26 +27,8 @@ export function TtsPage() {
   const [text, setText] = useState(
     () => (location.state as { prompt?: string } | null)?.prompt ?? "",
   );
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("tts");
-
-  useEffect(() => {
-    if (!job || job.status !== "succeeded") return;
-    const output = job.outputs.find((o) => o.type === "asset" && o.asset_id);
-    if (!output?.asset_id) return;
-    let revoked = false;
-    fetchAssetBlob(output.asset_id).then((blob) => {
-      if (!revoked) setAudioUrl(URL.createObjectURL(blob));
-    });
-    return () => {
-      revoked = true;
-    };
-  }, [job]);
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-  }, [job]);
 
   const submit = useMutation({
     mutationFn: () =>
@@ -57,7 +41,6 @@ export function TtsPage() {
       }),
     onSuccess: (j) => {
       setError(null);
-      setAudioUrl(null);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -66,14 +49,13 @@ export function TtsPage() {
   const running = job && (job.status === "pending" || job.status === "running");
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader kind="tts" icon={AudioLines} title="文字转语音" description="选择音色，把文本合成为语音文件。" />
+      <SplitPane
+        storageKey="tts"
+        left={
       <Card>
-        <CardHeader>
-          <CardTitle>合成</CardTitle>
-          <CardDescription>选择 Provider 与音色，文本转为语音文件。</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="语音服务" hint="留空则使用第一个已启用的 TTS Provider。">
               <select
@@ -133,13 +115,24 @@ export function TtsPage() {
             >
               {running ? `合成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始合成"}
             </Button>
-            {job?.status === "succeeded" && (
-              <span className="text-sm text-green-600">完成</span>
-            )}
           </div>
-          {audioUrl && <audio controls src={audioUrl} className="w-full" />}
         </CardContent>
       </Card>
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="audio"
+            historyKind="audio"
+            emptyHint="输入文本，合成第一段语音"
+            meta={[
+              { label: "服务", value: ttsProviders?.find((p) => p.id === providerId)?.name ?? "" },
+              { label: "音色", value: voiceRecordId === "" ? voiceName : (voices?.find((v) => v.id === voiceRecordId)?.name ?? "") },
+              { label: "格式", value: format },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }

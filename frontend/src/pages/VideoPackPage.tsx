@@ -1,14 +1,16 @@
 import { Film, PersonStanding, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { api, fetchAssetBlob, type JobOut } from "@/api/client";
+import { api, type JobOut } from "@/api/client";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 
@@ -59,19 +61,9 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
   const [voiceName, setVoiceName] = useState("");
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob(`video-${kind}`);
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-    if (job?.status !== "succeeded") return;
-    const video = job.outputs.find((o) => o.kind === "video" && o.asset_id);
-    if (video?.asset_id) {
-      fetchAssetBlob(video.asset_id).then((b) => setVideoUrl(URL.createObjectURL(b)));
-    }
-  }, [job]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -94,7 +86,6 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
     },
     onSuccess: (j) => {
       setError(null);
-      setVideoUrl(null);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -108,8 +99,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
     (kind !== "avatar" || (text && (voiceRecordId !== "" || voiceName)));
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader kind={kind === "avatar" ? "avatar" : kind === "motion" ? "motion" : "i2v"} icon={kind === "avatar" ? UserRound : kind === "motion" ? PersonStanding : Film} title={cfg.title} description={cfg.description} />
+      <SplitPane
+        storageKey={`video-${kind}`}
+        left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -216,12 +210,24 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? `生成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始生成"}
             </Button>
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
         </CardContent>
       </Card>
-
-      {videoUrl && <video controls src={videoUrl} className="w-full rounded-lg border border-border" />}
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="video"
+            historyKind="video"
+            emptyHint="上传素材，生成第一段视频"
+            meta={[
+              { label: "服务", value: provider?.name ?? "" },
+              { label: "工作流", value: pack?.name ?? "" },
+              { label: kind === "avatar" ? "文案" : "提示词", value: kind === "avatar" ? text : prompt },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }

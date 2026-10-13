@@ -1,15 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Image as ImageIcon, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import { ResultPanel } from "@/components/ResultPanel";
 import { ASPECT_OPTIONS, AspectSelect, type AspectOption } from "@/components/ui/aspect-select";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 
@@ -41,19 +43,8 @@ export function ImageGenPage() {
   const [seed, setSeed] = useState(-1);
   const [count, setCount] = useState(1);
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("image-generate");
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-    if (job?.status !== "succeeded") return;
-    Promise.all(
-      job.outputs
-        .filter((o) => o.type === "asset" && o.asset_id)
-        .map((o) => fetchAssetBlob(o.asset_id!).then(URL.createObjectURL)),
-    ).then(setImages);
-  }, [job]);
 
   const optimize = useMutation({
     mutationFn: () => api.optimizePrompt(prompt),
@@ -77,7 +68,6 @@ export function ImageGenPage() {
       }),
     onSuccess: (j) => {
       setError(null);
-      setImages([]);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -86,21 +76,18 @@ export function ImageGenPage() {
   const running = job && (job.status === "pending" || job.status === "running");
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader
         kind="image"
         icon={ImageIcon}
         title="文生图"
         description="选择图像服务，用提示词生成图片。ComfyUI 工作流会带出额外参数。"
       />
+      <SplitPane
+        storageKey="image-generate"
+        left={
       <Card>
-        <CardHeader>
-          <CardTitle>生成</CardTitle>
-          <CardDescription>
-            {isComfy ? "ComfyUI 工作流驱动，参数由工作流包动态渲染。" : "在线图像 API。"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="图像服务" hint="只列出已启用、且具备 image 能力的 Provider。">
               <select
@@ -191,18 +178,25 @@ export function ImageGenPage() {
             <Button onClick={() => submit.mutate()} disabled={!prompt || submit.isPending || !!running}>
               {running ? `生成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "生成"}
             </Button>
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
         </CardContent>
       </Card>
-
-      {images.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {images.map((url) => (
-            <img key={url} src={url} alt="生成结果" className="w-full rounded-lg border border-border" />
-          ))}
-        </div>
-      )}
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="image"
+            historyKind="image"
+            emptyHint="填写左侧参数，生成第一张图片"
+            meta={[
+              { label: "服务", value: provider?.name ?? "" },
+              { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
+              { label: "尺寸", value: `${aspect.width}×${aspect.height}` },
+              { label: "提示词", value: prompt },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }

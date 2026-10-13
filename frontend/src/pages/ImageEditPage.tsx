@@ -1,14 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ImageUp, WandSparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 
@@ -38,19 +40,8 @@ export function ImageEditPage({ capability, title, description }: Props) {
   const [prompt, setPrompt] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob(`image-${capability}`);
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-    if (job?.status !== "succeeded") return;
-    Promise.all(
-      job.outputs
-        .filter((o) => o.type === "asset" && o.asset_id)
-        .map((o) => fetchAssetBlob(o.asset_id!).then(URL.createObjectURL)),
-    ).then(setImages);
-  }, [job]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -67,7 +58,6 @@ export function ImageEditPage({ capability, title, description }: Props) {
     },
     onSuccess: (j) => {
       setError(null);
-      setImages([]);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -77,13 +67,16 @@ export function ImageEditPage({ capability, title, description }: Props) {
   const noPacks = isComfy && packs && packs.length === 0;
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader
         kind={capability === "i2i" ? "edit" : "upscale"}
         icon={capability === "i2i" ? WandSparkles : ImageUp}
         title={title}
         description={description}
       />
+      <SplitPane
+        storageKey={`image-${capability}`}
+        left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -157,18 +150,24 @@ export function ImageEditPage({ capability, title, description }: Props) {
             >
               {running ? `处理中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始"}
             </Button>
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
         </CardContent>
       </Card>
-
-      {images.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {images.map((url) => (
-            <img key={url} src={url} alt="处理结果" className="w-full rounded-lg border border-border" />
-          ))}
-        </div>
-      )}
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="image"
+            historyKind="image"
+            emptyHint="上传原图后开始处理"
+            meta={[
+              { label: "服务", value: provider?.name ?? "" },
+              { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
+              { label: "提示词", value: prompt },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }

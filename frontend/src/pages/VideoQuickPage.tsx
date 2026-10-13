@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob } from "@/api/client";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
+import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
 
 export function VideoQuickPage() {
@@ -31,19 +33,13 @@ export function VideoQuickPage() {
   const [storyboardOnly, setStoryboardOnly] = useState(false);
   const [bgmFile, setBgmFile] = useState<File | null>(null);
 
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [storyboardText, setStoryboardText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob("video-quick");
 
   useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
     if (job?.status !== "succeeded") return;
-    const video = job.outputs.find((o) => o.kind === "video" && o.asset_id);
-    if (video?.asset_id) {
-      fetchAssetBlob(video.asset_id).then((b) => setVideoUrl(URL.createObjectURL(b)));
-    }
     const sb = job.outputs.find((o) => o.kind === "storyboard" && o.asset_id);
     if (sb?.asset_id) {
       fetchAssetBlob(sb.asset_id).then(async (b) => {
@@ -74,7 +70,6 @@ export function VideoQuickPage() {
     mutationFn: async () => api.submitQuickVideo(await buildBody()),
     onSuccess: (j) => {
       setError(null);
-      setVideoUrl(null);
       setStoryboardText(null);
       setJobId(j.id);
     },
@@ -93,7 +88,6 @@ export function VideoQuickPage() {
     },
     onSuccess: (j) => {
       setError(null);
-      setVideoUrl(null);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -102,8 +96,11 @@ export function VideoQuickPage() {
   const running = job && (job.status === "pending" || job.status === "running");
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader kind="video" icon={Clapperboard} title="快速创作" description="一句话出短视频：文案、分镜、配音、字幕和拼接。" />
+      <SplitPane
+        storageKey="video-quick"
+        left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <Segmented
@@ -206,12 +203,24 @@ export function VideoQuickPage() {
                 {String(job.steps[job.steps.length - 1]?.name ?? "")}
               </span>
             )}
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
         </CardContent>
       </Card>
-
-      {videoUrl && <video controls src={videoUrl} className="w-full rounded-lg border border-border" />}
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="video"
+            historyKind="video"
+            emptyHint="一句话或一段文案，生成一条短视频"
+            meta={[
+              { label: "画幅", value: aspect },
+              { label: "音色", value: voiceRecordId === "" ? voiceName : (voices?.find((v) => v.id === voiceRecordId)?.name ?? "") },
+              { label: "内容", value: mode === "topic" ? topic : script },
+            ]}
+          />
+        }
+      />
 
       {storyboardText && (
         <Card>

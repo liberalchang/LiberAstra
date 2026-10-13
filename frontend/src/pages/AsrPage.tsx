@@ -1,14 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Mic } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Mic } from "lucide-react";
+import { useState } from "react";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
 
 export function AsrPage() {
@@ -20,10 +22,6 @@ export function AsrPage() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("asr");
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-  }, [job]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -40,29 +38,16 @@ export function AsrPage() {
     onError: (err) => setError(err.message),
   });
 
-  const download = async (assetId: number, filename: string) => {
-    const blob = await fetchAssetBlob(assetId);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const running = job && (job.status === "pending" || job.status === "running");
-  const textOutput = job?.outputs.find((o) => o.type === "text");
-  const fileOutputs = job?.outputs.filter((o) => o.type === "asset" && o.asset_id) ?? [];
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader kind="asr" icon={Mic} title="语音转文字" description="上传音频，导出文本和字幕。" />
+      <SplitPane
+        storageKey="asr"
+        left={
       <Card>
-        <CardHeader>
-          <CardTitle>转写</CardTitle>
-          <CardDescription>上传音频，输出文本与 srt / vtt / json 字幕。</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="识别服务" hint="留空则使用第一个已启用的 ASR Provider。本机不内置识别模型。">
               <select
@@ -100,30 +85,24 @@ export function AsrPage() {
             <Button onClick={() => submit.mutate()} disabled={!file || submit.isPending || !!running}>
               {running ? `转写中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始转写"}
             </Button>
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
-
-          {textOutput?.content && (
-            <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">
-              {textOutput.content}
-            </div>
-          )}
-          {fileOutputs.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {fileOutputs.map((o) => (
-                <Button
-                  key={o.asset_id}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => download(o.asset_id!, o.filename ?? `transcript.${o.format}`)}
-                >
-                  <Download /> {o.format}
-                </Button>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind={null}
+            historyKind="subtitle"
+            emptyHint="上传音频，转写出文本和字幕"
+            meta={[
+              { label: "服务", value: asrProviders?.find((p) => p.id === providerId)?.name ?? "" },
+              { label: "语言", value: language },
+              { label: "文件", value: file?.name ?? "" },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }

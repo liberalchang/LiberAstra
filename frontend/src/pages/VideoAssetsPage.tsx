@@ -1,15 +1,17 @@
 import { Images } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api } from "@/api/client";
+import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
+import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
 
 export function VideoAssetsPage() {
@@ -22,19 +24,9 @@ export function VideoAssetsPage() {
   const [aspect, setAspect] = useState("9:16");
   const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
   const [voiceName, setVoiceName] = useState("");
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob("video-assets");
-
-  useEffect(() => {
-    if (job?.status === "failed") setError(job.error ?? "任务失败");
-    if (job?.status !== "succeeded") return;
-    const video = job.outputs.find((o) => o.kind === "video" && o.asset_id);
-    if (video?.asset_id) {
-      fetchAssetBlob(video.asset_id).then((b) => setVideoUrl(URL.createObjectURL(b)));
-    }
-  }, [job]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -49,7 +41,6 @@ export function VideoAssetsPage() {
     },
     onSuccess: (j) => {
       setError(null);
-      setVideoUrl(null);
       setJobId(j.id);
     },
     onError: (err) => setError(err.message),
@@ -60,8 +51,11 @@ export function VideoAssetsPage() {
     files?.length && (mode === "script" ? script : topic) && (voiceRecordId !== "" || voiceName);
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex flex-col gap-6">
       <PageHeader kind="clips" icon={Images} title="自定义素材" description="上传图片素材，配旁白和字幕后拼成短片。" />
+      <SplitPane
+        storageKey="video-assets"
+        left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <Field label="图片素材" hint="可多选或直接拖拽。顺序与口播文案的行一一对应。">
@@ -133,12 +127,24 @@ export function VideoAssetsPage() {
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? `合成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始合成"}
             </Button>
-            {job?.status === "succeeded" && <span className="text-sm text-green-600">完成</span>}
           </div>
         </CardContent>
       </Card>
-
-      {videoUrl && <video controls src={videoUrl} className="w-full rounded-lg border border-border" />}
+        }
+        right={
+          <ResultPanel
+            job={job ?? null}
+            mediaKind="video"
+            historyKind="video"
+            emptyHint="上传素材图片，拼成一条短片"
+            meta={[
+              { label: "画幅", value: aspect },
+              { label: "音色", value: voiceRecordId === "" ? voiceName : (voices?.find((v) => v.id === voiceRecordId)?.name ?? "") },
+              { label: "内容", value: mode === "script" ? script : topic },
+            ]}
+          />
+        }
+      />
     </div>
   );
 }
