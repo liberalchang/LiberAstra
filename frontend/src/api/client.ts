@@ -95,6 +95,27 @@ export interface AssetOut {
   created_at: string;
 }
 
+export interface WorkflowInputSpec {
+  node: string;
+  field: string;
+  type: string;
+  default?: unknown;
+  min?: number;
+  max?: number;
+  required?: boolean;
+  description?: string;
+}
+
+export interface WorkflowPackOut {
+  name: string;
+  capability: string;
+  description: string;
+  inputs: Record<string, WorkflowInputSpec>;
+  outputs: Record<string, unknown>;
+  source: string;
+  requirements: Record<string, unknown>;
+}
+
 export const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"];
 
 export const api = {
@@ -148,6 +169,25 @@ export const api = {
     request<VoiceOut>(`/api/v1/voices/${id}/default`, { method: "POST" }),
   listAssets: (kind?: string) =>
     request<AssetOut[]>(`/api/v1/assets${kind ? `?kind=${kind}` : ""}`),
+
+  listWorkflows: (capability?: string) =>
+    request<WorkflowPackOut[]>(`/api/v1/workflows${capability ? `?capability=${capability}` : ""}`),
+  importWorkflow: (body: Record<string, unknown>) =>
+    request<WorkflowPackOut>("/api/v1/workflows/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteWorkflow: (name: string) =>
+    request<void>(`/api/v1/workflows/${name}`, { method: "DELETE" }),
+  generateImage: (body: Record<string, unknown>) =>
+    request<JobOut>("/api/v1/images/generate", { method: "POST", body: JSON.stringify(body) }),
+  editImage: (form: FormData) =>
+    request<JobOut>("/api/v1/images/edit", { method: "POST", body: form }),
+  optimizePrompt: (prompt: string, provider_id?: number) =>
+    request<{ optimized: string }>("/api/v1/images/optimize-prompt", {
+      method: "POST",
+      body: JSON.stringify({ prompt, provider_id }),
+    }),
 };
 
 /** 带鉴权下载资产内容为 Blob（audio 标签无法带 Authorization 头）。 */

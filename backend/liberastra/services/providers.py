@@ -13,6 +13,8 @@ from liberastra.core.security import get_fernet
 from liberastra.models import Provider
 from liberastra.providers.asr.openai_stt import OpenAISTT
 from liberastra.providers.base import ProviderError
+from liberastra.providers.image.comfyui import ComfyUIImage
+from liberastra.providers.image.openai_images import OpenAIImages
 from liberastra.providers.llm.ollama import OllamaLLM
 from liberastra.providers.llm.openai_compatible import OpenAICompatibleLLM
 from liberastra.providers.tts.edge_tts import EdgeTTS
@@ -43,6 +45,10 @@ def build_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) 
         return EdgeTTS()
     if record.type == "openai_stt":
         return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", client=client)
+    if record.type == "comfyui":
+        return ComfyUIImage(record.base_url)
+    if record.type == "openai_images":
+        return OpenAIImages(record.base_url, api_key, default_model or "gpt-image-1", client=client)
     raise ProviderError(f"未知 Provider 类型: {record.type}")
 
 
@@ -56,6 +62,10 @@ def build_tts_adapter(record: Provider, *, client: httpx.AsyncClient | None = No
 
 
 def build_asr_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
+    return build_adapter(record, client=client)
+
+
+def build_image_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
     return build_adapter(record, client=client)
 
 

@@ -30,7 +30,11 @@ const NAV_GROUPS = [
   },
   {
     label: "图像",
-    items: [{ to: "/image", icon: Image, text: "图像（即将上线）", disabled: true }],
+    items: [
+      { to: "/image/generate", icon: Image, text: "文生图" },
+      { to: "/image/edit", icon: Image, text: "图生图与编辑" },
+      { to: "/image/upscale", icon: Image, text: "修复与放大" },
+    ],
   },
   {
     label: "视频",
@@ -46,7 +50,10 @@ const NAV_GROUPS = [
   },
   {
     label: "设置",
-    items: [{ to: "/settings", icon: Settings, text: "服务提供方" }],
+    items: [
+      { to: "/settings", icon: Settings, text: "服务提供方" },
+      { to: "/settings/workflows", icon: Settings, text: "工作流包" },
+    ],
   },
   {
     label: "开发者",

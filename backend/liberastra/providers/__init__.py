@@ -51,6 +51,22 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
         default_base_url="http://localhost:8100/v1",
         description="标准 /v1/audio/transcriptions：OpenAI / Groq / Speaches / faster-whisper-server",
     ),
+    "comfyui": ProviderTypeInfo(
+        type="comfyui",
+        label="ComfyUI",
+        capabilities=("image", "video"),
+        requires_api_key=False,
+        default_base_url="http://localhost:8188",
+        description="局域网 ComfyUI 实例，工作流包驱动（文生图/图生图/修复放大/视频）",
+    ),
+    "openai_images": ProviderTypeInfo(
+        type="openai_images",
+        label="OpenAI 兼容图像",
+        capabilities=("image",),
+        requires_api_key=False,
+        default_base_url="https://api.openai.com/v1",
+        description="标准 /v1/images/*：OpenAI gpt-image 及 BananaRouter 类兼容网关",
+    ),
 }
 
 __all__ = [

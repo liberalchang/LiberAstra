@@ -1,0 +1,56 @@
+name: t2i_basic
+capability: t2i
+description: 通用文生图（KSampler + Checkpoint），适用于 SD1.5/SDXL/Flux 类单模型工作流
+inputs:
+  ckpt_name:
+    node: "4"
+    field: inputs.ckpt_name
+    type: str
+    required: true
+    description: ComfyUI 中的 checkpoint 文件名
+  prompt:
+    node: "6"
+    field: inputs.text
+    type: str
+    required: true
+  negative_prompt:
+    node: "7"
+    field: inputs.text
+    type: str
+    default: ""
+  width:
+    node: "5"
+    field: inputs.width
+    type: int
+    default: 1024
+    min: 256
+    max: 4096
+  height:
+    node: "5"
+    field: inputs.height
+    type: int
+    default: 1024
+    min: 256
+    max: 4096
+  steps:
+    node: "3"
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 1
+    max: 150
+  cfg:
+    node: "3"
+    field: inputs.cfg
+    type: float
+    default: 7.0
+  seed:
+    node: "3"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "9"
+  key: images
+requirements:
+  nodes: [KSampler, CheckpointLoaderSimple, CLIPTextEncode, VAEDecode, SaveImage, EmptyLatentImage]
