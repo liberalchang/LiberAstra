@@ -89,6 +89,7 @@ export interface VoiceOut {
 export interface AssetOut {
   id: number;
   kind: string;
+  path: string;
   mime: string | null;
   size: number;
   job_id: string | null;
@@ -152,6 +153,11 @@ export const api = {
   getJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}`),
   listJobs: (kind?: string) =>
     request<JobOut[]>(`/api/v1/jobs?limit=10${kind ? `&kind=${kind}` : ""}`),
+  listAllJobs: (statusFilter?: string) =>
+    request<JobOut[]>(`/api/v1/jobs?limit=100${statusFilter ? `&status_filter=${statusFilter}` : ""}`),
+  cancelJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/cancel`, { method: "POST" }),
+  retryJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/retry`, { method: "POST" }),
+  deleteAsset: (id: number) => request<void>(`/api/v1/assets/${id}`, { method: "DELETE" }),
 
   submitTts: (body: {
     provider_id?: number;

@@ -50,6 +50,9 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        from liberastra.api.routes.system import run_startup_cleanup
+
+        run_startup_cleanup()
         manager = JobManager()
         register_llm_jobs(manager)
         register_tts_jobs(manager)

@@ -13,6 +13,7 @@ from liberastra.api.routes import (
     openai_audio,
     openai_compat,
     providers,
+    system,
     tokens,
     tts,
     uploads,
@@ -36,5 +37,6 @@ api_router.include_router(images.router)
 api_router.include_router(workflows.router)
 api_router.include_router(videos.router)
 api_router.include_router(uploads.router)
+api_router.include_router(system.router)
 
 __all__ = ["api_router", "openai_audio", "openai_compat"]

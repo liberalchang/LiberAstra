@@ -5,9 +5,11 @@ import { api } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { AuthPage } from "@/pages/AuthPage";
 import { AsrPage } from "@/pages/AsrPage";
+import { AssetsPage } from "@/pages/AssetsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ImageEditPage } from "@/pages/ImageEditPage";
 import { ImageGenPage } from "@/pages/ImageGenPage";
+import { JobsPage } from "@/pages/JobsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { TtsPage } from "@/pages/TtsPage";
 import { VideoAssetsPage } from "@/pages/VideoAssetsPage";
@@ -62,6 +64,8 @@ export default function App() {
         />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
         <Route path="/video/quick" element={<VideoQuickPage />} />
         <Route path="/video/assets" element={<VideoAssetsPage />} />
         <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />

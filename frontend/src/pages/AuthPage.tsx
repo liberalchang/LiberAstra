@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/auth";
 
 export function AuthPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const signIn = useAuthStore((s) => s.signIn);
@@ -39,7 +41,7 @@ export function AuthPage() {
         <CardHeader>
           <CardTitle className="text-xl">LiberAstra</CardTitle>
           <CardDescription>
-            {isSetup ? "首次启动：创建管理员账号" : "登录到你的 AIGC 工作台"}
+            {isSetup ? t("auth.subtitleSetup") : t("auth.subtitleLogin")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -52,7 +54,7 @@ export function AuthPage() {
             }}
           >
             <Input
-              placeholder="用户名"
+              placeholder={t("auth.username")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
@@ -60,7 +62,7 @@ export function AuthPage() {
             />
             <Input
               type="password"
-              placeholder={isSetup ? "密码（至少 8 位）" : "密码"}
+              placeholder={isSetup ? t("auth.passwordSetup") : t("auth.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={isSetup ? "new-password" : "current-password"}
@@ -69,7 +71,11 @@ export function AuthPage() {
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit" disabled={submit.isPending}>
-              {submit.isPending ? "请稍候…" : isSetup ? "创建并进入" : "登录"}
+              {submit.isPending
+                ? t("auth.waiting")
+                : isSetup
+                  ? t("auth.submitSetup")
+                  : t("auth.submitLogin")}
             </Button>
           </form>
         </CardContent>

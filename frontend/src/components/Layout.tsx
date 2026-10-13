@@ -4,6 +4,7 @@ import {
   Code2,
   FolderOpen,
   Image,
+  Languages,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -12,62 +13,61 @@ import {
   Sun,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 
-const NAV_GROUPS = [
-  { label: "工作台", items: [{ to: "/dashboard", icon: LayoutDashboard, text: "总览" }] },
+const NAV_GROUPS: {
+  labelKey: string;
+  items: { to: string; icon: typeof LayoutDashboard; key: string; href?: string }[];
+}[] = [
+  { labelKey: "group.workbench", items: [{ to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" }] },
   {
-    label: "语音",
+    labelKey: "group.speech",
     items: [
-      { to: "/speech/tts", icon: AudioLines, text: "文字转语音" },
-      { to: "/speech/asr", icon: AudioLines, text: "语音转文字" },
-      { to: "/speech/voices", icon: AudioLines, text: "音色库" },
+      { to: "/speech/tts", icon: AudioLines, key: "nav.tts" },
+      { to: "/speech/asr", icon: AudioLines, key: "nav.asr" },
+      { to: "/speech/voices", icon: AudioLines, key: "nav.voices" },
     ],
   },
   {
-    label: "图像",
+    labelKey: "group.image",
     items: [
-      { to: "/image/generate", icon: Image, text: "文生图" },
-      { to: "/image/edit", icon: Image, text: "图生图与编辑" },
-      { to: "/image/upscale", icon: Image, text: "修复与放大" },
+      { to: "/image/generate", icon: Image, key: "nav.imageGen" },
+      { to: "/image/edit", icon: Image, key: "nav.imageEdit" },
+      { to: "/image/upscale", icon: Image, key: "nav.upscale" },
     ],
   },
   {
-    label: "视频",
+    labelKey: "group.video",
     items: [
-      { to: "/video/quick", icon: Clapperboard, text: "快速创作" },
-      { to: "/video/assets", icon: Clapperboard, text: "自定义素材" },
-      { to: "/video/avatar", icon: Clapperboard, text: "数字人口播" },
-      { to: "/video/i2v", icon: Clapperboard, text: "图生视频" },
-      { to: "/video/motion", icon: Clapperboard, text: "动作迁移" },
+      { to: "/video/quick", icon: Clapperboard, key: "nav.videoQuick" },
+      { to: "/video/assets", icon: Clapperboard, key: "nav.videoAssets" },
+      { to: "/video/avatar", icon: Clapperboard, key: "nav.avatar" },
+      { to: "/video/i2v", icon: Clapperboard, key: "nav.i2v" },
+      { to: "/video/motion", icon: Clapperboard, key: "nav.motion" },
+    ],
+  },
+  { labelKey: "group.assets", items: [{ to: "/assets", icon: FolderOpen, key: "nav.assetList" }] },
+  { labelKey: "group.jobs", items: [{ to: "/jobs", icon: ListChecks, key: "nav.jobList" }] },
+  {
+    labelKey: "group.settings",
+    items: [
+      { to: "/settings", icon: Settings, key: "nav.providers" },
+      { to: "/settings/workflows", icon: Settings, key: "nav.workflows" },
     ],
   },
   {
-    label: "资产库",
-    items: [{ to: "/assets", icon: FolderOpen, text: "资产（即将上线）", disabled: true }],
+    labelKey: "group.developer",
+    items: [{ to: "/dev", icon: Code2, key: "nav.apiDocs", href: "/docs" }],
   },
-  {
-    label: "任务中心",
-    items: [{ to: "/jobs", icon: ListChecks, text: "任务（即将上线）", disabled: true }],
-  },
-  {
-    label: "设置",
-    items: [
-      { to: "/settings", icon: Settings, text: "服务提供方" },
-      { to: "/settings/workflows", icon: Settings, text: "工作流包" },
-    ],
-  },
-  {
-    label: "开发者",
-    items: [{ to: "/dev", icon: Code2, text: "API 文档", href: "/docs" }],
-  },
-] as const;
+];
 
 export function Layout() {
+  const { t, i18n } = useTranslation();
   const token = useAuthStore((s) => s.token);
   const signOut = useAuthStore((s) => s.signOut);
   const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -84,10 +84,10 @@ export function Layout() {
         <div className="mb-4 px-2 text-lg font-semibold">LiberAstra</div>
         <nav className="flex flex-1 flex-col gap-3 overflow-y-auto">
           {NAV_GROUPS.map((group) => (
-            <div key={group.label}>
-              <div className="px-2 pb-1 text-xs text-muted-foreground">{group.label}</div>
+            <div key={group.labelKey}>
+              <div className="px-2 pb-1 text-xs text-muted-foreground">{t(group.labelKey)}</div>
               {group.items.map((item) =>
-                "href" in item ? (
+                item.href ? (
                   <a
                     key={item.to}
                     href={item.href}
@@ -96,24 +96,21 @@ export function Layout() {
                     className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
                   >
                     <item.icon className="size-4" />
-                    {item.text}
+                    {t(item.key)}
                   </a>
                 ) : (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    aria-disabled={"disabled" in item && item.disabled}
-                    onClick={"disabled" in item && item.disabled ? (e) => e.preventDefault() : undefined}
                     className={({ isActive }) =>
                       cn(
                         "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted",
                         isActive && "bg-muted font-medium",
-                        "disabled" in item && item.disabled && "pointer-events-none opacity-40",
                       )
                     }
                   >
                     <item.icon className="size-4" />
-                    {item.text}
+                    {t(item.key)}
                   </NavLink>
                 ),
               )}
@@ -121,10 +118,18 @@ export function Layout() {
           ))}
         </nav>
         <div className="flex items-center gap-1 border-t border-border pt-2">
-          <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title="切换主题">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
+            title={t("common.language")}
+          >
+            <Languages />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title={t("common.theme")}>
             {dark ? <Sun /> : <Moon />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={signOut} title="退出登录">
+          <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
             <LogOut />
           </Button>
         </div>

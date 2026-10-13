@@ -1,0 +1,22 @@
+name: upscale_basic
+capability: upscale
+description: 通用修复放大（UpscaleModelLoader + ImageUpscaleWithModel，仅用 ComfyUI 核心节点）
+inputs:
+  image:
+    node: "1"
+    field: inputs.image
+    type: image
+    required: true
+    description: 待放大图片
+  model_name:
+    node: "2"
+    field: inputs.model_name
+    type: str
+    default: RealESRGAN_x4.pth
+    description: ComfyUI models/upscale_models 中的模型文件名
+outputs:
+  node: "4"
+  key: images
+requirements:
+  nodes: [LoadImage, UpscaleModelLoader, ImageUpscaleWithModel, SaveImage]
+  models: ["upscale_models/RealESRGAN_x4.pth"]

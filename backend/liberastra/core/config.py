@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     access_token_expire_minutes: int = 60 * 12
 
+    # 清理策略：已结束任务及其产物保留天数，0 = 不自动清理
+    cleanup_retention_days: int = 0
+
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     @property
