@@ -17,12 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from liberastra import __version__
-from liberastra.api import api_router
+from liberastra.api import api_router, openai_audio
 from liberastra.core.config import get_settings
 from liberastra.core.db import run_migrations
 from liberastra.core.logging import setup_logging
 from liberastra.jobs.manager import JobManager
+from liberastra.services.asr import register_asr_jobs
 from liberastra.services.llm import register_llm_jobs
+from liberastra.services.tts import register_tts_jobs
 
 
 class SPAStaticFiles(StaticFiles):
@@ -48,6 +50,8 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         manager = JobManager()
         register_llm_jobs(manager)
+        register_tts_jobs(manager)
+        register_asr_jobs(manager)
         app.state.jobs = manager
         manager.start()
         yield
@@ -62,6 +66,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(api_router)
+    app.include_router(openai_audio.router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

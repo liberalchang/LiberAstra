@@ -4,8 +4,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { api } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { AuthPage } from "@/pages/AuthPage";
+import { AsrPage } from "@/pages/AsrPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { TtsPage } from "@/pages/TtsPage";
+import { VoicesPage } from "@/pages/VoicesPage";
 import { useAuthStore } from "@/stores/auth";
 
 function HomeRedirect() {
@@ -27,6 +30,9 @@ export default function App() {
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/speech/tts" element={<TtsPage />} />
+        <Route path="/speech/asr" element={<AsrPage />} />
+        <Route path="/speech/voices" element={<VoicesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />

@@ -22,7 +22,11 @@ const NAV_GROUPS = [
   { label: "工作台", items: [{ to: "/dashboard", icon: LayoutDashboard, text: "总览" }] },
   {
     label: "语音",
-    items: [{ to: "/speech", icon: AudioLines, text: "语音（即将上线）", disabled: true }],
+    items: [
+      { to: "/speech/tts", icon: AudioLines, text: "文字转语音" },
+      { to: "/speech/asr", icon: AudioLines, text: "语音转文字" },
+      { to: "/speech/voices", icon: AudioLines, text: "音色库" },
+    ],
   },
   {
     label: "图像",

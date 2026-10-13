@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -28,5 +28,53 @@ class LLMAdapter(Protocol):
     async def chat(self, *, model: str, messages: list[dict[str, Any]], **params: Any) -> str: ...
 
     async def list_models(self) -> list[str]: ...
+
+    async def test(self) -> str: ...
+
+
+class TTSAdapter(Protocol):
+    """TTS 能力协议。synthesize 返回音频字节。"""
+
+    async def synthesize(
+        self,
+        *,
+        text: str,
+        voice: str,
+        model: str | None = None,
+        fmt: str = "mp3",
+        **params: Any,
+    ) -> bytes: ...
+
+    async def list_voices(self) -> list[str]: ...
+
+    async def test(self) -> str: ...
+
+
+@dataclass
+class ASRSegment:
+    start: float  # 秒
+    end: float
+    text: str
+
+
+@dataclass
+class ASRResult:
+    text: str
+    segments: list[ASRSegment] = field(default_factory=list)
+    language: str | None = None
+
+
+class ASRAdapter(Protocol):
+    """ASR 能力协议。平台层统一输出分段时间戳。"""
+
+    async def transcribe(
+        self,
+        *,
+        file_path: str,
+        language: str | None = None,
+        task: str = "transcribe",
+        model: str | None = None,
+        **params: Any,
+    ) -> ASRResult: ...
 
     async def test(self) -> str: ...

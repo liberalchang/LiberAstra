@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from liberastra.providers.base import LLMAdapter, ProviderError, ProviderTypeInfo
+from liberastra.providers.base import (
+    ASRAdapter,
+    LLMAdapter,
+    ProviderError,
+    ProviderTypeInfo,
+    TTSAdapter,
+)
 
 PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
     "openai_compatible": ProviderTypeInfo(
@@ -21,6 +27,37 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
         default_base_url="http://localhost:11434",
         description="本地 Ollama：/api/tags 拉取模型列表与健康检查，chat 走 /v1 兼容端点",
     ),
+    "openai_tts": ProviderTypeInfo(
+        type="openai_tts",
+        label="OpenAI 兼容 TTS",
+        capabilities=("tts",),
+        requires_api_key=False,
+        default_base_url="http://localhost:8880/v1",
+        description="标准 /v1/audio/speech：OpenAI / SiliconFlow / Kokoro-FastAPI / Speaches",
+    ),
+    "edge_tts": ProviderTypeInfo(
+        type="edge_tts",
+        label="Edge TTS（微软在线）",
+        capabilities=("tts",),
+        requires_api_key=False,
+        default_base_url="",
+        description="零配置可用，作为默认兜底；仅输出 mp3",
+    ),
+    "openai_stt": ProviderTypeInfo(
+        type="openai_stt",
+        label="OpenAI 兼容 ASR",
+        capabilities=("asr",),
+        requires_api_key=False,
+        default_base_url="http://localhost:8100/v1",
+        description="标准 /v1/audio/transcriptions：OpenAI / Groq / Speaches / faster-whisper-server",
+    ),
 }
 
-__all__ = ["LLMAdapter", "PROVIDER_TYPES", "ProviderError", "ProviderTypeInfo"]
+__all__ = [
+    "ASRAdapter",
+    "LLMAdapter",
+    "PROVIDER_TYPES",
+    "ProviderError",
+    "ProviderTypeInfo",
+    "TTSAdapter",
+]

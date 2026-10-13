@@ -2,7 +2,19 @@
 
 from fastapi import APIRouter
 
-from liberastra.api.routes import auth, capabilities, jobs, llm, providers, tokens
+from liberastra.api.routes import (
+    asr,
+    assets,
+    auth,
+    capabilities,
+    jobs,
+    llm,
+    openai_audio,
+    providers,
+    tokens,
+    tts,
+    voices,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
@@ -11,3 +23,9 @@ api_router.include_router(providers.router)
 api_router.include_router(capabilities.router)
 api_router.include_router(jobs.router)
 api_router.include_router(llm.router)
+api_router.include_router(tts.router)
+api_router.include_router(asr.router)
+api_router.include_router(voices.router)
+api_router.include_router(assets.router)
+
+__all__ = ["api_router", "openai_audio"]

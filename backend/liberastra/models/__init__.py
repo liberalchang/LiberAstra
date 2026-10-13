@@ -20,5 +20,6 @@ from liberastra.models.job import Job  # noqa: E402
 from liberastra.models.provider import Provider  # noqa: E402
 from liberastra.models.token import ApiToken  # noqa: E402
 from liberastra.models.user import User  # noqa: E402
+from liberastra.models.voice import Voice  # noqa: E402
 
-__all__ = ["ApiToken", "Asset", "Base", "Job", "Provider", "User", "utcnow"]
+__all__ = ["ApiToken", "Asset", "Base", "Job", "Provider", "User", "Voice", "utcnow"]
