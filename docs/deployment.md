@@ -14,7 +14,16 @@ docker compose up -d --build
 docker compose --profile ollama up -d     # + Ollama
 docker compose --profile comfyui up -d    # + ComfyUI（需 NVIDIA Container Toolkit）
 docker compose --profile postgres up -d   # + PostgreSQL（需同时设 LIBERASTRA_DATABASE_URL）
+docker compose --profile speech up -d     # + 语音服务（需 NVIDIA Container Toolkit）
 ```
+
+语音服务在 `services/speech`，和 Ollama、ComfyUI 一样是可选进程。把它单独放到显卡主机：
+
+```bash
+cd services/speech && docker compose up -d --build
+```
+
+服务监听 `0.0.0.0:5555`。在 LiberAstra「服务提供方」添加类型 Liber Speech API，Base URL 填 `http://<显卡主机IP>:5555`。音色名填语言代码，例如 `zh`。需要鉴权时，主机和 LiberAstra 填同一个 `LIBER_SPEECH_API_KEY`。
 
 容器访问宿主机/局域网服务（如宿主机上的 ComfyUI）：地址用 `host.docker.internal`（compose 已配置 extra_hosts）。
 

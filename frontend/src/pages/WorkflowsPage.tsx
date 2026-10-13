@@ -1,3 +1,5 @@
+import { Workflow } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -5,6 +7,7 @@ import { useState } from "react";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 const INPUTS_PLACEHOLDER = `{
@@ -66,7 +69,7 @@ export function WorkflowsPage() {
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">工作流包</h1>
+      <PageHeader kind="workflow" icon={Workflow} title="工作流包" description="导入 ComfyUI API JSON，勾选参数后试运行。" />
 
       <div className="flex flex-col gap-3">
         {packs?.map((p) => (
@@ -104,37 +107,45 @@ export function WorkflowsPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input placeholder="包名（字母数字-_）" value={name} onChange={(e) => setName(e.target.value)} />
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={capability}
-              onChange={(e) => setCapability(e.target.value)}
-            >
-              <option value="t2i">t2i 文生图</option>
-              <option value="i2i">i2i 图生图</option>
-              <option value="upscale">upscale 修复放大</option>
-              <option value="t2v">t2v 文生视频</option>
-              <option value="i2v">i2v 图生视频</option>
-              <option value="tts">tts 语音</option>
-            </select>
+            <Field label="包名" hint="只用字母、数字、横线和下划线。">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label="能力" hint="决定这个包会出现在哪个功能页。">
+              <select
+                className={selectClass}
+                value={capability}
+                onChange={(e) => setCapability(e.target.value)}
+              >
+                <option value="t2i">t2i 文生图</option>
+                <option value="i2i">i2i 图生图</option>
+                <option value="upscale">upscale 修复放大</option>
+                <option value="t2v">t2v 文生视频</option>
+                <option value="i2v">i2v 图生视频</option>
+                <option value="tts">tts 语音</option>
+              </select>
+            </Field>
           </div>
-          <textarea
-            className="min-h-40 w-full rounded-md border border-border bg-transparent p-3 font-mono text-xs"
-            placeholder="workflow.json（ComfyUI → Save API Format）"
-            value={workflowJson}
-            onChange={(e) => setWorkflowJson(e.target.value)}
-          />
-          <textarea
-            className="min-h-32 w-full rounded-md border border-border bg-transparent p-3 font-mono text-xs"
-            placeholder={`manifest inputs（参数映射）\n${INPUTS_PLACEHOLDER}`}
-            value={inputsJson}
-            onChange={(e) => setInputsJson(e.target.value)}
-          />
-          <Input
-            value={outputsJson}
-            onChange={(e) => setOutputsJson(e.target.value)}
-            placeholder='outputs，如 { "node": "9", "key": "images" }'
-          />
+          <Field label="workflow.json" hint="在 ComfyUI 里用 Save (API Format) 导出后粘贴到这里。">
+            <textarea
+              className={`${areaClass} min-h-40 font-mono text-xs`}
+              value={workflowJson}
+              onChange={(e) => setWorkflowJson(e.target.value)}
+            />
+          </Field>
+          <Field label="参数映射" hint="声明页面上的参数对应工作流里的哪个节点。JSON 也可以写成 YAML。">
+            <textarea
+              className={`${areaClass} min-h-32 font-mono text-xs`}
+              placeholder={INPUTS_PLACEHOLDER}
+              value={inputsJson}
+              onChange={(e) => setInputsJson(e.target.value)}
+            />
+          </Field>
+          <Field label="输出节点" hint='例如 { "node": "9", "key": "images" }，告诉系统从哪取出结果。'>
+            <Input
+              value={outputsJson}
+              onChange={(e) => setOutputsJson(e.target.value)}
+            />
+          </Field>
           {error && <p className="text-sm text-red-500">{error}</p>}
           {notice && <p className="text-sm text-green-600">{notice}</p>}
           <Button

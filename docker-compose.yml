@@ -4,6 +4,7 @@
 #   docker compose --profile ollama up -d   # + Ollama
 #   docker compose --profile comfyui up -d  # + ComfyUI（需要 NVIDIA runtime）
 #   docker compose --profile postgres up -d # + PostgreSQL（并设置 DATABASE_URL）
+#   docker compose --profile speech up -d   # + 语音服务（显卡主机；也可只拷 services/speech 单独部署）
 
 services:
   liberastra:
@@ -47,6 +48,35 @@ services:
     ports:
       - "8188:8188"
 
+  # 与 ComfyUI、Ollama 相同：可选组件，监听局域网，主服务通过 HTTP 调用。
+  # 显卡主机上也可以只启动这一份：cd services/speech && docker compose up -d --build
+  # Base URL：同一 compose 网络用 http://liber-speech:5555，别的机器用 http://<显卡主机IP>:5555
+  liber-speech:
+    profiles: ["speech"]
+    build:
+      context: ./services/speech
+      dockerfile: Dockerfile
+    image: liberastra-speech:latest
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      LIBER_SPEECH_DEVICE: ${LIBER_SPEECH_DEVICE:-auto}
+      LIBER_SPEECH_API_KEY: ${LIBER_SPEECH_API_KEY:-}
+      LIBER_SPEECH_ASR_MODEL: ${LIBER_SPEECH_ASR_MODEL:-large-v3}
+      LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual}
+      HF_HOME: /models
+    volumes:
+      - liber-speech-models:/models
+      - liber-speech-results:/data/results
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   postgres:
     image: postgres:16-alpine
     profiles: ["postgres"]
@@ -64,3 +94,5 @@ volumes:
   ollama-data:
   comfyui-data:
   postgres-data:
+  liber-speech-models:
+  liber-speech-results:

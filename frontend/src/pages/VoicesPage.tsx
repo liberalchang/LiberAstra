@@ -1,3 +1,5 @@
+import { Library } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Star, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -5,6 +7,8 @@ import { useState } from "react";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 
 export function VoicesPage() {
@@ -53,7 +57,7 @@ export function VoicesPage() {
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">音色库</h1>
+      <PageHeader kind="voices" icon={Library} title="音色库" description="保存参考音频，或登记云端复刻返回的音色。" />
       <Card>
         <CardHeader>
           <CardTitle>添加音色</CardTitle>
@@ -61,24 +65,37 @@ export function VoicesPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input
-              placeholder="voice_id（可选，云端复刻 ID）"
-              value={voiceId}
-              onChange={(e) => setVoiceId(e.target.value)}
-            />
-            <Input
-              placeholder="标签（逗号分隔，如 男声,中文）"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-            />
-            <Input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <Field label="名称" hint="在合成和视频页的音色列表里显示这个名字。">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label="voice_id" hint="云端复刻返回的 ID。只用本地参考音频时可以留空。">
+              <Input
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+              />
+            </Field>
+            <Field label="标签" hint="逗号分隔，方便以后筛选，例如 男声,中文。">
+              <Input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+              />
+            </Field>
+            <Field label="参考音频" hint="可选。上传一段清晰人声，供声音克隆使用。">
+              <FileDrop
+                accept="audio/*"
+                title="点击或拖拽上传参考音频"
+                subtitle="清晰人声，10 秒内为佳"
+                names={file ? [file.name] : []}
+                onSelect={(fs) => setFile(fs?.[0] ?? null)}
+              />
+            </Field>
           </div>
-          <Input
-            placeholder="参考音频对应文本（可选，用于声音克隆）"
-            value={refText}
-            onChange={(e) => setRefText(e.target.value)}
-          />
+          <Field label="参考文本" hint="可选。填写参考音频里说的原话，克隆时更准确。">
+            <Input
+              value={refText}
+              onChange={(e) => setRefText(e.target.value)}
+            />
+          </Field>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <Button className="w-fit" onClick={() => create.mutate()} disabled={!name || create.isPending}>
             添加

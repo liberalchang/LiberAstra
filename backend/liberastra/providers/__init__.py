@@ -51,6 +51,17 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
         default_base_url="http://localhost:8100/v1",
         description="标准 /v1/audio/transcriptions：OpenAI / Groq / Speaches / faster-whisper-server",
     ),
+    "liber_speech": ProviderTypeInfo(
+        type="liber_speech",
+        label="Liber Speech API",
+        capabilities=("tts", "asr"),
+        requires_api_key=False,
+        default_base_url="http://127.0.0.1:5555",
+        description=(
+            "本仓库 services/speech。可单独部署在局域网显卡主机。Base URL 填 http://<主机IP>:5555，"
+            "音色名填语言代码如 zh、en。服务若设置了 LIBER_SPEECH_API_KEY，把同一个 Key 填到这里。"
+        ),
+    ),
     "comfyui": ProviderTypeInfo(
         type="comfyui",
         label="ComfyUI",

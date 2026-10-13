@@ -1,3 +1,5 @@
+import { FolderOpen } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -63,9 +65,8 @@ export function AssetsPage() {
 
   return (
     <div className="flex max-w-5xl flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">{t("assets.title")}</h1>
-        <div className="flex gap-1">
+      <PageHeader kind="library" icon={FolderOpen} title={t("assets.title")} description={t("assets.hint")} />
+      <div className="flex flex-wrap gap-1">
           <Button variant={kind === "" ? "default" : "outline"} size="sm" onClick={() => setKind("")}>
             {t("assets.all")}
           </Button>
@@ -74,7 +75,6 @@ export function AssetsPage() {
               {t(`assets.${k}`)}
             </Button>
           ))}
-        </div>
       </div>
       {assets?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

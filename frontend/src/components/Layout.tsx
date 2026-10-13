@@ -2,15 +2,26 @@ import {
   AudioLines,
   Clapperboard,
   Code2,
+  Film,
   FolderOpen,
-  Image,
+  ImagePlus,
+  ImageUp,
+  Images,
   Languages,
   LayoutDashboard,
-  ListChecks,
+  Library,
+  ListTodo,
   LogOut,
+  Menu,
+  Mic,
   Moon,
-  Settings,
+  PersonStanding,
+  PlugZap,
   Sun,
+  UserRound,
+  WandSparkles,
+  Workflow,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,38 +37,38 @@ const NAV_GROUPS: {
 }[] = [
   { labelKey: "group.workbench", items: [{ to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" }] },
   {
-    labelKey: "group.speech",
-    items: [
-      { to: "/speech/tts", icon: AudioLines, key: "nav.tts" },
-      { to: "/speech/asr", icon: AudioLines, key: "nav.asr" },
-      { to: "/speech/voices", icon: AudioLines, key: "nav.voices" },
-    ],
-  },
-  {
     labelKey: "group.image",
     items: [
-      { to: "/image/generate", icon: Image, key: "nav.imageGen" },
-      { to: "/image/edit", icon: Image, key: "nav.imageEdit" },
-      { to: "/image/upscale", icon: Image, key: "nav.upscale" },
+      { to: "/image/generate", icon: ImagePlus, key: "nav.imageGen" },
+      { to: "/image/edit", icon: WandSparkles, key: "nav.imageEdit" },
+      { to: "/image/upscale", icon: ImageUp, key: "nav.upscale" },
     ],
   },
   {
     labelKey: "group.video",
     items: [
       { to: "/video/quick", icon: Clapperboard, key: "nav.videoQuick" },
-      { to: "/video/assets", icon: Clapperboard, key: "nav.videoAssets" },
-      { to: "/video/avatar", icon: Clapperboard, key: "nav.avatar" },
-      { to: "/video/i2v", icon: Clapperboard, key: "nav.i2v" },
-      { to: "/video/motion", icon: Clapperboard, key: "nav.motion" },
+      { to: "/video/assets", icon: Images, key: "nav.videoAssets" },
+      { to: "/video/avatar", icon: UserRound, key: "nav.avatar" },
+      { to: "/video/i2v", icon: Film, key: "nav.i2v" },
+      { to: "/video/motion", icon: PersonStanding, key: "nav.motion" },
+    ],
+  },
+  {
+    labelKey: "group.speech",
+    items: [
+      { to: "/speech/tts", icon: AudioLines, key: "nav.tts" },
+      { to: "/speech/asr", icon: Mic, key: "nav.asr" },
+      { to: "/speech/voices", icon: Library, key: "nav.voices" },
     ],
   },
   { labelKey: "group.assets", items: [{ to: "/assets", icon: FolderOpen, key: "nav.assetList" }] },
-  { labelKey: "group.jobs", items: [{ to: "/jobs", icon: ListChecks, key: "nav.jobList" }] },
+  { labelKey: "group.jobs", items: [{ to: "/jobs", icon: ListTodo, key: "nav.jobList" }] },
   {
     labelKey: "group.settings",
     items: [
-      { to: "/settings", icon: Settings, key: "nav.providers" },
-      { to: "/settings/workflows", icon: Settings, key: "nav.workflows" },
+      { to: "/settings", icon: PlugZap, key: "nav.providers" },
+      { to: "/settings/workflows", icon: Workflow, key: "nav.workflows" },
     ],
   },
   {
@@ -66,26 +77,41 @@ const NAV_GROUPS: {
   },
 ];
 
+function navClass(isActive: boolean) {
+  return cn(
+    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/80 hover:bg-foreground/6",
+    isActive && "bg-muted font-medium text-foreground",
+  );
+}
+
 export function Layout() {
   const { t, i18n } = useTranslation();
   const token = useAuthStore((s) => s.token);
   const signOut = useAuthStore((s) => s.signOut);
-  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [dark, setDark] = useState(() => localStorage.getItem("liberastra-theme") !== "light");
+  const [banner, setBanner] = useState(() => sessionStorage.getItem("liberastra-banner") !== "off");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("liberastra-theme", dark ? "dark" : "light");
   }, [dark]);
 
   if (!token) return <Navigate to="/auth" replace />;
 
-  return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-border p-3">
-        <div className="mb-4 px-2 text-lg font-semibold">LiberAstra</div>
-        <nav className="flex flex-1 flex-col gap-3 overflow-y-auto">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.labelKey}>
-              <div className="px-2 pb-1 text-xs text-muted-foreground">{t(group.labelKey)}</div>
+  const sidebar = (
+    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-sidebar">
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+          L
+        </span>
+        <span className="text-[15px] font-semibold tracking-tight">LiberAstra</span>
+      </div>
+      <nav className="nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.labelKey}>
+            <div className="px-3 pb-1 text-xs text-muted-foreground">{t(group.labelKey)}</div>
+            <div className="flex flex-col gap-0.5">
               {group.items.map((item) =>
                 item.href ? (
                   <a
@@ -93,50 +119,85 @@ export function Layout() {
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    className={navClass(false)}
+                    onClick={() => setOpen(false)}
                   >
-                    <item.icon className="size-4" />
+                    <item.icon className="size-4 shrink-0" />
                     {t(item.key)}
                   </a>
                 ) : (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted",
-                        isActive && "bg-muted font-medium",
-                      )
-                    }
+                    className={({ isActive }) => navClass(isActive)}
+                    onClick={() => setOpen(false)}
                   >
-                    <item.icon className="size-4" />
+                    <item.icon className="size-4 shrink-0" />
                     {t(item.key)}
                   </NavLink>
                 ),
               )}
             </div>
-          ))}
-        </nav>
-        <div className="flex items-center gap-1 border-t border-border pt-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
-            title={t("common.language")}
+          </div>
+        ))}
+      </nav>
+      <div className="flex items-center gap-1 border-t border-border px-3 py-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
+          title={t("common.language")}
+        >
+          <Languages />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title={t("common.theme")}>
+          {dark ? <Sun /> : <Moon />}
+        </Button>
+        <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
+          <LogOut />
+        </Button>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+      {banner && (
+        <div className="relative flex h-12 shrink-0 items-center justify-center gap-3 bg-accent px-10 text-center text-sm text-white shadow-[0_2px_10px_rgb(225_29_72/0.35)]">
+          <span>{t("shell.banner")}</span>
+          <button
+            type="button"
+            className="absolute right-3 grid size-6 place-items-center rounded-full text-white/80 hover:bg-white/15"
+            aria-label={t("common.cancel")}
+            onClick={() => {
+              sessionStorage.setItem("liberastra-banner", "off");
+              setBanner(false);
+            }}
           >
-            <Languages />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title={t("common.theme")}>
-            {dark ? <Sun /> : <Moon />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
-            <LogOut />
-          </Button>
+            <X className="size-4" />
+          </button>
         </div>
-      </aside>
-      <main className="flex-1 p-6">
-        <Outlet />
-      </main>
+      )}
+      <div className="flex min-h-0 flex-1">
+        <div className="hidden md:block">{sidebar}</div>
+        {open && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <button className="absolute inset-0 bg-black/60" aria-label={t("common.cancel")} onClick={() => setOpen(false)} />
+            <div className="relative z-10 h-full">{sidebar}</div>
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+            <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="打开导航">
+              <Menu />
+            </Button>
+            <span className="text-sm font-semibold">LiberAstra</span>
+          </div>
+          <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+            <Outlet />
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

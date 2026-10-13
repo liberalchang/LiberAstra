@@ -17,6 +17,7 @@ from liberastra.providers.image.comfyui import ComfyUIImage
 from liberastra.providers.image.openai_images import OpenAIImages
 from liberastra.providers.llm.ollama import OllamaLLM
 from liberastra.providers.llm.openai_compatible import OpenAICompatibleLLM
+from liberastra.providers.speech.liber_speech import LiberSpeech
 from liberastra.providers.tts.edge_tts import EdgeTTS
 from liberastra.providers.tts.openai_tts import OpenAITTS
 
@@ -45,6 +46,8 @@ def build_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) 
         return EdgeTTS()
     if record.type == "openai_stt":
         return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", client=client)
+    if record.type == "liber_speech":
+        return LiberSpeech(record.base_url, api_key, default_model or "multilingual", client=client)
     if record.type == "comfyui":
         return ComfyUIImage(record.base_url)
     if record.type == "openai_images":

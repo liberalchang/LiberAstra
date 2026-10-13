@@ -53,7 +53,10 @@ const zh = {
     subtitleSetup: "首次启动：创建管理员账号",
     subtitleLogin: "登录到你的 AIGC 工作台",
     username: "用户名",
+    usernameHint: "登录这台 LiberAstra 使用的名字。",
     password: "密码",
+    passwordHint: "只保存在本机数据库。",
+    passwordSetupHint: "至少 8 位。创建后用它登录。",
     passwordSetup: "密码（至少 8 位）",
     submitSetup: "创建并进入",
     submitLogin: "登录",
@@ -68,6 +71,21 @@ const zh = {
     connecting: "连接中…",
     runningAt: "运行中",
   },
+  shell: {
+    banner: "本机编排工作台 · 推理交给你配置的 ComfyUI、Ollama 或云端 API",
+  },
+  studio: {
+    title: "LiberAstra 创作台",
+    subtitle: "用文字编排语音、图像和视频。模型跑在你接入的外部服务上。",
+    mode: "创作类型",
+    promptImage: "描述你想生成的图片，例如电影感静物、柔和窗光……",
+    promptVideo: "描述一个短视频主题，例如三个提高效率的小技巧",
+    promptSpeech: "输入要朗读的文字",
+    start: "开始创作",
+    promptLabel: "创作内容",
+    promptHint: "填好后会带到对应功能页，可以在那里继续改。",
+    tools: "常用工具",
+  },
   jobs: {
     title: "任务中心",
     kind: "类型",
@@ -78,6 +96,7 @@ const zh = {
     detail: "详情",
     error: "错误",
     outputs: "产物",
+    hint: "查看进度、取消或重试，完成后下载产物。",
   },
   assets: {
     title: "资产库",
@@ -87,6 +106,7 @@ const zh = {
     video: "视频",
     subtitle: "字幕",
     text: "文本",
+    hint: "图片、音频、视频和字幕都收在这里。",
   },
 };
 
@@ -141,7 +161,10 @@ const en: typeof zh = {
     subtitleSetup: "First run: create the admin account",
     subtitleLogin: "Sign in to your AIGC workspace",
     username: "Username",
+    usernameHint: "Name used to sign in on this LiberAstra.",
     password: "Password",
+    passwordHint: "Stored only in the local database.",
+    passwordSetupHint: "At least 8 characters. You will use it to sign in.",
     passwordSetup: "Password (min 8 chars)",
     submitSetup: "Create & continue",
     submitLogin: "Sign in",
@@ -156,6 +179,21 @@ const en: typeof zh = {
     connecting: "Connecting…",
     runningAt: "Running",
   },
+  shell: {
+    banner: "Local orchestration desk · inference stays on the services you connect",
+  },
+  studio: {
+    title: "LiberAstra Studio",
+    subtitle: "Compose speech, images, and video from text. Models run on the services you attach.",
+    mode: "Mode",
+    promptImage: "Describe the image you want, for example a cinematic still life…",
+    promptVideo: "Describe a short-video topic",
+    promptSpeech: "Text to read aloud",
+    start: "Start",
+    promptLabel: "Prompt",
+    promptHint: "This text is carried to the matching tool, where you can keep editing it.",
+    tools: "Tools",
+  },
   jobs: {
     title: "Job Center",
     kind: "Kind",
@@ -166,6 +204,7 @@ const en: typeof zh = {
     detail: "Detail",
     error: "Error",
     outputs: "Outputs",
+    hint: "Watch progress, cancel or retry, then download results.",
   },
   assets: {
     title: "Asset Library",
@@ -175,6 +214,7 @@ const en: typeof zh = {
     video: "Video",
     subtitle: "Subtitles",
     text: "Text",
+    hint: "Images, audio, video and subtitles live here.",
   },
 };
 

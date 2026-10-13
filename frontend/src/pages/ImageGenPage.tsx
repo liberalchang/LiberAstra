@@ -1,10 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Image as ImageIcon, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob } from "@/api/client";
+import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useJob } from "@/hooks/useJob";
@@ -27,7 +30,10 @@ export function ImageGenPage() {
   const [workflow, setWorkflow] = useState("");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
 
-  const [prompt, setPrompt] = useState("");
+  const location = useLocation();
+  const [prompt, setPrompt] = useState(
+    () => (location.state as { prompt?: string } | null)?.prompt ?? "",
+  );
   const [negative, setNegative] = useState("");
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
@@ -81,7 +87,12 @@ export function ImageGenPage() {
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">文生图</h1>
+      <PageHeader
+        kind="image"
+        icon={ImageIcon}
+        title="文生图"
+        description="选择图像服务，用提示词生成图片。ComfyUI 工作流会带出额外参数。"
+      />
       <Card>
         <CardHeader>
           <CardTitle>生成</CardTitle>
@@ -91,59 +102,75 @@ export function ImageGenPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={provider?.id ?? ""}
-              onChange={(e) => setProviderId(Number(e.target.value))}
-            >
-              {imageProviders?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {isComfy && (
+            <Field label="图像服务" hint="只列出已启用、且具备 image 能力的 Provider。">
               <select
-                className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-                value={pack?.name ?? ""}
-                onChange={(e) => setWorkflow(e.target.value)}
+                className={selectClass}
+                value={provider?.id ?? ""}
+                onChange={(e) => setProviderId(Number(e.target.value))}
               >
-                {packs?.map((p) => (
-                  <option key={p.name} value={p.name}>
+                {imageProviders?.map((p) => (
+                  <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
               </select>
+            </Field>
+            {isComfy && (
+              <Field label="工作流包" hint="ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。">
+                <select
+                  className={selectClass}
+                  value={pack?.name ?? ""}
+                  onChange={(e) => setWorkflow(e.target.value)}
+                >
+                  {packs?.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             )}
           </div>
 
-          <div className="flex gap-2">
-            <textarea
-              className="min-h-24 flex-1 rounded-md border border-border bg-transparent p-3 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
-              placeholder="提示词…"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+          <Field label="提示词" hint="描述画面。右侧按钮会调用已配置的 LLM 改写这段文字。">
+            <div className="flex gap-2">
+              <textarea
+                className={`${areaClass} min-h-24 flex-1`}
+                placeholder="例如：窗边的陶瓷杯，柔和侧光，浅景深"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                title="用 LLM 优化提示词"
+                onClick={() => optimize.mutate()}
+                disabled={!prompt || optimize.isPending}
+              >
+                <Sparkles />
+              </Button>
+            </div>
+          </Field>
+          <Field label="负面提示词" hint="不希望出现的内容，可以留空。">
+            <Input
+              placeholder="例如：模糊，变形，多余手指"
+              value={negative}
+              onChange={(e) => setNegative(e.target.value)}
             />
-            <Button
-              variant="outline"
-              size="icon"
-              title="用 LLM 优化提示词"
-              onClick={() => optimize.mutate()}
-              disabled={!prompt || optimize.isPending}
-            >
-              <Sparkles />
-            </Button>
-          </div>
-          <Input
-            placeholder="负面提示词（可选）"
-            value={negative}
-            onChange={(e) => setNegative(e.target.value)}
-          />
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} placeholder="宽" />
-            <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} placeholder="高" />
-            <Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} placeholder="步数" />
-            <Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} placeholder="种子 -1 随机" />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="宽度" hint="输出宽度，单位像素。">
+              <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
+            </Field>
+            <Field label="高度" hint="输出高度，单位像素。">
+              <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
+            </Field>
+            <Field label="步数" hint="采样步数。数值越大通常越慢。">
+              <Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} />
+            </Field>
+            <Field label="种子" hint="-1 表示每次随机。">
+              <Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} />
+            </Field>
           </div>
 
           {isComfy && pack && (

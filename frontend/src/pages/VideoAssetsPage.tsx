@@ -1,10 +1,15 @@
+import { Images } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, fetchAssetBlob } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, areaClass, selectClass } from "@/components/ui/field";
+import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { useJob } from "@/hooks/useJob";
 
 export function VideoAssetsPage() {
@@ -57,54 +62,71 @@ export function VideoAssetsPage() {
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">自定义素材</h1>
+      <PageHeader kind="clips" icon={Images} title="自定义素材" description="上传图片素材，配旁白和字幕后拼成短片。" />
       <Card>
-        <CardHeader>
-          <CardTitle>素材成片</CardTitle>
-          <CardDescription>
-            上传图片素材，文案逐图配音（或 LLM 按主题生成），加字幕后拼接成片。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Input type="file" accept="image/*" multiple onChange={(e) => setFiles(e.target.files)} />
-          <div className="flex gap-2">
-            <Button variant={mode === "script" ? "default" : "outline"} size="sm" onClick={() => setMode("script")}>
-              自备文案（按行对应图片）
-            </Button>
-            <Button variant={mode === "topic" ? "default" : "outline"} size="sm" onClick={() => setMode("topic")}>
-              主题生成文案
-            </Button>
+        <CardContent className="flex flex-col gap-4 pt-5">
+          <Field label="图片素材" hint="可多选或直接拖拽。顺序与口播文案的行一一对应。">
+            <FileDrop
+              accept="image/*"
+              multiple
+              title="点击或拖拽上传素材图片"
+              subtitle="支持多选，按文件名顺序排列"
+              names={files ? Array.from(files).map((f) => f.name) : []}
+              onSelect={(fs) => setFiles(fs)}
+            />
+          </Field>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-foreground">文案来源</span>
+            <Segmented
+              ariaLabel="文案来源"
+              options={[
+                { value: "script", label: "自备文案（按行对应图片）" },
+                { value: "topic", label: "主题生成文案" },
+              ]}
+              value={mode}
+              onChange={setMode}
+            />
+            <span className="text-xs leading-relaxed text-muted-foreground">自备文案时，每一行对应一张图片。</span>
           </div>
           {mode === "script" ? (
-            <textarea
-              className="min-h-24 w-full rounded-md border border-border bg-transparent p-3 text-sm"
-              placeholder="每行一句口播，与图片一一对应…"
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-            />
+            <Field label="口播文案" hint="每行一句，行数建议与图片数量一致。">
+              <textarea
+                className={`${areaClass} min-h-24`}
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+              />
+            </Field>
           ) : (
-            <Input placeholder="主题" value={topic} onChange={(e) => setTopic(e.target.value)} />
+            <Field label="主题" hint="由 LLM 按图片数量生成口播。">
+              <Input value={topic} onChange={(e) => setTopic(e.target.value)} />
+            </Field>
           )}
           <div className="grid gap-3 sm:grid-cols-3">
-            <select className="h-9 rounded-md border border-border bg-transparent px-3 text-sm" value={aspect} onChange={(e) => setAspect(e.target.value)}>
-              <option value="9:16">9:16</option>
-              <option value="1:1">1:1</option>
-              <option value="16:9">16:9</option>
-            </select>
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={voiceRecordId}
-              onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">手动指定音色…</option>
-              {voices?.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+            <Field label="画幅" hint="成片宽高比。">
+              <select className={selectClass} value={aspect} onChange={(e) => setAspect(e.target.value)}>
+                <option value="9:16">9:16 竖屏</option>
+                <option value="1:1">1:1 方形</option>
+                <option value="16:9">16:9 横屏</option>
+              </select>
+            </Field>
+            <Field label="音色" hint="选自音色库。不选则填写音色名。">
+              <select
+                className={selectClass}
+                value={voiceRecordId}
+                onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">手动指定音色…</option>
+                {voices?.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {voiceRecordId === "" && (
-              <Input placeholder="音色名" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+              <Field label="音色名" hint="例如 zh-CN-XiaoxiaoNeural、alloy。">
+                <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+              </Field>
             )}
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}

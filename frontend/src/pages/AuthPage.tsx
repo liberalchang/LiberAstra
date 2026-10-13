@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/stores/auth";
 
@@ -36,23 +36,28 @@ export function AuthPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">LiberAstra</CardTitle>
-          <CardDescription>
-            {isSetup ? t("auth.subtitleSetup") : t("auth.subtitleLogin")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setError(null);
-              submit.mutate();
-            }}
-          >
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-[28px] border border-border bg-card px-8 py-10">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+            L
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">LiberAstra</h1>
+            <p className="text-sm text-muted-foreground">
+              {isSetup ? t("auth.subtitleSetup") : t("auth.subtitleLogin")}
+            </p>
+          </div>
+        </div>
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            submit.mutate();
+          }}
+        >
+          <Field label={t("auth.username")} hint={t("auth.usernameHint")}>
             <Input
               placeholder={t("auth.username")}
               value={username}
@@ -60,6 +65,11 @@ export function AuthPage() {
               autoComplete="username"
               required
             />
+          </Field>
+          <Field
+            label={t("auth.password")}
+            hint={isSetup ? t("auth.passwordSetupHint") : t("auth.passwordHint")}
+          >
             <Input
               type="password"
               placeholder={isSetup ? t("auth.passwordSetup") : t("auth.password")}
@@ -69,17 +79,13 @@ export function AuthPage() {
               minLength={isSetup ? 8 : 1}
               required
             />
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <Button type="submit" disabled={submit.isPending}>
-              {submit.isPending
-                ? t("auth.waiting")
-                : isSetup
-                  ? t("auth.submitSetup")
-                  : t("auth.submitLogin")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </Field>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <Button type="submit" disabled={submit.isPending} className="mt-2">
+            {submit.isPending ? t("auth.waiting") : isSetup ? t("auth.submitSetup") : t("auth.submitLogin")}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.staticfiles import StaticFiles
 
 from liberastra import __version__
@@ -64,10 +65,17 @@ def create_app() -> FastAPI:
         yield
         await manager.stop()
 
-    app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name,
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -79,6 +87,21 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
+
+    # 文档脚本放在前端 public/swagger，避免依赖境外 CDN。开发时由 Vite 提供，生产由 SPA 静态目录提供。
+    @app.get("/docs", include_in_schema=False)
+    def swagger_ui():
+        return get_swagger_ui_html(
+            openapi_url="/openapi.json",
+            title=f"{settings.app_name} - Swagger UI",
+            swagger_js_url="/swagger/swagger-ui-bundle.js",
+            swagger_css_url="/swagger/swagger-ui.css",
+            oauth2_redirect_url="/docs/oauth2-redirect",
+        )
+
+    @app.get("/docs/oauth2-redirect", include_in_schema=False)
+    def swagger_ui_redirect():
+        return get_swagger_ui_oauth2_redirect_html()
 
     static_dir: Path | None = settings.resolved_static_dir
     if static_dir is not None:

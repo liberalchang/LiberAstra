@@ -1,4 +1,5 @@
 import type { WorkflowInputSpec } from "@/api/client";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 interface Props {
@@ -19,12 +20,11 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [] }: Props
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {entries.map(([key, spec]) => (
-        <label key={key} className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">
-            {key}
-            {spec.required ? " *" : ""}
-            {spec.description ? `（${spec.description}）` : ""}
-          </span>
+        <Field
+          key={key}
+          label={`${key}${spec.required ? " *" : ""}`}
+          hint={spec.description || "来自工作流包 manifest 的参数"}
+        >
           <Input
             type={spec.type === "int" || spec.type === "float" ? "number" : "text"}
             placeholder={spec.default != null ? String(spec.default) : ""}
@@ -35,7 +35,7 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [] }: Props
             step={spec.type === "float" ? "0.1" : undefined}
             onChange={(e) => onChange(key, e.target.value)}
           />
-        </label>
+        </Field>
       ))}
     </div>
   );

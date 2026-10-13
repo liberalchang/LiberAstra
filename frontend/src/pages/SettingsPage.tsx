@@ -1,3 +1,5 @@
+import { Settings } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlugZap, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -5,12 +7,17 @@ import { useState } from "react";
 import { api, type ProviderOut, type TestResult } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const { data: caps } = useQuery({ queryKey: ["capabilities"], queryFn: api.capabilities });
-  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
+  const {
+    data: providers,
+    isError: providersFailed,
+    error: providersError,
+  } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
 
   const [name, setName] = useState("");
   const [type, setType] = useState("");
@@ -69,7 +76,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">服务提供方</h1>
+      <PageHeader kind="settings" icon={Settings} title="服务提供方" description="对接局域网或云端模型服务，密钥加密后保存。" />
 
       <Card>
         <CardHeader>
@@ -85,43 +92,49 @@ export function SettingsPage() {
               create.mutate();
             }}
           >
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={type}
-              required
-              onChange={(e) => {
-                const t = caps?.provider_types.find((x) => x.type === e.target.value);
-                setType(e.target.value);
-                if (t?.default_base_url && !baseUrl) setBaseUrl(t.default_base_url);
-              }}
-            >
-              <option value="" disabled>
-                选择类型…
-              </option>
-              {caps?.provider_types.map((t) => (
-                <option key={t.type} value={t.type}>
-                  {t.label}
+            <Field label="类型" hint={selectedType?.description ?? "先选择服务类型，再填写地址。"}>
+              <select
+                className={selectClass}
+                value={type}
+                required
+                onChange={(e) => {
+                  const next = caps?.provider_types.find((x) => x.type === e.target.value);
+                  setType(e.target.value);
+                  if (next?.default_base_url && !baseUrl) setBaseUrl(next.default_base_url);
+                }}
+              >
+                <option value="" disabled>
+                  选择类型…
                 </option>
-              ))}
-            </select>
-            <Input placeholder="名称（如：家里 Ollama）" value={name} required onChange={(e) => setName(e.target.value)} />
-            <Input
+                {caps?.provider_types.map((item) => (
+                  <option key={item.type} value={item.type}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="名称" hint="方便自己区分，例如家里的 Ollama。">
+              <Input value={name} required onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field className="sm:col-span-2" label="Base URL" hint="服务根地址。局域网机器请填那台机器的 IP 和端口。">
+              <Input
+                placeholder={selectedType?.default_base_url ?? "例如 http://192.168.1.10:11434"}
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </Field>
+            <Field
               className="sm:col-span-2"
-              placeholder={selectedType?.default_base_url ?? "Base URL（如 http://192.168.1.10:11434）"}
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-            />
-            <Input
-              className="sm:col-span-2"
-              type="password"
-              placeholder={selectedType?.requires_api_key ? "API Key（必填）" : "API Key（可选）"}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              required={selectedType?.requires_api_key}
-            />
-            {selectedType?.description && (
-              <p className="text-xs text-muted-foreground sm:col-span-2">{selectedType.description}</p>
-            )}
+              label="API Key"
+              hint={selectedType?.requires_api_key ? "这个类型必须填写，保存时会加密。" : "没有密钥可以留空。填写后会加密保存。"}
+            >
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                required={selectedType?.requires_api_key}
+              />
+            </Field>
             {formError && <p className="text-sm text-red-500 sm:col-span-2">{formError}</p>}
             <Button type="submit" disabled={create.isPending} className="sm:w-fit">
               {create.isPending ? "添加中…" : "添加"}
@@ -131,6 +144,11 @@ export function SettingsPage() {
       </Card>
 
       <div className="flex flex-col gap-3">
+        {providersFailed && (
+          <p className="text-sm text-red-500">
+            {providersError instanceof Error ? providersError.message : String(providersError)}
+          </p>
+        )}
         {providers?.length === 0 && (
           <p className="text-sm text-muted-foreground">还没有 Provider，先添加一个。</p>
         )}

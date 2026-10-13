@@ -1,0 +1,31 @@
+# 把这个目录拷到局域网显卡主机上单独启动：
+#   docker compose up -d --build
+# LiberAstra 里添加 Provider「Liber Speech API」，Base URL 填 http://<显卡主机IP>:5555
+
+services:
+  liber-speech:
+    build: .
+    image: liberastra-speech:latest
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    environment:
+      LIBER_SPEECH_DEVICE: ${LIBER_SPEECH_DEVICE:-auto}
+      LIBER_SPEECH_API_KEY: ${LIBER_SPEECH_API_KEY:-}
+      LIBER_SPEECH_ASR_MODEL: ${LIBER_SPEECH_ASR_MODEL:-large-v3}
+      LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual}
+      HF_HOME: /models
+    volumes:
+      - speech-models:/models
+      - speech-results:/data/results
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  speech-models:
+  speech-results:

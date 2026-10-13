@@ -10,12 +10,15 @@ import secrets
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LIBERASTRA_", env_file=".env", extra="ignore")
+
+    # 进程内缓存。密钥文件放在同步盘上时，每次请求重读会遇到 Errno 22，认证接口全部 500。
+    _cached_secret_key: str | None = PrivateAttr(default=None)
 
     app_name: str = "LiberAstra"
     debug: bool = False
@@ -40,7 +43,9 @@ class Settings(BaseSettings):
     # 清理策略：已结束任务及其产物保留天数，0 = 不自动清理
     cleanup_retention_days: int = 0
 
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    cors_origins: list[str] = ["http://127.0.0.1:5173"]
+    # 自托管场景：允许局域网 IP、主机名以任意端口打开页面后调用 API
+    cors_origin_regex: str = r"https?://.+"
 
     @property
     def resolved_database_url(self) -> str:
@@ -50,15 +55,23 @@ class Settings(BaseSettings):
 
     @property
     def resolved_secret_key(self) -> str:
-        """主密钥：环境变量优先，否则生成并持久化到 data_dir/.secret_key。"""
+        """主密钥：环境变量优先，否则生成并持久化到 data_dir/.secret_key。
+
+        成功读到后缓存在进程内。同步盘会让后续 open() 返回 Errno 22，
+        不能在每次鉴权时重新读文件。
+        """
         if self.secret_key:
             return self.secret_key
+        if self._cached_secret_key:
+            return self._cached_secret_key
         key_file = self.data_dir / ".secret_key"
         if key_file.exists():
-            return key_file.read_text(encoding="utf-8").strip()
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        key = secrets.token_urlsafe(48)
-        key_file.write_text(key, encoding="utf-8")
+            key = key_file.read_text(encoding="utf-8").strip()
+        else:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+            key = secrets.token_urlsafe(48)
+            key_file.write_text(key, encoding="utf-8")
+        self._cached_secret_key = key
         return key
 
     @property

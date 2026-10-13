@@ -1,9 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { ImageUp, WandSparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, fetchAssetBlob } from "@/api/client";
+import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, selectClass } from "@/components/ui/field";
+import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useJob } from "@/hooks/useJob";
@@ -76,37 +80,42 @@ export function ImageEditPage({ capability, title, description }: Props) {
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{title}</h1>
+      <PageHeader
+        kind={capability === "i2i" ? "edit" : "upscale"}
+        icon={capability === "i2i" ? WandSparkles : ImageUp}
+        title={title}
+        description={description}
+      />
       <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={provider?.id ?? ""}
-              onChange={(e) => setProviderId(Number(e.target.value))}
-            >
-              {imageProviders?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {isComfy && (
+            <Field label="图像服务" hint="只列出已启用、且具备 image 能力的 Provider。">
               <select
-                className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-                value={pack?.name ?? ""}
-                onChange={(e) => setWorkflow(e.target.value)}
+                className={selectClass}
+                value={provider?.id ?? ""}
+                onChange={(e) => setProviderId(Number(e.target.value))}
               >
-                {packs?.map((p) => (
-                  <option key={p.name} value={p.name}>
+                {imageProviders?.map((p) => (
+                  <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
               </select>
+            </Field>
+            {isComfy && (
+              <Field label="工作流包" hint="按当前能力（图生图或放大）过滤。没有对应包时先导入。">
+                <select
+                  className={selectClass}
+                  value={pack?.name ?? ""}
+                  onChange={(e) => setWorkflow(e.target.value)}
+                >
+                  {packs?.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             )}
           </div>
           {noPacks && (
@@ -114,12 +123,26 @@ export function ImageEditPage({ capability, title, description }: Props) {
               没有 {capability} 能力的工作流包，请到「设置 → 工作流包」导入。
             </p>
           )}
-          <Input type="file" accept="image/*" multiple onChange={(e) => setFiles(e.target.files)} />
-          <Input
-            placeholder={capability === "i2i" ? "编辑提示词（如：把背景换成海滩）" : "提示词（可选）"}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
+          <Field label="原图" hint="可多选，也可以直接拖拽进来。图生图和放大都从这些图片开始。">
+            <FileDrop
+              accept="image/*"
+              multiple
+              title="点击或拖拽上传图片"
+              subtitle="支持多选"
+              names={files ? Array.from(files).map((f) => f.name) : []}
+              onSelect={(fs) => setFiles(fs)}
+            />
+          </Field>
+          <Field
+            label="提示词"
+            hint={capability === "i2i" ? "说明要怎么改，例如把背景换成海滩。" : "放大或修复时可选，用来约束画面。"}
+          >
+            <Input
+              placeholder={capability === "i2i" ? "例如：把背景换成海滩" : "可选"}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
+          </Field>
           {isComfy && pack && (
             <WorkflowInputs
               inputs={pack.inputs}

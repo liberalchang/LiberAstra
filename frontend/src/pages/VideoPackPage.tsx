@@ -1,9 +1,13 @@
+import { Film, PersonStanding, UserRound } from "lucide-react";
+import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, fetchAssetBlob, type JobOut } from "@/api/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, areaClass, selectClass } from "@/components/ui/field";
+import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useJob } from "@/hooks/useJob";
@@ -106,75 +110,97 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{cfg.title}</h1>
+      <PageHeader kind={kind === "avatar" ? "avatar" : kind === "motion" ? "motion" : "i2v"} icon={kind === "avatar" ? UserRound : kind === "motion" ? PersonStanding : Film} title={cfg.title} description={cfg.description} />
       <Card>
-        <CardHeader>
-          <CardTitle>{cfg.title}</CardTitle>
-          <CardDescription>{cfg.description}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={provider?.id ?? ""}
-              onChange={(e) => setProviderId(Number(e.target.value))}
-            >
-              {videoProviders?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-              value={pack?.name ?? ""}
-              onChange={(e) => setWorkflow(e.target.value)}
-            >
-              {packs?.length ? (
-                packs.map((p) => (
-                  <option key={p.name} value={p.name}>
+            <Field label="视频服务" hint="只列出已启用、且具备 video 能力的 Provider。">
+              <select
+                className={selectClass}
+                value={provider?.id ?? ""}
+                onChange={(e) => setProviderId(Number(e.target.value))}
+              >
+                {videoProviders?.map((p) => (
+                  <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
-                ))
-              ) : (
-                <option value="">无 {cfg.packCaps.join("/")} 工作流包</option>
-              )}
-            </select>
+                ))}
+              </select>
+            </Field>
+            <Field label="工作流包" hint="必须与当前功能匹配，例如图生视频、数字人或动作迁移。">
+              <select
+                className={selectClass}
+                value={pack?.name ?? ""}
+                onChange={(e) => setWorkflow(e.target.value)}
+              >
+                {packs?.length ? (
+                  packs.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">无 {cfg.packCaps.join("/")} 工作流包</option>
+                )}
+              </select>
+            </Field>
           </div>
 
           {kind === "motion" && (
-            <Input type="file" accept="video/*" onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)} />
+            <Field label="参考视频" hint="动作来源，建议不超过 30 秒。">
+              <FileDrop
+                accept="video/*"
+                title="点击或拖拽上传参考视频"
+                subtitle="建议不超过 30 秒"
+                names={videoFile ? [videoFile.name] : []}
+                onSelect={(fs) => setVideoFile(fs?.[0] ?? null)}
+              />
+            </Field>
           )}
-          <Input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
+          <Field label={kind === "avatar" ? "人物图片" : "图片"} hint={kind === "i2v" ? "作为视频首帧。" : "目标人物或画面。"}>
+            <FileDrop
+              accept="image/*"
+              title="点击或拖拽上传图片"
+              names={imageFile ? [imageFile.name] : []}
+              onSelect={(fs) => setImageFile(fs?.[0] ?? null)}
+            />
+          </Field>
 
           {kind === "avatar" ? (
             <>
-              <textarea
-                className="min-h-24 w-full rounded-md border border-border bg-transparent p-3 text-sm"
-                placeholder="口播文案…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
+              <Field label="口播文案" hint="先合成语音，再交给数字人工作流。">
+                <textarea
+                  className={`${areaClass} min-h-24`}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                />
+              </Field>
               <div className="grid gap-3 sm:grid-cols-2">
-                <select
-                  className="h-9 rounded-md border border-border bg-transparent px-3 text-sm"
-                  value={voiceRecordId}
-                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">手动指定音色…</option>
-                  {voices?.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
+                <Field label="音色" hint="选自音色库。不选则填写音色名。">
+                  <select
+                    className={selectClass}
+                    value={voiceRecordId}
+                    onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">手动指定音色…</option>
+                    {voices?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 {voiceRecordId === "" && (
-                  <Input placeholder="音色名" value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+                  <Field label="音色名" hint="需与当前 TTS 服务匹配。">
+                    <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+                  </Field>
                 )}
               </div>
             </>
           ) : (
-            <Input placeholder="提示词" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            <Field label="提示词" hint="描述希望画面如何运动或变化。">
+              <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            </Field>
           )}
 
           {pack && (

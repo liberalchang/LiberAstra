@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+python-multipart
+numpy
+faster-whisper
+chatterbox-tts
