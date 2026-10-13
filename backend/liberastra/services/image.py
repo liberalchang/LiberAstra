@@ -20,27 +20,44 @@ OPTIMIZE_SYSTEM_PROMPT = (
 )
 
 
+async def produce_images(
+    provider,  # noqa: ANN001 Provider
+    *,
+    workflow: str | None = None,
+    inputs: dict[str, Any] | None = None,
+    prompt: str = "",
+    size: str = "1024x1024",
+    n: int = 1,
+    model: str | None = None,
+    options: dict[str, Any] | None = None,
+    on_progress: Any = None,
+) -> list[tuple[str, bytes]]:
+    """按 Provider 类型生成图像（流水线与 image.generate 共用）。"""
+    adapter = build_image_adapter(provider)
+    if provider.type == "comfyui":
+        pack = get_pack(workflow or "")
+        return await adapter.generate(pack=pack, inputs=inputs or {}, on_progress=on_progress)
+    return await adapter.generate(
+        prompt=prompt, size=size, n=n, model=model, **(options or {})
+    )
+
+
 async def run_image_generate_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     provider = pick_provider(db, "image", job.provider_id)
-    adapter = build_image_adapter(provider)
     params = job.params
 
     ctx.report(db, job, progress=0.05, step="generate")
-    if provider.type == "comfyui":
-        pack = get_pack(params["workflow"])
-        images = await adapter.generate(
-            pack=pack,
-            inputs=params.get("inputs", {}),
-            on_progress=lambda p: ctx.report(db, job, progress=0.05 + 0.85 * p),
-        )
-    else:
-        images = await adapter.generate(
-            prompt=params["prompt"],
-            size=params.get("size", "1024x1024"),
-            n=params.get("n", 1),
-            model=job.model,
-            **params.get("options", {}),
-        )
+    images = await produce_images(
+        provider,
+        workflow=params.get("workflow"),
+        inputs=params.get("inputs"),
+        prompt=params.get("prompt", ""),
+        size=params.get("size", "1024x1024"),
+        n=params.get("n", 1),
+        model=job.model,
+        options=params.get("options"),
+        on_progress=lambda p: ctx.report(db, job, progress=0.05 + 0.85 * p),
+    )
     if ctx.cancelled():
         return []
     return _save_images(db, job, ctx, provider.name, images)

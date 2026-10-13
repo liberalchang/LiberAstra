@@ -68,6 +68,7 @@ export interface JobOut {
   status: "pending" | "running" | "succeeded" | "failed" | "canceled";
   progress: number;
   outputs: JobOutput[];
+  steps: { name: string; at: string }[];
   error: string | null;
   created_at: string;
   finished_at: string | null;
@@ -188,6 +189,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ prompt, provider_id }),
     }),
+
+  uploadFile: (file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return request<{ path: string; size: number }>("/api/v1/uploads", {
+      method: "POST",
+      body: form,
+    });
+  },
+  submitQuickVideo: (body: Record<string, unknown>) =>
+    request<JobOut>("/api/v1/videos/quick", { method: "POST", body: JSON.stringify(body) }),
+  submitVideoI2v: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/i2v", { method: "POST", body: form }),
+  submitVideoAvatar: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/avatar", { method: "POST", body: form }),
+  submitVideoMotion: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/motion", { method: "POST", body: form }),
+  submitVideoAssets: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/assets", { method: "POST", body: form }),
 };
 
 /** 带鉴权下载资产内容为 Blob（audio 标签无法带 Authorization 头）。 */

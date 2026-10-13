@@ -10,6 +10,9 @@ import { ImageEditPage } from "@/pages/ImageEditPage";
 import { ImageGenPage } from "@/pages/ImageGenPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { TtsPage } from "@/pages/TtsPage";
+import { VideoAssetsPage } from "@/pages/VideoAssetsPage";
+import { VideoPackPage } from "@/pages/VideoPackPage";
+import { VideoQuickPage } from "@/pages/VideoQuickPage";
 import { VoicesPage } from "@/pages/VoicesPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { useAuthStore } from "@/stores/auth";
@@ -59,6 +62,11 @@ export default function App() {
         />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
+        <Route path="/video/quick" element={<VideoQuickPage />} />
+        <Route path="/video/assets" element={<VideoAssetsPage />} />
+        <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />
+        <Route path="/video/i2v" element={<VideoPackPage kind="i2v" />} />
+        <Route path="/video/motion" element={<VideoPackPage kind="motion" />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
     </Routes>

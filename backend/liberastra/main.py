@@ -22,6 +22,7 @@ from liberastra.core.config import get_settings
 from liberastra.core.db import run_migrations
 from liberastra.core.logging import setup_logging
 from liberastra.jobs.manager import JobManager
+from liberastra.pipelines import register_video_jobs
 from liberastra.services.asr import register_asr_jobs
 from liberastra.services.image import register_image_jobs
 from liberastra.services.llm import register_llm_jobs
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
         register_tts_jobs(manager)
         register_asr_jobs(manager)
         register_image_jobs(manager)
+        register_video_jobs(manager)
         app.state.jobs = manager
         manager.start()
         yield

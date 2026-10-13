@@ -38,7 +38,13 @@ const NAV_GROUPS = [
   },
   {
     label: "视频",
-    items: [{ to: "/video", icon: Clapperboard, text: "视频（即将上线）", disabled: true }],
+    items: [
+      { to: "/video/quick", icon: Clapperboard, text: "快速创作" },
+      { to: "/video/assets", icon: Clapperboard, text: "自定义素材" },
+      { to: "/video/avatar", icon: Clapperboard, text: "数字人口播" },
+      { to: "/video/i2v", icon: Clapperboard, text: "图生视频" },
+      { to: "/video/motion", icon: Clapperboard, text: "动作迁移" },
+    ],
   },
   {
     label: "资产库",
