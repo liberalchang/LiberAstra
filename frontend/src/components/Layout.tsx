@@ -42,7 +42,7 @@ const NAV_GROUPS = [
   },
   {
     label: "设置",
-    items: [{ to: "/settings", icon: Settings, text: "设置（即将上线）", disabled: true }],
+    items: [{ to: "/settings", icon: Settings, text: "服务提供方" }],
   },
   {
     label: "开发者",

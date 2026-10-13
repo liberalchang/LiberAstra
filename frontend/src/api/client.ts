@@ -39,6 +39,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export type AuthStatus = components["schemas"]["AuthStatus"];
 export type UserOut = components["schemas"]["UserOut"];
 export type TokenResponse = components["schemas"]["TokenResponse"];
+export type ProviderTypeInfo = components["schemas"]["ProviderTypeInfo"];
+export type CapabilitiesOut = components["schemas"]["CapabilitiesOut"];
+export type ProviderOut = components["schemas"]["ProviderOut"];
+export type TestResult = components["schemas"]["TestResult"];
+
+export interface ProviderCreateInput {
+  name: string;
+  type: string;
+  base_url?: string;
+  api_key?: string;
+  concurrency?: number;
+  enabled?: boolean;
+}
 
 export const api = {
   authStatus: () => request<AuthStatus>("/api/v1/auth/status"),
@@ -54,4 +67,19 @@ export const api = {
     }),
   me: () => request<UserOut>("/api/v1/auth/me"),
   healthz: () => request<{ status: string; version: string }>("/healthz"),
+
+  capabilities: () => request<CapabilitiesOut>("/api/v1/capabilities"),
+  listProviders: () => request<ProviderOut[]>("/api/v1/providers"),
+  createProvider: (body: ProviderCreateInput) =>
+    request<ProviderOut>("/api/v1/providers", { method: "POST", body: JSON.stringify(body) }),
+  updateProvider: (id: number, body: Partial<ProviderCreateInput>) =>
+    request<ProviderOut>(`/api/v1/providers/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteProvider: (id: number) =>
+    request<void>(`/api/v1/providers/${id}`, { method: "DELETE" }),
+  testProvider: (id: number) =>
+    request<TestResult>(`/api/v1/providers/${id}/test`, { method: "POST" }),
+  fetchProviderModels: (id: number) => request<string[]>(`/api/v1/providers/${id}/models`),
 };

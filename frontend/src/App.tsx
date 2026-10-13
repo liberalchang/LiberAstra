@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { AuthPage } from "@/pages/AuthPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import { useAuthStore } from "@/stores/auth";
 
 function HomeRedirect() {
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
