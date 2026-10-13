@@ -16,6 +16,8 @@ import {
   Menu,
   Mic,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   PersonStanding,
   PlugZap,
   Sun,
@@ -84,10 +86,11 @@ const NAV_GROUPS: {
   },
 ];
 
-function navClass(isActive: boolean) {
+function navClass(isActive: boolean, collapsed: boolean) {
   return cn(
     "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/80 hover:bg-foreground/6",
     isActive && "bg-muted font-medium text-foreground",
+    collapsed && "justify-center px-0",
   );
 }
 
@@ -98,26 +101,42 @@ export function Layout() {
   const [dark, setDark] = useState(() => localStorage.getItem("liberastra-theme") !== "light");
   const [banner, setBanner] = useState(() => sessionStorage.getItem("liberastra-banner") !== "off");
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("liberastra-sidebar") === "collapsed",
+  );
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("liberastra-theme", dark ? "dark" : "light");
   }, [dark]);
 
+  useEffect(() => {
+    localStorage.setItem("liberastra-sidebar", collapsed ? "collapsed" : "expanded");
+  }, [collapsed]);
+
   if (!token) return <Navigate to="/auth" replace />;
 
-  const sidebar = (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-sidebar">
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <span className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+  const renderSidebar = (mini: boolean) => (
+    <aside
+      className={cn(
+        "flex h-full shrink-0 flex-col border-r border-border bg-sidebar transition-[width] duration-200",
+        mini ? "w-16" : "w-60",
+      )}
+    >
+      <div className={cn("flex items-center gap-2.5 px-4 py-4", mini && "justify-center px-2")}>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
           L
         </span>
-        <span className="text-[15px] font-semibold tracking-tight">LiberAstra</span>
+        {!mini && <span className="text-[15px] font-semibold tracking-tight">LiberAstra</span>}
       </div>
-      <nav className="nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4">
+      <nav className={cn("nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto pb-4", mini ? "px-2" : "px-3")}>
         {NAV_GROUPS.map((group) => (
           <div key={group.labelKey}>
-            <div className="px-3 pb-1 text-xs text-muted-foreground">{t(group.labelKey)}</div>
+            {mini ? (
+              <div className="mx-auto mb-1 h-px w-6 bg-border" aria-hidden />
+            ) : (
+              <div className="px-3 pb-1 text-xs text-muted-foreground">{t(group.labelKey)}</div>
+            )}
             <div className="flex flex-col gap-0.5">
               {group.items.map((item) =>
                 item.href ? (
@@ -126,21 +145,23 @@ export function Layout() {
                     href={item.href}
                     target="_blank"
                     rel="noreferrer"
-                    className={navClass(false)}
+                    className={navClass(false, mini)}
+                    title={mini ? t(item.key) : undefined}
                     onClick={() => setOpen(false)}
                   >
                     <item.icon className="size-4 shrink-0" />
-                    {t(item.key)}
+                    {!mini && t(item.key)}
                   </a>
                 ) : (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={({ isActive }) => navClass(isActive)}
+                    className={({ isActive }) => navClass(isActive, mini)}
+                    title={mini ? t(item.key) : undefined}
                     onClick={() => setOpen(false)}
                   >
                     <item.icon className="size-4 shrink-0" />
-                    {t(item.key)}
+                    {!mini && t(item.key)}
                   </NavLink>
                 ),
               )}
@@ -148,7 +169,12 @@ export function Layout() {
           </div>
         ))}
       </nav>
-      <div className="flex items-center gap-1 border-t border-border px-3 py-2">
+      <div
+        className={cn(
+          "flex items-center gap-1 border-t border-border px-3 py-2",
+          mini && "flex-col items-center px-2",
+        )}
+      >
         <Button
           variant="ghost"
           size="icon"
@@ -162,6 +188,15 @@ export function Layout() {
         </Button>
         <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
           <LogOut />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={mini ? "" : "ml-auto"}
+          onClick={() => setCollapsed((v) => !v)}
+          title={mini ? t("common.expand") : t("common.collapse")}
+        >
+          {mini ? <PanelLeftOpen /> : <PanelLeftClose />}
         </Button>
       </div>
     </aside>
@@ -186,11 +221,11 @@ export function Layout() {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        <div className="hidden md:block">{sidebar}</div>
+        <div className="hidden md:block">{renderSidebar(collapsed)}</div>
         {open && (
           <div className="fixed inset-0 z-40 md:hidden">
             <button className="absolute inset-0 bg-black/60" aria-label={t("common.cancel")} onClick={() => setOpen(false)} />
-            <div className="relative z-10 h-full">{sidebar}</div>
+            <div className="relative z-10 h-full">{renderSidebar(false)}</div>
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
