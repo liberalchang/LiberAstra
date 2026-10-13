@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "liberastra"
+version = "0.1.0"
+description = "Self-hosted AIGC orchestration hub (TTS / ASR / Image / Video / LLM)"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.8",
+    "cryptography>=43",
+    "httpx>=0.27",
+    "loguru>=0.7",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+mcp = [
+    "fastmcp>=2",
+]
+postgres = [
+    "psycopg[binary]>=3.2",
+]
+
+[project.scripts]
+astra = "liberastra.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["liberastra"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
