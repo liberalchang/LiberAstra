@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 export function AsrPage() {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -18,10 +18,8 @@ export function AsrPage() {
   const [providerId, setProviderId] = useState<number | "">("");
   const [language, setLanguage] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob("asr");
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");

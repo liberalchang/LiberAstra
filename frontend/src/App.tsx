@@ -7,6 +7,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { AsrPage } from "@/pages/AsrPage";
 import { AssetsPage } from "@/pages/AssetsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { GuidePage } from "@/pages/GuidePage";
 import { ImageEditPage } from "@/pages/ImageEditPage";
 import { ImageGenPage } from "@/pages/ImageGenPage";
 import { JobsPage } from "@/pages/JobsPage";
@@ -38,6 +39,7 @@ export default function App() {
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
         <Route path="/speech/voices" element={<VoicesPage />} />

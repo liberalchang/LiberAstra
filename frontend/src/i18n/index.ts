@@ -15,6 +15,7 @@ const zh = {
   },
   nav: {
     dashboard: "总览",
+    guide: "使用文档",
     tts: "文字转语音",
     asr: "语音转文字",
     voices: "音色库",
@@ -123,6 +124,7 @@ const en: typeof zh = {
   },
   nav: {
     dashboard: "Overview",
+    guide: "Guide",
     tts: "Text to Speech",
     asr: "Speech to Text",
     voices: "Voice Library",

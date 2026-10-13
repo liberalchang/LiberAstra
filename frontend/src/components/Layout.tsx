@@ -1,5 +1,6 @@
 import {
   AudioLines,
+  BookOpen,
   Clapperboard,
   Code2,
   Film,
@@ -35,7 +36,13 @@ const NAV_GROUPS: {
   labelKey: string;
   items: { to: string; icon: typeof LayoutDashboard; key: string; href?: string }[];
 }[] = [
-  { labelKey: "group.workbench", items: [{ to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" }] },
+  {
+    labelKey: "group.workbench",
+    items: [
+      { to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" },
+      { to: "/guide", icon: BookOpen, key: "nav.guide" },
+    ],
+  },
   {
     labelKey: "group.image",
     items: [

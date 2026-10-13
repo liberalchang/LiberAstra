@@ -10,7 +10,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 export function VideoAssetsPage() {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
@@ -22,11 +22,10 @@ export function VideoAssetsPage() {
   const [aspect, setAspect] = useState("9:16");
   const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
   const [voiceName, setVoiceName] = useState("");
-  const [jobId, setJobId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob("video-assets");
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");

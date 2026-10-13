@@ -5,14 +5,15 @@ import { useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import { ASPECT_OPTIONS, AspectSelect, type AspectOption } from "@/components/ui/aspect-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
-const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed"];
+const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed", "batch_size"];
 
 export function ImageGenPage() {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -35,16 +36,14 @@ export function ImageGenPage() {
     () => (location.state as { prompt?: string } | null)?.prompt ?? "",
   );
   const [negative, setNegative] = useState("");
-  const [width, setWidth] = useState(1024);
-  const [height, setHeight] = useState(1024);
+  const [aspect, setAspect] = useState<AspectOption>(ASPECT_OPTIONS[1]); // 默认 1:1 1024×1024
   const [steps, setSteps] = useState(20);
   const [seed, setSeed] = useState(-1);
+  const [count, setCount] = useState(1);
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [jobId, setJobId] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob("image-generate");
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");
@@ -69,10 +68,11 @@ export function ImageGenPage() {
         workflow: isComfy ? pack?.name : undefined,
         prompt,
         negative_prompt: negative,
-        width,
-        height,
+        width: aspect.width,
+        height: aspect.height,
         steps,
         seed,
+        n: count,
         inputs: Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== "")),
       }),
     onSuccess: (j) => {
@@ -158,18 +158,22 @@ export function ImageGenPage() {
               onChange={(e) => setNegative(e.target.value)}
             />
           </Field>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="宽度" hint="输出宽度，单位像素。">
-              <Input type="number" value={width} onChange={(e) => setWidth(Number(e.target.value))} />
-            </Field>
-            <Field label="高度" hint="输出高度，单位像素。">
-              <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} />
-            </Field>
+          <AspectSelect value={aspect} onChange={setAspect} />
+          <div className="grid gap-3 sm:grid-cols-3">
             <Field label="步数" hint="采样步数。数值越大通常越慢。">
               <Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} />
             </Field>
             <Field label="种子" hint="-1 表示每次随机。">
               <Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} />
+            </Field>
+            <Field label="张数" hint="同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。">
+              <Input
+                type="number"
+                min={1}
+                max={4}
+                value={count}
+                onChange={(e) => setCount(Math.min(4, Math.max(1, Number(e.target.value) || 1)))}
+              />
             </Field>
           </div>
 

@@ -1,0 +1,62 @@
+name: qwen_image_21
+capability: t2i
+description: Qwen-Image 2.1 文生图。模型文件名写在工作流里，张数写入空 Latent 的 batch_size。
+inputs:
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  width:
+    node: "6"
+    field: inputs.width
+    type: int
+    default: 1024
+    min: 256
+    max: 2560
+  height:
+    node: "6"
+    field: inputs.height
+    type: int
+    default: 1024
+    min: 256
+    max: 2560
+  steps:
+    node: "7"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "7"
+    field: inputs.seed
+    type: int
+    default: -1
+  batch_size:
+    node: "6"
+    field: inputs.batch_size
+    type: int
+    default: 1
+    min: 1
+    max: 8
+    description: 同一次采样出的张数，种子按张递增
+outputs:
+  node: "9"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - TextEncodeQwenImage21
+    - EmptyLatentImage
+    - KSampler
+    - VAEDecode
+    - SaveImage

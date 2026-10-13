@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 export function TtsPage() {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -25,11 +25,9 @@ export function TtsPage() {
   const [text, setText] = useState(
     () => (location.state as { prompt?: string } | null)?.prompt ?? "",
   );
-  const [jobId, setJobId] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob("tts");
 
   useEffect(() => {
     if (!job || job.status !== "succeeded") return;

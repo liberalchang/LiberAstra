@@ -10,7 +10,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 interface Props {
   /** i2i = 图生图与编辑；upscale = 修复与放大 */
@@ -38,11 +38,9 @@ export function ImageEditPage({ capability, title, description }: Props) {
   const [prompt, setPrompt] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [jobId, setJobId] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob(`image-${capability}`);
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");

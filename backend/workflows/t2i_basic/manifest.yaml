@@ -49,6 +49,14 @@ inputs:
     field: inputs.seed
     type: int
     default: -1
+  batch_size:
+    node: "5"
+    field: inputs.batch_size
+    type: int
+    default: 1
+    min: 1
+    max: 8
+    description: 同一次采样出的张数，种子按张递增
 outputs:
   node: "9"
   key: images

@@ -43,6 +43,15 @@ def test_apply_inputs_injects_and_clamps() -> None:
     assert workflow["4"]["inputs"]["ckpt_name"] == "flux.safetensors"
 
 
+def test_qwen_pack_sets_batch_size() -> None:
+    pack = get_pack("qwen_image_21")
+    workflow = apply_inputs(pack, {"prompt": "一只猫", "batch_size": 3, "seed": 7})
+    assert workflow["6"]["inputs"]["batch_size"] == 3
+    assert workflow["5"]["inputs"]["prompt"] == "一只猫"
+    assert workflow["7"]["inputs"]["seed"] == 7
+    assert workflow["7"]["inputs"]["cfg"] == 1
+
+
 def test_apply_inputs_missing_required() -> None:
     pack = get_pack("t2i_basic")
     with pytest.raises(ProviderError, match="必填"):

@@ -5,6 +5,7 @@ import {
   Image as ImageIcon,
   ImageUp,
   Images,
+  BookOpen,
   Library,
   ListTodo,
   Mic,
@@ -31,7 +32,8 @@ export type MarkKind =
   | "library"
   | "jobs"
   | "settings"
-  | "workflow";
+  | "workflow"
+  | "guide";
 
 /** 功能图标来自 lucide-react，按主题色着色。 */
 const MARK_ICON: Record<MarkKind, LucideIcon> = {
@@ -50,6 +52,7 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   jobs: ListTodo,
   settings: Settings,
   workflow: Workflow,
+  guide: BookOpen,
 };
 
 export function FeatureMark({ kind }: { kind: MarkKind }) {

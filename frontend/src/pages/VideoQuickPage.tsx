@@ -11,7 +11,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 export function VideoQuickPage() {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
@@ -31,12 +31,11 @@ export function VideoQuickPage() {
   const [storyboardOnly, setStoryboardOnly] = useState(false);
   const [bgmFile, setBgmFile] = useState<File | null>(null);
 
-  const [jobId, setJobId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [storyboardText, setStoryboardText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob("video-quick");
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");

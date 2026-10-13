@@ -10,7 +10,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { useJob } from "@/hooks/useJob";
+import { useTrackedJob } from "@/hooks/useJob";
 
 export type PackVideoKind = "i2v" | "avatar" | "motion";
 
@@ -59,11 +59,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
   const [voiceName, setVoiceName] = useState("");
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const [jobId, setJobId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const job = useJob(jobId).data;
+  const { job, setJobId } = useTrackedJob(`video-${kind}`);
 
   useEffect(() => {
     if (job?.status === "failed") setError(job.error ?? "任务失败");

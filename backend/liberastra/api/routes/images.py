@@ -49,6 +49,7 @@ async def generate(
         "width": body.width,
         "height": body.height,
         "seed": body.seed,
+        "batch_size": body.n,
         **({"steps": body.steps} if body.steps is not None else {}),
         **body.inputs,
     }
