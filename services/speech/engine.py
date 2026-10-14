@@ -38,6 +38,22 @@ def tts_ready() -> bool:
     return bool(_tts)
 
 
+def configured_models() -> list[dict[str, str]]:
+    """返回当前进程实际会加载的模型，不触发下载或推理。"""
+    asr = os.getenv("LIBER_SPEECH_ASR_MODEL", "large-v3").strip() or "large-v3"
+    asr_name = os.path.basename(asr.rstrip("/\\")) or asr
+    tts = os.getenv("LIBER_SPEECH_TTS_MODEL", "multilingual").strip() or "multilingual"
+    tts_names = {
+        "multilingual": "Chatterbox multilingual",
+        "turbo": "Chatterbox turbo",
+        "standard": "Chatterbox",
+    }
+    return [
+        {"name": asr_name, "role": "ASR"},
+        {"name": tts_names.get(tts, tts), "role": "TTS"},
+    ]
+
+
 def transcribe(path: str, *, language: str | None, task: str) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
     global _asr, _asr_name
     name = os.getenv("LIBER_SPEECH_ASR_MODEL", "large-v3")
@@ -64,7 +80,13 @@ def transcribe(path: str, *, language: str | None, task: str) -> tuple[str, list
     return "".join(texts).strip() or " ".join(texts).strip(), chunks, meta
 
 
-def synthesize(text: str, *, model: str, language: str | None) -> tuple[int, Any]:
+def synthesize(
+    text: str,
+    *,
+    model: str,
+    language: str | None,
+    audio_prompt: str | None = None,
+) -> tuple[int, Any]:
     """返回 (sample_rate, 一维波形)。"""
     device = resolve_device()
     kind = model if model in {"turbo", "standard", "multilingual"} else "multilingual"
@@ -89,6 +111,8 @@ def synthesize(text: str, *, model: str, language: str | None) -> tuple[int, Any
         if not language:
             raise ValueError("multilingual 模型需要 language，例如 zh 或 en")
         kwargs["language_id"] = language
+    if audio_prompt:
+        kwargs["audio_prompt_path"] = audio_prompt
     wav = engine.generate(text, **kwargs)
     if hasattr(wav, "dim") and wav.dim() == 3:
         wav = wav.squeeze(0)

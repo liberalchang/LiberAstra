@@ -25,11 +25,15 @@ async def synthesize(
     provider = pick_provider(db, "tts", body.provider_id)
 
     voice_name = body.voice
+    options = dict(body.options)
     if body.voice_record_id is not None:
         record = db.get(Voice, body.voice_record_id)
         if record is None or record.owner_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音色不存在")
         voice_name = record.voice_id or record.name
+        # 参考音频用来模仿音色。voice_id 可能是编号，不能当成语言。
+        if record.ref_audio_path and "ref_audio" not in options:
+            options["ref_audio"] = record.ref_audio_path
     if not voice_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 voice 或 voice_record_id"
@@ -43,7 +47,7 @@ async def synthesize(
             "text": body.text,
             "voice": voice_name,
             "format": body.format,
-            "options": body.options,
+            "options": options,
         },
         provider_id=provider.id,
         model=body.model,

@@ -51,6 +51,7 @@ const zh = {
     pending: "排队中",
     succeeded: "成功",
     empty: "暂无数据",
+    preview: "预览",
   },
   auth: {
     subtitleSetup: "首次启动：创建管理员账号",
@@ -162,6 +163,7 @@ const en: typeof zh = {
     pending: "Pending",
     succeeded: "Succeeded",
     empty: "Nothing here yet",
+    preview: "Preview",
   },
   auth: {
     subtitleSetup: "First run: create the admin account",

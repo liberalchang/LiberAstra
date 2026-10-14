@@ -1,7 +1,7 @@
 import { Settings } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlugZap, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, PlugZap, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { api, type ProviderOut, type TestResult } from "@/api/client";
@@ -25,6 +25,7 @@ export function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [rowFeedback, setRowFeedback] = useState<Record<number, TestResult>>({});
+  const [expandedModels, setExpandedModels] = useState<Record<number, boolean>>({});
 
   const selectedType = caps?.provider_types.find((t) => t.type === type);
 
@@ -59,6 +60,7 @@ export function SettingsPage() {
   const fetchModels = useMutation({
     mutationFn: (id: number) => api.fetchProviderModels(id),
     onSuccess: (_models, id) => {
+      setExpandedModels((prev) => ({ ...prev, [id]: true }));
       setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: "模型列表已更新" } }));
       invalidate();
     },
@@ -154,7 +156,8 @@ export function SettingsPage() {
         )}
         {providers?.map((p) => (
           <Card key={p.id}>
-            <CardContent className="flex flex-wrap items-center gap-3 p-4">
+            <CardContent className="flex flex-col gap-3 p-4">
+              <div className="flex flex-wrap items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{p.name}</span>
@@ -162,9 +165,27 @@ export function SettingsPage() {
                   {!p.enabled && <span className="rounded bg-muted px-1.5 py-0.5 text-xs">已停用</span>}
                 </div>
                 <div className="truncate text-sm text-muted-foreground">{p.base_url}</div>
-                <div className="text-xs text-muted-foreground">
-                  {p.models.length > 0 ? `${p.models.length} 个模型` : "未拉取模型列表"}
-                  {p.has_api_key ? " · 已配置密钥" : ""}
+                <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                  {p.models.length > 0 ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                      aria-expanded={!!expandedModels[p.id]}
+                      onClick={() =>
+                        setExpandedModels((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
+                      }
+                    >
+                      {expandedModels[p.id] ? (
+                        <ChevronDown className="size-3.5" />
+                      ) : (
+                        <ChevronRight className="size-3.5" />
+                      )}
+                      {p.models.length} 个模型
+                    </button>
+                  ) : (
+                    <span>没有已保存的模型</span>
+                  )}
+                  {p.has_api_key ? <span>已配置密钥</span> : null}
                 </div>
                 {rowFeedback[p.id] && (
                   <div className={`text-xs ${rowFeedback[p.id].ok ? "text-green-600" : "text-red-500"}`}>
@@ -186,6 +207,16 @@ export function SettingsPage() {
               <Button variant="ghost" size="icon" onClick={() => remove.mutate(p.id)} title="删除">
                 <Trash2 />
               </Button>
+              </div>
+              {p.models.length > 0 && expandedModels[p.id] && (
+                <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                  {p.models.map((model) => (
+                    <li key={model} className="break-all rounded bg-muted px-2 py-1 font-mono text-xs text-foreground">
+                      {model}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         ))}

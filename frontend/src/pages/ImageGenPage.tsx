@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Image as ImageIcon, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed", "batch_size"];
 
@@ -21,7 +22,7 @@ export function ImageGenPage() {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const imageProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("image"));
 
-  const [providerId, setProviderId] = useState<number | "">("");
+  const [providerId, setProviderId] = usePersistentState<number | "">("image-generate:provider", "");
   const provider = imageProviders?.find((p) => p.id === providerId) ?? imageProviders?.[0];
   const isComfy = provider?.type === "comfyui";
 
@@ -30,19 +31,27 @@ export function ImageGenPage() {
     queryFn: () => api.listWorkflows("t2i"),
     enabled: isComfy,
   });
-  const [workflow, setWorkflow] = useState("");
+  const [workflow, setWorkflow] = usePersistentState("image-generate:workflow", "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
 
   const location = useLocation();
-  const [prompt, setPrompt] = useState(
-    () => (location.state as { prompt?: string } | null)?.prompt ?? "",
-  );
-  const [negative, setNegative] = useState("");
-  const [aspect, setAspect] = useState<AspectOption>(ASPECT_OPTIONS[1]); // 默认 1:1 1024×1024
-  const [steps, setSteps] = useState(20);
-  const [seed, setSeed] = useState(-1);
-  const [count, setCount] = useState(1);
-  const [extra, setExtra] = useState<Record<string, string>>({});
+  const incomingPrompt = (location.state as { prompt?: string } | null)?.prompt;
+  const [prompt, setPrompt] = usePersistentState("image-generate:prompt", "");
+  // 从其他页面带过来的提示词优先于本地记忆
+  useEffect(() => {
+    if (incomingPrompt) setPrompt(incomingPrompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [negative, setNegative] = usePersistentState("image-generate:negative", "");
+  const [aspectRaw, setAspect] = usePersistentState<AspectOption>("image-generate:aspect", ASPECT_OPTIONS[1]);
+  // 持久化的宽高比需对回当前选项表，失效时回落默认 1:1 1024×1024
+  const aspect =
+    ASPECT_OPTIONS.find((o) => o.width === aspectRaw?.width && o.height === aspectRaw?.height) ??
+    ASPECT_OPTIONS[1];
+  const [steps, setSteps] = usePersistentState("image-generate:steps", 20);
+  const [seed, setSeed] = usePersistentState("image-generate:seed", -1);
+  const [count, setCount] = usePersistentState("image-generate:count", 1);
+  const [extra, setExtra] = usePersistentState<Record<string, string>>("image-generate:extra", {});
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("image-generate");
 

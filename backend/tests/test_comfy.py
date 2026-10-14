@@ -46,6 +46,26 @@ def _mock_comfy() -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
+def test_comfy_lists_model_folders() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/models/checkpoints":
+            return httpx.Response(200, json=[])
+        if path == "/models/diffusion_models":
+            return httpx.Response(200, json=["qwen.safetensors"])
+        if path == "/models/vae":
+            return httpx.Response(200, json=["vae.safetensors"])
+        return httpx.Response(404, text=path)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = ComfyClient("http://comfy:8188", client=http)
+            names = await client.list_model_files()
+            assert names == ["diffusion_models/qwen.safetensors", "vae/vae.safetensors"]
+
+    asyncio.run(run())
+
+
 def test_comfy_client_flow() -> None:
     async def run() -> None:
         async with httpx.AsyncClient(transport=_mock_comfy()) as http:

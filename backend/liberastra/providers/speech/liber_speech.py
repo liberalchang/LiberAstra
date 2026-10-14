@@ -14,10 +14,15 @@ from urllib.parse import urljoin
 import httpx
 
 from liberastra.providers.base import ASRResult, ASRSegment, ProviderError
+from liberastra.storage.local import resolve
 
 # Liber Speech API 直接支持的容器格式。mp3 由本进程用 ffmpeg 从 wav 转出。
 _DIRECT_FORMATS = {"wav": "wav", "ogg": "ogg_opus", "ogg_opus": "ogg_opus", "opus": "ogg_opus"}
-_LANG_CODES = ("zh", "en", "ja", "ko", "fr", "de", "es")
+# Chatterbox multilingual 接受的 language_id。短字符串不一定是语言，例如音色编号 1。
+_LANG_CODES = (
+    "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko",
+    "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh",
+)
 
 
 def _api_root(base_url: str) -> str:
@@ -36,19 +41,16 @@ def _origin(api_root: str) -> str:
 
 
 def language_from_voice(voice: str, explicit: str | None = None) -> str:
-    """Liber Speech 的多语言模型用语言代码，不用 Edge 那种音色名。"""
+    """从语言代码或 zh-CN 这类前缀得到 language_id。识别不了时用 zh。"""
     if explicit and explicit.strip():
-        return explicit.strip().split("-")[0].lower()
-    token = (voice or "").strip()
-    if not token:
-        return "zh"
-    head = token.split("-")[0].lower()
-    if head in _LANG_CODES or len(token) <= 5:
-        return head
-    lowered = token.lower()
-    for code in _LANG_CODES:
-        if lowered.startswith(code):
+        code = explicit.strip().split("-")[0].lower()
+        if code in _LANG_CODES:
             return code
+    token = (voice or "").strip()
+    if token:
+        head = token.split("-")[0].lower()
+        if head in _LANG_CODES:
+            return head
     return "zh"
 
 
@@ -88,7 +90,7 @@ class LiberSpeech:
                 await http.aclose()
         if resp.status_code >= 400:
             detail = resp.text[:500]
-            raise ProviderError(f"Liber Speech API HTTP {resp.status_code}: {detail}")
+            raise ProviderError(f"Liber Speech API HTTP {resp.status_code} {url}: {detail}")
         return resp
 
     async def test(self) -> str:
@@ -98,8 +100,31 @@ class LiberSpeech:
         tts = "已加载" if data.get("tts_ready") else "尚未加载"
         return f"Liber Speech API {data.get('status', 'ok')}，ASR {asr}，TTS {tts}"
 
+    async def list_models(self) -> list[str]:
+        """向语音服务询问实际加载的 ASR / TTS 模型。地址错误时这里会失败。"""
+        resp = await self._request("GET", f"{self.api_root}/models")
+        payload = resp.json()
+        items = payload.get("models") if isinstance(payload, dict) else None
+        names: list[str] = []
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, str) and item.strip():
+                    names.append(item.strip())
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                role = str(item.get("role") or "").strip()
+                if name and role:
+                    names.append(f"{name} · {role}")
+                elif name:
+                    names.append(name)
+        if not names:
+            raise ProviderError(f"Liber Speech API 未返回模型 {self.api_root}/models")
+        return names
+
     async def list_voices(self) -> list[str]:
-        """该服务按语言代码选声音，不提供 Edge 风格的音色列表。"""
+        """合成时的语言代码，例如 zh、en。这不是模型列表。"""
         return list(_LANG_CODES)
 
     async def synthesize(
@@ -119,7 +144,20 @@ class LiberSpeech:
             "language": language,
             "format": speech_fmt,
         }
-        resp = await self._request("POST", f"{self.api_root}/tts/synthesize", data=form)
+        ref_audio = str(params.get("ref_audio") or "").strip()
+        if ref_audio:
+            path = resolve(ref_audio)
+            if not path.is_file():
+                raise ProviderError(f"参考音频不存在: {path.name}")
+            with path.open("rb") as fh:
+                resp = await self._request(
+                    "POST",
+                    f"{self.api_root}/tts/synthesize",
+                    data=form,
+                    files={"prompt": (path.name, fh, "application/octet-stream")},
+                )
+        else:
+            resp = await self._request("POST", f"{self.api_root}/tts/synthesize", data=form)
         payload = resp.json()
         audio_url = str(payload.get("audio_url") or "")
         if not audio_url:
@@ -175,26 +213,32 @@ def _segment(chunk: dict[str, Any]) -> ASRSegment:
     )
 
 
-async def _wav_to_mp3(wav: bytes) -> bytes:
-    """Liber Speech API 没有 mp3。页面默认格式是 mp3 时，在本机转一次。"""
+def _wav_to_mp3_sync(wav: bytes) -> bytes:
+    """用线程跑 ffmpeg。Windows 的事件循环不支持 asyncio 子进程。"""
     if not shutil.which("ffmpeg"):
         raise ProviderError(
             "Liber Speech API 输出 wav 或 ogg_opus。当前请求是 mp3，"
             "本机没有 ffmpeg，请把输出格式改成 wav。"
         )
-    import asyncio
+    import subprocess
 
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "in.wav"
         dst = Path(tmp) / "out.mp3"
         src.write_bytes(wav)
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y", "-i", str(src), "-codec:a", "libmp3lame", str(dst),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        proc = subprocess.run(
+            ["ffmpeg", "-y", "-i", str(src), "-codec:a", "libmp3lame", str(dst)],
+            capture_output=True,
+            check=False,
         )
-        _, stderr = await proc.communicate()
         if proc.returncode != 0 or not dst.is_file():
-            tail = stderr.decode(errors="replace")[-400:]
+            tail = proc.stderr.decode(errors="replace")[-400:]
             raise ProviderError(f"wav 转 mp3 失败: {tail}")
         return dst.read_bytes()
+
+
+async def _wav_to_mp3(wav: bytes) -> bytes:
+    """Liber Speech API 没有 mp3。页面默认格式是 mp3 时，在本机转一次。"""
+    import asyncio
+
+    return await asyncio.to_thread(_wav_to_mp3_sync, wav)

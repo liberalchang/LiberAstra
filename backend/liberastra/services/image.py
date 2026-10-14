@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -47,6 +48,7 @@ async def run_image_generate_job(db: Session, job: Job, ctx: JobContext) -> list
     params = job.params
 
     ctx.report(db, job, progress=0.05, step="generate")
+    started = time.monotonic()
     images = await produce_images(
         provider,
         workflow=params.get("workflow"),
@@ -60,7 +62,7 @@ async def run_image_generate_job(db: Session, job: Job, ctx: JobContext) -> list
     )
     if ctx.cancelled():
         return []
-    return _save_images(db, job, ctx, provider.name, images)
+    return _save_images(db, job, ctx, provider.name, images, duration_s=time.monotonic() - started)
 
 
 async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
@@ -69,6 +71,7 @@ async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dic
     params = job.params
 
     ctx.report(db, job, progress=0.05, step="edit")
+    started = time.monotonic()
     if provider.type == "comfyui":
         pack = get_pack(params["workflow"])
         inputs = dict(params.get("inputs", {}))
@@ -93,7 +96,7 @@ async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dic
         )
     if ctx.cancelled():
         return []
-    return _save_images(db, job, ctx, provider.name, images)
+    return _save_images(db, job, ctx, provider.name, images, duration_s=time.monotonic() - started)
 
 
 def _save_images(
@@ -102,7 +105,25 @@ def _save_images(
     ctx: JobContext,
     provider_name: str,
     images: list[tuple[str, bytes]],
+    *,
+    duration_s: float | None = None,
 ) -> list[dict[str, Any]]:
+    params = job.params
+    inputs = params.get("inputs") or {}
+    options = params.get("options") or {}
+    width, height = inputs.get("width"), inputs.get("height")
+    base_meta = {
+        "provider": provider_name,
+        "prompt": params.get("prompt") or inputs.get("prompt"),
+        "negative_prompt": inputs.get("negative_prompt"),
+        "workflow": params.get("workflow"),
+        "size": params.get("size") or (f"{width}x{height}" if width and height else None),
+        "model": job.model,
+        "seed": inputs.get("seed", options.get("seed")),
+        "duration_s": round(duration_s, 1) if duration_s is not None else None,
+    }
+    base_meta = {k: v for k, v in base_meta.items() if v not in (None, "")}
+
     outputs: list[dict[str, Any]] = []
     for i, (filename, content) in enumerate(images):
         ext = filename.rsplit(".", 1)[-1] if "." in filename else "png"
@@ -114,7 +135,7 @@ def _save_images(
             rel_path=rel_path,
             job_id=job.id,
             owner_id=job.owner_id,
-            meta={"provider": provider_name, "source_name": filename},
+            meta={**base_meta, "source_name": filename},
         )
         outputs.append(
             {"type": "asset", "asset_id": asset.id, "kind": "image", "filename": f"image_{i}.{ext}"}

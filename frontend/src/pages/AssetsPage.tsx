@@ -1,47 +1,28 @@
 import { FolderOpen } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, Eye, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, fetchAssetBlob, type AssetOut } from "@/api/client";
+import { api, type AssetOut } from "@/api/client";
+import {
+  downloadAssetById,
+  MediaLightbox,
+  MediaThumb,
+  type PreviewTarget,
+} from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatSize, assetDownloadName, assetSummary, assetTitle } from "@/lib/utils";
 
 const KINDS = ["image", "audio", "video", "subtitle", "text"] as const;
-
-function formatSize(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function AssetPreview({ asset }: { asset: AssetOut }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!["image", "audio", "video"].includes(asset.kind)) return;
-    let revoked = false;
-    fetchAssetBlob(asset.id).then((b) => {
-      if (!revoked) setUrl(URL.createObjectURL(b));
-    });
-    return () => {
-      revoked = true;
-    };
-  }, [asset.id, asset.kind]);
-
-  if (!url) return null;
-  if (asset.kind === "image") return <img src={url} alt="" className="max-h-40 rounded" />;
-  if (asset.kind === "audio") return <audio controls src={url} className="w-full" />;
-  if (asset.kind === "video") return <video controls src={url} className="max-h-40 rounded" />;
-  return null;
-}
 
 export function AssetsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<string>("");
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   const { data: assets } = useQuery({
     queryKey: ["assets", kind],
@@ -53,15 +34,15 @@ export function AssetsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] }),
   });
 
-  const download = async (asset: AssetOut) => {
-    const blob = await fetchAssetBlob(asset.id);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = asset.path.split("/").pop() ?? `asset-${asset.id}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const openPreview = (a: AssetOut) =>
+    setPreview({
+      id: a.id,
+      kind: a.kind,
+      name: assetTitle(a),
+      size: a.size,
+      createdAt: a.created_at,
+      meta: a.meta,
+    });
 
   return (
     <div className="flex max-w-5xl flex-col gap-4">
@@ -81,16 +62,39 @@ export function AssetsPage() {
         {assets?.map((a) => (
           <Card key={a.id}>
             <CardContent className="flex flex-col gap-2 p-3">
-              <AssetPreview asset={a} />
+              <button
+                type="button"
+                onClick={() => openPreview(a)}
+                className="group relative block w-full overflow-hidden rounded-lg"
+                title={t("common.preview")}
+              >
+                <div className="aspect-video w-full overflow-hidden bg-muted/50">
+                  <MediaThumb assetId={a.id} kind={a.kind} className="h-full w-full object-cover" />
+                </div>
+                <span className="absolute inset-0 grid place-items-center gap-1 rounded-lg bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+                  <Eye className="size-6 drop-shadow" />
+                  <span className="text-xs font-medium drop-shadow">{t("common.preview")}</span>
+                </span>
+              </button>
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate text-sm">{a.path.split("/").pop()}</div>
+                  <div className="truncate text-sm" title={assetSummary(a.meta) ?? undefined}>
+                    {assetTitle(a)}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {a.kind} · {formatSize(a.size)}
                   </div>
                 </div>
                 <div className="flex shrink-0">
-                  <Button variant="ghost" size="icon" onClick={() => download(a)} title={t("common.download")}>
+                  <Button variant="ghost" size="icon" onClick={() => openPreview(a)} title={t("common.preview")}>
+                    <Eye />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => downloadAssetById(a.id, assetDownloadName(a))}
+                    title={t("common.download")}
+                  >
                     <Download />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => remove.mutate(a.id)} title={t("common.delete")}>
@@ -102,6 +106,8 @@ export function AssetsPage() {
           </Card>
         ))}
       </div>
+
+      <MediaLightbox target={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

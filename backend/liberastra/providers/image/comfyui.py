@@ -40,4 +40,4 @@ class ComfyUIImage:
         return await self.client.test()
 
     async def list_models(self) -> list[str]:
-        return await self.client.list_checkpoints()
+        return await self.client.list_model_files()

@@ -68,7 +68,7 @@ export function VoicesPage() {
             <Field label="名称" hint="在合成和视频页的音色列表里显示这个名字。">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
-            <Field label="voice_id" hint="云端复刻返回的 ID。只用本地参考音频时可以留空。">
+            <Field label="voice_id" hint="云端克隆服务返回的音色编号才填。只用本地参考音频时留空，不要填 1 这种序号。">
               <Input
                 value={voiceId}
                 onChange={(e) => setVoiceId(e.target.value)}

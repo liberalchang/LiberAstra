@@ -7,6 +7,8 @@ services:
     build: .
     image: liberastra-speech:latest
     restart: unless-stopped
+    # 当前镜像里 torchvision 与 torch 版本不一致。重建镜像前，每次启动先卸掉。
+    command: ["bash", "-lc", "pip uninstall -y torchvision >/dev/null 2>&1 || true; exec uvicorn server:app --host 0.0.0.0 --port 5555"]
     ports:
       - "5555:5555"
     environment:
@@ -15,9 +17,19 @@ services:
       LIBER_SPEECH_ASR_MODEL: ${LIBER_SPEECH_ASR_MODEL:-large-v3}
       LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual}
       HF_HOME: /models
+      HUGGINGFACE_HUB_CACHE: /models
+      # 1 时只读本地缓存，不再访问 Hugging Face
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-0}
     volumes:
-      - speech-models:/models
+      # 未设置时用命名卷；设成宿主机目录则直接挂载已有权重
+      - ${LIBER_SPEECH_MODELS_DIR:-speech-models}:/models
       - speech-results:/data/results
+      # 接口代码挂载进容器，改模型列表接口时不用重新构建镜像
+      - ./server.py:/app/server.py:ro
+      - ./engine.py:/app/engine.py:ro
+      # 中文分词模型。宿主机已有 ~/.pkuseg 时挂进来，避免再从 GitHub 下载
+      - ${PKUSEG_HOST_DIR:-pkuseg-home}:/root/.pkuseg
     deploy:
       resources:
         reservations:
@@ -29,3 +41,4 @@ services:
 volumes:
   speech-models:
   speech-results:
+  pkuseg-home:

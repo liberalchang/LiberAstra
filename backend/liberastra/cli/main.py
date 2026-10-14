@@ -271,7 +271,7 @@ def asr(
                     "POST", "/api/v1/asr",
                     files={"file": (file.name, fh)},
                     data={
-                        "formats": f"txt,{fmt}",
+                        "formats": fmt,
                         **({"language": language} if language else {}),
                         **({"provider_id": str(provider_id)} if provider_id else {}),
                     },

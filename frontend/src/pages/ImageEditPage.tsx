@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 interface Props {
   /** i2i = 图生图与编辑；upscale = 修复与放大 */
@@ -25,7 +26,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const imageProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("image"));
 
-  const [providerId, setProviderId] = useState<number | "">("");
+  const [providerId, setProviderId] = usePersistentState<number | "">(`image-${capability}:provider`, "");
   const provider = imageProviders?.find((p) => p.id === providerId) ?? imageProviders?.[0];
   const isComfy = provider?.type === "comfyui";
 
@@ -34,12 +35,12 @@ export function ImageEditPage({ capability, title, description }: Props) {
     queryFn: () => api.listWorkflows(capability),
     enabled: isComfy,
   });
-  const [workflow, setWorkflow] = useState("");
+  const [workflow, setWorkflow] = usePersistentState(`image-${capability}:workflow`, "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
 
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = usePersistentState(`image-${capability}:prompt`, "");
   const [files, setFiles] = useState<FileList | null>(null);
-  const [extra, setExtra] = useState<Record<string, string>>({});
+  const [extra, setExtra] = usePersistentState<Record<string, string>>(`image-${capability}:extra`, {});
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob(`image-${capability}`);
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ async def run_tts_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
     fmt = params.get("format", "mp3")
 
     ctx.report(db, job, progress=0.1, step="synthesize")
+    started = time.monotonic()
     audio = await adapter.synthesize(
         text=params["text"],
         voice=params["voice"],
@@ -34,13 +36,21 @@ async def run_tts_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
     ext = _EXT_BY_FORMAT.get(fmt, fmt)
     rel_path = f"outputs/{job.id}/speech.{ext}"
     save_bytes(audio, rel_path)
+    meta = {
+        "voice": params["voice"],
+        "format": fmt,
+        "provider": provider.name,
+        "text": params["text"][:500],
+        "model": job.model,
+        "duration_s": round(time.monotonic() - started, 1),
+    }
     asset = create_asset(
         db,
         kind="audio",
         rel_path=rel_path,
         job_id=job.id,
         owner_id=job.owner_id,
-        meta={"voice": params["voice"], "format": fmt, "provider": provider.name},
+        meta={k: v for k, v in meta.items() if v not in (None, "")},
     )
     ctx.report(db, job, progress=1.0)
     return [

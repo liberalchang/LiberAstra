@@ -72,6 +72,35 @@
   animation: progress-shine 1.6s ease-in-out infinite;
 }
 
+/* 弹窗预览入场动画 */
+@keyframes lightbox-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lightbox-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.lightbox-backdrop {
+  animation: lightbox-fade 0.18s ease-out;
+}
+
+.lightbox-pop {
+  animation: lightbox-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 html,
 body,
 #root {

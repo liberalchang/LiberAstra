@@ -70,6 +70,12 @@ def _to_ogg(wav_path: Path, ogg_path: Path) -> None:
         raise HTTPException(status_code=500, detail=f"转码 ogg_opus 失败: {tail}")
 
 
+@app.get("/api/v1/models")
+def models() -> dict[str, object]:
+    """当前配置的 ASR / TTS 模型名。语言代码不是模型。"""
+    return {"models": engine.configured_models()}
+
+
 @app.get("/api/v1/health")
 def health() -> dict[str, object]:
     return {
@@ -86,17 +92,26 @@ def synthesize(
     model: str | None = Form(None),
     language: str | None = Form(None),
     format: str | None = Form(None),
+    prompt: UploadFile | None = File(None),
 ) -> dict[str, object]:
     fmt = (format or "wav").strip().lower()
     if fmt == "ogg":
         fmt = "ogg_opus"
     if fmt not in {"wav", "ogg_opus"}:
         raise HTTPException(status_code=400, detail="格式只支持 wav 或 ogg_opus")
+    prompt_path: Path | None = None
+    if prompt is not None and prompt.filename:
+        suffix = Path(prompt.filename).suffix.lower()
+        if suffix not in {".wav", ".mp3", ".ogg", ".flac"}:
+            raise HTTPException(status_code=400, detail="参考音频只支持 wav、mp3、ogg、flac")
+        prompt_path = results_dir() / f"prompt-{uuid.uuid4().hex}{suffix}"
+        prompt_path.write_bytes(prompt.file.read())
     try:
         sample_rate, wav = engine.synthesize(
             text,
             model=(model or os.getenv("LIBER_SPEECH_TTS_MODEL", "multilingual")),
             language=language,
+            audio_prompt=str(prompt_path) if prompt_path else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -104,6 +119,9 @@ def synthesize(
         raise HTTPException(status_code=503, detail=f"TTS 依赖未安装: {exc}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"TTS 合成失败: {exc}") from exc
+    finally:
+        if prompt_path is not None:
+            prompt_path.unlink(missing_ok=True)
 
     stem = uuid.uuid4().hex
     wav_path = results_dir() / f"{stem}.wav"

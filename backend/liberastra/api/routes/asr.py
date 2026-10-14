@@ -28,7 +28,7 @@ async def transcribe(
     language: Annotated[str | None, Form()] = None,
     task: Annotated[str, Form(pattern="^(transcribe|translate)$")] = "transcribe",
     model: Annotated[str | None, Form()] = None,
-    formats: Annotated[str, Form()] = "txt,srt,vtt,json",
+    formats: Annotated[str, Form()] = "txt,json,srt,vtt",
     wait: bool = False,
 ) -> Job:
     content = await file.read()

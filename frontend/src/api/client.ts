@@ -158,6 +158,7 @@ export const api = {
   cancelJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/cancel`, { method: "POST" }),
   retryJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/retry`, { method: "POST" }),
   deleteAsset: (id: number) => request<void>(`/api/v1/assets/${id}`, { method: "DELETE" }),
+  getAsset: (id: number) => request<AssetOut>(`/api/v1/assets/${id}`),
 
   submitTts: (body: {
     provider_id?: number;
@@ -165,6 +166,7 @@ export const api = {
     voice?: string;
     text: string;
     format: string;
+    options?: { language?: string };
   }) => request<JobOut>("/api/v1/tts", { method: "POST", body: JSON.stringify(body) }),
   submitAsr: (form: FormData) =>
     request<JobOut>("/api/v1/asr", { method: "POST", body: form }),

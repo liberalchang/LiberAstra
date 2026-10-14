@@ -107,12 +107,24 @@ def test_language_from_voice() -> None:
     assert language_from_voice("zh") == "zh"
     assert language_from_voice("zh-CN-XiaoxiaoNeural") == "zh"
     assert language_from_voice("alloy", "en-US") == "en"
+    assert language_from_voice("1") == "zh"
+    assert language_from_voice("志林") == "zh"
 
 
 def test_liber_speech_tts_and_asr(tmp_path) -> None:  # noqa: ANN001
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v1/health":
             return httpx.Response(200, json={"status": "ok", "asr_ready": False, "tts_ready": True})
+        if request.url.path == "/api/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {"name": "faster-whisper-large-v3", "role": "ASR"},
+                        {"name": "Chatterbox multilingual", "role": "TTS"},
+                    ]
+                },
+            )
         if request.url.path == "/api/v1/tts/synthesize":
             assert request.headers["Authorization"] == "Bearer speech-key"
             return httpx.Response(200, json={"audio_url": "/api/v1/results/a.wav", "meta": {}})
@@ -136,6 +148,10 @@ def test_liber_speech_tts_and_asr(tmp_path) -> None:  # noqa: ANN001
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
             adapter = LiberSpeech("http://speech:5555", "speech-key", client=client)
             assert "TTS 已加载" in await adapter.test()
+            assert await adapter.list_models() == [
+                "faster-whisper-large-v3 · ASR",
+                "Chatterbox multilingual · TTS",
+            ]
             assert await adapter.synthesize(text="你好", voice="zh", fmt="wav") == b"wav-bytes"
             result = await adapter.transcribe(file_path=str(audio), language="zh")
             assert result.text == "你好世界"

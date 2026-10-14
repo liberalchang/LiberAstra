@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,7 @@ def _single_cue_srt(text: str, duration: float) -> str:
 
 
 async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    started = time.monotonic()
     params = job.params
     provider_ids = params.get("providers", {})
     llm_provider = pick_provider(db, "llm", provider_ids.get("llm"))
@@ -187,7 +189,14 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
     video_asset = create_asset(
         db, kind="video", rel_path=f"outputs/{job.id}/{final_path.name}", job_id=job.id,
         owner_id=job.owner_id,
-        meta={"title": storyboard.get("title", ""), "provider": image_provider.name},
+        meta={
+            "title": storyboard.get("title", ""),
+            "provider": image_provider.name,
+            "aspect": params.get("aspect", "9:16"),
+            "voice": voice,
+            "frames": total,
+            "duration_s": round(time.monotonic() - started, 1),
+        },
     )
     outputs.append(
         {"type": "asset", "asset_id": video_asset.id, "kind": "video", "filename": final_path.name}

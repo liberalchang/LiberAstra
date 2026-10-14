@@ -1,11 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Download, FileText, ImageIcon, Loader2, Video, X } from "lucide-react";
+import { AudioLines, Download, ImageIcon, Loader2, Maximize2, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { api, fetchAssetBlob, TERMINAL_STATUSES, type AssetOut, type JobOut } from "@/api/client";
+import { api, TERMINAL_STATUSES, type JobOut } from "@/api/client";
+import {
+  downloadAssetById,
+  MediaLightbox,
+  MediaThumb,
+  type PreviewTarget,
+} from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { assetTitle, formatSize, formatTime } from "@/lib/utils";
 
 export interface MetaItem {
   label: string;
@@ -20,61 +26,6 @@ interface ResultPanelProps {
   historyKind: string;
   meta?: MetaItem[];
   emptyHint?: string;
-}
-
-const KIND_ICON = { image: ImageIcon, audio: AudioLines, video: Video, text: FileText, subtitle: FileText };
-
-function formatSize(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatTime(iso: string): string {
-  return iso.slice(0, 19).replace("T", " ");
-}
-
-async function downloadAsset(assetId: number, filename: string) {
-  const blob = await fetchAssetBlob(assetId);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** 媒体预览：按资产类型渲染 img / audio / video / 图标。 */
-function MediaPreview({ assetId, kind, className }: { assetId: number; kind: string; className?: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!["image", "audio", "video"].includes(kind)) return;
-    let revoked = false;
-    fetchAssetBlob(assetId).then((b) => {
-      if (!revoked) setUrl(URL.createObjectURL(b));
-    });
-    return () => {
-      revoked = true;
-    };
-  }, [assetId, kind]);
-
-  const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? FileText;
-  if (!url) {
-    return (
-      <div className={cn("grid place-items-center bg-muted/50", className)}>
-        <Icon className="size-10 text-muted-foreground/50" />
-      </div>
-    );
-  }
-  if (kind === "image") return <img src={url} alt="结果预览" className={cn("object-contain", className)} />;
-  if (kind === "video") return <video controls src={url} className={cn("object-contain", className)} />;
-  return (
-    <div className={cn("flex flex-col items-center justify-center gap-4 bg-muted/50 p-6", className)}>
-      <AudioLines className="size-10 text-primary" />
-      <audio controls src={url} className="w-full max-w-md" />
-    </div>
-  );
 }
 
 /** 生成中的精美进度展示。 */
@@ -101,9 +52,35 @@ function GeneratingState({ job }: { job: JobOut }) {
   );
 }
 
+/** 可点击的媒体缩略区：hover 显示提示，点击弹出全屏预览。 */
+function ClickableThumb({
+  target,
+  onOpen,
+  className,
+}: {
+  target: PreviewTarget;
+  onOpen: (t: PreviewTarget) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(target)}
+      className="group relative block w-full overflow-hidden rounded-xl"
+      title="点击预览"
+    >
+      <MediaThumb assetId={target.id} kind={target.kind} className={className} />
+      <span className="absolute inset-0 grid place-items-center gap-1 bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+        <Maximize2 className="size-6 drop-shadow" />
+        <span className="text-xs font-medium drop-shadow">点击预览</span>
+      </span>
+    </button>
+  );
+}
+
 export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint }: ResultPanelProps) {
   const queryClient = useQueryClient();
-  const [override, setOverride] = useState<AssetOut | null>(null);
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   const { data: history } = useQuery({
     queryKey: ["assets", historyKind],
@@ -116,10 +93,6 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
     }
   }, [job?.status, historyKind, queryClient]);
 
-  useEffect(() => {
-    setOverride(null);
-  }, [job?.id]);
-
   const running = job != null && !TERMINAL_STATUSES.includes(job.status);
   const resultAssets =
     job?.status === "succeeded"
@@ -127,6 +100,18 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
       : [];
   const primary = resultAssets.find((o) => o.kind === mediaKind) ?? resultAssets[0];
   const textOutput = job?.status === "succeeded" ? job.outputs.find((o) => o.type === "text") : null;
+
+  // 仅图像/音频/视频显示缩略预览区；文本/字幕结果直接展示正文
+  const primaryKind = primary?.kind ?? mediaKind;
+  const primaryTarget: PreviewTarget | null =
+    primary?.asset_id && primaryKind && ["image", "audio", "video"].includes(primaryKind)
+      ? {
+          id: primary.asset_id,
+          kind: primaryKind,
+          name: primary.filename,
+          createdAt: job?.created_at,
+        }
+      : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -148,29 +133,23 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
             {job && (
               <span className="text-xs text-muted-foreground">{formatTime(job.created_at)}</span>
             )}
-            {primary?.asset_id && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-auto"
-                onClick={() => downloadAsset(primary.asset_id!, primary.filename ?? `result-${primary.asset_id}`)}
-              >
-                <Download /> 下载
-              </Button>
+            {primaryTarget && (
+              <div className="ml-auto flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPreview(primaryTarget)}>
+                  <Maximize2 /> 预览
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadAssetById(primaryTarget.id, primaryTarget.name ?? `result-${primaryTarget.id}`)}
+                >
+                  <Download /> 下载
+                </Button>
+              </div>
             )}
           </div>
 
-          {override ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">预览历史资产</span>
-                <Button variant="ghost" size="sm" onClick={() => setOverride(null)}>
-                  <X /> 返回当前结果
-                </Button>
-              </div>
-              <MediaPreview assetId={override.id} kind={override.kind} className="w-full rounded-xl" />
-            </div>
-          ) : !job ? (
+          {!job ? (
             <div className="grid place-items-center gap-2 py-12 text-center">
               <span className="grid size-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
                 {mediaKind === "video" ? (
@@ -193,20 +172,20 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
             <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">任务已取消</div>
           ) : (
             <div className="flex flex-col gap-3">
-              {primary?.asset_id && (
-                <MediaPreview assetId={primary.asset_id} kind={primary.kind ?? mediaKind ?? "image"} className="w-full rounded-xl" />
+              {primaryTarget && (
+                <ClickableThumb target={primaryTarget} onOpen={setPreview} className="max-h-72 w-full object-contain" />
               )}
               {textOutput?.content && (
                 <div className="rounded-xl bg-muted p-4 text-sm whitespace-pre-wrap">{textOutput.content}</div>
               )}
-              {resultAssets.length > 1 && (
+              {(resultAssets.length > 1 || (!primaryTarget && resultAssets.length > 0)) && (
                 <div className="flex flex-wrap gap-2">
                   {resultAssets.map((o) => (
                     <Button
                       key={o.asset_id}
                       variant="outline"
                       size="sm"
-                      onClick={() => downloadAsset(o.asset_id!, o.filename ?? `asset-${o.asset_id}`)}
+                      onClick={() => downloadAssetById(o.asset_id!, o.filename ?? `asset-${o.asset_id}`)}
                     >
                       <Download /> {o.filename ?? o.format ?? o.asset_id}
                     </Button>
@@ -223,35 +202,36 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
         <h2 className="text-sm font-medium text-muted-foreground">历史作品</h2>
         {history?.length === 0 && <p className="text-sm text-muted-foreground">暂无历史记录</p>}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-          {history?.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              onClick={() => setOverride(a)}
-              className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-md"
-            >
-              <div className="relative aspect-video w-full overflow-hidden bg-muted/50">
-                {["image", "video"].includes(a.kind) ? (
-                  <MediaPreview assetId={a.id} kind={a.kind} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="grid h-full place-items-center">
-                    {(() => {
-                      const Icon = KIND_ICON[a.kind as keyof typeof KIND_ICON] ?? FileText;
-                      return <Icon className="size-8 text-muted-foreground/60" />;
-                    })()}
-                  </div>
-                )}
-              </div>
-              <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
-                <span className="truncate text-sm">{a.path.split("/").pop()}</span>
-                <span className="text-xs text-muted-foreground">
-                  {a.kind} · {formatSize(a.size)} · {formatTime(a.created_at)}
-                </span>
-              </div>
-            </button>
-          ))}
+          {history?.map((a) => {
+            const name = assetTitle(a);
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() =>
+                  setPreview({ id: a.id, kind: a.kind, name, size: a.size, createdAt: a.created_at, meta: a.meta })
+                }
+                className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-md"
+              >
+                <div className="relative aspect-video w-full overflow-hidden bg-muted/50">
+                  <MediaThumb assetId={a.id} kind={a.kind} className="h-full w-full object-cover" />
+                  <span className="absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+                    <Maximize2 className="size-6 text-white drop-shadow" />
+                  </span>
+                </div>
+                <div className="flex min-w-0 flex-col gap-0.5 p-2.5">
+                  <span className="truncate text-sm">{name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {a.kind} · {formatSize(a.size)} · {formatTime(a.created_at)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      <MediaLightbox target={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

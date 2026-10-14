@@ -13,17 +13,18 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export function VideoAssetsPage() {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   const [files, setFiles] = useState<FileList | null>(null);
-  const [mode, setMode] = useState<"script" | "topic">("script");
-  const [script, setScript] = useState("");
-  const [topic, setTopic] = useState("");
-  const [aspect, setAspect] = useState("9:16");
-  const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
-  const [voiceName, setVoiceName] = useState("");
+  const [mode, setMode] = usePersistentState<"script" | "topic">("video-assets:mode", "script");
+  const [script, setScript] = usePersistentState("video-assets:script", "");
+  const [topic, setTopic] = usePersistentState("video-assets:topic", "");
+  const [aspect, setAspect] = usePersistentState("video-assets:aspect", "9:16");
+  const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-assets:voice-record", "");
+  const [voiceName, setVoiceName] = usePersistentState("video-assets:voice-name", "");
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob("video-assets");

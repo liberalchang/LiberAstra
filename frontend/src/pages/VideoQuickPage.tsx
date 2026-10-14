@@ -14,23 +14,28 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export function VideoQuickPage() {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
-  const [mode, setMode] = useState<"topic" | "script">("topic");
+  const [mode, setMode] = usePersistentState<"topic" | "script">("video-quick:mode", "topic");
   const location = useLocation();
-  const [topic, setTopic] = useState(
-    () => (location.state as { prompt?: string } | null)?.prompt ?? "",
-  );
-  const [script, setScript] = useState("");
-  const [splitMode, setSplitMode] = useState("paragraph");
-  const [count, setCount] = useState(4);
-  const [aspect, setAspect] = useState("9:16");
-  const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
-  const [voiceName, setVoiceName] = useState("");
-  const [stylePrefix, setStylePrefix] = useState("");
-  const [storyboardOnly, setStoryboardOnly] = useState(false);
+  const incomingTopic = (location.state as { prompt?: string } | null)?.prompt;
+  const [topic, setTopic] = usePersistentState("video-quick:topic", "");
+  // 从其他页面带过来的主题优先于本地记忆
+  useEffect(() => {
+    if (incomingTopic) setTopic(incomingTopic);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [script, setScript] = usePersistentState("video-quick:script", "");
+  const [splitMode, setSplitMode] = usePersistentState("video-quick:split-mode", "paragraph");
+  const [count, setCount] = usePersistentState("video-quick:count", 4);
+  const [aspect, setAspect] = usePersistentState("video-quick:aspect", "9:16");
+  const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-quick:voice-record", "");
+  const [voiceName, setVoiceName] = usePersistentState("video-quick:voice-name", "");
+  const [stylePrefix, setStylePrefix] = usePersistentState("video-quick:style-prefix", "");
+  const [storyboardOnly, setStoryboardOnly] = usePersistentState("video-quick:storyboard-only", false);
   const [bgmFile, setBgmFile] = useState<File | null>(null);
 
   const [storyboardText, setStoryboardText] = useState<string | null>(null);

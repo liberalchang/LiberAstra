@@ -52,8 +52,19 @@ def test_image_generate_job(
     assert job["status"] == "succeeded", job["error"]
     assert len(job["outputs"]) == 2
 
+    asset = client.get(f"/api/v1/assets/{job['outputs'][0]['asset_id']}", headers=auth_header).json()
+    assert asset["meta"]["prompt"] == "一只猫"
+    assert asset["meta"]["workflow"] == "t2i_basic"
+    assert asset["meta"]["provider"] == "mock-comfy"
+    assert asset["meta"]["source_name"] == "a.png"
+    assert asset["meta"]["duration_s"] >= 0
+
     content = client.get(f"/api/v1/assets/{job['outputs'][0]['asset_id']}/content", headers=auth_header)
     assert content.content == b"PNG-A"
+    # 下载文件名携带日期 + 提示词摘要（非 ASCII 经 RFC 5987 编码）
+    disposition = content.headers["content-disposition"]
+    assert "image_0.png" not in disposition
+    assert ".png" in disposition
 
 
 def test_image_generate_requires_workflow_for_comfy(

@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AudioLines } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -12,6 +12,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export function TtsPage() {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -19,14 +20,19 @@ export function TtsPage() {
 
   const ttsProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("tts"));
 
-  const [providerId, setProviderId] = useState<number | "">("");
-  const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
-  const [voiceName, setVoiceName] = useState("");
-  const [format, setFormat] = useState("mp3");
+  const [providerId, setProviderId] = usePersistentState<number | "">("tts:provider", "");
+  const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("tts:voice-record", "");
+  const [voiceName, setVoiceName] = usePersistentState("tts:voice-name", "");
+  const [format, setFormat] = usePersistentState("tts:format", "mp3");
+  const [language, setLanguage] = usePersistentState("tts:language", "");
   const location = useLocation();
-  const [text, setText] = useState(
-    () => (location.state as { prompt?: string } | null)?.prompt ?? "",
-  );
+  const incomingText = (location.state as { prompt?: string } | null)?.prompt;
+  const [text, setText] = usePersistentState("tts:text", "");
+  // 从其他页面带过来的文本优先于本地记忆
+  useEffect(() => {
+    if (incomingText) setText(incomingText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("tts");
 
@@ -38,6 +44,7 @@ export function TtsPage() {
         voice: voiceRecordId === "" ? voiceName : undefined,
         text,
         format,
+        options: language ? { language } : undefined,
       }),
     onSuccess: (j) => {
       setError(null);
@@ -56,7 +63,7 @@ export function TtsPage() {
         left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="语音服务" hint="留空则使用第一个已启用的 TTS Provider。">
               <select
                 className={selectClass}
@@ -84,6 +91,18 @@ export function TtsPage() {
                     {v.is_default ? "（默认）" : ""}
                   </option>
                 ))}
+              </select>
+            </Field>
+            <Field label="朗读语言" hint="只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。">
+              <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="">自动</option>
+                <option value="zh">中文 zh</option>
+                <option value="en">英文 en</option>
+                <option value="ja">日文 ja</option>
+                <option value="ko">韩文 ko</option>
+                <option value="fr">法文 fr</option>
+                <option value="de">德文 de</option>
+                <option value="es">西班牙文 es</option>
               </select>
             </Field>
             <Field label="输出格式" hint="Edge TTS 只支持 mp3。wav / ogg 需要兼容服务。">
@@ -128,6 +147,7 @@ export function TtsPage() {
             meta={[
               { label: "服务", value: ttsProviders?.find((p) => p.id === providerId)?.name ?? "" },
               { label: "音色", value: voiceRecordId === "" ? voiceName : (voices?.find((v) => v.id === voiceRecordId)?.name ?? "") },
+              { label: "语言", value: language || "自动" },
               { label: "格式", value: format },
             ]}
           />

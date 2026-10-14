@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export type PackVideoKind = "i2v" | "avatar" | "motion";
 
@@ -44,23 +45,23 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const cfg = CONFIG[kind];
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const videoProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("video"));
-  const [providerId, setProviderId] = useState<number | "">("");
+  const [providerId, setProviderId] = usePersistentState<number | "">(`video-${kind}:provider`, "");
   const provider = videoProviders?.find((p) => p.id === providerId) ?? videoProviders?.[0];
 
   const { data: allPacks } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
   const packs = allPacks?.filter((p) => cfg.packCaps.includes(p.capability));
-  const [workflow, setWorkflow] = useState("");
+  const [workflow, setWorkflow] = usePersistentState(`video-${kind}:workflow`, "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
 
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = useState("");
-  const [text, setText] = useState("");
-  const [voiceRecordId, setVoiceRecordId] = useState<number | "">("");
-  const [voiceName, setVoiceName] = useState("");
-  const [extra, setExtra] = useState<Record<string, string>>({});
+  const [prompt, setPrompt] = usePersistentState(`video-${kind}:prompt`, "");
+  const [text, setText] = usePersistentState(`video-${kind}:text`, "");
+  const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
+  const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
+  const [extra, setExtra] = usePersistentState<Record<string, string>>(`video-${kind}:extra`, {});
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob(`video-${kind}`);

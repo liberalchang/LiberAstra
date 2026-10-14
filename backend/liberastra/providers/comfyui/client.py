@@ -67,6 +67,33 @@ class ComfyClient:
         except ProviderError:
             return []
 
+    async def list_model_files(self) -> list[str]:
+        """按目录列出模型文件。checkpoints 为空时仍返回 diffusion_models 等。"""
+        folders = (
+            "checkpoints",
+            "diffusion_models",
+            "unet",
+            "text_encoders",
+            "clip",
+            "vae",
+            "loras",
+            "controlnet",
+            "upscale_models",
+        )
+        names: list[str] = []
+        failures = 0
+        for folder in folders:
+            try:
+                files = await self._request("GET", f"/models/{folder}")
+            except ProviderError:
+                failures += 1
+                continue
+            if isinstance(files, list):
+                names.extend(f"{folder}/{item}" for item in files if isinstance(item, str))
+        if not names and failures == len(folders):
+            raise ProviderError(f"无法读取 ComfyUI 模型目录 {self.base_url}")
+        return names
+
     async def queue_info(self) -> dict:
         return await self._request("GET", "/queue")  # type: ignore[no-any-return]
 

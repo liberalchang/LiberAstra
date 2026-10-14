@@ -88,7 +88,7 @@ def test_asr_job_subtitle_export(
     resp = client.post(
         "/api/v1/asr?wait=true",
         files={"file": ("a.wav", b"RIFFfake-audio", "audio/wav")},
-        data={"provider_id": str(asr_provider), "language": "zh", "formats": "txt,srt"},
+        data={"provider_id": str(asr_provider), "language": "zh", "formats": "srt"},
         headers=auth_header,
     )
     assert resp.status_code == 202
@@ -96,11 +96,42 @@ def test_asr_job_subtitle_export(
     assert job["status"] == "succeeded", job["error"]
     assert job["outputs"][0]["content"] == "你好世界"
 
-    srt_output = next(o for o in job["outputs"] if o.get("format") == "srt")
+    # 单文件输出：一个任务只产出一个资产，按所选格式
+    asset_outputs = [o for o in job["outputs"] if o["type"] == "asset"]
+    assert len(asset_outputs) == 1
+    assert asset_outputs[0]["format"] == "srt"
+    assert asset_outputs[0]["kind"] == "subtitle"
+
+    srt_output = asset_outputs[0]
     content = client.get(f"/api/v1/assets/{srt_output['asset_id']}/content", headers=auth_header)
     assert content.status_code == 200
     assert "00:00:00,000 --> 00:00:01,000" in content.text
     assert "世界" in content.text
+
+
+def test_asr_job_format_priority(
+    client: TestClient,
+    auth_header: dict[str, str],
+    asr_provider: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """自动模式（默认 formats）按优先级 txt → json → srt → vtt 取第一个可用格式。"""
+    from liberastra.services import asr as asr_service
+
+    monkeypatch.setattr(asr_service, "build_asr_adapter", lambda record: _FakeASR())
+
+    resp = client.post(
+        "/api/v1/asr?wait=true",
+        files={"file": ("a.wav", b"RIFFfake-audio", "audio/wav")},
+        data={"provider_id": str(asr_provider)},
+        headers=auth_header,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    asset_outputs = [o for o in job["outputs"] if o["type"] == "asset"]
+    assert len(asset_outputs) == 1
+    assert asset_outputs[0]["format"] == "txt"
+    assert asset_outputs[0]["kind"] == "text"
 
 
 def test_openai_compat_speech(

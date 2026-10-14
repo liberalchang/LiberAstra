@@ -14,9 +14,12 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY requirements.txt .
-# chatterbox-tts 可能改写 torch，装完后再钉回镜像对应的 CUDA 版。
+# chatterbox-tts 可能改写 torch，装完后再钉回 CUDA 版。
+# 基础镜像自带的 torchvision 0.20 对不上这个 torch，transformers 导入 LlamaModel 会失败。
+# 语音合成不用 torchvision，直接卸掉。
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+    && pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu124 \
+    && pip uninstall -y torchvision
 
 COPY engine.py server.py ./
 EXPOSE 5555

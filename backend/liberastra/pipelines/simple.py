@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -35,6 +36,7 @@ async def _run_video_pack(
     pack = get_pack(job.params["workflow"])
     adapter = ComfyUIVideo(provider.base_url)
     ctx.report(db, job, progress=0.1, step="comfyui")
+    started = time.monotonic()
     videos = await adapter.generate(
         pack=pack,
         inputs=inputs,
@@ -42,6 +44,13 @@ async def _run_video_pack(
     )
     if ctx.cancelled():
         return []
+    base_meta = {
+        "provider": provider.name,
+        "prompt": inputs.get("prompt"),
+        "workflow": job.params.get("workflow"),
+        "duration_s": round(time.monotonic() - started, 1),
+    }
+    base_meta = {k: v for k, v in base_meta.items() if v not in (None, "")}
     outputs: list[dict[str, Any]] = []
     for i, (filename, content) in enumerate(videos):
         ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp4"
@@ -51,7 +60,7 @@ async def _run_video_pack(
         save_bytes(content, rel_path)
         asset = create_asset(
             db, kind="video", rel_path=rel_path, job_id=job.id, owner_id=job.owner_id,
-            meta={"provider": provider.name, "source_name": filename},
+            meta={**base_meta, "source_name": filename},
         )
         outputs.append(
             {"type": "asset", "asset_id": asset.id, "kind": "video", "filename": f"video_{i}.{ext}"}
@@ -108,6 +117,7 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
 
 async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """自定义素材：上传图片 + 文案/主题 → TTS + 字幕分段 → 拼接（不生成图像）。"""
+    started = time.monotonic()
     params = job.params
     image_paths: list[str] = params["image_paths"]
     tts_provider = pick_provider(db, "tts", params.get("providers", {}).get("tts"))
@@ -158,9 +168,17 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
 
     concat_path = job_path(job, "final.mp4")
     await ffmpeg.concat_segments(segments_out, concat_path, list_file=job_path(job, "concat.txt"))
+    meta = {
+        "type": "assets",
+        "title": params.get("topic"),
+        "aspect": params.get("aspect", "9:16"),
+        "voice": voice,
+        "frames": total,
+        "duration_s": round(time.monotonic() - started, 1),
+    }
     asset = create_asset(
         db, kind="video", rel_path=f"outputs/{job.id}/final.mp4", job_id=job.id,
-        owner_id=job.owner_id, meta={"type": "assets"},
+        owner_id=job.owner_id, meta={k: v for k, v in meta.items() if v not in (None, "")},
     )
     ctx.report(db, job, progress=1.0)
     return [{"type": "asset", "asset_id": asset.id, "kind": "video", "filename": "final.mp4"}]
