@@ -13,7 +13,7 @@ class OllamaLLM(OpenAICompatibleLLM):
         base_url: str = "http://localhost:11434",
         *,
         client: httpx.AsyncClient | None = None,
-        timeout: float = 60.0,
+        timeout: float = 300.0,
     ) -> None:
         self.native_base = base_url.rstrip("/")
         super().__init__(f"{self.native_base}/v1", None, client=client, timeout=timeout)

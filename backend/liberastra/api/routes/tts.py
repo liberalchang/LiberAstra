@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, status
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.api.routes.images import _validate_workflow_for
 from liberastra.api.utils import wait_for_job
 from liberastra.models import Job, Voice
 from liberastra.schemas.job import JobOut
@@ -34,7 +35,19 @@ async def synthesize(
         # 参考音频用来模仿音色。voice_id 可能是编号，不能当成语言。
         if record.ref_audio_path and "ref_audio" not in options:
             options["ref_audio"] = record.ref_audio_path
-    if not voice_name:
+
+    params: dict = {
+        "text": body.text,
+        "voice": voice_name,
+        "format": body.format,
+        "options": options,
+    }
+    if provider.type == "comfyui":
+        # comfy 语音工作流：voice 可为空，text/voice/ref_audio 由 runner 按 manifest 注入
+        _validate_workflow_for(db, provider, body.workflow)
+        params["workflow"] = body.workflow
+        params["inputs"] = body.inputs
+    elif not voice_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 voice 或 voice_record_id"
         )
@@ -43,12 +56,7 @@ async def synthesize(
         db,
         owner_id=user.id,
         kind="tts.synthesize",
-        params={
-            "text": body.text,
-            "voice": voice_name,
-            "format": body.format,
-            "options": options,
-        },
+        params=params,
         provider_id=provider.id,
         model=body.model,
     )

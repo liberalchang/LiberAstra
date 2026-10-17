@@ -49,3 +49,26 @@ export function assetDownloadName(a: AssetNameSource): string {
   const slug = s.replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
   return slug ? `${date}_${slug}${ext}` : base;
 }
+
+/** 后端任务步骤标识 → 中文。未收录的原样返回。 */
+const STEP_LABELS: Record<string, string> = {
+  script: "写口播文案",
+  narration: "写口播文案",
+  storyboard: "生成分镜",
+  generate: "生成图像",
+  edit: "图像处理",
+  synthesize: "合成语音",
+  transcribe: "识别语音",
+  tts: "配音合成",
+  comfyui: "ComfyUI 执行中",
+  concat: "拼接分段",
+  bgm: "混入背景音乐",
+  chat: "对话生成",
+};
+
+/** 后端任务步骤名转中文展示，支持 "frame 2/4"、"frame 2/4 配音" 这类逐镜格式。 */
+export function formatStepName(name: string): string {
+  const m = /^frame\s+(\d+)\/(\d+)(?:\s+(.*))?$/.exec(name);
+  if (m) return `第 ${m[1]}/${m[2]} 镜${m[3] ? ` · ${m[3]}` : ""}`;
+  return STEP_LABELS[name] ?? name;
+}

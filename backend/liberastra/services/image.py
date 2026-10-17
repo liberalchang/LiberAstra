@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from liberastra.jobs.manager import JobContext, JobManager
 from liberastra.models import Job
 from liberastra.providers.base import ProviderError
+from liberastra.services.preferences import get_pref
 from liberastra.services.providers import build_image_adapter, build_llm_adapter, pick_provider
 from liberastra.services.workflows import get_pack
 from liberastra.storage import create_asset, resolve, save_bytes
@@ -32,12 +33,15 @@ async def produce_images(
     model: str | None = None,
     options: dict[str, Any] | None = None,
     on_progress: Any = None,
+    wait_timeout: float | None = None,
 ) -> list[tuple[str, bytes]]:
     """按 Provider 类型生成图像（流水线与 image.generate 共用）。"""
     adapter = build_image_adapter(provider)
     if provider.type == "comfyui":
         pack = get_pack(workflow or "")
-        return await adapter.generate(pack=pack, inputs=inputs or {}, on_progress=on_progress)
+        return await adapter.generate(
+            pack=pack, inputs=inputs or {}, on_progress=on_progress, wait_timeout=wait_timeout
+        )
     return await adapter.generate(
         prompt=prompt, size=size, n=n, model=model, **(options or {})
     )
@@ -59,6 +63,7 @@ async def run_image_generate_job(db: Session, job: Job, ctx: JobContext) -> list
         model=job.model,
         options=params.get("options"),
         on_progress=lambda p: ctx.report(db, job, progress=0.05 + 0.85 * p),
+        wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
     )
     if ctx.cancelled():
         return []
@@ -83,6 +88,7 @@ async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dic
             pack=pack,
             inputs=inputs,
             on_progress=lambda p: ctx.report(db, job, progress=0.05 + 0.85 * p),
+            wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
         )
     else:
         first = params["image_paths"][0]
@@ -147,7 +153,7 @@ def _save_images(
 async def optimize_prompt(db: Session, provider_id: int | None, prompt: str) -> str:
     """用 LLM 扩写提示词（同步快速调用）。"""
     provider = pick_provider(db, "llm", provider_id)
-    adapter = build_llm_adapter(provider)
+    adapter = build_llm_adapter(provider, db=db)
     try:
         return await adapter.chat(
             model=provider.extra.get("model", "") or "default",

@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { api, fetchAssetBlob, TERMINAL_STATUSES, type JobOut } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, formatStepName } from "@/lib/utils";
 
 const STATUS_COLOR: Record<string, string> = {
   succeeded: "text-green-600",
@@ -85,7 +85,7 @@ export function JobsPage() {
                 {j.error && <p className="text-sm text-red-500">{j.error}</p>}
                 {j.steps.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {j.steps.map((s) => s.name).join(" → ")}
+                    {j.steps.map((s) => formatStepName(String(s.name))).join(" → ")}
                   </p>
                 )}
                 {j.outputs.length > 0 && (

@@ -1,15 +1,14 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ImageUp, WandSparkles } from "lucide-react";
-import { useState } from "react";
+import { ImageUp, WandSparkles, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, selectClass } from "@/components/ui/field";
+import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
-import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
@@ -37,17 +36,49 @@ export function ImageEditPage({ capability, title, description }: Props) {
   });
   const [workflow, setWorkflow] = usePersistentState(`image-${capability}:workflow`, "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
+  const imageSlots = pack
+    ? Object.values(pack.inputs).filter((spec) => spec.type === "image").length
+    : 0;
 
   const [prompt, setPrompt] = usePersistentState(`image-${capability}:prompt`, "");
-  const [files, setFiles] = useState<FileList | null>(null);
+  // File 快照数组（非 FileList 活引用）：分多轮选择时追加合并，可按张删除
+  const [files, setFiles] = useState<File[]>([]);
   const [extra, setExtra] = usePersistentState<Record<string, string>>(`image-${capability}:extra`, {});
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob(`image-${capability}`);
 
+  const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`;
+
+  /** 追加本轮选择，按 名称+大小+修改时间 去重（同一文件重复选不会重复上传） */
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    // 必须同步快照：FileList 是活引用，onChange 随后清空 input.value 会把它掏空，
+    // 而 setFiles 的 updater 可能被 React 延迟执行（届时再读就什么都拿不到）
+    const incoming = Array.from(list);
+    setFiles((prev) => {
+      const seen = new Set(prev.map(fileKey));
+      const next = [...prev];
+      for (const f of incoming) {
+        const k = fileKey(f);
+        if (!seen.has(k)) {
+          seen.add(k);
+          next.push(f);
+        }
+      }
+      return next;
+    });
+  };
+
+  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
+
+  // 缩略图预览 URL，随 files 变化重建并释放旧的
+  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+
   const submit = useMutation({
     mutationFn: () => {
       const form = new FormData();
-      for (const f of files ?? []) form.append("images", f);
+      for (const f of files) form.append("images", f);
       form.set("prompt", prompt);
       if (provider) form.set("provider_id", String(provider.id));
       if (isComfy && pack) form.set("workflow", pack.name);
@@ -115,22 +146,66 @@ export function ImageEditPage({ capability, title, description }: Props) {
               没有 {capability} 能力的工作流包，请到「设置 → 工作流包」导入。
             </p>
           )}
-          <Field label="原图" hint="可多选，也可以直接拖拽进来。图生图和放大都从这些图片开始。">
+          <Field
+            label={imageSlots > 1 ? "原图和蒙版" : "原图"}
+            hint={
+              imageSlots > 1
+                ? "按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。"
+                : "可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。"
+            }
+          >
             <FileDrop
               accept="image/*"
               multiple
-              title="点击或拖拽上传图片"
-              subtitle="支持多选"
-              names={files ? Array.from(files).map((f) => f.name) : []}
-              onSelect={(fs) => setFiles(fs)}
+              clearAfterSelect
+              title={imageSlots > 1 ? "依次添加原图和蒙版" : "点击或拖拽上传图片"}
+              subtitle={imageSlots > 1 ? "白色重画，黑色保留" : "支持多选、多次添加"}
+              onSelect={addFiles}
             />
+            {files.length > 0 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {files.map((f, i) => (
+                  <div
+                    key={fileKey(f)}
+                    className="group relative size-20 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
+                  >
+                    <img src={previews[i]} alt={f.name} className="size-full object-cover" />
+                    {imageSlots > 1 && (
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[10px] leading-none text-white">
+                        {i === 0 ? "原图" : i === 1 ? "蒙版" : `#${i + 1}`}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      title={`移除 ${f.name}`}
+                      className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                    >
+                      <X className="size-3" />
+                    </button>
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-1 py-0.5 text-[10px] leading-none text-white">
+                      {f.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Field>
           <Field
             label="提示词"
-            hint={capability === "i2i" ? "说明要怎么改，例如把背景换成海滩。" : "放大或修复时可选，用来约束画面。"}
+            hint={
+              imageSlots > 1
+                ? "只写白色区域里要变成什么，并写明脸、姿势等要保持的部分。"
+                : capability === "i2i"
+                  ? "说明要怎么改，例如把背景换成海滩。"
+                  : "放大或修复时可选，用来约束画面。"
+            }
           >
-            <Input
-              placeholder={capability === "i2i" ? "例如：把背景换成海滩" : "可选"}
+            <textarea
+              className={`${areaClass} min-h-24`}
+              placeholder={
+                imageSlots > 1 ? "例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势" : capability === "i2i" ? "例如：把背景换成海滩" : "可选"
+              }
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
@@ -141,16 +216,27 @@ export function ImageEditPage({ capability, title, description }: Props) {
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
               exclude={["prompt"]}
+              providerId={provider?.id}
             />
           )}
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center gap-3">
             <Button
               onClick={() => submit.mutate()}
-              disabled={!files?.length || (isComfy && !pack) || submit.isPending || !!running}
+              disabled={
+                files.length < Math.max(imageSlots, 1) ||
+                (isComfy && !pack) ||
+                submit.isPending ||
+                !!running
+              }
             >
               {running ? `处理中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始"}
             </Button>
+            {imageSlots > 1 && files.length > 0 && files.length < imageSlots && (
+              <span className="text-sm text-muted-foreground">
+                此工作流需要 {imageSlots} 张图（原图 + 蒙版），还差 {imageSlots - files.length} 张
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>

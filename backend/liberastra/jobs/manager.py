@@ -16,9 +16,10 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from liberastra.core.db import SessionLocal
-from liberastra.models import Job, utcnow
+from liberastra.models import Job, Provider, utcnow
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.schemas.job import JobOut
+from liberastra.services.preferences import get_pref
 
 RunnerFactory = Callable[["Session", Job, "JobContext"], Awaitable[list[dict[str, Any]]]]
 
@@ -57,6 +58,7 @@ class JobManager:
         self._cancellations: set[str] = set()
         self._provider_limits: dict[int, int] = {}
         self._semaphores: dict[int, asyncio.Semaphore] = {}
+        self._host_semaphores: dict[str, asyncio.Semaphore] = {}
         self._global_sem: asyncio.Semaphore | None = None
         self._global_concurrency = global_concurrency
         self._runners: dict[str, RunnerFactory] = {}
@@ -139,6 +141,29 @@ class JobManager:
             )
         return self._semaphores[provider_id]
 
+    def _host_semaphore(self, host: str) -> asyncio.Semaphore:
+        """主机组信号量：同一台主机上的所有服务互斥（串行模式用）。"""
+        if host not in self._host_semaphores:
+            self._host_semaphores[host] = asyncio.Semaphore(1)
+        return self._host_semaphores[host]
+
+    def _hosts_for_job(self, db: Session, job: Job) -> list[str]:
+        """任务涉及的 Provider 主机组键（去重、排序——固定顺序获取避免死锁）。"""
+        from liberastra.services.providers import provider_host
+
+        ids: set[int] = set()
+        if job.provider_id is not None:
+            ids.add(job.provider_id)
+        for v in (job.params.get("providers") or {}).values():
+            if isinstance(v, int):
+                ids.add(v)
+        hosts: set[str] = set()
+        for pid in ids:
+            record = db.get(Provider, pid)
+            if record is not None:
+                hosts.add(provider_host(record))
+        return sorted(hosts)
+
     async def _run(self, job_id: str) -> None:
         assert self._global_sem is not None
         async with self._global_sem:
@@ -152,6 +177,12 @@ class JobManager:
                     self._finish(db, job, "canceled")
                     return
                 sem = self._semaphore_for(job.provider_id)
+                # 串行模式：任务涉及的所有主机组按序互斥（同一显卡主机上的服务不并发）
+                host_sems: list[asyncio.Semaphore] = []
+                if get_pref(db, "serial_same_host"):
+                    host_sems = [self._host_semaphore(h) for h in self._hosts_for_job(db, job)]
+                for hs in host_sems:
+                    await hs.acquire()
                 if sem is not None:
                     await sem.acquire()
                 try:
@@ -188,6 +219,8 @@ class JobManager:
                 finally:
                     if sem is not None:
                         sem.release()
+                    for hs in host_sems:
+                        hs.release()
                     self._cancellations.discard(job_id)
             finally:
                 db.close()

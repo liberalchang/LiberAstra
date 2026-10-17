@@ -11,7 +11,7 @@ import {
 } from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { assetTitle, formatSize, formatTime } from "@/lib/utils";
+import { assetTitle, formatSize, formatStepName, formatTime } from "@/lib/utils";
 
 export interface MetaItem {
   label: string;
@@ -31,7 +31,7 @@ interface ResultPanelProps {
 /** 生成中的精美进度展示。 */
 function GeneratingState({ job }: { job: JobOut }) {
   const pct = Math.round(job.progress * 100);
-  const step = job.steps.length > 0 ? String(job.steps[job.steps.length - 1].name) : null;
+  const step = job.steps.length > 0 ? formatStepName(String(job.steps[job.steps.length - 1].name)) : null;
   return (
     <div className="flex flex-col items-center gap-5 px-6 py-12">
       <div className="relative grid size-16 place-items-center">

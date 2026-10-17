@@ -58,10 +58,10 @@ async def _fake_produce_images(provider, **kwargs):  # noqa: ANN001, ANN202
 
 @pytest.fixture()
 def video_providers(client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(quick, "build_llm_adapter", lambda record: _FakeLLM())
+    monkeypatch.setattr(quick, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
     monkeypatch.setattr(quick, "build_tts_adapter", lambda record: _FakeTTS())
     monkeypatch.setattr(quick, "produce_images", _fake_produce_images)
-    monkeypatch.setattr(simple, "build_llm_adapter", lambda record: _FakeLLM())
+    monkeypatch.setattr(simple, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
     monkeypatch.setattr(simple, "build_tts_adapter", lambda record: _FakeTTS())
 
     for name, ptype in (("llm", "openai_compatible"), ("tts", "openai_tts"), ("img", "openai_images")):

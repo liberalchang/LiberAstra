@@ -15,7 +15,12 @@ from liberastra.schemas.provider import (
     ProviderUpdate,
     TestResult,
 )
-from liberastra.services.providers import encrypt_api_key, fetch_models, test_connection
+from liberastra.services.providers import (
+    encrypt_api_key,
+    fetch_model_folder,
+    fetch_models,
+    test_connection,
+)
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -27,8 +32,31 @@ def _get_owned(db, provider_id: int, user: User) -> Provider:  # noqa: ANN001
     return record
 
 
+def _ensure_local_edge_tts(db: DbSession, user: User) -> None:
+    """确保当前用户有一条名为「本地」的 edge_tts Provider（微软 Edge 在线 TTS）。"""
+    exists = db.scalars(
+        select(Provider).where(Provider.owner_id == user.id, Provider.type == "edge_tts")
+    ).first()
+    if exists is not None:
+        return
+    info = PROVIDER_TYPES["edge_tts"]
+    db.add(
+        Provider(
+            name="本地",
+            type="edge_tts",
+            base_url="",
+            capabilities=list(info.capabilities),
+            concurrency=2,
+            enabled=True,
+            owner_id=user.id,
+        )
+    )
+    db.commit()
+
+
 @router.get("", response_model=list[ProviderOut])
 def list_providers(user: CurrentUser, db: DbSession) -> list[ProviderOut]:
+    _ensure_local_edge_tts(db, user)
     records = db.scalars(select(Provider).where(Provider.owner_id == user.id)).all()
     return [ProviderOut.from_record(r) for r in records]
 
@@ -111,3 +139,15 @@ async def list_provider_models(provider_id: int, user: CurrentUser, db: DbSessio
     record.models = models
     db.commit()
     return models
+
+
+@router.get("/{provider_id}/models/{folder}", response_model=list[str])
+async def list_provider_model_folder(
+    provider_id: int, folder: str, user: CurrentUser, db: DbSession
+) -> list[str]:
+    """列出某个模型子目录的文件名（如 checkpoints、upscale_models），供工作流参数下拉选择。"""
+    record = _get_owned(db, provider_id, user)
+    try:
+        return await fetch_model_folder(record, folder)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

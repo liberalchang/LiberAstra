@@ -35,7 +35,7 @@ async def chat_completions(body: ChatCompletionRequest, user: CurrentUser, db: D
             status_code=status.HTTP_400_BAD_REQUEST, detail="暂不支持 stream，请置 false"
         )
     provider = pick_provider(db, "llm")
-    adapter = build_llm_adapter(provider)
+    adapter = build_llm_adapter(provider, db=db)
     options = {
         k: v
         for k, v in {"temperature": body.temperature, "max_tokens": body.max_tokens}.items()

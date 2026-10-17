@@ -11,7 +11,10 @@ import { GuidePage } from "@/pages/GuidePage";
 import { ImageEditPage } from "@/pages/ImageEditPage";
 import { ImageGenPage } from "@/pages/ImageGenPage";
 import { JobsPage } from "@/pages/JobsPage";
+import { MusicPage } from "@/pages/MusicPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SystemSettingsPage } from "@/pages/SystemSettingsPage";
+import { TemplatesPage } from "@/pages/TemplatesPage";
 import { TtsPage } from "@/pages/TtsPage";
 import { VideoAssetsPage } from "@/pages/VideoAssetsPage";
 import { VideoPackPage } from "@/pages/VideoPackPage";
@@ -43,6 +46,7 @@ export default function App() {
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
         <Route path="/speech/voices" element={<VoicesPage />} />
+        <Route path="/speech/music" element={<MusicPage />} />
         <Route path="/image/generate" element={<ImageGenPage />} />
         <Route
           path="/image/edit"
@@ -60,15 +64,17 @@ export default function App() {
             <ImageEditPage
               capability="upscale"
               title="修复与放大"
-              description="上传图片，用修复/放大工作流（如 SUPIR）提升画质。"
+              description="上传图片，用 RealESRGAN 放大 4 倍。模型文件需放在 ComfyUI 的 upscale_models 目录。"
             />
           }
         />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/system" element={<SystemSettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/video/quick" element={<VideoQuickPage />} />
+        <Route path="/video/templates" element={<TemplatesPage />} />
         <Route path="/video/assets" element={<VideoAssetsPage />} />
         <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />
         <Route path="/video/i2v" element={<VideoPackPage kind="i2v" />} />

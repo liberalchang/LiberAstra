@@ -87,6 +87,36 @@ def test_comfy_client_flow() -> None:
     asyncio.run(run())
 
 
+def test_comfy_history_timeout_retries_while_polling() -> None:
+    """本地长任务时 Comfy 忙会导致 /history ReadTimeout；轮询应继续而非整任务失败。"""
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/history/"):
+            state["n"] += 1
+            if state["n"] == 1:
+                raise httpx.ReadTimeout("timed out", request=request)
+            return httpx.Response(
+                200,
+                json={
+                    "pid-timeout": {
+                        "status": {"status_str": "success", "completed": True},
+                        "outputs": {},
+                    }
+                },
+            )
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = ComfyClient("http://comfy:8188", client=http)
+            result = await client.wait_result("pid-timeout", use_ws=False, timeout=30.0)
+            assert result["status"]["status_str"] == "success"
+            assert state["n"] >= 2
+
+    asyncio.run(run())
+
+
 def test_comfy_image_adapter_generate() -> None:
     async def run() -> None:
         async with httpx.AsyncClient(transport=_mock_comfy()) as http:

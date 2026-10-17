@@ -33,7 +33,7 @@ def test_chat_completions(
 ) -> None:
     from liberastra.api.routes import openai_compat
 
-    monkeypatch.setattr(openai_compat, "build_llm_adapter", lambda record: _FakeLLM())
+    monkeypatch.setattr(openai_compat, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
 
     resp = client.post(
         "/v1/chat/completions",

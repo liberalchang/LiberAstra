@@ -1,16 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Image as ImageIcon, Sparkles } from "lucide-react";
+import { Image as ImageIcon, Dices, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
-import { ASPECT_OPTIONS, AspectSelect, type AspectOption } from "@/components/ui/aspect-select";
+import { ASPECT_OPTIONS, AspectSelect, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
@@ -44,10 +45,18 @@ export function ImageGenPage() {
   }, []);
   const [negative, setNegative] = usePersistentState("image-generate:negative", "");
   const [aspectRaw, setAspect] = usePersistentState<AspectOption>("image-generate:aspect", ASPECT_OPTIONS[1]);
-  // 持久化的宽高比需对回当前选项表，失效时回落默认 1:1 1024×1024
+  // 持久化的宽高比需对回当前选项表；显式自定义（或不在表中但数值合法）按自定义保留，失效时回落默认 1:1 1024×1024
+  const validCustom =
+    aspectRaw &&
+    Number.isFinite(aspectRaw.width) &&
+    Number.isFinite(aspectRaw.height) &&
+    aspectRaw.width >= 64 &&
+    aspectRaw.height >= 64;
   const aspect =
-    ASPECT_OPTIONS.find((o) => o.width === aspectRaw?.width && o.height === aspectRaw?.height) ??
-    ASPECT_OPTIONS[1];
+    aspectRaw?.ratio === CUSTOM_RATIO && validCustom
+      ? { ratio: CUSTOM_RATIO, width: Math.round(aspectRaw.width), height: Math.round(aspectRaw.height) }
+      : (ASPECT_OPTIONS.find((o) => o.width === aspectRaw?.width && o.height === aspectRaw?.height) ??
+        ASPECT_OPTIONS[1]);
   const [steps, setSteps] = usePersistentState("image-generate:steps", 20);
   const [seed, setSeed] = usePersistentState("image-generate:seed", -1);
   const [count, setCount] = usePersistentState("image-generate:count", 1);
@@ -156,19 +165,43 @@ export function ImageGenPage() {
           </Field>
           <AspectSelect value={aspect} onChange={setAspect} />
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="步数" hint="采样步数。数值越大通常越慢。">
-              <Input type="number" value={steps} onChange={(e) => setSteps(Number(e.target.value))} />
+            <Field label="步数" hint="采样步数，1 到 150。数值越大通常越慢。">
+              <NumberStepper
+                ariaLabel="步数"
+                min={1}
+                max={150}
+                value={steps}
+                onChange={setSteps}
+              />
             </Field>
-            <Field label="种子" hint="-1 表示每次随机。">
-              <Input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} />
+            <Field label="种子" hint="-1 表示每次随机，也可以用右侧按钮摇一个。">
+              <div className="flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <NumberStepper
+                    ariaLabel="种子"
+                    min={-1}
+                    max={2147483647}
+                    value={seed}
+                    onChange={setSeed}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="随机一个种子"
+                  onClick={() => setSeed(Math.floor(Math.random() * 2147483647))}
+                >
+                  <Dices />
+                </Button>
+              </div>
             </Field>
             <Field label="张数" hint="同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。">
-              <Input
-                type="number"
+              <NumberStepper
+                ariaLabel="张数"
                 min={1}
                 max={4}
                 value={count}
-                onChange={(e) => setCount(Math.min(4, Math.max(1, Number(e.target.value) || 1)))}
+                onChange={setCount}
               />
             </Field>
           </div>
@@ -179,6 +212,7 @@ export function ImageGenPage() {
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
               exclude={DEDICATED}
+              providerId={provider?.id}
             />
           )}
 

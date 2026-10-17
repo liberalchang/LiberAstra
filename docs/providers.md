@@ -36,7 +36,7 @@ ComfyUI 类型 Provider 通过工作流包驱动。包 = `workflow.json`（Comfy
 
 ```yaml
 name: my_t2i
-capability: t2i            # t2i / i2i / upscale / first_frame_i2v / digital_human / action_transfer / tts / t2v
+capability: t2i            # 规范：t2i / i2i / upscale / t2v / i2v / avatar / motion / tts
 inputs:
   prompt: { node: "6", field: inputs.text, type: str, required: true }
   image:  { node: "1", field: inputs.image, type: image }   # image/video/audio 输入会自动上传 ComfyUI

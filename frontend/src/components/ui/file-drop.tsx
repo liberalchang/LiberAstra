@@ -11,10 +11,12 @@ interface FileDropProps {
   title: string;
   subtitle?: string;
   onSelect: (files: FileList | null) => void;
+  /** 选择后清空原生 input，允许再次选择同一文件（父组件需自行保存 File 快照） */
+  clearAfterSelect?: boolean;
 }
 
 /** 上传拖放区：虚线框 + 图标，点击或拖拽选择文件，替代原生 file input。 */
-export function FileDrop({ accept, multiple, names, title, subtitle, onSelect }: FileDropProps) {
+export function FileDrop({ accept, multiple, names, title, subtitle, onSelect, clearAfterSelect }: FileDropProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -55,7 +57,12 @@ export function FileDrop({ accept, multiple, names, title, subtitle, onSelect }:
         accept={accept}
         multiple={multiple}
         className="hidden"
-        onChange={(e) => onSelect(e.target.files)}
+        onChange={(e) => {
+          onSelect(e.target.files);
+          // 清空 value 后才能再次选择同一文件并触发 onChange；
+          // FileList 是活引用，父组件必须在 onSelect 里先取出 File 快照
+          if (clearAfterSelect) e.target.value = "";
+        }}
       />
     </div>
   );

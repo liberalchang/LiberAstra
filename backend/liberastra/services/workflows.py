@@ -30,6 +30,7 @@ class WorkflowPack:
     workflow: dict[str, Any]
     source: str  # builtin / user
     requirements: dict[str, Any] = field(default_factory=dict)
+    fps: int | None = None  # 视频包的帧率（manifest 顶层 fps）；有它前端可按秒设置时长
 
 
 def _builtin_dir() -> Path:
@@ -60,6 +61,7 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
         workflow=workflow,
         source=source,
         requirements=manifest.get("requirements", {}),
+        fps=manifest.get("fps"),
     )
     validate_pack(pack)
     return pack
@@ -119,6 +121,7 @@ def import_pack(
         workflow=workflow,
         source="user",
         requirements=manifest.get("requirements", {}),
+        fps=manifest.get("fps"),
     )
     validate_pack(pack)
     pack_dir.mkdir(parents=True, exist_ok=True)
@@ -129,6 +132,28 @@ def import_pack(
         yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
     return pack
+
+
+def update_pack(name: str, workflow: dict[str, Any], manifest: dict[str, Any]) -> WorkflowPack:
+    """编辑已存在的用户包（内置包不可编辑）。"""
+    pack_dir = _user_dir() / name
+    if not pack_dir.exists():
+        raise ProviderError(f"用户工作流包不存在: {name}（内置包不可编辑）")
+    return import_pack(name, workflow, manifest, overwrite=True)
+
+
+def export_pack(name: str) -> dict[str, Any]:
+    """导出完整包（manifest + workflow），可用于备份或在其他实例导入。"""
+    pack = get_pack(name)
+    return {
+        "name": pack.name,
+        "capability": pack.capability,
+        "description": pack.description,
+        "inputs": pack.inputs,
+        "outputs": pack.outputs,
+        "requirements": pack.requirements,
+        "workflow": pack.workflow,
+    }
 
 
 def delete_pack(name: str) -> None:

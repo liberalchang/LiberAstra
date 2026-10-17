@@ -12,6 +12,8 @@ inputs:
     field: inputs.negative_prompt
     type: str
     default: ""
+    label: 负面提示词
+    description: 不希望出现的内容，可以留空
   width:
     node: "6"
     field: inputs.width

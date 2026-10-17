@@ -16,12 +16,23 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+/** 401 时的全局回调（由 auth store 注册为登出）。仅当前持有 token 时才触发。 */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
 
   const resp = await fetch(path, { ...init, headers });
+  if (resp.status === 401 && authToken && onUnauthorized) {
+    // 登录态过期：清掉 token，Layout 会把页面导航回登录页
+    onUnauthorized();
+  }
   if (!resp.ok) {
     let detail = resp.statusText;
     try {
@@ -97,6 +108,17 @@ export interface AssetOut {
   created_at: string;
 }
 
+export interface SystemPreferences {
+  /** ComfyUI 出图/出视频等待上限（秒） */
+  comfy_wait_timeout_seconds: number;
+  /** 同步接口（wait=true）等待任务终态的上限（秒） */
+  api_wait_timeout_seconds: number;
+  /** LLM（Ollama / OpenAI 兼容）单次 chat 读超时（秒） */
+  llm_request_timeout_seconds: number;
+  /** 同主机服务串行执行：0=并行（默认），1=同一主机上的 Provider 任务互斥 */
+  serial_same_host: number;
+}
+
 export interface WorkflowInputSpec {
   node: string;
   field: string;
@@ -106,6 +128,17 @@ export interface WorkflowInputSpec {
   max?: number;
   required?: boolean;
   description?: string;
+  /** 中文显示名，缺省时用内置映射或参数名 */
+  label?: string;
+  /** 从 ComfyUI 的某个模型目录拉取选项（如 checkpoints、upscale_models），渲染为下拉框 */
+  options_from?: string;
+  /** 静态下拉选项（本机 TTS 音色等，不依赖 ComfyUI） */
+  options?: string[];
+  /** 帧数对齐：有效帧数 = align_base × k + align_offset（如 MiniMax 的 17k+5） */
+  align_base?: number;
+  align_offset?: number;
+  /** 宽高的取值倍数（视频潜变量压缩比，MiniMax 系为 32，Wan 系为 16） */
+  multiple?: number;
 }
 
 export interface WorkflowPackOut {
@@ -116,6 +149,33 @@ export interface WorkflowPackOut {
   outputs: Record<string, unknown>;
   source: string;
   requirements: Record<string, unknown>;
+  /** 视频包帧率；有它参数表单的"帧数"可按秒设置 */
+  fps?: number | null;
+}
+
+export interface TemplateOut {
+  name: string;
+  aspect: string;
+  type: "static" | "image" | "video" | "asset";
+  type_label: string;
+  source: "builtin" | "user";
+  width: number;
+  height: number;
+  media_width: number;
+  media_height: number;
+  /** 模板是否含 {{image}} 占位符（决定插图模式是否逐镜出图） */
+  needs_image: boolean;
+  params: Record<string, { type: string; default: unknown }>;
+}
+
+export interface BgmOut {
+  name: string;
+  size: number;
+}
+
+/** 导出的完整工作流包（含 workflow JSON），可用于编辑与再导入。 */
+export interface WorkflowPackBundle extends WorkflowPackOut {
+  workflow: Record<string, unknown>;
 }
 
 export const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"];
@@ -133,6 +193,17 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => request<UserOut>("/api/v1/auth/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/api/v1/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+  getPreferences: () => request<SystemPreferences>("/api/v1/system/preferences"),
+  updatePreferences: (body: Partial<SystemPreferences>) =>
+    request<SystemPreferences>("/api/v1/system/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
   healthz: () => request<{ status: string; version: string }>("/healthz"),
 
   capabilities: () => request<CapabilitiesOut>("/api/v1/capabilities"),
@@ -149,6 +220,8 @@ export const api = {
   testProvider: (id: number) =>
     request<TestResult>(`/api/v1/providers/${id}/test`, { method: "POST" }),
   fetchProviderModels: (id: number) => request<string[]>(`/api/v1/providers/${id}/models`),
+  fetchProviderModelFolder: (id: number, folder: string) =>
+    request<string[]>(`/api/v1/providers/${id}/models/${folder}`),
 
   getJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}`),
   listJobs: (kind?: string) =>
@@ -167,6 +240,8 @@ export const api = {
     text: string;
     format: string;
     options?: { language?: string };
+    workflow?: string;
+    inputs?: Record<string, unknown>;
   }) => request<JobOut>("/api/v1/tts", { method: "POST", body: JSON.stringify(body) }),
   submitAsr: (form: FormData) =>
     request<JobOut>("/api/v1/asr", { method: "POST", body: form }),
@@ -188,6 +263,33 @@ export const api = {
     }),
   deleteWorkflow: (name: string) =>
     request<void>(`/api/v1/workflows/${name}`, { method: "DELETE" }),
+  updateWorkflow: (name: string, body: Record<string, unknown>) =>
+    request<WorkflowPackOut>(`/api/v1/workflows/${name}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  exportWorkflow: (name: string) =>
+    request<WorkflowPackBundle>(`/api/v1/workflows/${name}/export`),
+  listTemplates: (aspect?: string, type?: string) => {
+    const qs = [aspect && `aspect=${aspect}`, type && `type=${type}`].filter(Boolean).join("&");
+    return request<TemplateOut[]>(`/api/v1/templates${qs ? `?${qs}` : ""}`);
+  },
+  uploadTemplate: (aspect: string, file: File) => {
+    const form = new FormData();
+    form.set("aspect", aspect);
+    form.set("file", file);
+    return request<TemplateOut>("/api/v1/templates", { method: "POST", body: form });
+  },
+  deleteTemplate: (aspect: string, name: string) =>
+    request<void>(`/api/v1/templates/${aspect}/${name}`, { method: "DELETE" }),
+  listBgm: () => request<BgmOut[]>("/api/v1/bgm"),
+  uploadBgm: (file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return request<BgmOut>("/api/v1/bgm", { method: "POST", body: form });
+  },
+  deleteBgm: (name: string) =>
+    request<void>(`/api/v1/bgm/${encodeURIComponent(name)}`, { method: "DELETE" }),
   generateImage: (body: Record<string, unknown>) =>
     request<JobOut>("/api/v1/images/generate", { method: "POST", body: JSON.stringify(body) }),
   editImage: (form: FormData) =>
@@ -224,5 +326,23 @@ export async function fetchAssetBlob(assetId: number): Promise<Blob> {
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
   const resp = await fetch(`/api/v1/assets/${assetId}/content`, { headers });
   if (!resp.ok) throw new ApiError(resp.status, `下载资产失败: ${resp.statusText}`);
+  return resp.blob();
+}
+
+/** 带鉴权获取模板预览图（渲染由后端 Playwright 完成，返回 jpeg）。 */
+export async function fetchTemplatePreview(aspect: string, name: string): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(`/api/v1/templates/${aspect}/${name}/preview`, { headers });
+  if (!resp.ok) throw new ApiError(resp.status, `模板预览失败: ${resp.statusText}`);
+  return resp.blob();
+}
+
+/** 带鉴权获取音乐内容（audio 标签无法带 Authorization 头）。 */
+export async function fetchBgmBlob(name: string): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(`/api/v1/bgm/${encodeURIComponent(name)}/content`, { headers });
+  if (!resp.ok) throw new ApiError(resp.status, `加载音乐失败: ${resp.statusText}`);
   return resp.blob();
 }

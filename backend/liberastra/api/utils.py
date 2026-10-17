@@ -9,11 +9,15 @@ from sqlalchemy.orm import Session
 
 from liberastra.models import Job
 from liberastra.models.job import TERMINAL_STATUSES
+from liberastra.services.preferences import get_pref
 
+# 默认值；实际生效值以 app_settings 里的 api_wait_timeout_seconds 为准
 WAIT_TIMEOUT_SECONDS = 300.0
 
 
-async def wait_for_job(db: Session, job_id: str, timeout: float = WAIT_TIMEOUT_SECONDS) -> Job:
+async def wait_for_job(db: Session, job_id: str, timeout: float | None = None) -> Job:
+    if timeout is None:
+        timeout = float(get_pref(db, "api_wait_timeout_seconds"))
     job = db.get(Job, job_id)
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")

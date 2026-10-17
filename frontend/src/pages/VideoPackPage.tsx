@@ -23,20 +23,20 @@ const CONFIG: Record<
 > = {
   i2v: {
     title: "图生视频",
-    description: "上传首帧图片 + 提示词，交给 first_frame_i2v 工作流。",
+    description: "上传首帧图片 + 提示词，交给 i2v 工作流。",
     packCaps: ["i2v", "first_frame_i2v"],
     submit: api.submitVideoI2v,
   },
   avatar: {
     title: "数字人口播",
-    description: "人物图 + 口播文案 → TTS → digital_human 工作流。",
-    packCaps: ["digital", "digital_human"],
+    description: "人物图 + 口播文案 → TTS → avatar 工作流。",
+    packCaps: ["avatar", "digital", "digital_human"],
     submit: api.submitVideoAvatar,
   },
   motion: {
     title: "动作迁移",
-    description: "参考视频（≤30s）+ 目标图片 + 提示词 → action_transfer 工作流。",
-    packCaps: ["action", "action_transfer"],
+    description: "参考视频（≤30s）+ 目标图片 + 提示词 → motion 工作流。",
+    packCaps: ["motion", "action", "action_transfer"],
     submit: api.submitVideoMotion,
   },
 };
@@ -53,6 +53,16 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [workflow, setWorkflow] = usePersistentState(`video-${kind}:workflow`, "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
 
+  // 依赖预检：包声明了但服务上没有的模型文件，提前警告（不拦截）
+  const missingModels = (() => {
+    const declared = pack?.requirements?.models;
+    const available = provider?.models ?? [];
+    if (!Array.isArray(declared) || declared.length === 0 || available.length === 0) return [];
+    return (declared as unknown[])
+      .filter((m): m is string => typeof m === "string")
+      .filter((m) => !available.some((a) => a === m || a.endsWith(m.split("/").pop() ?? m)));
+  })();
+
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,6 +72,25 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
   const [extra, setExtra] = usePersistentState<Record<string, string>>(`video-${kind}:extra`, {});
+  // 数字人口播的配音服务：comfy 出语音工作流包，Liber Speech 出音色库，其余出服务音色列表
+  const { data: ttsPacks } = useQuery({
+    queryKey: ["workflows", "tts"],
+    queryFn: () => api.listWorkflows("tts"),
+    enabled: kind === "avatar",
+  });
+  const ttsProviders = providers?.filter((p) => {
+    if (!p.enabled || !p.capabilities.includes("tts")) return false;
+    if (p.type === "comfyui") return (ttsPacks?.length ?? 0) > 0;
+    return true;
+  });
+  const [ttsProviderId, setTtsProviderId] = usePersistentState<number | "">(`video-${kind}:tts-provider`, "");
+  const ttsProvider = ttsProviders?.find((p) => p.id === ttsProviderId) ?? ttsProviders?.[0];
+  const ttsIsComfy = ttsProvider?.type === "comfyui";
+  const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
+  const serviceVoices = isLibraryVoice || ttsIsComfy ? [] : (ttsProvider?.models ?? []);
+  const [ttsWorkflow, setTtsWorkflow] = usePersistentState(`video-${kind}:tts-workflow`, "");
+  const ttsPack = ttsPacks?.find((p) => p.name === ttsWorkflow) ?? ttsPacks?.[0];
+  const [ttsExtra, setTtsExtra] = usePersistentState<Record<string, string>>(`video-${kind}:tts-extra`, {});
   const [error, setError] = useState<string | null>(null);
 
   const { job, setJobId } = useTrackedJob(`video-${kind}`);
@@ -75,8 +104,16 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       form.set("prompt", prompt);
       if (kind === "avatar") {
         form.set("text", text);
-        if (voiceRecordId !== "") form.set("voice_record_id", String(voiceRecordId));
-        else form.set("voice", voiceName);
+        if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
+        if (ttsIsComfy) {
+          if (ttsPack) form.set("tts_workflow", ttsPack.name);
+          form.set("tts_inputs", JSON.stringify(Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))));
+          form.set("voice", ttsExtra.voice ?? "");
+        } else if (isLibraryVoice && voiceRecordId !== "") {
+          form.set("voice_record_id", String(voiceRecordId));
+        } else {
+          form.set("voice", voiceName);
+        }
       }
       if (provider) form.set("provider_id", String(provider.id));
       form.set(
@@ -97,7 +134,9 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
     pack &&
     imageFile &&
     (kind !== "motion" || videoFile) &&
-    (kind !== "avatar" || (text && (voiceRecordId !== "" || voiceName)));
+    (kind !== "avatar" ||
+      (text &&
+        (ttsIsComfy ? !!ttsPack : isLibraryVoice ? voiceRecordId !== "" || !!voiceName : !!voiceName)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,6 +179,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             </Field>
           </div>
 
+          {missingModels.length > 0 && (
+            <p className="text-xs leading-relaxed text-amber-500">
+              该工作流声明需要但服务上没有找到：{missingModels.join("、")}。请改选已有模型或先把模型文件放进对应目录。
+            </p>
+          )}
+
           {kind === "motion" && (
             <Field label="参考视频" hint="动作来源，建议不超过 30 秒。">
               <FileDrop
@@ -169,31 +214,97 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                   onChange={(e) => setText(e.target.value)}
                 />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="音色" hint="选自音色库。不选则填写音色名。">
-                  <select
-                    className={selectClass}
-                    value={voiceRecordId}
-                    onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                  >
-                    <option value="">手动指定音色…</option>
-                    {voices?.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                {voiceRecordId === "" && (
-                  <Field label="音色名" hint="需与当前 TTS 服务匹配。">
-                    <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+              <Field label="配音服务" hint="comfy 需先导入 tts 语音工作流包；Liber Speech 用音色库克隆；其余用服务音色列表。">
+                <select
+                  className={selectClass}
+                  value={ttsProvider?.id ?? ""}
+                  onChange={(e) => setTtsProviderId(Number(e.target.value))}
+                >
+                  {ttsProviders?.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.type === "edge_tts" ? `${p.name}（本地）` : p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {ttsIsComfy ? (
+                <>
+                  <Field label="语音工作流" hint="tts 能力的工作流包，口播文本自动注入。">
+                    <select
+                      className={selectClass}
+                      value={ttsPack?.name ?? ""}
+                      onChange={(e) => setTtsWorkflow(e.target.value)}
+                    >
+                      {ttsPacks?.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
                   </Field>
-                )}
-              </div>
+                  {ttsPack && (
+                    <WorkflowInputs
+                      inputs={ttsPack.inputs}
+                      values={ttsExtra}
+                      onChange={(k, v) => setTtsExtra((prev) => ({ ...prev, [k]: v }))}
+                      exclude={["text"]}
+                      providerId={ttsProvider?.id}
+                    />
+                  )}
+                </>
+              ) : isLibraryVoice ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="音色" hint="选自音色库（参考音频克隆）。不选则填写音色名。">
+                    <select
+                      className={selectClass}
+                      value={voiceRecordId}
+                      onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                    >
+                      <option value="">手动指定音色…</option>
+                      {voices?.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  {voiceRecordId === "" && (
+                    <Field label="音色名" hint="Liber Speech 用语言代码，例如 zh、en。">
+                      <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+              ) : (
+                <Field label="音色" hint="来自所选服务的音色列表；服务提供方页可拉取/刷新模型列表。">
+                  {serviceVoices.length > 0 ? (
+                    <select
+                      className={selectClass}
+                      value={voiceName}
+                      onChange={(e) => setVoiceName(e.target.value)}
+                    >
+                      <option value="">选择音色…</option>
+                      {voiceName && !serviceVoices.includes(voiceName) && (
+                        <option value={voiceName}>{voiceName}（不在列表中）</option>
+                      )}
+                      {serviceVoices.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder="如 zh-CN-XiaoxiaoNeural（列表为空时可到服务提供方页拉取模型）"
+                      value={voiceName}
+                      onChange={(e) => setVoiceName(e.target.value)}
+                    />
+                  )}
+                </Field>
+              )}
             </>
           ) : (
             <Field label="提示词" hint="描述希望画面如何运动或变化。">
-              <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+              <textarea
+                className={`${areaClass} min-h-24`}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
             </Field>
           )}
 
@@ -203,6 +314,8 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
               exclude={["prompt", "image", "video", "audio"]}
+              providerId={provider?.id}
+              fps={pack.fps}
             />
           )}
 

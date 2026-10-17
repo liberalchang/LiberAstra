@@ -37,11 +37,11 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
     ),
     "edge_tts": ProviderTypeInfo(
         type="edge_tts",
-        label="Edge TTS（微软在线）",
+        label="本地（微软 Edge TTS）",
         capabilities=("tts",),
         requires_api_key=False,
         default_base_url="",
-        description="零配置可用，作为默认兜底；仅输出 mp3",
+        description="本机 edge-tts（≥7.3.1，Sec-MS-GEC v2）。零配置在线合成，仅 mp3",
     ),
     "openai_stt": ProviderTypeInfo(
         type="openai_stt",
@@ -65,10 +65,10 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
     "comfyui": ProviderTypeInfo(
         type="comfyui",
         label="ComfyUI",
-        capabilities=("image", "video"),
+        capabilities=("image", "video", "tts"),
         requires_api_key=False,
         default_base_url="http://localhost:8188",
-        description="局域网 ComfyUI 实例，工作流包驱动（文生图/图生图/修复放大/视频）",
+        description="局域网 ComfyUI 实例，工作流包驱动（文生图/图生图/修复放大/视频/语音工作流）",
     ),
     "openai_images": ProviderTypeInfo(
         type="openai_images",

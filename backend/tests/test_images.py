@@ -110,7 +110,7 @@ def test_optimize_prompt(
         async def chat(self, **kwargs) -> str:
             return "杰作，一只橘猫，逆光，浅景深，8k"
 
-    monkeypatch.setattr(image_service, "build_llm_adapter", lambda record: _FakeLLM())
+    monkeypatch.setattr(image_service, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
 
     llm = client.post(
         "/api/v1/providers",

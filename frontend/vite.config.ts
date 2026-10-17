@@ -19,6 +19,9 @@ export default defineConfig({
     watch: {
       // 同步盘锁住较大的静态文件时，chokidar 会报 EBUSY 并退出
       ignored: ["**/public/swagger/**"],
+      // 同步盘上 chokidar 的原生事件会丢，导致改了代码页面不更新；改轮询
+      usePolling: true,
+      interval: 500,
     },
     proxy: {
       "/api": "http://127.0.0.1:8000",

@@ -10,16 +10,19 @@ import {
   Images,
   Languages,
   LayoutDashboard,
+  LayoutTemplate,
   Library,
   ListTodo,
   LogOut,
   Menu,
   Mic,
   Moon,
+  Music,
   PanelLeftClose,
   PanelLeftOpen,
   PersonStanding,
   PlugZap,
+  Settings,
   Sun,
   UserRound,
   WandSparkles,
@@ -28,7 +31,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate, NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,7 @@ const NAV_GROUPS: {
       { to: "/video/avatar", icon: UserRound, key: "nav.avatar" },
       { to: "/video/i2v", icon: Film, key: "nav.i2v" },
       { to: "/video/motion", icon: PersonStanding, key: "nav.motion" },
+      { to: "/video/templates", icon: LayoutTemplate, key: "nav.templates" },
     ],
   },
   {
@@ -69,6 +73,7 @@ const NAV_GROUPS: {
       { to: "/speech/tts", icon: AudioLines, key: "nav.tts" },
       { to: "/speech/asr", icon: Mic, key: "nav.asr" },
       { to: "/speech/voices", icon: Library, key: "nav.voices" },
+      { to: "/speech/music", icon: Music, key: "nav.music" },
     ],
   },
   { labelKey: "group.assets", items: [{ to: "/assets", icon: FolderOpen, key: "nav.assetList" }] },
@@ -78,6 +83,7 @@ const NAV_GROUPS: {
     items: [
       { to: "/settings", icon: PlugZap, key: "nav.providers" },
       { to: "/settings/workflows", icon: Workflow, key: "nav.workflows" },
+      { to: "/settings/system", icon: Settings, key: "nav.system" },
     ],
   },
   {
@@ -96,6 +102,7 @@ function navClass(isActive: boolean, collapsed: boolean) {
 
 export function Layout() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const token = useAuthStore((s) => s.token);
   const signOut = useAuthStore((s) => s.signOut);
   const [dark, setDark] = useState(() => localStorage.getItem("liberastra-theme") !== "light");
@@ -185,6 +192,14 @@ export function Layout() {
         </Button>
         <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title={t("common.theme")}>
           {dark ? <Sun /> : <Moon />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/settings/system")}
+          title={t("common.settings")}
+        >
+          <Settings />
         </Button>
         <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
           <LogOut />

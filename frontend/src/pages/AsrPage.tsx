@@ -44,6 +44,7 @@ export function AsrPage() {
   const asrProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("asr"));
 
   const [providerId, setProviderId] = usePersistentState<number | "">("asr:provider", "");
+  const provider = asrProviders?.find((p) => p.id === providerId) ?? asrProviders?.[0];
   const [language, setLanguage] = usePersistentState("asr:language", "");
   const [customLanguage, setCustomLanguage] = usePersistentState("asr:language-custom", "");
   const [format, setFormat] = usePersistentState("asr:format", "");
@@ -56,7 +57,7 @@ export function AsrPage() {
     mutationFn: () => {
       const form = new FormData();
       form.set("file", file!);
-      if (providerId !== "") form.set("provider_id", String(providerId));
+      if (provider) form.set("provider_id", String(provider.id));
       if (effectiveLanguage) form.set("language", effectiveLanguage);
       if (format) form.set("formats", format);
       return api.submitAsr(form);
@@ -79,13 +80,12 @@ export function AsrPage() {
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="识别服务" hint="留空则使用第一个已启用的 ASR Provider。本机不内置识别模型。">
+            <Field label="识别服务" hint="只列出已启用、且具备 asr 能力的 Provider。本机不内置识别模型。">
               <select
                 className={selectClass}
-                value={providerId}
-                onChange={(e) => setProviderId(e.target.value ? Number(e.target.value) : "")}
+                value={provider?.id ?? ""}
+                onChange={(e) => setProviderId(Number(e.target.value))}
               >
-                <option value="">默认 Provider</option>
                 {asrProviders?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -146,7 +146,7 @@ export function AsrPage() {
             historyKind="subtitle,text"
             emptyHint="上传音频，转写出文本和字幕"
             meta={[
-              { label: "服务", value: asrProviders?.find((p) => p.id === providerId)?.name ?? "" },
+              { label: "服务", value: provider?.name ?? "" },
               { label: "语言", value: effectiveLanguage || "自动" },
               { label: "输出", value: format || "自动" },
               { label: "文件", value: file?.name ?? "" },

@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -9,11 +9,66 @@ export interface AspectOption {
   height: number;
 }
 
+/** 自定义宽高比的 ratio 标记。 */
+export const CUSTOM_RATIO = "自定义";
+
+const MIN_SIDE = 64;
+const MAX_SIDE = 4096;
+
+const clampSide = (n: number) =>
+  Math.min(MAX_SIDE, Math.max(MIN_SIDE, Math.round(n) || MIN_SIDE));
+
+/** 自定义边长输入：编辑时只改本地草稿（可清空重输），失焦或回车才钳位提交，非法输入还原。 */
+function SideInput({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    const n = Number(draft);
+    if (draft.trim() && Number.isFinite(n) && n > 0) onCommit(clampSide(n));
+    else setDraft(String(value));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      aria-label={label}
+      value={draft}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        commit();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      onChange={(e) => {
+        if (/^\d*$/.test(e.target.value)) setDraft(e.target.value);
+      }}
+      className="h-9 w-full min-w-0 rounded-lg border border-border bg-field px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    />
+  );
+}
+
 /** 文生图可选宽高比（标签 + 像素尺寸）。 */
 export const ASPECT_OPTIONS: AspectOption[] = [
   { ratio: "1:1", width: 512, height: 512 },
   { ratio: "1:1", width: 1024, height: 1024 },
   { ratio: "3:4", width: 768, height: 1024 },
+  { ratio: "2:3", width: 832, height: 1216 },
   { ratio: "9:16", width: 576, height: 1024 },
   { ratio: "4:3", width: 1024, height: 768 },
   { ratio: "16:9", width: 1024, height: 576 },
@@ -37,12 +92,19 @@ interface AspectSelectProps {
   label?: string;
   value: AspectOption;
   onChange: (option: AspectOption) => void;
+  /** 不传用内置文生图比例表；视频包等场景按包默认长边缩放后传入 */
+  options?: AspectOption[];
 }
 
-/** 宽高比下拉：标签在左、当前值在右，展开为选项列表（参考 piax 创作间的行式控件）。 */
-export function AspectSelect({ label = "宽高比", value, onChange }: AspectSelectProps) {
+/** 宽高比下拉：标签在左、当前值在右，展开为选项列表（参考 piax 创作间的行式控件）。支持自定义宽高。 */
+export function AspectSelect({ label = "宽高比", value, onChange, options }: AspectSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const ratioOptions = options ?? ASPECT_OPTIONS;
+
+  const isCustom =
+    value.ratio === CUSTOM_RATIO ||
+    !ratioOptions.some((o) => o.width === value.width && o.height === value.height);
 
   useEffect(() => {
     if (!open) return;
@@ -60,7 +122,8 @@ export function AspectSelect({ label = "宽高比", value, onChange }: AspectSel
     };
   }, [open]);
 
-  const isSelected = (o: AspectOption) => o.width === value.width && o.height === value.height;
+  const isSelected = (o: AspectOption) =>
+    !isCustom && o.width === value.width && o.height === value.height;
 
   return (
     <div ref={rootRef} className="relative">
@@ -91,7 +154,7 @@ export function AspectSelect({ label = "宽高比", value, onChange }: AspectSel
           role="listbox"
           className="absolute z-30 mt-2 w-full overflow-hidden rounded-[10px] border border-border bg-card shadow-lg"
         >
-          {ASPECT_OPTIONS.map((o) => {
+          {ratioOptions.map((o) => {
             const selected = isSelected(o);
             return (
               <button
@@ -117,6 +180,45 @@ export function AspectSelect({ label = "宽高比", value, onChange }: AspectSel
               </button>
             );
           })}
+
+          <div className={cn("border-t border-border", isCustom && "bg-muted")}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={isCustom}
+              onClick={() => {
+                if (!isCustom) onChange({ ratio: CUSTOM_RATIO, width: value.width, height: value.height });
+              }}
+              className={cn(
+                "flex w-full items-center gap-3 px-4 py-3 text-sm transition-colors",
+                !isCustom && "hover:bg-muted/60",
+              )}
+            >
+              <SlidersHorizontal className={cn("size-3.5", isCustom ? "text-primary" : "text-muted-foreground/60")} />
+              <span className="font-semibold text-foreground">{CUSTOM_RATIO}</span>
+              {isCustom && (
+                <span className="text-muted-foreground">
+                  {value.width}×{value.height}
+                </span>
+              )}
+              {isCustom && <Check className="ml-auto size-4 text-primary" />}
+            </button>
+            {isCustom && (
+              <div className="flex items-center gap-2 px-4 pb-3">
+                <SideInput
+                  label="自定义宽度"
+                  value={value.width}
+                  onCommit={(n) => onChange({ ...value, ratio: CUSTOM_RATIO, width: n })}
+                />
+                <span className="shrink-0 text-muted-foreground">×</span>
+                <SideInput
+                  label="自定义高度"
+                  value={value.height}
+                  onCommit={(n) => onChange({ ...value, ratio: CUSTOM_RATIO, height: n })}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -21,8 +21,12 @@ async def run_workflow_pack(
     *,
     on_progress: Callable[[float], None] | None = None,
     use_ws: bool = True,
+    wait_timeout: float | None = None,
 ) -> dict[str, Any]:
-    """注入参数、上传媒体输入、提交并等待完成，返回 ComfyUI outputs 字典。"""
+    """注入参数、上传媒体输入、提交并等待完成，返回 ComfyUI outputs 字典。
+
+    wait_timeout 为 None 时使用 ComfyClient.wait_result 的默认上限（600 秒）。
+    """
     workflow = apply_inputs(pack, inputs)
     for key, spec in pack.inputs.items():
         if spec.get("type") not in _UPLOAD_INPUT_TYPES or key not in inputs:
@@ -34,7 +38,8 @@ async def run_workflow_pack(
         inject_image_input(workflow, pack, key, comfy_name)
 
     prompt_id = await client.queue_prompt(workflow)
-    result = await client.wait_result(prompt_id, on_progress=on_progress, use_ws=use_ws)
+    wait_kwargs: dict[str, Any] = {} if wait_timeout is None else {"timeout": wait_timeout}
+    result = await client.wait_result(prompt_id, on_progress=on_progress, use_ws=use_ws, **wait_kwargs)
     return result.get("outputs", {})  # type: ignore[no-any-return]
 
 
@@ -51,6 +56,22 @@ def extract_files(
         for key in keys:
             files.extend(node_out.get(key, []))
     return files
+
+
+def extract_texts(client_outputs: dict[str, Any], pack: WorkflowPack) -> list[str]:
+    """从 outputs 提取文本（分析类工作流的展示节点，如 ShowText / easy showAnything）。"""
+    node_ids = [str(pack.outputs["node"])] if pack.outputs.get("node") else list(client_outputs)
+    texts: list[str] = []
+    for node_id in node_ids:
+        node_out = client_outputs.get(node_id, {})
+        # 展示节点的文本一般在 text/string/strings 键（列表或字符串）
+        for key in ("text", "string", "strings"):
+            v = node_out.get(key)
+            if isinstance(v, list):
+                texts.extend(str(t) for t in v if str(t).strip())
+            elif isinstance(v, str) and v.strip():
+                texts.append(v)
+    return texts
 
 
 async def download_files(

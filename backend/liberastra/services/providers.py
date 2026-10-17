@@ -17,6 +17,7 @@ from liberastra.providers.image.comfyui import ComfyUIImage
 from liberastra.providers.image.openai_images import OpenAIImages
 from liberastra.providers.llm.ollama import OllamaLLM
 from liberastra.providers.llm.openai_compatible import OpenAICompatibleLLM
+from liberastra.providers.speech.comfyui import ComfyUISpeech
 from liberastra.providers.speech.liber_speech import LiberSpeech
 from liberastra.providers.tts.edge_tts import EdgeTTS
 from liberastra.providers.tts.openai_tts import OpenAITTS
@@ -32,18 +33,26 @@ def decrypt_api_key(record: Provider) -> str | None:
     return get_fernet().decrypt(record.api_key_encrypted.encode("ascii")).decode("utf-8")
 
 
-def build_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
-    """按 Provider 类型构造能力适配器。"""
+def build_adapter(
+    record: Provider,
+    *,
+    client: httpx.AsyncClient | None = None,
+    timeout: float | None = None,
+) -> Any:
+    """按 Provider 类型构造能力适配器。timeout 仅对 LLM 类生效。"""
     api_key = decrypt_api_key(record)
     default_model = record.extra.get("model") if record.extra else None
+    llm_kw: dict[str, Any] = {"client": client}
+    if timeout is not None:
+        llm_kw["timeout"] = timeout
     if record.type == "ollama":
-        return OllamaLLM(record.base_url, client=client)
+        return OllamaLLM(record.base_url, **llm_kw)
     if record.type == "openai_compatible":
-        return OpenAICompatibleLLM(record.base_url, api_key, client=client)
+        return OpenAICompatibleLLM(record.base_url, api_key, **llm_kw)
     if record.type == "openai_tts":
         return OpenAITTS(record.base_url, api_key, default_model or "tts-1", client=client)
     if record.type == "edge_tts":
-        return EdgeTTS()
+        return EdgeTTS(default_voice=default_model or "zh-CN-XiaoxiaoNeural")
     if record.type == "openai_stt":
         return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", client=client)
     if record.type == "liber_speech":
@@ -56,11 +65,25 @@ def build_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) 
 
 
 # 兼容旧引用（M1 的 services.llm 使用）
-def build_llm_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
-    return build_adapter(record, client=client)
+def build_llm_adapter(
+    record: Provider,
+    *,
+    client: httpx.AsyncClient | None = None,
+    db: Session | None = None,
+    timeout: float | None = None,
+) -> Any:
+    """构造 LLM 适配器；传入 db 时读取系统设置里的 llm_request_timeout_seconds。"""
+    if timeout is None and db is not None:
+        from liberastra.services.preferences import get_pref
+
+        timeout = float(get_pref(db, "llm_request_timeout_seconds"))
+    return build_adapter(record, client=client, timeout=timeout)
 
 
 def build_tts_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
+    """TTS 适配器：comfyui 走语音工作流包，其余与通用构造一致。"""
+    if record.type == "comfyui":
+        return ComfyUISpeech(record.base_url)
     return build_adapter(record, client=client)
 
 
@@ -85,6 +108,42 @@ async def fetch_models(record: Provider) -> list[str]:
     raise ProviderError(f"{record.type} 不支持拉取列表")
 
 
+async def fetch_model_folder(record: Provider, folder: str) -> list[str]:
+    """列出某个模型子目录的文件（如 checkpoints / upscale_models），供工作流参数下拉选择。
+
+    特殊形式 ``node:<节点类型>:<字段名>``：从 ComfyUI object_info 读取该节点
+    下拉输入（combo）的候选值，例如 tts_edge 音色的 node:EdgeTTS:voice。
+    """
+    if folder.startswith("node:"):
+        parts = folder.split(":", 2)
+        if len(parts) != 3:
+            raise ProviderError(f"node 选项格式应为 node:<节点类型>:<字段名>，收到 {folder}")
+        _, node_type, field_name = parts
+        adapter = build_adapter(record)
+        client = getattr(adapter, "client", None)
+        if client is None or not hasattr(client, "object_info"):
+            raise ProviderError(f"{record.type} 不支持读取节点选项")
+        info = await client.object_info()
+        node = info.get(node_type)
+        if node is None:
+            raise ProviderError(f"ComfyUI 中没有节点 {node_type}")
+        for group in ("required", "optional"):
+            spec = node.get("input", {}).get(group, {}).get(field_name)
+            # combo 输入的定义形如 [["选项A", "选项B"], {…}] 或 [["A","B"]]
+            if isinstance(spec, list) and spec and isinstance(spec[0], list):
+                return [str(v) for v in spec[0]]
+        raise ProviderError(f"节点 {node_type} 的 {field_name} 不是下拉输入")
+    adapter = build_adapter(record)
+    if hasattr(adapter, "list_model_folder"):
+        return await adapter.list_model_folder(folder)  # type: ignore[no-any-return]
+    # edge_tts 等：无子目录概念时，voices / models 走 list_voices / list_models
+    if folder in ("voices", "models") and hasattr(adapter, "list_voices"):
+        return await adapter.list_voices()  # type: ignore[no-any-return]
+    if folder in ("voices", "models") and hasattr(adapter, "list_models"):
+        return await adapter.list_models()  # type: ignore[no-any-return]
+    raise ProviderError(f"{record.type} 不支持按目录拉取模型")
+
+
 def pick_provider(db: Session, capability: str, provider_id: int | None = None) -> Provider:
     """按能力挑选 Provider：指定 id 则校验，否则取第一个启用的。"""
     if provider_id is not None:
@@ -95,7 +154,7 @@ def pick_provider(db: Session, capability: str, provider_id: int | None = None) 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Provider 已停用"
             )
-        if capability not in record.capabilities:
+        if capability not in effective_capabilities(record):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"该 Provider 不具备 {capability} 能力",
@@ -103,9 +162,34 @@ def pick_provider(db: Session, capability: str, provider_id: int | None = None) 
         return record
 
     for record in db.scalars(select(Provider).where(Provider.enabled.is_(True))).all():
-        if capability in record.capabilities:
+        if capability in effective_capabilities(record):
             return record
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"尚未配置任何启用的 {capability} Provider",
     )
+
+
+def effective_capabilities(record: Provider) -> list[str]:
+    """有效能力：以类型注册表为准（存量记录的 capabilities 是创建时快照，可能滞后）。"""
+    from liberastra.providers import PROVIDER_TYPES
+
+    info = PROVIDER_TYPES.get(record.type)
+    if info is not None:
+        return list(info.capabilities)
+    return list(record.capabilities or [])
+
+
+def provider_host(record: Provider) -> str:
+    """Provider 的主机组键：base_url 的主机名归一化。
+
+    localhost / 127.0.0.1 / ::1 / 空地址都归一为 "local"。
+    同一台显卡主机上的多个 Provider（不同端口、不同服务）会得到同一个组键，
+    供串行模式做互斥。
+    """
+    from urllib.parse import urlparse
+
+    host = (urlparse(record.base_url or "").hostname or "").lower()
+    if host in ("", "localhost", "127.0.0.1", "::1"):
+        return "local"
+    return host

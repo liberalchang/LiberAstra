@@ -6,6 +6,7 @@ from liberastra.api.routes import (
     asr,
     assets,
     auth,
+    bgm,
     capabilities,
     images,
     jobs,
@@ -14,6 +15,7 @@ from liberastra.api.routes import (
     openai_compat,
     providers,
     system,
+    templates,
     tokens,
     tts,
     uploads,
@@ -32,9 +34,11 @@ api_router.include_router(llm.router)
 api_router.include_router(tts.router)
 api_router.include_router(asr.router)
 api_router.include_router(voices.router)
+api_router.include_router(bgm.router)
 api_router.include_router(assets.router)
 api_router.include_router(images.router)
 api_router.include_router(workflows.router)
+api_router.include_router(templates.router)
 api_router.include_router(videos.router)
 api_router.include_router(uploads.router)
 api_router.include_router(system.router)

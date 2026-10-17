@@ -8,7 +8,14 @@ from sqlalchemy import func, select
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.core.security import create_access_token, hash_password, verify_password
 from liberastra.models import User
-from liberastra.schemas.auth import AuthStatus, LoginRequest, SetupRequest, TokenResponse, UserOut
+from liberastra.schemas.auth import (
+    AuthStatus,
+    LoginRequest,
+    PasswordChange,
+    SetupRequest,
+    TokenResponse,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -43,3 +50,12 @@ def login(body: LoginRequest, db: DbSession) -> TokenResponse:
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser) -> User:
     return user
+
+
+@router.post("/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(body: PasswordChange, user: CurrentUser, db: DbSession) -> None:
+    """修改当前登录账户的密码。旧密码校验失败返回 400。"""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码不正确")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()

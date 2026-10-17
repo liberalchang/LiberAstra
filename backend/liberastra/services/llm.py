@@ -38,7 +38,7 @@ async def run_chat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str,
     provider = db.get(Provider, job.provider_id) if job.provider_id else None
     if provider is None:
         raise RuntimeError("任务缺少 Provider")
-    adapter = build_llm_adapter(provider)
+    adapter = build_llm_adapter(provider, db=db)
     ctx.report(db, job, progress=0.1, step="chat")
     text = await adapter.chat(
         model=job.model or "",

@@ -35,3 +35,10 @@ class AuthStatus(BaseModel):
     """初始化向导依据：是否已创建管理员账号。"""
 
     initialized: bool
+
+
+class PasswordChange(BaseModel):
+    """修改密码：必须提供当前密码，新密码规则与初始化一致。"""
+
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)

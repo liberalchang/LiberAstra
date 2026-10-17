@@ -9,6 +9,7 @@ import {
   Library,
   ListTodo,
   Mic,
+  Music,
   PersonStanding,
   Settings,
   UserRound,
@@ -29,6 +30,7 @@ export type MarkKind =
   | "tts"
   | "asr"
   | "voices"
+  | "music"
   | "library"
   | "jobs"
   | "settings"
@@ -48,6 +50,7 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   tts: AudioLines,
   asr: Mic,
   voices: Library,
+  music: Music,
   library: Images,
   jobs: ListTodo,
   settings: Settings,

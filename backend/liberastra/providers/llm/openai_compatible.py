@@ -24,6 +24,8 @@ async def _json_request(
         if resp.status_code >= 400:
             raise ProviderError(f"HTTP {resp.status_code}: {resp.text[:500]}")
         return resp.json()
+    except httpx.TimeoutException as exc:
+        raise ProviderError(f"请求超时 {url}（>{timeout:.0f}s）: {exc}") from exc
     except httpx.HTTPError as exc:
         raise ProviderError(f"无法连接 {url}: {exc}") from exc
     finally:
@@ -40,7 +42,7 @@ class OpenAICompatibleLLM:
         api_key: str | None = None,
         *,
         client: httpx.AsyncClient | None = None,
-        timeout: float = 60.0,
+        timeout: float = 300.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key

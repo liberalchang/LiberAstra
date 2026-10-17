@@ -11,7 +11,7 @@ export function GuidePage() {
         kind="guide"
         icon={BookOpen}
         title="使用文档"
-        description="当前只写了已经测通的文生图。其它能力测通后再补进同一份文档。"
+        description="出图、放大和语音的用法。视频页还对不上这台机器上的权重。"
       />
       <MarkdownView source={guide} />
     </div>

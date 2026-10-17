@@ -1,13 +1,22 @@
-"""工作流包路由：列表、详情、导入、删除（仅用户包）。"""
+"""工作流包路由：列表、详情、导入、编辑、导出、删除（编辑/删除仅用户包）。"""
 
 from __future__ import annotations
+
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
 from liberastra.api.deps import CurrentUser
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.workflow import WorkflowImportRequest, WorkflowPackOut
-from liberastra.services.workflows import delete_pack, get_pack, import_pack, list_packs
+from liberastra.services.workflows import (
+    delete_pack,
+    export_pack,
+    get_pack,
+    import_pack,
+    list_packs,
+    update_pack,
+)
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -21,6 +30,7 @@ def _to_out(pack) -> WorkflowPackOut:  # noqa: ANN001, ANN202
         outputs=pack.outputs,
         source=pack.source,
         requirements=pack.requirements,
+        fps=pack.fps,
     )
 
 
@@ -56,6 +66,34 @@ def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowP
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return _to_out(pack)
+
+
+@router.put("/{name}", response_model=WorkflowPackOut)
+def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -> WorkflowPackOut:
+    try:
+        pack = update_pack(
+            name,
+            body.workflow,
+            {
+                "name": name,
+                "capability": body.capability,
+                "description": body.description,
+                "inputs": body.inputs,
+                "outputs": body.outputs,
+                "requirements": body.requirements,
+            },
+        )
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _to_out(pack)
+
+
+@router.get("/{name}/export")
+def export_workflow(name: str, user: CurrentUser) -> dict[str, Any]:
+    try:
+        return export_pack(name)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)

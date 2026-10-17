@@ -67,6 +67,5 @@ def test_example_packs_load() -> None:
     packs = {p.name: p for p in list_packs()}
     assert "t2i_basic" in packs
     assert "upscale_basic" in packs
-    assert "i2v_basic" in packs
+    assert "i2v_basic" not in packs  # 已移除：无对应单一 wan2.2_i2v checkpoint
     assert packs["upscale_basic"].inputs["image"]["type"] == "image"
-    assert packs["i2v_basic"].capability == "first_frame_i2v"

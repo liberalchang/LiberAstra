@@ -28,12 +28,17 @@ const KIND_LABEL: Record<string, string> = {
 
 /** meta 字段的中文标签与展示顺序（prompt/text/title 作为摘要单独展示）。 */
 const META_LABELS: [string, string][] = [
-  ["workflow", "工作流"],
+  ["template", "模板"],
+  ["workflow", "画面工作流"],
+  ["tts_workflow", "配音工作流"],
   ["model", "模型"],
+  ["llm_provider", "脚本服务"],
+  ["llm_model", "脚本模型"],
   ["size", "尺寸"],
   ["aspect", "画幅"],
   ["seed", "种子"],
   ["voice", "音色"],
+  ["bgm", "背景音乐"],
   ["format", "格式"],
   ["frames", "帧数"],
   ["provider", "服务"],

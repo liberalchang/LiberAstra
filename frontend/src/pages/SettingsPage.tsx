@@ -1,7 +1,7 @@
 import { Settings } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, PlugZap, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, PlugZap, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { api, type ProviderOut, type TestResult } from "@/api/client";
@@ -26,6 +26,12 @@ export function SettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [rowFeedback, setRowFeedback] = useState<Record<number, TestResult>>({});
   const [expandedModels, setExpandedModels] = useState<Record<number, boolean>>({});
+  // 编辑中的 Provider：null 表示没有
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBaseUrl, setEditBaseUrl] = useState("");
+  const [editApiKey, setEditApiKey] = useState("");
+  const [editEnabled, setEditEnabled] = useState(true);
 
   const selectedType = caps?.provider_types.find((t) => t.type === type);
 
@@ -72,6 +78,31 @@ export function SettingsPage() {
     mutationFn: (id: number) => api.deleteProvider(id),
     onSuccess: invalidate,
   });
+
+  const update = useMutation({
+    mutationFn: (id: number) =>
+      api.updateProvider(id, {
+        name: editName,
+        base_url: editBaseUrl,
+        api_key: editApiKey ? editApiKey : undefined,
+        enabled: editEnabled,
+      }),
+    onSuccess: (_p, id) => {
+      setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: "已保存修改" } }));
+      setEditingId(null);
+      invalidate();
+    },
+    onError: (err, id) =>
+      setRowFeedback((prev) => ({ ...prev, [id]: { ok: false, message: err.message } })),
+  });
+
+  const startEdit = (p: ProviderOut) => {
+    setEditingId(p.id);
+    setEditName(p.name);
+    setEditBaseUrl(p.base_url);
+    setEditApiKey("");
+    setEditEnabled(p.enabled);
+  };
 
   const typeLabel = (p: ProviderOut) =>
     caps?.provider_types.find((t) => t.type === p.type)?.label ?? p.type;
@@ -199,6 +230,13 @@ export function SettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => (editingId === p.id ? setEditingId(null) : startEdit(p))}
+              >
+                <Pencil /> {editingId === p.id ? "收起" : "编辑"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => fetchModels.mutate(p.id)}
                 disabled={fetchModels.isPending}
               >
@@ -208,6 +246,46 @@ export function SettingsPage() {
                 <Trash2 />
               </Button>
               </div>
+              {editingId === p.id && (
+                <form
+                  className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    update.mutate(p.id);
+                  }}
+                >
+                  <Field label="名称" hint="展示用名字。">
+                    <Input value={editName} required onChange={(e) => setEditName(e.target.value)} />
+                  </Field>
+                  <Field label="Base URL" hint="服务根地址。">
+                    <Input value={editBaseUrl} onChange={(e) => setEditBaseUrl(e.target.value)} />
+                  </Field>
+                  <Field label="API Key" hint="留空保持不变；输入新值则替换并加密保存。">
+                    <Input
+                      type="password"
+                      placeholder={p.has_api_key ? "已配置，留空保持不变" : "未配置，可在此填写"}
+                      value={editApiKey}
+                      onChange={(e) => setEditApiKey(e.target.value)}
+                    />
+                  </Field>
+                  <label className="flex items-center gap-2 self-end pb-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editEnabled}
+                      onChange={(e) => setEditEnabled(e.target.checked)}
+                    />
+                    启用该服务
+                  </label>
+                  <div className="flex items-center gap-2 sm:col-span-2">
+                    <Button type="submit" disabled={update.isPending}>
+                      {update.isPending ? "保存中…" : "保存修改"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setEditingId(null)}>
+                      取消
+                    </Button>
+                  </div>
+                </form>
+              )}
               {p.models.length > 0 && expandedModels[p.id] && (
                 <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
                   {p.models.map((model) => (

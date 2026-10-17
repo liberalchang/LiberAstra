@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from liberastra.api.routes.system import run_startup_cleanup
+        from liberastra.media.htmlframe import close_browser
 
         run_startup_cleanup()
         manager = JobManager()
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
         manager.start()
         yield
         await manager.stop()
+        await close_browser()
 
     app = FastAPI(
         title=settings.app_name,

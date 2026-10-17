@@ -15,6 +15,7 @@ class WorkflowPackOut(BaseModel):
     outputs: dict[str, Any]
     source: str
     requirements: dict[str, Any]
+    fps: int | None = None  # 视频包帧率；有它前端可按秒设置时长
 
 
 class WorkflowImportRequest(BaseModel):

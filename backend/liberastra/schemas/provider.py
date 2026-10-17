@@ -44,8 +44,14 @@ class ProviderOut(BaseModel):
 
     @classmethod
     def from_record(cls, record) -> ProviderOut:  # noqa: ANN001
-        data = {k: getattr(record, k) for k in cls.model_fields if k != "has_api_key"}
-        return cls(**data, has_api_key=bool(record.api_key_encrypted))
+        from liberastra.services.providers import effective_capabilities
+
+        data = {k: getattr(record, k) for k in cls.model_fields if k not in ("has_api_key", "capabilities")}
+        return cls(
+            **data,
+            has_api_key=bool(record.api_key_encrypted),
+            capabilities=effective_capabilities(record),
+        )
 
 
 class ProviderTypeInfoOut(BaseModel):

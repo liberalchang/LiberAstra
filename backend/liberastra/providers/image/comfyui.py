@@ -26,10 +26,11 @@ class ComfyUIImage:
         inputs: dict[str, Any],
         on_progress: Callable[[float], None] | None = None,
         use_ws: bool = True,
+        wait_timeout: float | None = None,
     ) -> list[tuple[str, bytes]]:
-        """按工作流包生成，返回 [(文件名, 字节)]。"""
+        """按工作流包生成，返回 [(文件名, 字节)]。wait_timeout 为 None 时用默认 600 秒。"""
         outputs = await run_workflow_pack(
-            self.client, pack, inputs, on_progress=on_progress, use_ws=use_ws
+            self.client, pack, inputs, on_progress=on_progress, use_ws=use_ws, wait_timeout=wait_timeout
         )
         images = await download_files(self.client, extract_files(outputs, pack, ("images",)))
         if not images:
@@ -41,3 +42,6 @@ class ComfyUIImage:
 
     async def list_models(self) -> list[str]:
         return await self.client.list_model_files()
+
+    async def list_model_folder(self, folder: str) -> list[str]:
+        return await self.client.list_model_folder(folder)

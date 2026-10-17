@@ -33,7 +33,7 @@ class _FakeAdapter:
 def _patch_adapter(monkeypatch: pytest.MonkeyPatch, adapter: _FakeAdapter) -> None:
     from liberastra.services import llm as llm_service
 
-    monkeypatch.setattr(llm_service, "build_llm_adapter", lambda record: adapter)
+    monkeypatch.setattr(llm_service, "build_llm_adapter", lambda record, **_kw: adapter)
 
 
 def _wait_status(client: TestClient, job_id: str, headers: dict[str, str], timeout: float = 10.0) -> dict:
