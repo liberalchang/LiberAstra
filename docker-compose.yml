@@ -14,7 +14,8 @@ services:
     image: liberastra:latest
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # 宿主机发布端口；与容器内 LIBERASTRA_PORT（默认 8000）分离，避免冲突
+      - "${LIBERASTRA_PUBLISH_PORT:-8000}:8000"
     volumes:
       - ./data:/data
     extra_hosts:
