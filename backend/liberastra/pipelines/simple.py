@@ -42,7 +42,7 @@ async def _run_video_pack(
     adapter = ComfyUIVideo(provider.base_url)
     ctx.report(db, job, progress=0.1, step="comfyui")
     started = time.monotonic()
-    videos = await adapter.generate(
+    videos, texts = await adapter.generate(
         pack=pack,
         inputs=inputs,
         on_progress=lambda p: ctx.report(db, job, progress=0.1 + 0.85 * p),
@@ -71,6 +71,10 @@ async def _run_video_pack(
         outputs.append(
             {"type": "asset", "asset_id": asset.id, "kind": "video", "filename": f"video_{i}.{ext}"}
         )
+    # 增强包等声明了 outputs.texts 时，把增强提示词/报告带回结果页
+    for block in texts:
+        if block.strip():
+            outputs.append({"type": "text", "content": block})
     ctx.report(db, job, progress=1.0)
     return outputs
 
@@ -304,7 +308,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             )
         elif animate and video_adapter is not None and video_pack is not None:
             # 素材动画：图片经 i2v 工作流动画化后再合成
-            clips = await video_adapter.generate(
+            clips, _texts = await video_adapter.generate(
                 pack=video_pack,
                 inputs={
                     **params.get("video_inputs", {}),

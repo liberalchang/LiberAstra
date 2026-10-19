@@ -19,6 +19,9 @@ import yaml
 from liberastra.core.config import get_settings
 from liberastra.providers.base import ProviderError
 
+# 提交 inputs 里的保留键：加速开关参数，不映射到工作流节点
+ACCEL_INPUT_KEY = "__accel"
+
 
 @dataclass
 class WorkflowPack:
@@ -31,6 +34,7 @@ class WorkflowPack:
     source: str  # builtin / user
     requirements: dict[str, Any] = field(default_factory=dict)
     fps: int | None = None  # 视频包的帧率（manifest 顶层 fps）；有它前端可按秒设置时长
+    accel: dict[str, Any] = field(default_factory=dict)  # manifest 顶层 accel：加速 LoRA 声明，空=无加速能力
 
 
 def _builtin_dir() -> Path:
@@ -62,6 +66,7 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
         source=source,
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
+        accel=manifest.get("accel") or {},
     )
     validate_pack(pack)
     return pack
@@ -98,6 +103,44 @@ def validate_pack(pack: WorkflowPack) -> None:
             raise ProviderError(f"工作流包 {pack.name} 参数 {key} 指向不存在的节点 {node}")
         if not spec.get("field"):
             raise ProviderError(f"工作流包 {pack.name} 参数 {key} 缺少 field 映射")
+    if pack.accel:
+        _validate_accel(pack)
+
+
+def _validate_accel(pack: WorkflowPack) -> None:
+    """校验 accel 声明：节点存在，bypass_input 是连线，源节点存在；下游只允许引用输出 0。"""
+    spec = pack.accel
+    node_id = str(spec.get("node", ""))
+    if not node_id:
+        raise ProviderError(f"工作流包 {pack.name} 的 accel 缺少 node")
+    if node_id not in pack.workflow:
+        raise ProviderError(f"工作流包 {pack.name} 的 accel.node {node_id} 在图里不存在")
+    bypass = spec.get("bypass_input", "model")
+    source = pack.workflow[node_id].get("inputs", {}).get(bypass)
+    if not (isinstance(source, list) and len(source) == 2):
+        raise ProviderError(
+            f"工作流包 {pack.name} 的 accel.bypass_input「{bypass}」必须是连线类型"
+        )
+    src_node = str(source[0])
+    if src_node not in pack.workflow:
+        raise ProviderError(
+            f"工作流包 {pack.name} 的 accel bypass 源节点 {src_node} 在图里不存在"
+        )
+    for other_id, other in pack.workflow.items():
+        if other_id == node_id or not isinstance(other, dict):
+            continue
+        for value in other.get("inputs", {}).values():
+            if isinstance(value, list) and len(value) == 2 and str(value[0]) == node_id:
+                if int(value[1]) != 0:
+                    raise ProviderError(
+                        f"工作流包 {pack.name} 的 accel 节点只支持单路 MODEL 输出（slot 0），"
+                        f"节点 {other_id} 引用了 slot {value[1]}"
+                    )
+    for preset_key in (spec.get("preset") or {}):
+        if preset_key not in pack.inputs:
+            raise ProviderError(
+                f"工作流包 {pack.name} 的 accel.preset 引用了未声明的输入 {preset_key}"
+            )
 
 
 def import_pack(
@@ -122,6 +165,7 @@ def import_pack(
         source="user",
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
+        accel=manifest.get("accel") or {},
     )
     validate_pack(pack)
     pack_dir.mkdir(parents=True, exist_ok=True)
@@ -145,7 +189,7 @@ def update_pack(name: str, workflow: dict[str, Any], manifest: dict[str, Any]) -
 def export_pack(name: str) -> dict[str, Any]:
     """导出完整包（manifest + workflow），可用于备份或在其他实例导入。"""
     pack = get_pack(name)
-    return {
+    data: dict[str, Any] = {
         "name": pack.name,
         "capability": pack.capability,
         "description": pack.description,
@@ -154,6 +198,11 @@ def export_pack(name: str) -> dict[str, Any]:
         "requirements": pack.requirements,
         "workflow": pack.workflow,
     }
+    if pack.fps is not None:
+        data["fps"] = pack.fps
+    if pack.accel:
+        data["accel"] = pack.accel
+    return data
 
 
 def delete_pack(name: str) -> None:
@@ -207,3 +256,122 @@ def inject_image_input(workflow: dict, pack: WorkflowPack, key: str, comfy_name:
     """图像输入上传 ComfyUI 后，把返回的文件名注入对应节点。"""
     spec = pack.inputs[key]
     _set_field(workflow, str(spec["node"]), spec["field"], comfy_name)
+
+
+def extract_accel(inputs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """从提交 inputs 拆出保留键 __accel，返回 (节点参数, accel 或 None)。"""
+    clean = {k: v for k, v in inputs.items() if k != ACCEL_INPUT_KEY}
+    raw = inputs.get(ACCEL_INPUT_KEY)
+    if raw is None:
+        return clean, None
+    if not isinstance(raw, dict):
+        raise ProviderError(f"{ACCEL_INPUT_KEY} 必须是 JSON 对象")
+    return clean, raw
+
+
+def _as_bool(value: Any, *, field: str) -> bool:
+    """只接受 JSON 布尔，避免 bool(\"false\") == True。"""
+    if isinstance(value, bool):
+        return value
+    raise ProviderError(f"{field} 必须是布尔值 true/false")
+
+
+def resolve_accel_enabled(pack: WorkflowPack, accel: dict[str, Any] | None) -> bool:
+    """包未声明 accel 时视为关闭；声明了则看 accel.enabled，缺省用 default_enabled。"""
+    if not pack.accel:
+        return False
+    if accel is None:
+        return _as_bool(pack.accel.get("default_enabled", False), field="accel.default_enabled")
+    if "enabled" in accel:
+        return _as_bool(accel["enabled"], field="__accel.enabled")
+    return _as_bool(pack.accel.get("default_enabled", False), field="accel.default_enabled")
+
+
+def resolve_accel_lora(pack: WorkflowPack, accel: dict[str, Any] | None) -> str:
+    """开启加速时要用的 LoRA 文件名（显式选择 > recommended）。"""
+    spec = pack.accel
+    cfg = accel or {}
+    return str(cfg.get("lora") or spec.get("lora", {}).get("recommended") or "")
+
+
+def apply_accel(
+    workflow: dict[str, Any],
+    pack: WorkflowPack,
+    accel: dict[str, Any] | None,
+    *,
+    user_values: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """按包的 accel 声明改写计算图（在 apply_inputs 之后调用）。
+
+    开启：注入 LoRA 文件名与强度，并对用户未显式传入的输入应用 preset。
+    关闭：把 accel 节点从图里摘掉，所有引用该节点的下游输入改接到
+    bypass_input 的原始来源。无 accel 声明时原样返回。
+    """
+    spec = pack.accel
+    if not spec:
+        return workflow
+    node_id = str(spec.get("node", ""))
+    node = workflow.get(node_id)
+    if node is None:
+        raise ProviderError(f"工作流包 {pack.name} 的 accel.node {node_id} 在图里不存在")
+
+    if resolve_accel_enabled(pack, accel):
+        lora = resolve_accel_lora(pack, accel)
+        if not lora:
+            raise ProviderError("开启了加速但没有选择加速模型")
+        lora_spec = spec.get("lora", {})
+        _set_field(workflow, node_id, lora_spec.get("field", "inputs.lora_name"), lora)
+        strength_spec = spec.get("strength", {})
+        if strength_spec.get("field"):
+            cfg = accel or {}
+            raw_strength = cfg.get("strength", strength_spec.get("default", 1.0))
+            try:
+                strength = float(raw_strength)
+            except (TypeError, ValueError) as exc:
+                raise ProviderError(f"加速强度无效: {raw_strength}") from exc
+            if "min" in strength_spec:
+                strength = max(float(strength_spec["min"]), strength)
+            if "max" in strength_spec:
+                strength = min(float(strength_spec["max"]), strength)
+            _set_field(workflow, node_id, strength_spec["field"], strength)
+        # preset：用户手动改过的值优先（已在 apply_inputs 写入）
+        provided = user_values or {}
+        for key, preset_val in (spec.get("preset") or {}).items():
+            if key in provided:
+                continue
+            input_spec = pack.inputs.get(key)
+            if not input_spec:
+                continue
+            value: Any = preset_val
+            ptype = input_spec.get("type")
+            if ptype == "int":
+                value = int(value)
+            elif ptype == "float":
+                value = float(value)
+            elif ptype == "bool":
+                value = bool(value)
+            else:
+                value = str(value)
+            _set_field(workflow, str(input_spec["node"]), input_spec["field"], value)
+        return workflow
+
+    # 关闭：摘除节点；仅把引用输出 slot 0 的下游改接到 bypass_input 来源
+    bypass = spec.get("bypass_input", "model")
+    source = node.get("inputs", {}).get(bypass)
+    if not (isinstance(source, list) and len(source) == 2):
+        raise ProviderError(
+            f"工作流包 {pack.name} 关闭加速失败：bypass_input「{bypass}」不是连线"
+        )
+    rewired = [source[0], source[1]]
+    for other in workflow.values():
+        if not isinstance(other, dict):
+            continue
+        for input_key, value in list(other.get("inputs", {}).items()):
+            if isinstance(value, list) and len(value) == 2 and str(value[0]) == node_id:
+                if int(value[1]) != 0:
+                    raise ProviderError(
+                        f"关闭加速失败：存在对 accel 节点非 0 输出的引用（slot {value[1]}）"
+                    )
+                other["inputs"][input_key] = list(rewired)
+    del workflow[node_id]
+    return workflow

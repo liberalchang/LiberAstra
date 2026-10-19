@@ -69,3 +69,24 @@ def test_example_packs_load() -> None:
     assert "upscale_basic" in packs
     assert "i2v_basic" not in packs  # 已移除：无对应单一 wan2.2_i2v checkpoint
     assert packs["upscale_basic"].inputs["image"]["type"] == "image"
+    assert "minimax_h3_i2v" in packs
+    assert packs["minimax_h3_i2v"].accel.get("node") == "105:200"
+    assert "minimax_h3_i2v_enhancer" in packs
+    assert packs["minimax_h3_i2v_enhancer"].capability == "i2v"
+    assert packs["minimax_h3_i2v_enhancer"].accel.get("node") == "105:200"
+    assert packs["minimax_h3_i2v_enhancer"].outputs.get("texts")
+    assert packs["minimax_h3_t2v"].capability == "t2v"
+    assert packs["minimax_h3_t2v_enhancer"].capability == "t2v"
+    assert packs["minimax_h3_t2v_enhancer"].outputs.get("texts")
+    assert "image" not in packs["minimax_h3_t2v"].inputs
+    assert "image" not in packs["minimax_h3_t2v_enhancer"].inputs
+    assert packs["minimax_h3_t2v_uncensored"].capability == "t2v"
+    assert "image" not in packs["minimax_h3_t2v_uncensored"].inputs
+    assert packs["minimax_h3_i2v_uncensored"].capability == "i2v"
+    assert "image" in packs["minimax_h3_i2v_uncensored"].inputs
+    assert packs["minimax_h3_i2v_uncensored"].accel.get("lora", {}).get("recommended", "").endswith(
+        "fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+    )
+    assert packs["minimax_h3_t2v_uncensored"].accel.get("lora", {}).get("recommended", "").endswith(
+        "fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+    )

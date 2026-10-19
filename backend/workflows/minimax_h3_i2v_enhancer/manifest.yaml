@@ -1,0 +1,132 @@
+name: minimax_h3_i2v_enhancer
+capability: i2v
+description: MiniMax H3 图生视频 + Qwen3-VL 提示词增强（默认越狱 TE；可选 Turbo 加速；需 Guide 节点包与同族 generation tail）
+fps: 24
+inputs:
+  image:
+    node: "114"
+    field: inputs.image
+    type: image
+    required: true
+    label: 首帧图片
+  prompt:
+    node: "105:122"
+    field: inputs.manual_prompt
+    type: str
+    required: true
+    label: 简短提示词
+    description: 由增强器改写成 H3 规范长提示词后再生成
+  width:
+    node: "105:104"
+    field: inputs.width
+    type: int
+    default: 1344
+    min: 512
+    max: 1920
+    multiple: 32
+  height:
+    node: "105:104"
+    field: inputs.height
+    type: int
+    default: 768
+    min: 512
+    max: 1920
+    multiple: 32
+  length:
+    node: "105:104"
+    field: inputs.length
+    type: int
+    default: 124
+    min: 73
+    max: 362
+    align_base: 17
+    align_offset: 5
+    label: 帧数
+  seed:
+    node: "105:15"
+    field: inputs.noise_seed
+    type: int
+    default: -1
+  steps:
+    node: "105:9"
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 4
+    max: 50
+  sampler_name:
+    node: "105:17"
+    field: inputs.sampler_name
+    type: str
+    default: res_multistep
+  clip_name:
+    node: "105:13"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器（官方/越狱）
+    description: 须与下方 generation tail 同族
+  tail_file:
+    node: "105:121"
+    field: inputs.tail_file
+    type: str
+    default: qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 生成尾（须与编码器同族）
+  enhance_temperature:
+    node: "105:122"
+    field: inputs.temperature
+    type: float
+    default: 0.7
+    min: 0.1
+    max: 1.5
+    label: 增强温度
+  unet_name:
+    node: "105:6"
+    field: inputs.unet_name
+    type: str
+    default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（FL2VA）
+outputs:
+  node: "92"
+  key: images
+  texts:
+    - node: "105:123"
+      label: 增强后提示词
+    - node: "105:124"
+      label: 增强报告
+accel:
+  label: Turbo 加速
+  family: minimax_h3
+  default_enabled: false
+  node: "105:200"
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: minimax_h3
+    recommended: minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors
+  strength:
+    field: inputs.strength_model
+    default: 1.0
+    min: 0.5
+    max: 1.5
+  preset:
+    steps: 8
+requirements:
+  nodes:
+    - MiniMaxH3ImageToVideo
+    - MiniMaxH3PromptEnhancer
+    - MiniMaxH3GenerationTailLoader
+    - LoraLoaderModelOnly
+    - SamplerCustomAdvanced
+    - SaveVideo
+    - CreateVideo
+  models:
+    - diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    - text_encoders/qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors
+    - text_encoders/qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors
+    - vae/minimax_h3_video_vae_fp16.safetensors
+    - vae/minimax_h3_audio_vae_fp32.safetensors

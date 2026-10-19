@@ -5,6 +5,13 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob, TERMINAL_STATUSES, type TemplateOut } from "@/api/client";
+import {
+  AccelControl,
+  buildInputsWithAccel,
+  defaultAccelState,
+  hasAccel,
+  type AccelState,
+} from "@/components/AccelControl";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button } from "@/components/ui/button";
@@ -182,6 +189,10 @@ export function VideoQuickPage() {
     </>
   );
   const [storyboardOnly, setStoryboardOnly] = usePersistentState("video-quick:storyboard-only", false);
+  /** 用脚本服务 LLM 把口播改写成画面提示词；关则与 enhancer 的 Guide 不双重扩写 */
+  const [optimizeVisuals, setOptimizeVisuals] = usePersistentState("video-quick:optimize-visuals", true);
+  /** 选中 enhancer 包时自动关优化的提示（类 toast） */
+  const [optimizeNotice, setOptimizeNotice] = useState<string | null>(null);
   const [batchText, setBatchText] = usePersistentState("video-quick:batch-topics", "");
   const [batchJobs, setBatchJobs] = useState<{ topic: string; jobId: string }[] | null>(null);
   /** 批量主题：一行一个，去空行，上限 100 */
@@ -225,6 +236,23 @@ export function VideoQuickPage() {
   const [videoWorkflow, setVideoWorkflow] = usePersistentState("video-quick:video-workflow", "");
   const videoPack = videoPacks?.find((p) => p.name === videoWorkflow) ?? videoPacks?.[0];
   const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>("video-quick:video-extra", {});
+  const [videoAccel, setVideoAccel] = usePersistentState<AccelState>(
+    `video-quick:accel:${videoPack?.name ?? "none"}`,
+    defaultAccelState(videoPack?.accel),
+  );
+  // 选中 *_enhancer 时自动关闭画面提示词优化，避免与 Guide 双重扩写
+  useEffect(() => {
+    const name = videoPack?.name ?? "";
+    if (!name.includes("enhancer")) return;
+    let wasOn = false;
+    setOptimizeVisuals((prev) => {
+      wasOn = prev;
+      return false;
+    });
+    if (wasOn) {
+      setOptimizeNotice(`已关闭「画面提示词优化」：${name} 自带 Guide 增强，避免双重扩写`);
+    }
+  }, [videoPack?.name, setOptimizeVisuals]);
   const [pickerOpen, setPickerOpen] = useState(false);
   // 文字显隐与字号：模板标题/文案（倍率），视频烧录字幕（字号，0=自动）
   const [showTitle, setShowTitle] = usePersistentState("video-quick:show-title", true);
@@ -324,6 +352,7 @@ export function VideoQuickPage() {
       style_prefix: stylePrefix,
       storyboard,
       storyboard_only: storyboardOnly,
+      optimize_visuals: optimizeVisuals,
       llm_provider_id: llmProvider?.id,
       llm_model: llmModel || undefined,
       tts_provider_id: ttsProvider?.id,
@@ -336,7 +365,7 @@ export function VideoQuickPage() {
           : undefined,
       video_workflow: tpl?.type === "video" ? videoPack?.name : undefined,
       video_inputs: tpl?.type === "video"
-        ? Object.fromEntries(Object.entries(videoExtra).filter(([, v]) => v !== ""))
+        ? buildInputsWithAccel(videoExtra, videoPack?.accel, videoAccel)
         : undefined,
       image_workflow: tpl?.type === "image" && tpl.needs_image ? imagePack?.name : undefined,
       image_inputs: tpl?.type === "image" && tpl.needs_image
@@ -407,9 +436,15 @@ export function VideoQuickPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  // AI/批量写口播必用 LLM；固定文案仅在 image/video + 开启画面优化时才需要
+  const showLlmPicker =
+    mode === "topic" ||
+    mode === "batch" ||
+    ((tpl?.type === "image" || tpl?.type === "video") && optimizeVisuals);
   const submitDisabled =
     (mode === "topic" ? !topic : !script) ||
     !tpl ||
+    (showLlmPicker && !llmProvider) ||
     (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
@@ -418,6 +453,7 @@ export function VideoQuickPage() {
   const batchDisabled =
     batchTopics.length === 0 ||
     !tpl ||
+    !llmProvider ||
     (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
@@ -511,9 +547,31 @@ export function VideoQuickPage() {
                     <option value="sentence">按句切分</option>
                   </select>
                 </Field>
-                {llmPicker}
+                {showLlmPicker ? llmPicker : null}
               </div>
             </>
+          )}
+          {(tpl?.type === "image" || tpl?.type === "video") && (
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={optimizeVisuals}
+                  onChange={(e) => {
+                    setOptimizeVisuals(e.target.checked);
+                    if (e.target.checked) setOptimizeNotice(null);
+                  }}
+                />
+                用脚本服务优化画面提示词
+              </label>
+              <span className="text-xs leading-relaxed text-muted-foreground">
+                开启后 LLM 把口播改写成画面描述再交给插图/视频工作流。若选用带 Guide 的 enhancer
+                包，会自动关闭本项，避免与工作流内提示词增强重复扩写。静态模板不受影响。
+              </span>
+              {optimizeNotice && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">{optimizeNotice}</p>
+              )}
+            </div>
           )}
           {mode !== "batch" && (
             <div className="flex flex-col gap-1.5">
@@ -660,7 +718,7 @@ export function VideoQuickPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="视频工作流" hint="每个分镜跑一遍该工作流生成片段。">
+                <Field label="视频工作流" hint="每个分镜跑一遍该工作流生成片段。含 enhancer 的包自带 Guide 增强，选中后会自动关闭上方「画面提示词优化」。">
                   <select
                     className={selectClass}
                     value={videoPack?.name ?? ""}
@@ -672,6 +730,23 @@ export function VideoQuickPage() {
                   </select>
                 </Field>
               </div>
+              {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
+                <AccelControl
+                  accel={videoPack.accel}
+                  providerId={videoProvider?.id}
+                  value={videoAccel}
+                  onChange={setVideoAccel}
+                  onApplyPreset={(preset) =>
+                    setVideoExtra((prev) => {
+                      const next = { ...prev };
+                      for (const [k, v] of Object.entries(preset)) {
+                        if (next[k] == null || next[k] === "") next[k] = v;
+                      }
+                      return next;
+                    })
+                  }
+                />
+              )}
               {videoPack && (
                 <WorkflowInputs
                   inputs={videoPack.inputs}

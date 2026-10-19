@@ -1,0 +1,158 @@
+{
+  "105:6": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "105:13": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "105:11": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "105:24": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    }
+  },
+  "105:200": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["105:6", 0],
+      "lora_name": "minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "105:121": {
+    "class_type": "MiniMaxH3GenerationTailLoader",
+    "inputs": {
+      "tail_file": "qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors"
+    }
+  },
+  "105:122": {
+    "class_type": "MiniMaxH3PromptEnhancer",
+    "inputs": {
+      "clip": ["105:13", 0],
+      "clip_tail": ["105:121", 0],
+      "manual_prompt": "",
+      "mode_report": "Mode: T2VA (text to video + audio).\nCheckpoint: H3-Base-FL2VA.\nNo first frame, no last frame, no reference video, no reference audio.\nKeep the chronological shot/timestamp structure, keep every requested transformation in order, and always end with an audio section.",
+      "system_prompt": "",
+      "max_new_tokens": 1400,
+      "sampling": "sample",
+      "temperature": 0.7,
+      "top_k": 64,
+      "top_p": 0.95,
+      "min_p": 0.05,
+      "repetition_penalty": 1.05,
+      "presence_penalty": 0.0,
+      "seed": 0,
+      "thinking": false,
+      "offload_after_generation": true
+    }
+  },
+  "105:123": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": ["105:122", 0]
+    }
+  },
+  "105:124": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": ["105:122", 3]
+    }
+  },
+  "105:104": {
+    "class_type": "MiniMaxH3ImageToVideo",
+    "inputs": {
+      "clip": ["105:13", 0],
+      "vae": ["105:11", 0],
+      "prompt": ["105:122", 0],
+      "width": 1344,
+      "height": 768,
+      "length": 124
+    }
+  },
+  "105:15": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 0,
+      "control_after_generate": "fixed"
+    }
+  },
+  "105:17": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "res_multistep"
+    }
+  },
+  "105:9": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": ["105:200", 0],
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1.0
+    }
+  },
+  "105:16": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": ["105:200", 0],
+      "conditioning": ["105:104", 0]
+    }
+  },
+  "105:14": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": ["105:15", 0],
+      "guider": ["105:16", 0],
+      "sampler": ["105:17", 0],
+      "sigmas": ["105:9", 0],
+      "latent_image": ["105:104", 1]
+    }
+  },
+  "105:10": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["105:14", 0],
+      "vae": ["105:11", 0]
+    }
+  },
+  "105:23": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": ["105:14", 0],
+      "vae": ["105:24", 0]
+    }
+  },
+  "105:91": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": ["105:10", 0],
+      "audio": ["105:23", 0],
+      "fps": 24,
+      "bit_depth": 8
+    }
+  },
+  "92": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": ["105:91", 0],
+      "filename_prefix": "video/MiniMax_H3_t2v_enhancer",
+      "format": "auto",
+      "codec": "auto"
+    }
+  }
+}

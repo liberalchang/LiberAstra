@@ -1,6 +1,8 @@
 # MiniMax H3：模型清单、Turbo 加速与越狱增强工作流开发计划
 
-> 状态：计划文档，未改动代码。编写日期 2026-10-18。
+> 状态（2026-10-19 远程核对）：**代码侧** M2/M3/M4、E2/E3/E5 已完成。**运维侧** E1 物料已齐（Guide + 越狱 TE/tail，SHA 校验通过）；M1 物料部分齐（T8 Turbo LoRA 已上传，**缺** Larry Turbo 节点包与 `ema` / `fl2v_turbo_8step` 推荐文件）。**尚未做**：Comfy 网页/ LiberAstra 端到端出片验收；M3「默认开加速」偏好、M5、E4、E6。
+>
+> 远程实测摘要（`ps@10.10.12.140`，ComfyUI 0.37.0 / PyTorch 2.14.1+cu130）：磁盘剩余约 89G；内存 62G、可用约 20G；Guide `054ccb8`；`MiniMaxH3PromptEnhancer` / `MiniMaxH3GenerationTailLoader` 已注册；无 `ComfyUI-MiniMax-H3-Turbo`。
 >
 > 参考：[零度博客 25046：MiniMax H3 Turbo LoRA + 越狱模型](https://www.freedidi.com/25046.html)（本地归档 `D:\BaiduSyncdisk\mydir\Comfy\docs\25046-minimax-h3-turbo-uncensored.md`、`25046.html`）
 
@@ -11,13 +13,13 @@
 | 本地 Comfy 资源目录 | `D:\BaiduSyncdisk\mydir\Comfy`：模型在 `models\`，自定义节点在 `custom_nodes\`，工作流在 `工作流\`，相关说明在 `docs\` |
 | 部署主机 | `ps@10.10.12.140`（SSH 凭据见本地运维备忘，勿写入仓库） |
 | ComfyUI 工作目录 | `/home/ps/workspace/ComfyUI`，模型目录 `/home/ps/workspace/ComfyUI/models/` |
-| 远程硬件 | 2 × RTX 3090 24GB，内存 62GB，磁盘剩余约 126GB |
+| 远程硬件 | 2 × RTX 3090 24GB，内存 62GB，磁盘剩余约 89G（2026-10-19 实测） |
 | 远程 ComfyUI 启动参数 | `python main.py --listen 0.0.0.0 --port 8188 --enable-manager --lowvram --reserve-vram 8` |
 | 远程网络 | **访问不到 huggingface.co**，模型要先下到本地，再用 `scp` 传过去 |
 
 远程 ComfyUI 已有的原生 H3 支持（通过 `/object_info` 实测）：`MiniMaxH3ImageToVideo`、`ResolutionSelector`、`ComfyMathExpression`、`CreateVideo`、`SaveVideo`、`LoraLoaderModelOnly`、`PreviewAny`、`PrimitiveFloat`；`comfy/model_sampling.py` 里有 `ModelSamplingAV`（音视频双调度原生支持）。
 
-远程**缺少**：`MiniMaxH3PromptEnhancer`、`MiniMaxH3GenerationTailLoader`（需安装 Guide 节点包）。
+远程**已具备** Guide 节点：`MiniMaxH3PromptEnhancer`、`MiniMaxH3GenerationTailLoader`（包目录 `ComfyUI-MiniMax-H3-Guide` @ `054ccb8`）。**仍缺**：Larry `ComfyUI-MiniMax-H3-Turbo` 节点包（当前 LiberAstra 包走方案 B：`LoraLoaderModelOnly`，可不装）。
 
 ---
 
@@ -50,7 +52,7 @@
 | 文件 | 目录 | 大小 | 本地 | 远程 | 说明 |
 |------|------|------|------|------|------|
 | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | 14.6 GiB | 有 | 有 | 官方 TE（NVFP4/AWQ 量化）。3090 不是 Blackwell 架构，NVFP4 走回退路径，能用但不是最快 |
-| `qwen3vl_32b_h3_instruct_generation_tail_50_63_nvfp4_awq.safetensors` | `text_encoders` | 5.0 GiB | 无 | 无 | **可选**：官方版要用提示词增强时配这个 tail（和 nvfp4 TE 同族） |
+| `qwen3vl_32b_h3_instruct_generation_tail_50_63_nvfp4_awq.safetensors` | `text_encoders` | 5.0 GiB | 无 | 无 | **可选**：官方 TE 族增强用（当前增强包走越狱 TE+tail，不依赖此项） |
 
 官方 TE 的其他规格：`qwen3vl_32b_minimax_h3_int8_convrot`（25.3 GiB）、`bf16`（48 GiB）。
 
@@ -58,8 +60,8 @@
 
 | 文件 | 目录 | 大小 | 本地 | 远程 | 说明 |
 |------|------|------|------|------|------|
-| `qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors` | `text_encoders` | 24.55 GiB | 下载中（约 4.5/24.55 GiB） | 无 | 越狱 TE（第 0–49 层 + 视觉塔），替换官方 TE |
-| `qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors` | `text_encoders` | 7.09 GiB | 下载中（约 4.0/7.09 GiB） | 无 | 越狱族生成尾（第 50–63 层 + LM head），**只有增强工作流需要** |
+| `qwen3vl_32b_h3_ultra_uncensored_heretic_int8_convrot.safetensors` | `text_encoders` | 24.55 GiB | 有 | **有**（SHA `d8454741…` 匹配） | 越狱 TE（第 0–49 层 + 视觉塔），替换官方 TE |
+| `qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors` | `text_encoders` | 7.09 GiB | 有 | **有**（SHA `b5bb9bb8…` 匹配） | 越狱族生成尾（第 50–63 层 + LM head），**只有增强工作流需要** |
 
 来源：[ethanfel/Qwen3-VL-32B-Ultra-Heretic-MiniMax-H3-ComfyUI-INT8-ConvRot](https://huggingface.co/ethanfel/Qwen3-VL-32B-Ultra-Heretic-MiniMax-H3-ComfyUI-INT8-ConvRot)。BF16 满血版 TE 有 47.97 GiB，24GB 显卡不建议用。
 
@@ -73,7 +75,7 @@
 | `CLIPLoader.type` | `minimax` | `minimax` |
 | 敏感提示词 | 可能被弱化或改写 | 拒答率约 4/100（原版 99/100），不保证完全无限制 |
 | 内存/显存 | 较小 | TE 大约 10 GiB 更多；作者在 5090 上实测编码时显存约 24.7 GiB |
-| 远程就绪 | 已就绪 | 需上传 TE（+ tail） |
+| 远程就绪 | 已就绪 | **模型已就绪**；待端到端出片验收 |
 
 **内存风险**：远程只有 62GB 内存，ComfyUI 常驻已占约 37GB。越狱 TE 24.5 GiB + 主模型 19.5 GiB + tail 7.1 GiB 已经接近上限。上线前要实测一次，确认没有内存换页抖动或 OOM（内存溢出），必要时用单独的 Comfy 实例只跑 H3。
 
@@ -102,9 +104,10 @@ Turbo LoRA（低秩适配权重）是针对 MiniMax H3 DiT 蒸馏训练的少步
 
 | 文件 | 来源 | 本地 | 远程 | 说明 |
 |------|------|------|------|------|
-| `minimax_h3_turbo_4step_comfyui.safetensors`（本地改名） | [t8star 转换版](https://huggingface.co/t8star/minimax-h3-4step-turbo-loras-comfyui-exp)：`minimax_h3_turbo_4步加速_comfyui.safetensors` | 已下载 0.73 GiB | 无 | v1 系列初版，T8 转换为 ComfyUI 标准 LoRA 格式 |
-| `minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors` | t8star 转换版 | 已下载 0.73 GiB | 无 | v4-600（非 EMA）转换版 |
-| `minimax_h3_turbo_v4_step600_ema.safetensors` | [larryvrh 原版](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora) | 无 | 无 | **原作者推荐的当前最佳版本**，配 Turbo 节点包使用 |
+| `minimax_h3_turbo_4step_comfyui.safetensors`（本地改名） | [t8star 转换版](https://huggingface.co/t8star/minimax-h3-4step-turbo-loras-comfyui-exp)：`minimax_h3_turbo_4步加速_comfyui.safetensors` | 有 0.73 GiB | **有** | v1 系列初版，T8 → 标准 LoRA；配 pruned 主模型**不保证**可用 |
+| `minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors` | t8star 转换版 | 有 0.73 GiB | **有** | v4-600（非 EMA）转换版；当前内置包 `accel.recommended` 指向此文件 |
+| `minimax_h3_turbo_v4_step600_ema.safetensors` | [larryvrh 原版](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora) | 无 | **无** | 原作者推荐；需方案 A（Turbo 节点包） |
+| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | 社区/其它转换 | 视本地 | **无** | 曾出现在早期 manifest 推荐名；远程未部署 |
 
 ### 2.3 两种接法（关键差异）
 
@@ -132,17 +135,17 @@ Turbo LoRA（低秩适配权重）是针对 MiniMax H3 DiT 蒸馏训练的少步
 
 | 模型族 | 加速方式 | 现状 |
 |--------|----------|------|
-| MiniMax H3 | Turbo LoRA（本节） | 待接入 |
-| Wan 2.2 | lightx2v / FusionX 类少步 LoRA（本地有 `wan-fusionx` 目录） | 待接入，同一套机制 |
+| MiniMax H3 | Turbo LoRA（本节） | **机制已接入**；远程用 T8 LoRA + `LoraLoaderModelOnly`，待出片验收 |
+| Wan 2.2 | lightx2v / FusionX 类少步 LoRA（本地有 `wan-fusionx` 目录） | 待接入（M5），同一套机制 |
 | Qwen-Image 2.1 | 直接换 turbo 主模型（`qwen_image_2.1_turbo_*`），不是 LoRA | 现有包可通过换模型实现 |
 
 所以开发上要做成**通用的「工作流包加速开关」**，再由每个包声明自己的 LoRA 节点和可选 LoRA 文件过滤规则，避免用户把 MiniMax 的 LoRA 挂到 Wan 上。
 
-### 2.5 当前项目支持情况
+### 2.5 当前项目支持情况（已更新）
 
 - 视频生成（图生视频、快速创作·生成视频、自定义素材·素材动画）全部由工作流包驱动，见 `backend/liberastra/services/workflows.py`。
-- **没有加速开关**：manifest 的每个参数只能映射到一个节点字段（`node` + `field`），不能做「开启时改 LoRA、步数、采样器多个字段，关闭时把 LoRA 节点从图里摘掉」这种联动。
-- **现在就能用的折中做法**：把 LoRA 节点直接写进包的 `workflow.json`，用 `options_from: loras` 暴露 `lora_name` 下拉框，再把 `steps` 默认值设为 8。缺点是这个包永远开着加速，要关掉只能再做一个不带 LoRA 的包。
+- **已支持加速开关**：manifest 顶层 `accel` + 前端 `AccelControl`；提交用保留键 `__accel`；关闭时从图中摘掉 LoRA 节点并改接下游。
+- 内置包：`minimax_h3_i2v` / `minimax_h3_i2v_uncensored`（越狱 NVFP4、无增强）/ `minimax_h3_i2v_enhancer`（图生）；`minimax_h3_t2v` / `minimax_h3_t2v_uncensored` / `minimax_h3_t2v_enhancer`（文生；均带 accel）。
 
 ### 2.6 开发计划：用户可开关加速、可选择加速模型
 
@@ -221,13 +224,13 @@ accel:
 
 #### 里程碑
 
-| 阶段 | 内容 | 产出 |
-|------|------|------|
-| M1 | 远程装 Turbo 节点包，上传 `v4_step600_ema`，在 Comfy 网页手工跑通 8 步 i2v | 可用的 API Format 工作流 |
-| M2 | 后端 `accel` 机制 + 单测 | manifest 支持加速声明 |
-| M3 | 前端开关、模型下拉框、偏好设置 | 用户可开关、可选模型 |
-| M4 | 内置 `minimax_h3_i2v` 包（官方版 TE，带 accel）；文档 `使用文档.md` 补充 | 开箱可用 |
-| M5（可选） | Wan 2.2 包接入 lightx2v 加速 LoRA，验证机制通用 | 多模型族加速 |
+| 阶段 | 内容 | 产出 | 状态 |
+|------|------|------|------|
+| M1 | 远程装 Turbo / 上传 LoRA，Comfy 网页手工跑通 8 步 i2v | 可用的 API Format 工作流 | 🟡 LoRA 已上传（T8×2）；缺 Larry Turbo 包/`ema`；**出片验收未做** |
+| M2 | 后端 `accel` 机制 + 单测 | manifest 支持加速声明 | ✅ |
+| M3 | 前端开关、模型下拉框；（可选）系统默认开加速偏好 | 用户可开关、可选模型 | ✅ 控件已做；偏好未做 |
+| M4 | 内置 `minimax_h3_i2v` + 使用文档 | 开箱可用 | ✅ |
+| M5（可选） | Wan 2.2 包接入 lightx2v 加速 LoRA | 多模型族加速 | ❌ 未做 |
 
 ---
 
@@ -239,7 +242,7 @@ accel:
 
 **单张首帧图 + 简短提示词 → 用越狱版 Qwen3-VL-32B 先看图、再把提示词改写成符合 H3 规范的详细提示词 → MiniMax H3 生成带同步音效的视频。**
 
-适合「提示词写得简单，或者内容会被官方 TE 弱化」的场景。注意：这个工作流**不包含 Turbo LoRA**，默认 20 步。
+适合「提示词写得简单，或者内容会被官方 TE 弱化」的场景。注意：画布原版默认 20 步；LiberAstra 内置包 `minimax_h3_i2v_enhancer` **已插入** Turbo LoRA 节点并声明 `accel`（关闭时摘节点）。
 
 ### 3.2 结构
 
@@ -279,10 +282,10 @@ accel:
 | 层面 | 现状 |
 |------|------|
 | 直接导入这个 JSON | **不能**。它是画布格式（含 `nodes` / `links` / `definitions.subgraphs`），LiberAstra 只接受 API Format（`{节点id: {class_type, inputs}}`），见 `使用文档.md`「工作流包」一节 |
-| 远程 ComfyUI | **缺 Guide 节点包**，缺越狱 TE 和 tail；原生 H3 节点齐全 |
-| LiberAstra 后端 | **转成 API Format 包之后可以直接用**，不需要为 MiniMax 写专用代码：<br>• 图片输入走现有的 `type: image` 上传回填<br>• 宽高走 `multiple: 32`<br>• 帧数走 `align_base: 17` / `align_offset: 5` + 包顶层 `fps: 24`（页面按秒设置，提交时自动换算）<br>• TE 用 `options_from: text_encoders` 下拉框，**同一个包就能在官方版和越狱版之间切换**<br>• 输出走 `SaveVideo` |
-| 展示增强后的提示词 | 后端已有 `extract_texts`，但 i2v 管线目前只取视频文件。展示增强结果属于增量功能（见 3.5 阶段 E3） |
-| 开关增强 | 现在做不到（理由和加速开关相同）。可以复用 2.6 节的节点摘除机制：关闭时摘掉增强器，把 `prompt` 直接接到 `MiniMaxH3ImageToVideo.prompt` |
+| 远程 ComfyUI | **Guide + 越狱 TE/tail 已就绪**；原生 H3 节点齐全；Turbo 走标准 `LoraLoaderModelOnly`（远程已有） |
+| LiberAstra 后端 | 内置包 `minimax_h3_i2v` / `minimax_h3_i2v_enhancer` 已可用：`accel`、`outputs.texts`、帧数 17k+5 / fps 24 等均已接线 |
+| 展示增强后的提示词 | ✅ E3：`outputs.texts` → `extract_texts` → 任务 `type:text` → ResultPanel |
+| 开关增强 | ❌ E4 未做；用两个包代替（有/无 enhancer） |
 
 ### 3.4 添加方法（不改代码即可完成的部分）
 
@@ -408,14 +411,14 @@ requirements:
 
 ### 3.5 开发计划（增强工作流相关）
 
-| 阶段 | 内容 | 是否改代码 |
-|------|------|------------|
-| E1 | 远程装 Guide、上传模型，按 3.4 节导出并导入用户包，跑通端到端 | 否 |
-| E2 | 做成内置包 `backend/workflows/minimax_h3_i2v_enhancer/`，补 `test_maintenance` 的包加载断言 | 是（只加数据文件和测试） |
-| E3 | i2v 结果页额外展示「增强后提示词」和「增强报告」：manifest 增加 `texts` 输出声明（指向两个 `PreviewAny`），`run_i2v_job` 用 `extract_texts` 取出后写入任务结果，`ResultPanel` 展示 | 是 |
-| E4 | 「提示词增强」开关：复用 2.6 节的节点摘除机制（manifest 增加通用 `toggles` 声明，`accel` 是其中一种） | 是 |
-| E5 | 增强 + Turbo 合并包：在 `UNETLoader` 和 `BasicGuider` 之间插入 Turbo LoRA 节点，声明 `accel` | 是（依赖 M2） |
-| E6（可选） | 评估 Guide 的 Plan v2 流程（结构化增强、提示词审阅），对应多参考图和多镜头的高级页面 | 待评估 |
+| 阶段 | 内容 | 是否改代码 | 状态 |
+|------|------|------------|------|
+| E1 | 远程装 Guide、上传越狱 TE/tail，端到端跑通 | 否 | 🟡 物料齐（Guide+TE+tail+SHA）；**端到端出片验收未做** |
+| E2 | 内置包 `minimax_h3_i2v_enhancer/` + 加载断言 | 是 | ✅ |
+| E3 | 结果页展示增强提示词/报告（`outputs.texts` → `extract_texts` → 任务 `type:text` → ResultPanel） | 是 | ✅ |
+| E4 | 「提示词增强」开关：通用 `toggles`（关掉时摘增强器、prompt 直连 i2v） | 是 | ❌ 未做（可用两个包代替：有/无 enhancer） |
+| E5 | 增强包插入 Turbo LoRA + 声明 `accel` | 是 | ✅ |
+| E6（可选） | 评估 Guide Plan v2（结构化增强、多参考） | 待评估 | ❌ |
 
 ---
 
@@ -424,7 +427,7 @@ requirements:
 | 项 | 说明 | 处理 |
 |----|------|------|
 | 远程内存 | 62GB 内存同时承载越狱 TE、主模型和 tail，之前出现过 Comfy OOM | E1 阶段实测峰值；增强器保持 `offload_after_generation=true`；必要时远程只跑 H3 |
-| Turbo 与 pruned 主模型 | T8 转换版要求未剪枝主模型；原作者节点包支持 pruned | 优先走方案 A，不额外下载 31.7 GiB 主模型 |
+| Turbo 与 pruned 主模型 | T8 转换版要求未剪枝主模型；原作者节点包支持 pruned | 当前代码走方案 B + pruned；验收时若黑屏/报错，再装 Larry Turbo 包并改节点，或补未剪枝主模型 |
 | 4 步音频爆音 | 少步数时音频比画面更容易劣化 | 默认 preset 用 8 步 |
 | NVFP4 在 3090 上的速度 | 官方 TE 在非 Blackwell 显卡上走回退路径 | 如果太慢，可换官方 `int8_convrot` TE（25.3 GiB） |
 | 远程无法访问 HuggingFace | 只能本地下载后 `scp` 上传 | 上传前校验 SHA-256 |

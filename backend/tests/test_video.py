@@ -119,6 +119,33 @@ def test_quick_video_storyboard_only(
     assert all(o.get("kind") == "storyboard" for o in job["outputs"])
 
 
+def test_quick_video_optimize_visuals_off(
+    client: TestClient, auth_header: dict[str, str], video_providers: None
+) -> None:
+    """关闭画面提示词优化时，visual 等于口播原文（不走 STORYBOARD LLM）。"""
+    resp = client.post(
+        "/api/v1/videos/quick?wait=true",
+        json={
+            "script": "第一句口播\n第二句口播",
+            "split_mode": "line",
+            "voice": "v1",
+            "aspect": "1:1",
+            "optimize_visuals": False,
+            "storyboard_only": True,
+        },
+        headers=auth_header,
+        timeout=60,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    storyboard_asset = next(o for o in job["outputs"] if o.get("kind") == "storyboard")
+    sb = client.get(f"/api/v1/assets/{storyboard_asset['asset_id']}/content", headers=auth_header)
+    frames = sb.json()["frames"]
+    assert frames[0]["text"] == "第一句口播"
+    assert frames[0]["visual"] == "第一句口播"
+    assert frames[1]["visual"] == "第二句口播"
+
+
 def test_quick_video_with_provided_storyboard(
     client: TestClient, auth_header: dict[str, str], video_providers: None
 ) -> None:
@@ -148,7 +175,7 @@ def test_i2v_job(
 
         async def generate(self, **kwargs):  # noqa: ANN003, ANN202
             await asyncio.sleep(0)
-            return [("out.mp4", b"MP4DATA")]
+            return [("out.mp4", b"MP4DATA")], []
 
     monkeypatch.setattr(simple, "ComfyUIVideo", _FakeVideo)
 
@@ -194,4 +221,6 @@ def test_assets_video(client: TestClient, auth_header: dict[str, str], video_pro
     )
     job = resp.json()
     assert job["status"] == "succeeded", job["error"]
-    assert job["outputs"][0]["filename"] == "final.mp4"
+    # 无 BGM 时最终文件名是 concat.mp4；有 BGM 才写成 final.mp4
+    assert job["outputs"][0]["filename"] in ("concat.mp4", "final.mp4")
+    assert job["outputs"][0]["kind"] == "video"

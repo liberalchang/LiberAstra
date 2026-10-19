@@ -19,6 +19,9 @@ class QuickVideoRequest(BaseModel):
     style_prefix: str = ""
     storyboard: dict[str, Any] | None = None  # 提供则跳过 LLM（分镜编辑器回传）
     storyboard_only: bool = False  # 只生成脚本与分镜
+    # 是否用脚本服务 LLM 把口播改写成画面提示词（image/video 模板）；
+    # 关则 visual=口播原文。与 Comfy Guide 增强器是两层：关本开关可避免双重扩写。
+    optimize_visuals: bool = True
     llm_provider_id: int | None = None
     llm_model: str = ""  # LLM 服务里的具体模型；空则用 Provider 配置的默认模型
     tts_provider_id: int | None = None

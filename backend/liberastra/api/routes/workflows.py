@@ -8,7 +8,13 @@ from fastapi import APIRouter, HTTPException, status
 
 from liberastra.api.deps import CurrentUser
 from liberastra.providers.base import ProviderError
-from liberastra.schemas.workflow import WorkflowImportRequest, WorkflowPackOut
+from liberastra.schemas.workflow import (
+    WorkflowConvertOut,
+    WorkflowConvertRequest,
+    WorkflowImportRequest,
+    WorkflowPackOut,
+)
+from liberastra.services.canvas_convert import convert_comfy_json
 from liberastra.services.workflows import (
     delete_pack,
     export_pack,
@@ -31,7 +37,31 @@ def _to_out(pack) -> WorkflowPackOut:  # noqa: ANN001, ANN202
         source=pack.source,
         requirements=pack.requirements,
         fps=pack.fps,
+        accel=pack.accel or {},
     )
+
+
+def _manifest_from_body(
+    body: WorkflowImportRequest,
+    *,
+    name: str | None = None,
+    existing_accel: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "name": name or body.name,
+        "capability": body.capability,
+        "description": body.description,
+        "inputs": body.inputs,
+        "outputs": body.outputs,
+        "requirements": body.requirements,
+    }
+    if body.fps is not None:
+        data["fps"] = body.fps
+    if body.accel is not None:
+        data["accel"] = body.accel
+    elif existing_accel:
+        data["accel"] = existing_accel
+    return data
 
 
 @router.get("", response_model=list[WorkflowPackOut])
@@ -47,20 +77,37 @@ def get_workflow(name: str, user: CurrentUser) -> WorkflowPackOut:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+@router.post("/convert", response_model=WorkflowConvertOut)
+def convert_workflow(body: WorkflowConvertRequest, user: CurrentUser) -> WorkflowConvertOut:
+    """把 ComfyUI 画布 JSON（或 API Format）转成 LiberAstra 包草稿，不落盘。"""
+    try:
+        result = convert_comfy_json(body.data)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    manifest = result["manifest"]
+    return WorkflowConvertOut(
+        workflow=result["workflow"],
+        capability=manifest.get("capability", "t2i"),
+        description=manifest.get("description", ""),
+        inputs=manifest.get("inputs") or {},
+        outputs=manifest.get("outputs") or {},
+        requirements=manifest.get("requirements") or {},
+        fps=manifest.get("fps"),
+        accel=manifest.get("accel") or {},
+        source=result["source"],
+        warnings=result.get("warnings") or [],
+        node_count=result.get("node_count", 0),
+        node_types=result.get("node_types") or [],
+    )
+
+
 @router.post("/import", response_model=WorkflowPackOut, status_code=status.HTTP_201_CREATED)
 def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowPackOut:
     try:
         pack = import_pack(
             body.name,
             body.workflow,
-            {
-                "name": body.name,
-                "capability": body.capability,
-                "description": body.description,
-                "inputs": body.inputs,
-                "outputs": body.outputs,
-                "requirements": body.requirements,
-            },
+            _manifest_from_body(body),
             overwrite=body.overwrite,
         )
     except ProviderError as exc:
@@ -71,17 +118,11 @@ def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowP
 @router.put("/{name}", response_model=WorkflowPackOut)
 def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -> WorkflowPackOut:
     try:
+        existing = get_pack(name)
         pack = update_pack(
             name,
             body.workflow,
-            {
-                "name": name,
-                "capability": body.capability,
-                "description": body.description,
-                "inputs": body.inputs,
-                "outputs": body.outputs,
-                "requirements": body.requirements,
-            },
+            _manifest_from_body(body, name=name, existing_accel=existing.accel or None),
         )
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

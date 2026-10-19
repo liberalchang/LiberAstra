@@ -11,7 +11,7 @@ export function GuidePage() {
         kind="guide"
         icon={BookOpen}
         title="使用文档"
-        description="出图、放大和语音的用法。视频页还对不上这台机器上的权重。"
+        description="按侧栏功能说明用法；视频与 Comfy 工作流见「服务提供方 → 工作流包 → 模型文件」。"
       />
       <MarkdownView source={guide} />
     </div>

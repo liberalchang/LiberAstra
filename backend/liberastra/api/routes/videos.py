@@ -50,10 +50,18 @@ async def quick(
 ) -> Job:
     voice = _resolve_voice(db, user, body.voice, body.voice_record_id) if (body.voice or body.voice_record_id) else ""
     # 提前校验 Provider 可用，错误立即反馈而不是等任务失败
-    pick_provider(db, "llm", body.llm_provider_id)
     tts_provider = pick_provider(db, "tts", body.tts_provider_id)
     # 模板类型决定哪些 Provider 必需：插图要 image，视频要 video，静态两者都不用
     tpl = resolve_quick_template(body.template, body.aspect)
+    # LLM：AI 写口播，或 image/video 模板下的画面提示词优化（可关，避免与 Guide 双重扩写）
+    need_script_llm = body.storyboard is None and not body.script
+    need_visual_llm = (
+        body.storyboard is None
+        and tpl.type in ("image", "video")
+        and body.optimize_visuals
+    )
+    if need_script_llm or need_visual_llm:
+        pick_provider(db, "llm", body.llm_provider_id)
     if tpl.type == "image" and tpl.needs_image:
         pick_provider(db, "image", body.image_provider_id)
     if tpl.type == "video":
@@ -79,6 +87,7 @@ async def quick(
             "style_prefix": body.style_prefix,
             "storyboard": body.storyboard,
             "storyboard_only": body.storyboard_only,
+            "optimize_visuals": body.optimize_visuals,
             "image_workflow": body.image_workflow,
             "image_inputs": body.image_inputs,
             "template": tpl.name,

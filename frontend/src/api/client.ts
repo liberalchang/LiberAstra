@@ -141,6 +141,28 @@ export interface WorkflowInputSpec {
   multiple?: number;
 }
 
+/** 工作流包加速能力（Turbo LoRA 等）；空对象表示无加速 */
+export interface WorkflowAccelSpec {
+  label?: string;
+  family?: string;
+  default_enabled?: boolean;
+  node?: string;
+  bypass_input?: string;
+  lora?: {
+    field?: string;
+    options_from?: string;
+    match?: string;
+    recommended?: string;
+  };
+  strength?: {
+    field?: string;
+    default?: number;
+    min?: number;
+    max?: number;
+  };
+  preset?: Record<string, unknown>;
+}
+
 export interface WorkflowPackOut {
   name: string;
   capability: string;
@@ -151,6 +173,8 @@ export interface WorkflowPackOut {
   requirements: Record<string, unknown>;
   /** 视频包帧率；有它参数表单的"帧数"可按秒设置 */
   fps?: number | null;
+  /** 加速 LoRA 声明；空=无加速能力（前端有值时再渲染开关） */
+  accel?: WorkflowAccelSpec;
 }
 
 export interface TemplateOut {
@@ -270,6 +294,25 @@ export const api = {
     }),
   exportWorkflow: (name: string) =>
     request<WorkflowPackBundle>(`/api/v1/workflows/${name}/export`),
+  /** 画布或 API Format → LiberAstra 包草稿（不落盘） */
+  convertWorkflow: (data: Record<string, unknown>) =>
+    request<{
+      workflow: Record<string, unknown>;
+      capability: string;
+      description: string;
+      inputs: Record<string, WorkflowInputSpec>;
+      outputs: Record<string, unknown>;
+      requirements: Record<string, unknown>;
+      fps?: number | null;
+      accel?: WorkflowAccelSpec;
+      source: string;
+      warnings: string[];
+      node_count: number;
+      node_types: string[];
+    }>("/api/v1/workflows/convert", {
+      method: "POST",
+      body: JSON.stringify({ data }),
+    }),
   listTemplates: (aspect?: string, type?: string) => {
     const qs = [aspect && `aspect=${aspect}`, type && `type=${type}`].filter(Boolean).join("&");
     return request<TemplateOut[]>(`/api/v1/templates${qs ? `?${qs}` : ""}`);

@@ -10,6 +10,7 @@ from liberastra.providers.comfyui.client import ComfyClient
 from liberastra.providers.comfyui.workflow import (
     download_files,
     extract_files,
+    extract_texts,
     run_workflow_pack,
 )
 from liberastra.services.workflows import WorkflowPack
@@ -27,8 +28,12 @@ class ComfyUIVideo:
         on_progress: Callable[[float], None] | None = None,
         use_ws: bool = True,
         wait_timeout: float | None = None,
-    ) -> list[tuple[str, bytes]]:
-        """按工作流包生成视频，返回 [(文件名, 字节)]。wait_timeout 为 None 时用默认 600 秒。"""
+    ) -> tuple[list[tuple[str, bytes]], list[str]]:
+        """按工作流包生成视频。
+
+        返回 (视频列表, 文本列表)。文本来自 manifest `outputs.texts`（如增强提示词 / 报告），
+        未声明时为空列表。wait_timeout 为 None 时用默认 600 秒。
+        """
         outputs = await run_workflow_pack(
             self.client, pack, inputs, on_progress=on_progress, use_ws=use_ws, wait_timeout=wait_timeout
         )
@@ -38,7 +43,8 @@ class ComfyUIVideo:
         )
         if not videos:
             raise ProviderError("ComfyUI 完成但未产出视频")
-        return videos
+        texts = extract_texts(outputs, pack) if pack.outputs.get("texts") else []
+        return videos, texts
 
     async def test(self) -> str:
         return await self.client.test()

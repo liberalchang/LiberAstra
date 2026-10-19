@@ -4,6 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
+import {
+  AccelControl,
+  buildInputsWithAccel,
+  defaultAccelState,
+  hasAccel,
+  type AccelState,
+} from "@/components/AccelControl";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +106,10 @@ export function VideoAssetsPage() {
   const [videoWorkflow, setVideoWorkflow] = usePersistentState("video-assets:video-workflow", "");
   const videoPack = i2vPacks?.find((p) => p.name === videoWorkflow) ?? i2vPacks?.[0];
   const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>("video-assets:video-extra", {});
+  const [videoAccel, setVideoAccel] = usePersistentState<AccelState>(
+    `video-assets:accel:${videoPack?.name ?? "none"}`,
+    defaultAccelState(videoPack?.accel),
+  );
 
   // ---- ④ 配音 ----
   const { data: ttsPacks } = useQuery({
@@ -161,7 +172,7 @@ export function VideoAssetsPage() {
         form.set("animate", "true");
         if (videoProvider) form.set("video_provider_id", String(videoProvider.id));
         if (videoPack) form.set("video_workflow", videoPack.name);
-        form.set("video_inputs", JSON.stringify(Object.fromEntries(Object.entries(videoExtra).filter(([, v]) => v !== ""))));
+        form.set("video_inputs", JSON.stringify(buildInputsWithAccel(videoExtra, videoPack?.accel, videoAccel)));
       }
       if (ttsIsComfy && ttsPack) {
         form.set("tts_workflow", ttsPack.name);
@@ -457,6 +468,23 @@ export function VideoAssetsPage() {
                     </select>
                   </Field>
                 </div>
+                {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
+                  <AccelControl
+                    accel={videoPack.accel}
+                    providerId={videoProvider?.id}
+                    value={videoAccel}
+                    onChange={setVideoAccel}
+                    onApplyPreset={(preset) =>
+                      setVideoExtra((prev) => {
+                        const next = { ...prev };
+                        for (const [k, v] of Object.entries(preset)) {
+                          if (next[k] == null || next[k] === "") next[k] = v;
+                        }
+                        return next;
+                      })
+                    }
+                  />
+                )}
                 {videoPack && (
                   <WorkflowInputs
                     inputs={videoPack.inputs}

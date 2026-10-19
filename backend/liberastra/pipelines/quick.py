@@ -104,16 +104,30 @@ def _image_data_uri(filename: str, content: bytes) -> str:
     return f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
 
 
+def _quick_needs_llm(params: dict[str, Any], tpl: TemplateInfo) -> tuple[bool, bool]:
+    """返回 (需要写口播, 需要写画面提示词)。已有 storyboard 时两者皆否。"""
+    if params.get("storyboard") is not None:
+        return False, False
+    need_script = not params.get("script")
+    optimize = bool(params.get("optimize_visuals", True))
+    need_visuals = tpl.type in ("image", "video") and optimize
+    return need_script, need_visuals
+
+
 async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     started = time.monotonic()
     params = job.params
     provider_ids = params.get("providers", {})
-    llm_provider = pick_provider(db, "llm", provider_ids.get("llm"))
     tts_provider = pick_provider(db, "tts", provider_ids.get("tts"))
-    llm = build_llm_adapter(llm_provider, db=db)
     tts = build_tts_adapter(tts_provider)
     aspect = params.get("aspect", "9:16")
     tpl = resolve_quick_template(params.get("template", ""), aspect)
+    need_script_llm, need_visual_llm = _quick_needs_llm(params, tpl)
+    llm_provider = None
+    llm = None
+    if need_script_llm or need_visual_llm:
+        llm_provider = pick_provider(db, "llm", provider_ids.get("llm"))
+        llm = build_llm_adapter(llm_provider, db=db)
     wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
     # 文字显隐与字号（模板标题/文案 + 视频烧录字幕）
     show_title = bool(params.get("show_title", True))
@@ -134,6 +148,7 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             segments = split_script(params["script"], params.get("split_mode", "paragraph"))
         else:
             ctx.report(db, job, progress=0.05, step="script")
+            assert llm is not None and llm_provider is not None
             llm_model = params.get("llm_model", "")
             data = await _chat_json(
                 llm, llm_provider, SCRIPT_PROMPT.format(n=count), params["topic"], llm_model
@@ -144,8 +159,10 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
         if not segments:
             raise ProviderError("脚本为空，无法继续")
 
-        if tpl.type in ("image", "video"):
+        if need_visual_llm:
+            # LLM 把口播改写成画面提示词（与 Comfy Guide 增强是另一层）
             ctx.report(db, job, progress=0.1, step="storyboard")
+            assert llm is not None and llm_provider is not None
             data = await _chat_json(
                 llm,
                 llm_provider,
@@ -154,7 +171,8 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
                 params.get("llm_model", ""),
             )
             frames = data.get("frames", [])
-        else:  # 静态模板不需要画面提示词
+        else:
+            # 静态模板 / 关闭画面优化：口播原文即 visual
             frames = []
         if not frames:
             frames = [{"text": s, "visual": s} for s in segments]
@@ -257,7 +275,7 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             if not params.get("video_workflow"):
                 raise ProviderError("视频模板需要选择视频工作流包")
             pack = get_pack(params["video_workflow"])
-            clips = await video_adapter.generate(
+            clips, _texts = await video_adapter.generate(
                 pack=pack,
                 inputs={
                     **params.get("video_inputs", {}),
@@ -350,8 +368,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             # 本次实际使用的工作流与模型，供作品查看页展示
             "workflow": params.get("video_workflow") or params.get("image_workflow"),
             "tts_workflow": params.get("tts_workflow"),
-            "llm_model": params.get("llm_model") or (llm_provider.extra or {}).get("model"),
-            "llm_provider": llm_provider.name,
+            "llm_model": params.get("llm_model")
+            or ((llm_provider.extra or {}).get("model") if llm_provider else ""),
+            "llm_provider": llm_provider.name if llm_provider else "",
             "voice": voice,
             "bgm": Path(params["bgm_path"]).name if params.get("bgm_path") else None,
             "frames": total,

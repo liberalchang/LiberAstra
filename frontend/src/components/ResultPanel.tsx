@@ -99,7 +99,10 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
       ? job.outputs.filter((o) => o.type === "asset" && o.asset_id)
       : [];
   const primary = resultAssets.find((o) => o.kind === mediaKind) ?? resultAssets[0];
-  const textOutput = job?.status === "succeeded" ? job.outputs.find((o) => o.type === "text") : null;
+  const textOutputs =
+    job?.status === "succeeded"
+      ? job.outputs.filter((o) => o.type === "text" && o.content)
+      : [];
 
   // 仅图像/音频/视频显示缩略预览区；文本/字幕结果直接展示正文
   const primaryKind = primary?.kind ?? mediaKind;
@@ -175,9 +178,14 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
               {primaryTarget && (
                 <ClickableThumb target={primaryTarget} onOpen={setPreview} className="max-h-72 w-full object-contain" />
               )}
-              {textOutput?.content && (
-                <div className="rounded-xl bg-muted p-4 text-sm whitespace-pre-wrap">{textOutput.content}</div>
-              )}
+              {textOutputs.map((t, i) => (
+                <div
+                  key={`text-${i}`}
+                  className="max-h-64 overflow-auto rounded-xl bg-muted p-4 text-sm whitespace-pre-wrap"
+                >
+                  {t.content}
+                </div>
+              ))}
               {(resultAssets.length > 1 || (!primaryTarget && resultAssets.length > 0)) && (
                 <div className="flex flex-wrap gap-2">
                   {resultAssets.map((o) => (

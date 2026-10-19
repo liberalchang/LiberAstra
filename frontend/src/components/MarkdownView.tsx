@@ -73,6 +73,11 @@ function renderBlocks(source: string): ReactNode[] {
       );
       continue;
     }
+    // 水平分割线（文档里的 ---），跳过即可
+    if (/^---+$/.test(line.trim())) {
+      i += 1;
+      continue;
+    }
     if (/^[-*] /.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^[-*] /.test(lines[i])) {
@@ -103,17 +108,20 @@ function renderBlocks(source: string): ReactNode[] {
       );
       continue;
     }
-    const heading = /^(#{1,3}) /.exec(line);
+    // 支持 #～######；原先只认到 ###，遇到 #### 时既不前进也不渲染 → 死循环卡死 /guide
+    const heading = /^(#{1,6}) (.+)$/.exec(line);
     if (heading) {
       const level = heading[1].length;
-      const text = line.slice(level + 1);
+      const text = heading[2];
       const className =
         level === 1
           ? "text-2xl font-semibold tracking-tight"
           : level === 2
             ? "mt-4 text-lg font-semibold"
-            : "mt-2 text-base font-semibold";
-      const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
+            : level === 3
+              ? "mt-2 text-base font-semibold"
+              : "mt-1 text-sm font-semibold text-foreground/90";
+      const Tag = level <= 2 ? (level === 1 ? "h2" : "h3") : level === 3 ? "h4" : "h5";
       blocks.push(
         <Tag key={key++} className={className}>
           {inline(text, "hx")}
@@ -126,6 +134,7 @@ function renderBlocks(source: string): ReactNode[] {
     while (
       i < lines.length &&
       lines[i].trim() !== "" &&
+      !/^---+$/.test(lines[i].trim()) &&
       !lines[i].startsWith("#") &&
       !lines[i].startsWith("|") &&
       !lines[i].startsWith("```") &&
@@ -134,6 +143,11 @@ function renderBlocks(source: string): ReactNode[] {
     ) {
       para.push(lines[i]);
       i += 1;
+    }
+    // 防御：无法归类的行也必须前进，避免死循环
+    if (para.length === 0) {
+      i += 1;
+      continue;
     }
     blocks.push(
       <p key={key++} className="text-foreground/90">

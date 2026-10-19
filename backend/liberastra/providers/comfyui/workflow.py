@@ -7,7 +7,15 @@ from typing import Any
 
 from liberastra.providers.base import ProviderError
 from liberastra.providers.comfyui.client import ComfyClient
-from liberastra.services.workflows import WorkflowPack, apply_inputs, inject_image_input
+from liberastra.services.workflows import (
+    WorkflowPack,
+    apply_accel,
+    apply_inputs,
+    extract_accel,
+    inject_image_input,
+    resolve_accel_enabled,
+    resolve_accel_lora,
+)
 from liberastra.storage import resolve
 
 # 输入类型 → ComfyUI 上传后回填（图像/视频/音频都走 /upload/image 端点）
@@ -26,14 +34,27 @@ async def run_workflow_pack(
     """注入参数、上传媒体输入、提交并等待完成，返回 ComfyUI outputs 字典。
 
     wait_timeout 为 None 时使用 ComfyClient.wait_result 的默认上限（600 秒）。
+    inputs 可带保留键 __accel：{enabled, lora, strength}，在 apply_inputs 之后改写加速节点。
     """
-    workflow = apply_inputs(pack, inputs)
+    node_inputs, accel = extract_accel(inputs)
+    if pack.accel and resolve_accel_enabled(pack, accel):
+        lora = resolve_accel_lora(pack, accel)
+        if not lora:
+            raise ProviderError("开启了加速但没有选择加速模型")
+        available = await client.list_model_folder("loras")
+        if lora not in available:
+            raise ProviderError(f"ComfyUI 的 loras 目录里没有 {lora}，请先上传")
+
+    workflow = apply_inputs(pack, node_inputs)
+    if pack.accel:
+        workflow = apply_accel(workflow, pack, accel, user_values=node_inputs)
+
     for key, spec in pack.inputs.items():
-        if spec.get("type") not in _UPLOAD_INPUT_TYPES or key not in inputs:
+        if spec.get("type") not in _UPLOAD_INPUT_TYPES or key not in node_inputs:
             continue
-        local_path = resolve(str(inputs[key]))
+        local_path = resolve(str(node_inputs[key]))
         if not local_path.exists():
-            raise ProviderError(f"输入文件不存在: {inputs[key]}")
+            raise ProviderError(f"输入文件不存在: {node_inputs[key]}")
         comfy_name = await client.upload_image(local_path.name, local_path.read_bytes())
         inject_image_input(workflow, pack, key, comfy_name)
 
@@ -58,19 +79,56 @@ def extract_files(
     return files
 
 
-def extract_texts(client_outputs: dict[str, Any], pack: WorkflowPack) -> list[str]:
-    """从 outputs 提取文本（分析类工作流的展示节点，如 ShowText / easy showAnything）。"""
-    node_ids = [str(pack.outputs["node"])] if pack.outputs.get("node") else list(client_outputs)
+def _node_text_values(node_out: dict[str, Any]) -> list[str]:
+    """从一个节点的 ComfyUI outputs 字典里抽出可读文本。"""
     texts: list[str] = []
-    for node_id in node_ids:
-        node_out = client_outputs.get(node_id, {})
-        # 展示节点的文本一般在 text/string/strings 键（列表或字符串）
+    # 展示节点常见键；PreviewAny 也可能把内容放在 ui 子字典
+    candidates: list[Any] = []
+    for key in ("text", "string", "strings", "source", "result"):
+        if key in node_out:
+            candidates.append(node_out[key])
+    ui = node_out.get("ui")
+    if isinstance(ui, dict):
         for key in ("text", "string", "strings"):
-            v = node_out.get(key)
-            if isinstance(v, list):
-                texts.extend(str(t) for t in v if str(t).strip())
-            elif isinstance(v, str) and v.strip():
-                texts.append(v)
+            if key in ui:
+                candidates.append(ui[key])
+    for v in candidates:
+        if isinstance(v, list):
+            texts.extend(str(t) for t in v if str(t).strip())
+        elif isinstance(v, str) and v.strip():
+            texts.append(v)
+        elif v is not None and not isinstance(v, (dict, list)):
+            s = str(v).strip()
+            if s:
+                texts.append(s)
+    return texts
+
+
+def extract_texts(client_outputs: dict[str, Any], pack: WorkflowPack) -> list[str]:
+    """从 outputs 提取文本（分析类：ShowText / PreviewAny；或 pack.outputs.texts 声明的节点）。"""
+    declared = pack.outputs.get("texts")
+    if isinstance(declared, list) and declared:
+        texts: list[str] = []
+        for item in declared:
+            if isinstance(item, dict):
+                node_id = str(item.get("node", ""))
+                label = str(item.get("label") or "").strip()
+            else:
+                node_id = str(item)
+                label = ""
+            if not node_id:
+                continue
+            chunk = _node_text_values(client_outputs.get(node_id, {}))
+            if not chunk:
+                continue
+            body = "\n".join(chunk)
+            texts.append(f"【{label}】\n{body}" if label else body)
+        return texts
+
+    node_ids = [str(pack.outputs["node"])] if pack.outputs.get("node") else list(client_outputs)
+    texts = []
+    for node_id in node_ids:
+        texts.extend(_node_text_values(client_outputs.get(node_id, {})))
     return texts
 
 

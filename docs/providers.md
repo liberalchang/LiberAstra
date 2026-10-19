@@ -42,11 +42,18 @@ inputs:
   image:  { node: "1", field: inputs.image, type: image }   # image/video/audio 输入会自动上传 ComfyUI
   seed:   { node: "3", field: inputs.seed, type: int, default: -1 }  # -1 = 随机
 outputs: { node: "9", key: images }   # images / videos / gifs
+# 可选：加速 LoRA（关闭时摘掉节点，下游改接 bypass_input 来源）
+# accel:
+#   node: "200"
+#   bypass_input: model
+#   lora: { field: inputs.lora_name, options_from: loras, match: "minimax_h3", recommended: "xxx.safetensors" }
+#   strength: { field: inputs.strength_model, default: 1.0 }
+#   preset: { steps: 8 }
 requirements:
   nodes: [KSampler]        # 导入预检查用
 ```
 
-导入方式：Web UI「设置 → 工作流包」，或写入 `data/workflows/<name>/`（同名覆盖内置包）。
+导入方式：Web UI「设置 → 工作流包」（支持 LiberAstra 包、API Format、以及含 `nodes`/`links` 的画布 JSON 自动转换），或写入 `data/workflows/<name>/`（同名覆盖内置包）。视频示例见内置包 `minimax_h3_i2v`、`minimax_h3_i2v_uncensored`、`minimax_h3_i2v_enhancer`。
 
 ## 新增 Provider 类型（开发）
 

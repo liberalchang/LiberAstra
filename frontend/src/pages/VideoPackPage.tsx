@@ -4,6 +4,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api, type JobOut } from "@/api/client";
+import {
+  AccelControl,
+  buildInputsWithAccel,
+  defaultAccelState,
+  hasAccel,
+  type AccelState,
+} from "@/components/AccelControl";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,6 +79,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
   const [extra, setExtra] = usePersistentState<Record<string, string>>(`video-${kind}:extra`, {});
+  const [accel, setAccel] = usePersistentState<AccelState>(
+    `video-${kind}:accel:${pack?.name ?? "none"}`,
+    defaultAccelState(pack?.accel),
+  );
   // 数字人口播的配音服务：comfy 出语音工作流包，Liber Speech 出音色库，其余出服务音色列表
   const { data: ttsPacks } = useQuery({
     queryKey: ["workflows", "tts"],
@@ -116,10 +127,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
-      form.set(
-        "inputs",
-        JSON.stringify(Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))),
-      );
+      form.set("inputs", JSON.stringify(buildInputsWithAccel(extra, pack?.accel, accel)));
       return cfg.submit(form);
     },
     onSuccess: (j) => {
@@ -306,6 +314,24 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 onChange={(e) => setPrompt(e.target.value)}
               />
             </Field>
+          )}
+
+          {pack && hasAccel(pack.accel) && pack.accel && (
+            <AccelControl
+              accel={pack.accel}
+              providerId={provider?.id}
+              value={accel}
+              onChange={setAccel}
+              onApplyPreset={(preset) =>
+                setExtra((prev) => {
+                  const next = { ...prev };
+                  for (const [k, v] of Object.entries(preset)) {
+                    if (next[k] == null || next[k] === "") next[k] = v;
+                  }
+                  return next;
+                })
+              }
+            />
           )}
 
           {pack && (
