@@ -20,7 +20,7 @@ docker compose up -d --build     # http://localhost:8000，数据在 ./data
 
 首次访问创建管理员账号，然后到「设置 → 服务提供方」添加服务（如 Ollama、ComfyUI、或只加一个 edge_tts 即可立即体验 TTS）。
 
-源码运行与开发指南见下文；详细文档在 [docs/](docs/)：架构、API、Provider 接入、部署。
+源码运行与开发指南见下文；详细文档在 [docs/](docs/)：架构、API、Provider 接入、[部署](docs/deployment.md)、[分置部署教程](docs/分置部署教程.md)。
 
 ## 开发
 
