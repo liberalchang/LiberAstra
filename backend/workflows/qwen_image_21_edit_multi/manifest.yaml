@@ -1,0 +1,82 @@
+name: qwen_image_21_edit_multi
+capability: i2i
+description: >
+  Qwen-Image 2.1 多参考图编辑（最多 4 张）。
+  image_1 为画布/主图，image_2～4 为参考；提示词里用 image 1 / image 2 … 指代各图。
+  依据 ComfyUI 官方：TextEncodeQwenImage21 支持 images.image_1 … image_16。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 1（主图）
+    description: 主图 / 画布（对应提示词 image 1）。合成时通常放第一张人物或底图
+  image_2:
+    node: "11"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 2
+    description: 第二张参考（对应 image 2）。例如另一人物或要融合的元素
+  image_3:
+    node: "12"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 3（可选）
+    description: 可选第三张参考（image 3）
+  image_4:
+    node: "13"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 4（可选）
+    description: 可选第四张参考（image 4）
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: >
+      编辑指令，按槽位指代图片，例如：
+      将 image 1 中的女性和 image 2 中的男性合成到同一张自然合影，统一光照与景深
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  resolution:
+    node: "5"
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 0
+    max: 4096
+    description: 参考图缩放到大约这个边长（32 倍数）。0 表示尽量保留各图自身尺寸；画布尺寸跟从 image 1
+  steps:
+    node: "6"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "6"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "8"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoadImage
+    - TextEncodeQwenImage21
+    - KSampler
+    - VAEDecode
+    - SaveImage

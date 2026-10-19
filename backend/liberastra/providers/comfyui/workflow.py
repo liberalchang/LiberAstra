@@ -49,6 +49,9 @@ async def run_workflow_pack(
     if pack.accel:
         workflow = apply_accel(workflow, pack, accel, user_values=node_inputs)
 
+    # 未提供的可选媒体输入：断开 TextEncode 等对 Load* 的连线，避免 Comfy 去读占位 example.png
+    _detach_unused_media_links(workflow, pack, node_inputs)
+
     for key, spec in pack.inputs.items():
         if spec.get("type") not in _UPLOAD_INPUT_TYPES or key not in node_inputs:
             continue
@@ -62,6 +65,40 @@ async def run_workflow_pack(
     wait_kwargs: dict[str, Any] = {} if wait_timeout is None else {"timeout": wait_timeout}
     result = await client.wait_result(prompt_id, on_progress=on_progress, use_ws=use_ws, **wait_kwargs)
     return result.get("outputs", {})  # type: ignore[no-any-return]
+
+
+def _detach_unused_media_links(
+    workflow: dict[str, Any],
+    pack: WorkflowPack,
+    node_inputs: dict[str, Any],
+) -> None:
+    """去掉未上传的可选 image/video/audio 在图中的引用边。
+
+    LiberAstra API Format 里常见 ``images.image_N: [load_node, 0]``；
+    槽位未提交文件时必须断开，否则 Comfy 会加载工作流里的占位图。
+    """
+    unused_nodes: set[str] = set()
+    for key, spec in pack.inputs.items():
+        if spec.get("type") not in _UPLOAD_INPUT_TYPES:
+            continue
+        if key in node_inputs and str(node_inputs[key]).strip():
+            continue
+        unused_nodes.add(str(spec["node"]))
+    if not unused_nodes:
+        return
+    for node in workflow.values():
+        if not isinstance(node, dict):
+            continue
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            continue
+        for field, value in list(inputs.items()):
+            if (
+                isinstance(value, list)
+                and len(value) >= 1
+                and str(value[0]) in unused_nodes
+            ):
+                del inputs[field]
 
 
 def extract_files(

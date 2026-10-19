@@ -75,10 +75,16 @@ async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dic
     if provider.type == "comfyui":
         pack = get_pack(params["workflow"])
         inputs = dict(params.get("inputs", {}))
-        # 第一张上传图映射到第一个 image 类型输入
+        # 按 manifest 中 image 槽顺序映射上传文件（多参考图 / 原图+蒙版）
         image_keys = [k for k, s in pack.inputs.items() if s.get("type") == "image"]
-        for key, path in zip(image_keys, params.get("image_paths", []), strict=False):
+        paths = list(params.get("image_paths", []) or [])
+        for key, path in zip(image_keys, paths, strict=False):
             inputs[key] = path
+        for key in image_keys:
+            spec = pack.inputs[key]
+            if spec.get("required", False) and not inputs.get(key):
+                label = spec.get("label") or key
+                raise ProviderError(f"缺少必需的图像输入：{label}")
         images = await adapter.generate(
             pack=pack,
             inputs=inputs,

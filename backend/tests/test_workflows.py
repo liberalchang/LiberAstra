@@ -479,3 +479,31 @@ def test_convert_api_endpoint(client: TestClient, auth_header: dict[str, str]) -
     assert body["source"] == "canvas"
     assert body["node_count"] == 2
     assert "prompt" in body["inputs"] or body["workflow"]["6"]["inputs"]["text"] == "a cat"
+
+
+def test_qwen_image_21_edit_multi_pack_and_detach() -> None:
+    """多参考编辑：4 槽、前两张必填；未上传槽从 TextEncode 断开连线。"""
+    from liberastra.providers.comfyui.workflow import _detach_unused_media_links
+
+    pack = get_pack("qwen_image_21_edit_multi")
+    assert pack.capability == "i2i"
+    assert list(k for k, s in pack.inputs.items() if s.get("type") == "image") == [
+        "image",
+        "image_2",
+        "image_3",
+        "image_4",
+    ]
+    assert pack.inputs["image"]["required"] is True
+    assert pack.inputs["image_2"]["required"] is True
+    assert pack.inputs["image_3"].get("required") is False
+    enc = pack.workflow["5"]["inputs"]
+    assert enc["images.image_1"] == ["10", 0]
+    assert enc["images.image_4"] == ["13", 0]
+
+    wf = deepcopy(pack.workflow)
+    _detach_unused_media_links(wf, pack, {"image": "a.png", "image_2": "b.png"})
+    kept = wf["5"]["inputs"]
+    assert kept["images.image_1"] == ["10", 0]
+    assert kept["images.image_2"] == ["11", 0]
+    assert "images.image_3" not in kept
+    assert "images.image_4" not in kept

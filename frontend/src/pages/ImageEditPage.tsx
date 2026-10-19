@@ -42,9 +42,14 @@ export function ImageEditPage({ capability, title, description }: Props) {
   });
   const [workflow, setWorkflow] = usePersistentState(`image-${capability}:workflow`, "");
   const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
-  const imageSlots = pack
-    ? Object.values(pack.inputs).filter((spec) => spec.type === "image").length
-    : 0;
+  /** 按 manifest 顺序的图像槽（含 label / required） */
+  const imageInputs = pack
+    ? Object.entries(pack.inputs).filter(([, spec]) => spec.type === "image")
+    : [];
+  const imageSlots = imageInputs.length;
+  const requiredImageSlots = imageInputs.filter(([, s]) => s.required !== false).length || Math.min(1, imageSlots);
+  /** 原图+蒙版包：存在名为 mask 的槽；否则按多参考图处理 */
+  const isMaskPack = imageInputs.some(([key]) => key === "mask" || key.toLowerCase().includes("mask"));
 
   const [legacyPrompt, setLegacyPrompt] = usePersistentState(`image-${capability}:prompt`, "");
   const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
@@ -155,19 +160,39 @@ export function ImageEditPage({ capability, title, description }: Props) {
             </p>
           )}
           <Field
-            label={imageSlots > 1 ? "原图和蒙版" : "原图"}
+            label={
+              imageSlots <= 1
+                ? "原图"
+                : isMaskPack
+                  ? "原图和蒙版"
+                  : `参考图（至少 ${requiredImageSlots} 张，最多 ${imageSlots} 张）`
+            }
             hint={
-              imageSlots > 1
-                ? "按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。"
-                : "可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。"
+              imageSlots <= 1
+                ? "可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。"
+                : isMaskPack
+                  ? "按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。"
+                  : "按顺序对应 image 1、image 2…。第 1 张为主图/画布，其余为参考。提示词里用「image 1」「image 2」指代。可分多次添加。"
             }
           >
             <FileDrop
               accept="image/*"
               multiple
               clearAfterSelect
-              title={imageSlots > 1 ? "依次添加原图和蒙版" : "点击或拖拽上传图片"}
-              subtitle={imageSlots > 1 ? "白色重画，黑色保留" : "支持多选、多次添加"}
+              title={
+                imageSlots <= 1
+                  ? "点击或拖拽上传图片"
+                  : isMaskPack
+                    ? "依次添加原图和蒙版"
+                    : "按顺序添加参考图"
+              }
+              subtitle={
+                imageSlots <= 1
+                  ? "支持多选、多次添加"
+                  : isMaskPack
+                    ? "白色重画，黑色保留"
+                    : `必选 ${requiredImageSlots} 张，可选至 ${imageSlots} 张`
+              }
               onSelect={addFiles}
             />
             {files.length > 0 && (
@@ -180,7 +205,13 @@ export function ImageEditPage({ capability, title, description }: Props) {
                     <img src={previews[i]} alt={f.name} className="size-full object-cover" />
                     {imageSlots > 1 && (
                       <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[10px] leading-none text-white">
-                        {i === 0 ? "原图" : i === 1 ? "蒙版" : `#${i + 1}`}
+                        {isMaskPack
+                          ? i === 0
+                            ? "原图"
+                            : i === 1
+                              ? "蒙版"
+                              : `#${i + 1}`
+                          : imageInputs[i]?.[1]?.label?.replace(/（.*?）/g, "") || `图${i + 1}`}
                       </span>
                     )}
                     <button
@@ -216,11 +247,13 @@ export function ImageEditPage({ capability, title, description }: Props) {
             task={capability === "upscale" ? "upscale" : "i2i"}
             workflow={isComfy ? pack?.name : undefined}
             placeholder={
-              imageSlots > 1
+              isMaskPack
                 ? "例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势"
-                : capability === "i2i"
-                  ? "例如：把背景换成海滩"
-                  : "可选"
+                : imageSlots > 1
+                  ? "例如：将 image 1 中的女性和 image 2 中的男性合成同一张合影，统一光照"
+                  : capability === "i2i"
+                    ? "例如：把背景换成海滩"
+                    : "可选"
             }
           />
           {isComfy && pack && (
@@ -228,7 +261,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
               inputs={pack.inputs}
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={["prompt"]}
+              exclude={["prompt", ...imageInputs.map(([k]) => k)]}
               providerId={provider?.id}
             />
           )}
@@ -237,7 +270,8 @@ export function ImageEditPage({ capability, title, description }: Props) {
             <Button
               onClick={() => submit.mutate()}
               disabled={
-                files.length < Math.max(imageSlots, 1) ||
+                files.length < Math.max(requiredImageSlots, 1) ||
+                files.length > Math.max(imageSlots, 1) ||
                 (isComfy && !pack) ||
                 submit.isPending ||
                 !!running
@@ -245,9 +279,11 @@ export function ImageEditPage({ capability, title, description }: Props) {
             >
               {running ? `处理中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始"}
             </Button>
-            {imageSlots > 1 && files.length > 0 && files.length < imageSlots && (
+            {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
               <span className="text-sm text-muted-foreground">
-                此工作流需要 {imageSlots} 张图（原图 + 蒙版），还差 {imageSlots - files.length} 张
+                {isMaskPack
+                  ? `此工作流需要 ${requiredImageSlots} 张图（原图 + 蒙版），还差 ${requiredImageSlots - files.length} 张`
+                  : `至少上传 ${requiredImageSlots} 张参考图，还差 ${requiredImageSlots - files.length} 张`}
               </span>
             )}
           </div>
