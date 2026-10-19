@@ -11,6 +11,12 @@ import {
   hasAccel,
   type AccelState,
 } from "@/components/AccelControl";
+import {
+  PromptField,
+  emptyPromptValue,
+  resolveEffectivePrompt,
+  type PromptFieldValue,
+} from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,7 +80,9 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = usePersistentState(`video-${kind}:prompt`, "");
+  const [legacyPrompt, setLegacyPrompt] = usePersistentState(`video-${kind}:prompt`, "");
+  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
+  const effectivePrompt = resolveEffectivePrompt(promptValue);
   const [text, setText] = usePersistentState(`video-${kind}:text`, "");
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
@@ -112,7 +120,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       if (kind === "motion" && videoFile) form.set("video", videoFile);
       if (imageFile) form.set("image", imageFile);
       form.set("workflow", pack?.name ?? "");
-      form.set("prompt", prompt);
+      form.set("prompt", effectivePrompt);
       if (kind === "avatar") {
         form.set("text", text);
         if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
@@ -307,13 +315,18 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               )}
             </>
           ) : (
-            <Field label="提示词" hint="描述希望画面如何运动或变化。">
-              <textarea
-                className={`${areaClass} min-h-24`}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-              />
-            </Field>
+            <PromptField
+              label="提示词"
+              hint="描述希望画面如何运动或变化。"
+              value={promptValue}
+              onChange={(v) => {
+                setPromptValue(v);
+                setLegacyPrompt(v.raw);
+              }}
+              task={kind === "motion" ? "motion" : "i2v"}
+              workflow={pack?.name}
+              placeholder="例如：缓慢推近，微风吹动发丝，环境音轻柔"
+            />
           )}
 
           {pack && hasAccel(pack.accel) && pack.accel && (
@@ -363,7 +376,15 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             meta={[
               { label: "服务", value: provider?.name ?? "" },
               { label: "工作流", value: pack?.name ?? "" },
-              { label: kind === "avatar" ? "文案" : "提示词", value: kind === "avatar" ? text : prompt },
+              {
+                label:
+                  kind === "avatar"
+                    ? "文案"
+                    : promptValue.useOptimized && promptValue.optimized.trim()
+                      ? "提示词（已优化）"
+                      : "提示词",
+                value: kind === "avatar" ? text : effectivePrompt,
+              },
             ]}
           />
         }

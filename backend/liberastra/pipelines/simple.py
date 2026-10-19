@@ -28,6 +28,7 @@ from liberastra.services.preferences import get_pref
 from liberastra.services.providers import (
     build_llm_adapter,
     build_tts_adapter,
+    pick_llm_with_model,
     pick_provider,
 )
 from liberastra.services.workflows import get_pack
@@ -216,7 +217,9 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     if params.get("script"):
         texts = split_script(params["script"], params.get("split_mode", "line"))
     else:
-        llm_provider = pick_provider(db, "llm", params.get("providers", {}).get("llm"))
+        llm_provider, llm_model = pick_llm_with_model(
+            db, params.get("providers", {}).get("llm"), params.get("llm_model", "")
+        )
         llm = build_llm_adapter(llm_provider, db=db)
         ctx.report(db, job, progress=0.05, step="narration")
         duration = int(params.get("duration", 30))
@@ -227,7 +230,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             f"目标总时长约 {duration} 秒，按每秒 4 到 5 字估算每句长度。"
             '只输出 JSON：{"segments": ["...", "..."]}，数量必须与画面数一致。',
             f"主题：{params.get('topic', '未命名')}\n画面素材：\n" + "\n".join(asset_desc),
-            params.get("llm_model", ""),
+            llm_model,
         )
         texts = [str(s) for s in data.get("segments", [])]
     if not texts:
@@ -313,7 +316,10 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
                 inputs={
                     **params.get("video_inputs", {}),
                     "image": m["path"],  # 相对路径，run_workflow_pack 负责上传
-                    "prompt": f"subtle natural cinematic motion, slow camera push in. {params.get('topic') or ''}",
+                    "prompt": (
+                        params.get("animate_prompt")
+                        or f"subtle natural cinematic motion, slow camera push in. {params.get('topic') or ''}"
+                    ),
                 },
                 on_progress=lambda p: ctx.report(
                     db, job, progress=0.1 + 0.8 * (done + p) / total, step=f"frame {done + 1}/{total} 动画"

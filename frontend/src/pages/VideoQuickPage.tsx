@@ -2,7 +2,7 @@ import { Clapperboard, FileText, Image as ImageIcon, Music, RefreshCw, Volume2 }
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob, TERMINAL_STATUSES, type TemplateOut } from "@/api/client";
 import {
@@ -12,6 +12,12 @@ import {
   hasAccel,
   type AccelState,
 } from "@/components/AccelControl";
+import {
+  PromptField,
+  emptyPromptValue,
+  resolveEffectivePrompt,
+  type PromptFieldValue,
+} from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button } from "@/components/ui/button";
@@ -110,88 +116,42 @@ export function VideoQuickPage() {
   const llmProviders = enabled?.filter((p) => p.capabilities.includes("llm"));
   const imageProviders = enabled?.filter((p) => p.capabilities.includes("image"));
   const videoProviders = enabled?.filter((p) => p.capabilities.includes("video"));
+  const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  const hasLlm =
+    (llmProviders?.length ?? 0) > 0 ||
+    (prefs?.default_llm_provider_id != null && prefs.default_llm_provider_id > 0);
 
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   // ---- ① 视频脚本 ----
-  // ---- ① 视频脚本 ----
   const [mode, setMode] = usePersistentState<"topic" | "script" | "batch">("video-quick:mode", "topic");
   const location = useLocation();
   const incomingTopic = (location.state as { prompt?: string } | null)?.prompt;
-  const [topic, setTopic] = usePersistentState("video-quick:topic", "");
+  const [legacyTopic, setLegacyTopic] = usePersistentState("video-quick:topic", "");
+  const [topicValue, setTopicValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyTopic));
   useEffect(() => {
-    if (incomingTopic) setTopic(incomingTopic);
+    if (incomingTopic) {
+      setTopicValue(emptyPromptValue(incomingTopic));
+      setLegacyTopic(incomingTopic);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [script, setScript] = usePersistentState("video-quick:script", "");
+  const effectiveTopic = resolveEffectivePrompt(topicValue);
+  const [legacyScript, setLegacyScript] = usePersistentState("video-quick:script", "");
+  /** 固定文案 + 插图/视频：原始=口播，优化后=画面提示词 */
+  const [scriptVisual, setScriptVisual] = useState<PromptFieldValue>(() => emptyPromptValue(legacyScript));
+  const script = scriptVisual.raw;
   const [scriptTitle, setScriptTitle] = usePersistentState("video-quick:script-title", "");
   const [splitMode, setSplitMode] = usePersistentState("video-quick:split-mode", "paragraph");
   const [count, setCount] = usePersistentState("video-quick:count", 4);
-  const [llmProviderId, setLlmProviderId] = usePersistentState<number | "">("video-quick:llm-provider", "");
-  const llmProvider = llmProviders?.find((p) => p.id === llmProviderId) ?? llmProviders?.[0];
-  const [llmModel, setLlmModel] = usePersistentState("video-quick:llm-model", "");
   const queryClient = useQueryClient();
   const refreshModels = useMutation({
     mutationFn: (id: number) => api.fetchProviderModels(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
   });
-  /** 脚本服务 + 模型两级选择（AI 创作与固定文案共用） */
-  const llmPicker = (
-    <>
-      <Field label="脚本服务" hint="写文案和画面提示词用的 LLM 服务。">
-        <div className="flex gap-2">
-          <select
-            className={selectClass}
-            value={llmProvider?.id ?? ""}
-            onChange={(e) => {
-              setLlmProviderId(Number(e.target.value));
-              setLlmModel("");
-            }}
-          >
-            {llmProviders?.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="icon"
-            title="从服务拉取模型列表"
-            disabled={!llmProvider || refreshModels.isPending}
-            onClick={() => llmProvider && refreshModels.mutate(llmProvider.id)}
-          >
-            <RefreshCw />
-          </Button>
-        </div>
-      </Field>
-      <Field label="脚本模型" hint="服务里的具体模型。留空用服务端默认模型。">
-        {llmProvider && llmProvider.models.length > 0 ? (
-          <select
-            className={selectClass}
-            value={llmModel}
-            onChange={(e) => setLlmModel(e.target.value)}
-          >
-            <option value="">默认（服务配置）</option>
-            {llmModel && !llmProvider.models.includes(llmModel) && (
-              <option value={llmModel}>{llmModel}（不在列表中）</option>
-            )}
-            {llmProvider.models.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        ) : (
-          <Input
-            placeholder="点左侧刷新按钮拉取模型列表，或手动输入"
-            value={llmModel}
-            onChange={(e) => setLlmModel(e.target.value)}
-          />
-        )}
-      </Field>
-    </>
-  );
   const [storyboardOnly, setStoryboardOnly] = usePersistentState("video-quick:storyboard-only", false);
-  /** 用脚本服务 LLM 把口播改写成画面提示词；关则与 enhancer 的 Guide 不双重扩写 */
+  /** AI 创作时：是否让后端 LLM 写画面提示词（enhancer 包会自动关） */
   const [optimizeVisuals, setOptimizeVisuals] = usePersistentState("video-quick:optimize-visuals", true);
-  /** 选中 enhancer 包时自动关优化的提示（类 toast） */
   const [optimizeNotice, setOptimizeNotice] = useState<string | null>(null);
   const [batchText, setBatchText] = usePersistentState("video-quick:batch-topics", "");
   const [batchJobs, setBatchJobs] = useState<{ topic: string; jobId: string }[] | null>(null);
@@ -240,7 +200,7 @@ export function VideoQuickPage() {
     `video-quick:accel:${videoPack?.name ?? "none"}`,
     defaultAccelState(videoPack?.accel),
   );
-  // 选中 *_enhancer 时自动关闭画面提示词优化，避免与 Guide 双重扩写
+  // 选中 *_enhancer 时自动关闭「使用优化后提示词」，避免与 Guide 双重扩写
   useEffect(() => {
     const name = videoPack?.name ?? "";
     if (!name.includes("enhancer")) return;
@@ -249,8 +209,12 @@ export function VideoQuickPage() {
       wasOn = prev;
       return false;
     });
+    setScriptVisual((prev) => {
+      if (prev.useOptimized) wasOn = true;
+      return { ...prev, useOptimized: false };
+    });
     if (wasOn) {
-      setOptimizeNotice(`已关闭「画面提示词优化」：${name} 自带 Guide 增强，避免双重扩写`);
+      setOptimizeNotice(`已关闭「使用优化后提示词」：${name} 自带 Guide 增强，避免双重扩写`);
     }
   }, [videoPack?.name, setOptimizeVisuals]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -334,10 +298,35 @@ export function VideoQuickPage() {
   }, [job]);
 
   const buildBody = async (storyboard?: unknown) => {
+    const needsVisualTpl = tpl?.type === "image" || tpl?.type === "video";
+    // 固定文案：若右侧已有优化画面词且开关打开，前端拼 storyboard，不再让后端 LLM 二次写画面
+    let board = storyboard;
+    let optimize = optimizeVisuals;
+    if (mode === "script" && needsVisualTpl) {
+      optimize = scriptVisual.useOptimized;
+      if (!board && scriptVisual.useOptimized && scriptVisual.optimized.trim()) {
+        const segments = script
+          .split(splitMode === "line" ? /\n+/ : splitMode === "sentence" ? /[。！？.!?]+/ : /\n\s*\n/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const visuals = scriptVisual.optimized
+          .split(/\n+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        board = {
+          title: scriptTitle || "自定义文案",
+          frames: segments.map((text, i) => ({
+            text,
+            visual: visuals[i] || visuals[0] || text,
+          })),
+        };
+        optimize = false;
+      }
+    }
     return {
-      topic: mode === "topic" ? topic : undefined,
+      topic: mode === "topic" ? effectiveTopic : undefined,
       script: mode === "script" ? script : undefined,
-      title: mode === "script" ? scriptTitle : topic,
+      title: mode === "script" ? scriptTitle : effectiveTopic,
       split_mode: splitMode,
       storyboard_count: count,
       aspect,
@@ -350,11 +339,9 @@ export function VideoQuickPage() {
           ? ""
           : voiceName,
       style_prefix: stylePrefix,
-      storyboard,
+      storyboard: board,
       storyboard_only: storyboardOnly,
-      optimize_visuals: optimizeVisuals,
-      llm_provider_id: llmProvider?.id,
-      llm_model: llmModel || undefined,
+      optimize_visuals: optimize,
       tts_provider_id: ttsProvider?.id,
       image_provider_id: imageProvider?.id,
       video_provider_id: videoProvider?.id,
@@ -436,15 +423,15 @@ export function VideoQuickPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
-  // AI/批量写口播必用 LLM；固定文案仅在 image/video + 开启画面优化时才需要
-  const showLlmPicker =
+  const needsLlm =
     mode === "topic" ||
     mode === "batch" ||
-    ((tpl?.type === "image" || tpl?.type === "video") && optimizeVisuals);
+    ((tpl?.type === "image" || tpl?.type === "video") &&
+      (mode === "script" ? scriptVisual.useOptimized && !scriptVisual.optimized.trim() : optimizeVisuals));
   const submitDisabled =
-    (mode === "topic" ? !topic : !script) ||
+    (mode === "topic" ? !effectiveTopic : !script.trim()) ||
     !tpl ||
-    (showLlmPicker && !llmProvider) ||
+    (needsLlm && !hasLlm) ||
     (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
@@ -453,7 +440,7 @@ export function VideoQuickPage() {
   const batchDisabled =
     batchTopics.length === 0 ||
     !tpl ||
-    !llmProvider ||
+    !hasLlm ||
     (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
@@ -483,11 +470,20 @@ export function VideoQuickPage() {
             value={mode}
             onChange={setMode}
           />
+          {!hasLlm && (mode === "topic" || mode === "batch") && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              尚未配置 LLM。请到{" "}
+              <Link className="underline" to="/settings/system">
+                系统设置
+              </Link>{" "}
+              或「服务提供方」添加后再创作。
+            </p>
+          )}
           {mode === "batch" ? (
             <>
               <Field
                 label="主题列表"
-                hint="一行一个主题，每个主题即该视频的标题，AI 分别生成口播文案并各出一条视频。上限 100 个。"
+                hint="一行一个主题，每个主题即该视频的标题，AI 分别生成口播文案并各出一条视频。上限 100 个。脚本 LLM 使用系统设置中的默认服务。"
               >
                 <textarea
                   className={`${areaClass} min-h-32`}
@@ -496,32 +492,52 @@ export function VideoQuickPage() {
                   onChange={(e) => setBatchText(e.target.value)}
                 />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="分镜数" hint="每条视频的分镜数，范围 1 到 12，全部主题共用。">
-                  <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
-                </Field>
-                {llmPicker}
-              </div>
+              <Field label="分镜数" hint="每条视频的分镜数，范围 1 到 12，全部主题共用。">
+                <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
+              </Field>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 共 {batchTopics.length} 个主题。每个主题一个任务、排队执行，可在任务中心查看或取消。
               </p>
             </>
           ) : mode === "topic" ? (
             <>
-              <Field label="主题" hint="主题会作为标题显示在视频画面里，AI 据此写口播文案并拆分镜。">
-                <textarea
-                  className={`${areaClass} min-h-20`}
-                  placeholder="例如：三个提高效率的小技巧，语气轻快，面向职场新人"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                />
+              <PromptField
+                label="主题"
+                hint="主题会作为标题显示在视频画面里；可先 ✨ 扩写意图，再由系统默认 LLM 写口播并拆分镜。"
+                value={topicValue}
+                onChange={(v) => {
+                  setTopicValue(v);
+                  setLegacyTopic(v.raw);
+                }}
+                task="quick_topic"
+                aspect={aspect}
+                workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
+                placeholder="例如：三个提高效率的小技巧，语气轻快，面向职场新人"
+              />
+              <Field label="分镜数" hint="范围 1 到 12。AI 按这个数量拆镜。">
+                <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="分镜数" hint="范围 1 到 12。AI 按这个数量拆镜。">
-                  <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
-                </Field>
-                {llmPicker}
-              </div>
+              {(tpl?.type === "image" || tpl?.type === "video") && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={optimizeVisuals}
+                      onChange={(e) => {
+                        setOptimizeVisuals(e.target.checked);
+                        if (e.target.checked) setOptimizeNotice(null);
+                      }}
+                    />
+                    生成时用 LLM 写画面提示词
+                  </label>
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    开启后将口播改写成画面描述再交给插图/视频工作流。enhancer 包会自动关闭，避免与 Guide 双重扩写。
+                  </span>
+                  {optimizeNotice && (
+                    <p className="text-sm text-amber-700 dark:text-amber-400">{optimizeNotice}</p>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -532,46 +548,45 @@ export function VideoQuickPage() {
                   onChange={(e) => setScriptTitle(e.target.value)}
                 />
               </Field>
-              <Field label="口播文案" hint="按下方切分方式拆成多个分镜，文案原样朗读。">
-                <textarea
-                  className={`${areaClass} min-h-28`}
-                  value={script}
-                  onChange={(e) => setScript(e.target.value)}
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="切分方式" hint="决定文案如何拆成一条条分镜。">
-                  <select className={selectClass} value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
-                    <option value="paragraph">按段切分</option>
-                    <option value="line">按行切分</option>
-                    <option value="sentence">按句切分</option>
-                  </select>
-                </Field>
-                {showLlmPicker ? llmPicker : null}
-              </div>
-            </>
-          )}
-          {(tpl?.type === "image" || tpl?.type === "video") && (
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={optimizeVisuals}
-                  onChange={(e) => {
-                    setOptimizeVisuals(e.target.checked);
-                    if (e.target.checked) setOptimizeNotice(null);
+              {tpl?.type === "image" || tpl?.type === "video" ? (
+                <PromptField
+                  label="口播文案 / 画面提示词"
+                  hint="原始输入为口播（按切分方式拆镜）；✨ 生成每镜画面提示词。开关决定合成时用画面词还是口播原文。"
+                  value={scriptVisual}
+                  onChange={(v) => {
+                    setScriptVisual(v);
+                    setLegacyScript(v.raw);
+                    if (v.useOptimized) setOptimizeNotice(null);
                   }}
+                  task="quick_visual"
+                  aspect={aspect}
+                  workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
+                  placeholder="输入口播文案…"
+                  minRowsClass="min-h-28"
                 />
-                用脚本服务优化画面提示词
-              </label>
-              <span className="text-xs leading-relaxed text-muted-foreground">
-                开启后 LLM 把口播改写成画面描述再交给插图/视频工作流。若选用带 Guide 的 enhancer
-                包，会自动关闭本项，避免与工作流内提示词增强重复扩写。静态模板不受影响。
-              </span>
-              {optimizeNotice && (
+              ) : (
+                <Field label="口播文案" hint="按下方切分方式拆成多个分镜，文案原样朗读。">
+                  <textarea
+                    className={`${areaClass} min-h-28`}
+                    value={script}
+                    onChange={(e) => {
+                      setScriptVisual((prev) => ({ ...prev, raw: e.target.value }));
+                      setLegacyScript(e.target.value);
+                    }}
+                  />
+                </Field>
+              )}
+              {optimizeNotice && (tpl?.type === "image" || tpl?.type === "video") && (
                 <p className="text-sm text-amber-700 dark:text-amber-400">{optimizeNotice}</p>
               )}
-            </div>
+              <Field label="切分方式" hint="决定文案如何拆成一条条分镜。">
+                <select className={selectClass} value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
+                  <option value="paragraph">按段切分</option>
+                  <option value="line">按行切分</option>
+                  <option value="sentence">按句切分</option>
+                </select>
+              </Field>
+            </>
           )}
           {mode !== "batch" && (
             <div className="flex flex-col gap-1.5">
@@ -1047,7 +1062,7 @@ export function VideoQuickPage() {
               meta={[
                 { label: "画幅", value: aspect },
                 { label: "模板", value: tpl ? `${tpl.name}（${tpl.type_label}）` : "" },
-                { label: "内容", value: mode === "batch" ? `批量 ${batchTopics.length} 个主题` : mode === "topic" ? topic : script },
+                { label: "内容", value: mode === "batch" ? `批量 ${batchTopics.length} 个主题` : mode === "topic" ? effectiveTopic : script },
               ]}
             />
           </div>

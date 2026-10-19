@@ -11,15 +11,10 @@ from liberastra.jobs.manager import JobContext, JobManager
 from liberastra.models import Job
 from liberastra.providers.base import ProviderError
 from liberastra.services.preferences import get_pref
-from liberastra.services.providers import build_image_adapter, build_llm_adapter, pick_provider
+from liberastra.services.prompts import optimize_prompt as optimize_prompt_service
+from liberastra.services.providers import build_image_adapter, pick_provider
 from liberastra.services.workflows import get_pack
 from liberastra.storage import create_asset, resolve, save_bytes
-
-OPTIMIZE_SYSTEM_PROMPT = (
-    "你是图像生成提示词专家。把用户的简短描述扩写成一段高质量文生图提示词，"
-    "包含主体、细节、构图、光线、风格与画质词。直接输出提示词本身，不要解释。"
-    "用户输入是中文就输出中文，是英文就输出英文。"
-)
 
 
 async def produce_images(
@@ -151,21 +146,9 @@ def _save_images(
 
 
 async def optimize_prompt(db: Session, provider_id: int | None, prompt: str) -> str:
-    """用 LLM 扩写提示词（同步快速调用）。"""
-    provider = pick_provider(db, "llm", provider_id)
-    adapter = build_llm_adapter(provider, db=db)
-    try:
-        return await adapter.chat(
-            model=provider.extra.get("model", "") or "default",
-            messages=[
-                {"role": "system", "content": OPTIMIZE_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-        )
-    except ProviderError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise ProviderError(f"提示词优化失败: {exc}") from exc
+    """兼容旧接口：默认按 t2i 任务优化。"""
+    result = await optimize_prompt_service(db, prompt=prompt, task="t2i", provider_id=provider_id)
+    return result["optimized"]
 
 
 def register_image_jobs(manager: JobManager) -> None:

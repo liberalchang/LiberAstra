@@ -128,6 +128,7 @@ async def edit(
 async def optimize(
     body: PromptOptimizeRequest, user: CurrentUser, db: DbSession
 ) -> PromptOptimizeResponse:
+    """兼容旧路径；新客户端请用 POST /api/v1/prompts/optimize。"""
     try:
         optimized = await optimize_prompt(db, body.provider_id, body.prompt)
     except ProviderError as exc:

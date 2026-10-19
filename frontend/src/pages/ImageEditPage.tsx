@@ -4,10 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import {
+  PromptField,
+  emptyPromptValue,
+  resolveEffectivePrompt,
+  type PromptFieldValue,
+} from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, areaClass, selectClass } from "@/components/ui/field";
+import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
@@ -40,7 +46,9 @@ export function ImageEditPage({ capability, title, description }: Props) {
     ? Object.values(pack.inputs).filter((spec) => spec.type === "image").length
     : 0;
 
-  const [prompt, setPrompt] = usePersistentState(`image-${capability}:prompt`, "");
+  const [legacyPrompt, setLegacyPrompt] = usePersistentState(`image-${capability}:prompt`, "");
+  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
+  const effectivePrompt = resolveEffectivePrompt(promptValue);
   // File 快照数组（非 FileList 活引用）：分多轮选择时追加合并，可按张删除
   const [files, setFiles] = useState<File[]>([]);
   const [extra, setExtra] = usePersistentState<Record<string, string>>(`image-${capability}:extra`, {});
@@ -79,7 +87,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
     mutationFn: () => {
       const form = new FormData();
       for (const f of files) form.append("images", f);
-      form.set("prompt", prompt);
+      form.set("prompt", effectivePrompt);
       if (provider) form.set("provider_id", String(provider.id));
       if (isComfy && pack) form.set("workflow", pack.name);
       form.set(
@@ -191,7 +199,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
               </div>
             )}
           </Field>
-          <Field
+          <PromptField
             label="提示词"
             hint={
               imageSlots > 1
@@ -200,16 +208,21 @@ export function ImageEditPage({ capability, title, description }: Props) {
                   ? "说明要怎么改，例如把背景换成海滩。"
                   : "放大或修复时可选，用来约束画面。"
             }
-          >
-            <textarea
-              className={`${areaClass} min-h-24`}
-              placeholder={
-                imageSlots > 1 ? "例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势" : capability === "i2i" ? "例如：把背景换成海滩" : "可选"
-              }
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-          </Field>
+            value={promptValue}
+            onChange={(v) => {
+              setPromptValue(v);
+              setLegacyPrompt(v.raw);
+            }}
+            task={capability === "upscale" ? "upscale" : "i2i"}
+            workflow={isComfy ? pack?.name : undefined}
+            placeholder={
+              imageSlots > 1
+                ? "例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势"
+                : capability === "i2i"
+                  ? "例如：把背景换成海滩"
+                  : "可选"
+            }
+          />
           {isComfy && pack && (
             <WorkflowInputs
               inputs={pack.inputs}
@@ -250,7 +263,10 @@ export function ImageEditPage({ capability, title, description }: Props) {
             meta={[
               { label: "服务", value: provider?.name ?? "" },
               { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
-              { label: "提示词", value: prompt },
+              {
+                label: promptValue.useOptimized && promptValue.optimized.trim() ? "提示词（已优化）" : "提示词",
+                value: effectivePrompt,
+              },
             ]}
           />
         }

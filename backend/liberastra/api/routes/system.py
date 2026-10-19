@@ -16,7 +16,7 @@ from liberastra.core.config import get_settings
 from liberastra.core.db import SessionLocal
 from liberastra.models import Asset, Job, Provider, User
 from liberastra.services.maintenance import cleanup_old_data
-from liberastra.services.preferences import all_prefs, set_pref
+from liberastra.services.preferences import SPECS, STR_SPECS, all_prefs, set_pref, set_str_pref
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -29,19 +29,26 @@ class PreferencesUpdate(BaseModel):
     llm_request_timeout_seconds: int | None = Field(default=None, ge=30, le=3600)
     # 0=并行（默认），1=同一台主机上的 Provider 任务互斥串行
     serial_same_host: int | None = Field(default=None, ge=0, le=1)
+    # 0=自动取第一个启用的 llm Provider
+    default_llm_provider_id: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    default_llm_model: str | None = Field(default=None, max_length=200)
 
 
 @router.get("/preferences")
-def get_preferences(user: CurrentUser, db: DbSession) -> dict[str, int]:
-    """读取运行时偏好：ComfyUI 等待超时、同步接口等待超时等。"""
+def get_preferences(user: CurrentUser, db: DbSession) -> dict[str, int | str]:
+    """读取运行时偏好：超时、默认 LLM 等。"""
     return all_prefs(db)
 
 
 @router.patch("/preferences")
-def update_preferences(body: PreferencesUpdate, user: CurrentUser, db: DbSession) -> dict[str, int]:
+def update_preferences(body: PreferencesUpdate, user: CurrentUser, db: DbSession) -> dict[str, int | str]:
     """更新运行时偏好，下一个任务起生效。"""
-    for key, value in body.model_dump(exclude_none=True).items():
-        set_pref(db, key, value)
+    data = body.model_dump(exclude_none=True)
+    for key, value in data.items():
+        if key in STR_SPECS:
+            set_str_pref(db, key, str(value))
+        elif key in SPECS:
+            set_pref(db, key, int(value))
     return all_prefs(db)
 
 

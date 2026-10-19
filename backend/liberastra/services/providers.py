@@ -170,6 +170,49 @@ def pick_provider(db: Session, capability: str, provider_id: int | None = None) 
     )
 
 
+def pick_llm_with_model(
+    db: Session,
+    provider_id: int | None = None,
+    model: str = "",
+) -> tuple[Provider, str]:
+    """解析 LLM Provider 与模型名。
+
+    Provider 优先级：请求显式 id → 系统设置 default_llm_provider_id（>0 且仍启用）→ 第一个启用的 llm。
+    模型优先级：请求显式 model → 系统设置 default_llm_model → provider.extra.model
+    → provider.models[0] → \"default\"。
+    """
+    from liberastra.services.preferences import get_pref, get_str_pref
+
+    chosen_id = provider_id
+    if chosen_id is None:
+        pref_id = get_pref(db, "default_llm_provider_id")
+        if pref_id > 0:
+            record = db.get(Provider, pref_id)
+            if (
+                record is not None
+                and record.enabled
+                and "llm" in effective_capabilities(record)
+            ):
+                chosen_id = pref_id
+    provider = pick_provider(db, "llm", chosen_id)
+
+    if model and model.strip():
+        resolved = model.strip()
+    else:
+        pref_model = get_str_pref(db, "default_llm_model").strip()
+        if pref_model:
+            resolved = pref_model
+        else:
+            extra_model = (provider.extra or {}).get("model") or ""
+            if isinstance(extra_model, str) and extra_model.strip():
+                resolved = extra_model.strip()
+            elif provider.models:
+                resolved = str(provider.models[0])
+            else:
+                resolved = "default"
+    return provider, resolved
+
+
 def effective_capabilities(record: Provider) -> list[str]:
     """有效能力：以类型注册表为准（存量记录的 capabilities 是创建时快照，可能滞后）。"""
     from liberastra.providers import PROVIDER_TYPES

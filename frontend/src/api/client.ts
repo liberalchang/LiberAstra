@@ -117,6 +117,40 @@ export interface SystemPreferences {
   llm_request_timeout_seconds: number;
   /** 同主机服务串行执行：0=并行（默认），1=同一主机上的 Provider 任务互斥 */
   serial_same_host: number;
+  /** 默认 LLM Provider id；0=自动取第一个启用的 llm */
+  default_llm_provider_id: number;
+  /** 默认 LLM 模型名；空则用 Provider.extra.model 或已拉取列表首项 */
+  default_llm_model: string;
+}
+
+export interface PromptTaskOut {
+  id: string;
+  name: string;
+  capabilities: string[];
+  system: string;
+}
+
+export interface PromptSceneOut {
+  id: string;
+  name: string;
+  append: string;
+}
+
+export interface PromptOptimizeInput {
+  prompt: string;
+  task?: string;
+  scene?: string;
+  workflow?: string;
+  aspect?: string;
+  extra_context?: string;
+  provider_id?: number;
+  model?: string;
+}
+
+export interface PromptOptimizeResult {
+  optimized: string;
+  provider_name: string;
+  model: string;
 }
 
 export interface WorkflowInputSpec {
@@ -337,11 +371,17 @@ export const api = {
     request<JobOut>("/api/v1/images/generate", { method: "POST", body: JSON.stringify(body) }),
   editImage: (form: FormData) =>
     request<JobOut>("/api/v1/images/edit", { method: "POST", body: form }),
-  optimizePrompt: (prompt: string, provider_id?: number) =>
-    request<{ optimized: string }>("/api/v1/images/optimize-prompt", {
+  listPrompts: () =>
+    request<{ tasks: PromptTaskOut[]; scenes: PromptSceneOut[] }>("/api/v1/prompts"),
+  optimizePrompt: (body: PromptOptimizeInput | string, provider_id?: number) => {
+    // 兼容旧调用：optimizePrompt(prompt, provider_id)
+    const payload: PromptOptimizeInput =
+      typeof body === "string" ? { prompt: body, task: "t2i", provider_id } : body;
+    return request<PromptOptimizeResult>("/api/v1/prompts/optimize", {
       method: "POST",
-      body: JSON.stringify({ prompt, provider_id }),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
 
   uploadFile: (file: File) => {
     const form = new FormData();

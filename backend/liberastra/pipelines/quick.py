@@ -28,6 +28,7 @@ from liberastra.services.preferences import get_pref
 from liberastra.services.providers import (
     build_llm_adapter,
     build_tts_adapter,
+    pick_llm_with_model,
     pick_provider,
 )
 from liberastra.services.templates import (
@@ -125,8 +126,11 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
     need_script_llm, need_visual_llm = _quick_needs_llm(params, tpl)
     llm_provider = None
     llm = None
+    llm_model = params.get("llm_model", "")
     if need_script_llm or need_visual_llm:
-        llm_provider = pick_provider(db, "llm", provider_ids.get("llm"))
+        llm_provider, llm_model = pick_llm_with_model(
+            db, provider_ids.get("llm"), params.get("llm_model", "")
+        )
         llm = build_llm_adapter(llm_provider, db=db)
     wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
     # 文字显隐与字号（模板标题/文案 + 视频烧录字幕）
@@ -149,7 +153,6 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
         else:
             ctx.report(db, job, progress=0.05, step="script")
             assert llm is not None and llm_provider is not None
-            llm_model = params.get("llm_model", "")
             data = await _chat_json(
                 llm, llm_provider, SCRIPT_PROMPT.format(n=count), params["topic"], llm_model
             )
@@ -168,7 +171,7 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
                 llm_provider,
                 STORYBOARD_PROMPT,
                 json.dumps({"title": title, "segments": segments}, ensure_ascii=False),
-                params.get("llm_model", ""),
+                llm_model,
             )
             frames = data.get("frames", [])
         else:
@@ -368,8 +371,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             # 本次实际使用的工作流与模型，供作品查看页展示
             "workflow": params.get("video_workflow") or params.get("image_workflow"),
             "tts_workflow": params.get("tts_workflow"),
-            "llm_model": params.get("llm_model")
-            or ((llm_provider.extra or {}).get("model") if llm_provider else ""),
+            "llm_model": llm_model
+            if llm_provider
+            else (params.get("llm_model") or ""),
             "llm_provider": llm_provider.name if llm_provider else "",
             "voice": voice,
             "bgm": Path(params["bgm_path"]).name if params.get("bgm_path") else None,

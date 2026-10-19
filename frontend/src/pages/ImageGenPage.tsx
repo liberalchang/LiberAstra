@@ -1,15 +1,21 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Image as ImageIcon, Dices, Sparkles } from "lucide-react";
+import { Image as ImageIcon, Dices } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
+import {
+  PromptField,
+  emptyPromptValue,
+  resolveEffectivePrompt,
+  type PromptFieldValue,
+} from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { ASPECT_OPTIONS, AspectSelect, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, areaClass, selectClass } from "@/components/ui/field";
+import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SplitPane } from "@/components/ui/split-pane";
@@ -37,15 +43,18 @@ export function ImageGenPage() {
 
   const location = useLocation();
   const incomingPrompt = (location.state as { prompt?: string } | null)?.prompt;
-  const [prompt, setPrompt] = usePersistentState("image-generate:prompt", "");
-  // 从其他页面带过来的提示词优先于本地记忆
+  const [legacyPrompt, setLegacyPrompt] = usePersistentState("image-generate:prompt", "");
+  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
   useEffect(() => {
-    if (incomingPrompt) setPrompt(incomingPrompt);
+    if (incomingPrompt) {
+      setPromptValue(emptyPromptValue(incomingPrompt));
+      setLegacyPrompt(incomingPrompt);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const effectivePrompt = resolveEffectivePrompt(promptValue);
   const [negative, setNegative] = usePersistentState("image-generate:negative", "");
   const [aspectRaw, setAspect] = usePersistentState<AspectOption>("image-generate:aspect", ASPECT_OPTIONS[1]);
-  // 持久化的宽高比需对回当前选项表；显式自定义（或不在表中但数值合法）按自定义保留，失效时回落默认 1:1 1024×1024
   const validCustom =
     aspectRaw &&
     Number.isFinite(aspectRaw.width) &&
@@ -64,18 +73,12 @@ export function ImageGenPage() {
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("image-generate");
 
-  const optimize = useMutation({
-    mutationFn: () => api.optimizePrompt(prompt),
-    onSuccess: (r) => setPrompt(r.optimized),
-    onError: (err) => setError(err.message),
-  });
-
   const submit = useMutation({
     mutationFn: () =>
       api.generateImage({
         provider_id: provider?.id,
         workflow: isComfy ? pack?.name : undefined,
-        prompt,
+        prompt: effectivePrompt,
         negative_prompt: negative,
         width: aspect.width,
         height: aspect.height,
@@ -137,25 +140,22 @@ export function ImageGenPage() {
             )}
           </div>
 
-          <Field label="提示词" hint="描述画面。右侧按钮会调用已配置的 LLM 改写这段文字。">
-            <div className="flex gap-2">
-              <textarea
-                className={`${areaClass} min-h-24 flex-1`}
-                placeholder="例如：窗边的陶瓷杯，柔和侧光，浅景深"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                title="用 LLM 优化提示词"
-                onClick={() => optimize.mutate()}
-                disabled={!prompt || optimize.isPending}
-              >
-                <Sparkles />
-              </Button>
-            </div>
-          </Field>
+          <PromptField
+            value={promptValue}
+            onChange={(v) => {
+              setPromptValue(v);
+              setLegacyPrompt(v.raw);
+            }}
+            task="t2i"
+            workflow={isComfy ? pack?.name : undefined}
+            aspect={aspect.ratio}
+            extraContext={
+              !isComfy && provider
+                ? `图像服务：${provider.name}（type=${provider.type}）。按该服务常见自然语言提示词风格扩写。`
+                : undefined
+            }
+            placeholder="例如：窗边的陶瓷杯，柔和侧光，浅景深"
+          />
           <Field label="负面提示词" hint="不希望出现的内容，可以留空。">
             <Input
               placeholder="例如：模糊，变形，多余手指"
@@ -218,7 +218,7 @@ export function ImageGenPage() {
 
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center gap-3">
-            <Button onClick={() => submit.mutate()} disabled={!prompt || submit.isPending || !!running}>
+            <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
               {running ? `生成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "生成"}
             </Button>
           </div>
@@ -235,7 +235,10 @@ export function ImageGenPage() {
               { label: "服务", value: provider?.name ?? "" },
               { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
               { label: "尺寸", value: `${aspect.width}×${aspect.height}` },
-              { label: "提示词", value: prompt },
+              {
+                label: promptValue.useOptimized && promptValue.optimized.trim() ? "提示词（已优化）" : "提示词",
+                value: effectivePrompt,
+              },
             ]}
           />
         }

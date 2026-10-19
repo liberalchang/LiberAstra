@@ -369,7 +369,7 @@ export function WorkflowsPage() {
             {!editing && workflowJson.trim() && (
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 className="w-fit gap-1.5"
                 disabled={convertMut.isPending}
                 onClick={() => void convertFromTextarea()}

@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Settings, Timer, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bot, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
+import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useAuthStore } from "@/stores/auth";
@@ -60,7 +60,20 @@ export function SystemSettingsPage() {
   const [apiTimeout, setApiTimeout] = useState(300);
   const [llmTimeout, setLlmTimeout] = useState(300);
   const [serialSameHost, setSerialSameHost] = useState(false);
+  const [llmProviderId, setLlmProviderId] = useState(0);
+  const [llmModel, setLlmModel] = useState("");
   const [prefSaved, setPrefSaved] = useState(false);
+
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
+  const llmProviders = useMemo(
+    () => (providers ?? []).filter((p) => p.enabled && p.capabilities.includes("llm")),
+    [providers],
+  );
+  const selectedLlm = llmProviders.find((p) => p.id === llmProviderId) ?? null;
+  const fetchModels = useMutation({
+    mutationFn: (id: number) => api.fetchProviderModels(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+  });
 
   useEffect(() => {
     if (prefs) {
@@ -68,6 +81,8 @@ export function SystemSettingsPage() {
       setApiTimeout(prefs.api_wait_timeout_seconds);
       setLlmTimeout(prefs.llm_request_timeout_seconds);
       setSerialSameHost(prefs.serial_same_host === 1);
+      setLlmProviderId(prefs.default_llm_provider_id ?? 0);
+      setLlmModel(prefs.default_llm_model ?? "");
     }
   }, [prefs]);
 
@@ -78,6 +93,8 @@ export function SystemSettingsPage() {
         api_wait_timeout_seconds: apiTimeout,
         llm_request_timeout_seconds: llmTimeout,
         serial_same_host: serialSameHost ? 1 : 0,
+        default_llm_provider_id: llmProviderId,
+        default_llm_model: llmModel,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -147,6 +164,91 @@ export function SystemSettingsPage() {
               {pwdError && <span className="text-sm text-red-500">{pwdError}</span>}
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="size-4" /> 默认 LLM（脚本与提示词优化）
+          </CardTitle>
+          <CardDescription>
+            快速创作、自定义素材、提示词 ✨ 优化统一使用此处配置，无需在各功能页重复选择。
+            未选服务商时自动取第一个启用的 LLM Provider。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label="LLM 服务商" hint="在「服务提供方」中添加 Ollama / OpenAI 兼容等。">
+            <div className="flex gap-2">
+              <select
+                className={selectClass}
+                value={llmProviderId}
+                onChange={(e) => {
+                  setLlmProviderId(Number(e.target.value));
+                  setLlmModel("");
+                }}
+              >
+                <option value={0}>自动（第一个启用的 LLM）</option>
+                {llmProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="刷新模型列表"
+                disabled={!selectedLlm || fetchModels.isPending}
+                onClick={() => selectedLlm && fetchModels.mutate(selectedLlm.id)}
+              >
+                <RefreshCw className={fetchModels.isPending ? "animate-spin" : undefined} />
+              </Button>
+            </div>
+          </Field>
+          <Field label="默认模型" hint="可从已拉取列表选择，或手填模型名。">
+            {selectedLlm?.models?.length ? (
+              <select
+                className={selectClass}
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+              >
+                <option value="">自动（Provider 默认 / 列表首项）</option>
+                {selectedLlm.models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={llmModel}
+                placeholder="留空则自动；或手填模型名"
+                onChange={(e) => setLlmModel(e.target.value)}
+              />
+            )}
+          </Field>
+          {llmProviders.length === 0 && (
+            <p className="text-sm text-amber-700 dark:text-amber-400 sm:col-span-2">
+              尚未配置启用的 LLM 服务商。请先到「服务提供方」添加。
+            </p>
+          )}
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              disabled={savePrefs.isPending}
+              onClick={() => {
+                setPrefSaved(false);
+                savePrefs.mutate();
+              }}
+            >
+              {savePrefs.isPending ? "保存中…" : "保存"}
+            </Button>
+            {prefSaved && !savePrefs.isPending && (
+              <span className="text-sm text-green-600">已保存。</span>
+            )}
+          </div>
         </CardContent>
       </Card>
 

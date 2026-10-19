@@ -13,6 +13,7 @@ from liberastra.api.routes import (
     llm,
     openai_audio,
     openai_compat,
+    prompts,
     providers,
     system,
     templates,
@@ -37,6 +38,7 @@ api_router.include_router(voices.router)
 api_router.include_router(bgm.router)
 api_router.include_router(assets.router)
 api_router.include_router(images.router)
+api_router.include_router(prompts.router)
 api_router.include_router(workflows.router)
 api_router.include_router(templates.router)
 api_router.include_router(videos.router)

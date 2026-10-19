@@ -15,7 +15,7 @@ from liberastra.models import Job, User, Voice
 from liberastra.pipelines.quick import resolve_quick_template
 from liberastra.schemas.job import JobOut
 from liberastra.schemas.video import QuickVideoRequest
-from liberastra.services.providers import pick_provider
+from liberastra.services.providers import pick_llm_with_model, pick_provider
 from liberastra.storage import save_upload
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -61,7 +61,8 @@ async def quick(
         and body.optimize_visuals
     )
     if need_script_llm or need_visual_llm:
-        pick_provider(db, "llm", body.llm_provider_id)
+        # 未传 provider_id 时走系统默认 LLM
+        pick_llm_with_model(db, body.llm_provider_id, body.llm_model or "")
     if tpl.type == "image" and tpl.needs_image:
         pick_provider(db, "image", body.image_provider_id)
     if tpl.type == "video":
@@ -235,6 +236,7 @@ async def custom_assets(
     voice: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
     animate: Annotated[bool, Form()] = False,
+    animate_prompt: Annotated[str, Form()] = "",
     video_workflow: Annotated[str | None, Form()] = None,
     video_inputs: Annotated[str, Form()] = "{}",
     tts_workflow: Annotated[str | None, Form()] = None,
@@ -294,6 +296,7 @@ async def custom_assets(
             "aspect": aspect,
             "voice": voice_name,
             "animate": animate,
+            "animate_prompt": animate_prompt,
             "video_workflow": video_workflow,
             "video_inputs": _parse_inputs(video_inputs),
             "tts_workflow": tts_workflow,

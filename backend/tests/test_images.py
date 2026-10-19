@@ -104,13 +104,13 @@ def test_optimize_prompt(
     auth_header: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from liberastra.services import image as image_service
+    from liberastra.services import prompts as prompt_service
 
     class _FakeLLM:
         async def chat(self, **kwargs) -> str:
             return "杰作，一只橘猫，逆光，浅景深，8k"
 
-    monkeypatch.setattr(image_service, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
+    monkeypatch.setattr(prompt_service, "build_llm_adapter", lambda record, **_kw: _FakeLLM())
 
     llm = client.post(
         "/api/v1/providers",
@@ -124,6 +124,16 @@ def test_optimize_prompt(
     )
     assert resp.status_code == 200
     assert "橘猫" in resp.json()["optimized"]
+
+    # 新路径同样可用
+    resp2 = client.post(
+        "/api/v1/prompts/optimize",
+        json={"provider_id": llm["id"], "prompt": "一只猫", "task": "t2i"},
+        headers=auth_header,
+    )
+    assert resp2.status_code == 200
+    assert "橘猫" in resp2.json()["optimized"]
+    assert resp2.json().get("provider_name")
 
 
 def test_workflows_api(client: TestClient, auth_header: dict[str, str]) -> None:

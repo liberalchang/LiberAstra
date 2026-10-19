@@ -55,6 +55,9 @@ def create_app() -> FastAPI:
         from liberastra.media.htmlframe import close_browser
 
         run_startup_cleanup()
+        from liberastra.services.prompts import ensure_prompt_store
+
+        ensure_prompt_store()
         manager = JobManager()
         register_llm_jobs(manager)
         register_tts_jobs(manager)

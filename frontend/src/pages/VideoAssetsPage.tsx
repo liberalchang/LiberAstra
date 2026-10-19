@@ -2,6 +2,7 @@ import { Images, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
 import {
@@ -11,6 +12,12 @@ import {
   hasAccel,
   type AccelState,
 } from "@/components/AccelControl";
+import {
+  PromptField,
+  emptyPromptValue,
+  resolveEffectivePrompt,
+  type PromptFieldValue,
+} from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +42,10 @@ export function VideoAssetsPage() {
   const enabled = providers?.filter((p) => p.enabled);
   const llmProviders = enabled?.filter((p) => p.capabilities.includes("llm"));
   const videoProviders = enabled?.filter((p) => p.capabilities.includes("video"));
+  const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  const hasLlm =
+    (llmProviders?.length ?? 0) > 0 ||
+    (prefs?.default_llm_provider_id != null && prefs.default_llm_provider_id > 0);
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
   const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
 
@@ -83,12 +94,11 @@ export function VideoAssetsPage() {
   // ---- ③ 文案与标题 ----
   const [mode, setMode] = usePersistentState<"script" | "topic">("video-assets:mode", "script");
   const [script, setScript] = usePersistentState("video-assets:script", "");
-  const [topic, setTopic] = usePersistentState("video-assets:topic", "");
+  const [legacyTopic, setLegacyTopic] = usePersistentState("video-assets:topic", "");
+  const [topicValue, setTopicValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyTopic));
+  const effectiveTopic = resolveEffectivePrompt(topicValue);
   const [title, setTitle] = usePersistentState("video-assets:title", "");
   const [duration, setDuration] = usePersistentState("video-assets:duration", 30);
-  const [llmProviderId, setLlmProviderId] = usePersistentState<number | "">("video-assets:llm-provider", "");
-  const llmProvider = llmProviders?.find((p) => p.id === llmProviderId) ?? llmProviders?.[0];
-  const [llmModel, setLlmModel] = usePersistentState("video-assets:llm-model", "");
   const refreshModels = useMutation({
     mutationFn: (id: number) => api.fetchProviderModels(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
@@ -96,6 +106,7 @@ export function VideoAssetsPage() {
 
   // ---- ③ 素材动画（静态图片 → i2v 动起来）----
   const [animate, setAnimate] = usePersistentState("video-assets:animate", false);
+  const [animatePrompt, setAnimatePrompt] = useState<PromptFieldValue>(() => emptyPromptValue(""));
   const [videoProviderId, setVideoProviderId] = usePersistentState<number | "">("video-assets:video-provider", "");
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
   const { data: i2vPacks } = useQuery({
@@ -158,7 +169,7 @@ export function VideoAssetsPage() {
       const form = new FormData();
       for (const f of files) form.append("images", f);
       if (mode === "script") form.set("script", script);
-      else form.set("topic", topic);
+      else form.set("topic", effectiveTopic);
       if (title) form.set("title", title);
       form.set("duration", String(duration));
       form.set("aspect", aspect);
@@ -166,10 +177,11 @@ export function VideoAssetsPage() {
         if (isLibraryVoice && voiceRecordId !== "") form.set("voice_record_id", String(voiceRecordId));
         else form.set("voice", voiceName);
       }
-      if (llmProvider) form.set("llm_provider_id", String(llmProvider.id));
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
       if (animate && hasImage) {
         form.set("animate", "true");
+        const ap = resolveEffectivePrompt(animatePrompt);
+        if (ap) form.set("animate_prompt", ap);
         if (videoProvider) form.set("video_provider_id", String(videoProvider.id));
         if (videoPack) form.set("video_workflow", videoPack.name);
         form.set("video_inputs", JSON.stringify(buildInputsWithAccel(videoExtra, videoPack?.accel, videoAccel)));
@@ -184,7 +196,6 @@ export function VideoAssetsPage() {
         if (analysisVideoPack) form.set("analysis_video_workflow", analysisVideoPack.name);
         form.set("analysis_inputs", JSON.stringify(Object.fromEntries(Object.entries(analysisExtra).filter(([, v]) => v !== ""))));
       }
-      if (llmModel) form.set("llm_model", llmModel);
       if (bgmName) {
         form.set("bgm_path", `bgm/${bgmName}`);
         form.set("bgm_volume", bgmVolume || "0.2");
@@ -201,7 +212,8 @@ export function VideoAssetsPage() {
   const running = job && (job.status === "pending" || job.status === "running");
   const ready =
     files.length > 0 &&
-    (mode === "script" ? script : topic) &&
+    (mode === "script" ? script : effectiveTopic) &&
+    (mode !== "topic" || hasLlm) &&
     (ttsIsComfy ? !!ttsPack : isLibraryVoice ? voiceRecordId !== "" || !!voiceName : !!voiceName) &&
     (!animate || !hasImage || !!videoPack);
 
@@ -364,58 +376,30 @@ export function VideoAssetsPage() {
             </Field>
           ) : (
             <>
-              <Field label="主题" hint="AI 结合素材的类型/文件名/视频时长，按目标时长为每个画面写口播。">
-                <textarea
-                  className={`${areaClass} min-h-20`}
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                />
+              {!hasLlm && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  尚未配置 LLM。请到{" "}
+                  <Link className="underline" to="/settings/system">
+                    系统设置
+                  </Link>{" "}
+                  或「服务提供方」添加。
+                </p>
+              )}
+              <PromptField
+                label="主题"
+                hint="AI 结合素材按目标时长写口播；脚本 LLM 使用系统设置中的默认服务。"
+                value={topicValue}
+                onChange={(v) => {
+                  setTopicValue(v);
+                  setLegacyTopic(v.raw);
+                }}
+                task="assets_topic"
+                aspect={aspect}
+                placeholder="例如：宠物店年终大促，语气热情"
+              />
+              <Field label="目标时长（秒）" hint="AI 按它控制文案长度，5 到 600。">
+                <NumberStepper ariaLabel="目标时长" min={5} max={600} step={5} value={duration} onChange={setDuration} />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="目标时长（秒）" hint="AI 按它控制文案长度，5 到 600。">
-                  <NumberStepper ariaLabel="目标时长" min={5} max={600} step={5} value={duration} onChange={setDuration} />
-                </Field>
-                <Field label="脚本服务" hint="写口播文案的 LLM 服务。">
-                  <div className="flex gap-2">
-                    <select
-                      className={selectClass}
-                      value={llmProvider?.id ?? ""}
-                      onChange={(e) => {
-                        setLlmProviderId(Number(e.target.value));
-                        setLlmModel("");
-                      }}
-                    >
-                      {llmProviders?.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="从服务拉取模型列表"
-                      disabled={!llmProvider || refreshModels.isPending}
-                      onClick={() => llmProvider && refreshModels.mutate(llmProvider.id)}
-                    >
-                      <RefreshCw />
-                    </Button>
-                  </div>
-                </Field>
-                <Field label="脚本模型" hint="留空用服务端默认模型。">
-                  {llmProvider && llmProvider.models.length > 0 ? (
-                    <select className={selectClass} value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
-                      <option value="">默认（服务配置）</option>
-                      {llmModel && !llmProvider.models.includes(llmModel) && (
-                        <option value={llmModel}>{llmModel}（不在列表中）</option>
-                      )}
-                      {llmProvider.models.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input placeholder="点刷新拉取，或手动输入" value={llmModel} onChange={(e) => setLlmModel(e.target.value)} />
-                  )}
-                </Field>
-              </div>
             </>
           )}
         </CardContent>
@@ -444,6 +428,16 @@ export function VideoAssetsPage() {
           </label>
             {animate && (
               <>
+                <PromptField
+                  label="动画提示词"
+                  hint="可选。描述图片如何动起来；留空则用默认轻微推镜运动。"
+                  value={animatePrompt}
+                  onChange={setAnimatePrompt}
+                  task="i2v"
+                  workflow={videoPack?.name}
+                  aspect={aspect}
+                  placeholder="例如：微风吹动，缓慢推近，环境轻柔"
+                />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="动画服务" hint="执行 i2v 的视频 Provider。">
                     <select
@@ -663,7 +657,7 @@ export function VideoAssetsPage() {
             meta={[
               { label: "画幅", value: aspect },
               { label: "标题", value: title },
-              { label: "内容", value: mode === "script" ? script : topic },
+              { label: "内容", value: mode === "script" ? script : effectiveTopic },
             ]}
           />
         }
