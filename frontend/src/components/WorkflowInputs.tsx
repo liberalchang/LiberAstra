@@ -91,10 +91,15 @@ function ModelFolderField({
   const rest = rawOptions.filter((o) => !recommended.includes(o));
   const options = [...recommended, ...rest];
 
-  // 列表加载完成后若还没有选中值，自动选中 manifest 默认值（在列表中时）或第一项
+  // 列表就绪后：无选中 → 用包默认（在列表中）或第一项；默认文件名变了且旧值不在列表 → 重新落到默认
   useEffect(() => {
-    if (!isLoading && !isError && options.length > 0 && !value) {
+    if (isLoading || isError || options.length === 0) return;
+    if (!value) {
       onChange(options.includes(defaultStr) ? defaultStr : options[0]);
+      return;
+    }
+    if (defaultStr && value !== defaultStr && !options.includes(value) && options.includes(defaultStr)) {
+      onChange(defaultStr);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isError, options, value, defaultStr]);

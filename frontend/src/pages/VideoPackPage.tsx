@@ -13,9 +13,7 @@ import {
 } from "@/components/AccelControl";
 import {
   PromptField,
-  emptyPromptValue,
   resolveEffectivePrompt,
-  type PromptFieldValue,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -26,7 +24,8 @@ import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
-import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 
 export type PackVideoKind = "i2v" | "avatar" | "motion";
 
@@ -80,16 +79,18 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [legacyPrompt, setLegacyPrompt] = usePersistentState(`video-${kind}:prompt`, "");
-  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
+  const [promptValue, setPromptValue] = usePersistentPromptValue(`video-${kind}:prompt`);
   const effectivePrompt = resolveEffectivePrompt(promptValue);
   const [text, setText] = usePersistentState(`video-${kind}:text`, "");
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
-  const [extra, setExtra] = usePersistentState<Record<string, string>>(`video-${kind}:extra`, {});
+  const [extra, setExtra] = usePersistentState<Record<string, string>>(
+    `video-${kind}:extra:${pack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(pack?.inputs, ["prompt", "image", "video", "audio", "mask"]),
+  );
   const [accel, setAccel] = usePersistentState<AccelState>(
     `video-${kind}:accel:${pack?.name ?? "none"}`,
-    defaultAccelState(pack?.accel),
+    () => defaultAccelState(pack?.accel),
   );
   // 数字人口播的配音服务：comfy 出语音工作流包，Liber Speech 出音色库，其余出服务音色列表
   const { data: ttsPacks } = useQuery({
@@ -319,10 +320,8 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               label="提示词"
               hint="描述希望画面如何运动或变化。"
               value={promptValue}
-              onChange={(v) => {
-                setPromptValue(v);
-                setLegacyPrompt(v.raw);
-              }}
+              onChange={setPromptValue}
+              jobScope={`video-${kind}:prompt-opt`}
               task={kind === "motion" ? "motion" : "i2v"}
               workflow={pack?.name}
               placeholder="例如：缓慢推近，微风吹动发丝，环境音轻柔"

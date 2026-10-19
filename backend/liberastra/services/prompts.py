@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import shutil
+import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,8 @@ import yaml
 from sqlalchemy.orm import Session
 
 from liberastra.core.config import get_settings
+from liberastra.jobs.manager import JobContext, JobManager
+from liberastra.models import Job
 from liberastra.providers.base import ProviderError
 from liberastra.services.providers import build_llm_adapter, pick_llm_with_model
 
@@ -316,6 +320,29 @@ def build_system_prompt(
     return "\n\n".join(c for c in chunks if c.strip())
 
 
+def _optimize_messages(
+    *,
+    prompt: str,
+    task: str,
+    scene: str | None,
+    workflow: str | None,
+    aspect: str | None,
+    extra_context: str | None,
+) -> list[dict[str, str]]:
+    system = build_system_prompt(
+        task,
+        scene=scene,
+        workflow=workflow,
+        aspect=aspect,
+        extra_context=extra_context,
+        user_prompt=prompt,
+    )
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": prompt},
+    ]
+
+
 async def optimize_prompt(
     db: Session,
     *,
@@ -332,22 +359,16 @@ async def optimize_prompt(
     ensure_prompt_store()
     provider, resolved_model = pick_llm_with_model(db, provider_id, model)
     adapter = build_llm_adapter(provider, db=db)
-    system = build_system_prompt(
-        task,
+    messages = _optimize_messages(
+        prompt=prompt,
+        task=task,
         scene=scene,
         workflow=workflow,
         aspect=aspect,
         extra_context=extra_context,
-        user_prompt=prompt,
     )
     try:
-        text = await adapter.chat(
-            model=resolved_model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-        )
+        text = await adapter.chat(model=resolved_model, messages=messages)
     except ProviderError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -357,3 +378,128 @@ async def optimize_prompt(
         "provider_name": provider.name,
         "model": resolved_model,
     }
+
+
+async def optimize_prompt_stream(
+    db: Session,
+    *,
+    prompt: str,
+    task: str = "t2i",
+    scene: str | None = None,
+    workflow: str | None = None,
+    aspect: str | None = None,
+    extra_context: str | None = None,
+    provider_id: int | None = None,
+    model: str = "",
+) -> AsyncIterator[dict[str, Any]]:
+    """流式优化：先 yield meta，再逐段 yield token，最后 yield done。
+
+    事件形如 ``{"event": "meta"|"token"|"done"|"error", ...}``。
+    Ollama（/v1）与多数 OpenAI 兼容服务支持 ``stream: true``；若适配器无
+    ``chat_stream`` 则回退为整段一次返回。
+    """
+    ensure_prompt_store()
+    provider, resolved_model = pick_llm_with_model(db, provider_id, model)
+    adapter = build_llm_adapter(provider, db=db)
+    messages = _optimize_messages(
+        prompt=prompt,
+        task=task,
+        scene=scene,
+        workflow=workflow,
+        aspect=aspect,
+        extra_context=extra_context,
+    )
+    yield {
+        "event": "meta",
+        "provider_name": provider.name,
+        "model": resolved_model,
+    }
+    try:
+        stream_fn = getattr(adapter, "chat_stream", None)
+        if callable(stream_fn):
+            async for piece in stream_fn(model=resolved_model, messages=messages):
+                if piece:
+                    yield {"event": "token", "text": piece}
+        else:
+            text = await adapter.chat(model=resolved_model, messages=messages)
+            if text:
+                yield {"event": "token", "text": text}
+        yield {"event": "done"}
+    except ProviderError as exc:
+        yield {"event": "error", "message": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        yield {"event": "error", "message": f"提示词优化失败: {exc}"}
+
+
+def _optimize_output(
+    *, content: str, provider_name: str, model: str
+) -> dict[str, Any]:
+    return {
+        "type": "text",
+        "content": content,
+        "provider_name": provider_name,
+        "model": model,
+    }
+
+
+async def run_optimize_prompt_job(
+    db: Session, job: Job, ctx: JobContext
+) -> list[dict[str, Any]]:
+    """prompt.optimize：流式调用 LLM，增量写入 job.outputs 供前端轮询。"""
+    ensure_prompt_store()
+    params = job.params or {}
+    provider, resolved_model = pick_llm_with_model(
+        db, job.provider_id, job.model or params.get("model") or ""
+    )
+    adapter = build_llm_adapter(provider, db=db)
+    messages = _optimize_messages(
+        prompt=str(params.get("prompt") or ""),
+        task=str(params.get("task") or "t2i"),
+        scene=params.get("scene"),
+        workflow=params.get("workflow"),
+        aspect=params.get("aspect"),
+        extra_context=params.get("extra_context"),
+    )
+    ctx.report(db, job, progress=0.05, step="optimize")
+
+    assembled = ""
+    last_emit = 0.0
+    meta_name, meta_model = provider.name, resolved_model
+
+    def _flush(progress: float) -> None:
+        job.outputs = [
+            _optimize_output(
+                content=assembled, provider_name=meta_name, model=meta_model
+            )
+        ]
+        ctx.report(db, job, progress=progress)
+
+    try:
+        stream_fn = getattr(adapter, "chat_stream", None)
+        if callable(stream_fn):
+            async for piece in stream_fn(model=resolved_model, messages=messages):
+                if ctx.cancelled():
+                    break
+                if not piece:
+                    continue
+                assembled += piece
+                now = time.monotonic()
+                if now - last_emit >= 0.35:
+                    last_emit = now
+                    # 软上限 0.9，终态由 JobManager 置 1.0
+                    _flush(min(0.9, 0.05 + len(assembled) / 2500))
+        else:
+            assembled = await adapter.chat(model=resolved_model, messages=messages)
+    except ProviderError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise ProviderError(f"提示词优化失败: {exc}") from exc
+
+    final = (assembled or "").strip()
+    return [
+        _optimize_output(content=final, provider_name=meta_name, model=meta_model)
+    ]
+
+
+def register_prompt_jobs(manager: JobManager) -> None:
+    manager.register("prompt.optimize", run_optimize_prompt_job)

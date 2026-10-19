@@ -1,0 +1,104 @@
+name: qwen_image_21_inpaint
+capability: i2i
+description: >
+  Qwen-Image 2.1 局部重绘。蒙版白色区域重画，黑色区域保持原图像素。采样仍用 CFG 1、denoise 1。
+  默认官方 INT8；可在参数区切换 UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    description: 原图，第 1 张上传
+  mask:
+    node: "11"
+    field: inputs.image
+    type: image
+    required: true
+    description: 蒙版，第 2 张上传。白色重画，黑色保留
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_2.1_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: >
+      默认官方 int8_convrot。可换 bf16 或越狱 UC（如 qwen-image-2.1-UC-int8_convrot.safetensors）。
+      须为 safetensors。
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: 白色区域里要变成什么，并写明要保持的脸和姿势
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  resolution:
+    node: "5"
+    field: inputs.resolution
+    type: int
+    default: 0
+    min: 0
+    max: 4096
+    description: 参考图边长，须为 32 的倍数。0 表示按原图尺寸
+  grow:
+    node: "15"
+    field: inputs.expand
+    type: int
+    default: 12
+    min: 0
+    max: 256
+    description: 蒙版向外扩的像素，避免接缝留一圈旧内容
+  steps:
+    node: "6"
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 1
+    max: 50
+    description: 只改颜色可用 8 步，衣服或局部动作用 20 到 30 步
+  seed:
+    node: "6"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "8"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoadImage
+    - GetImageSize
+    - ImageScale
+    - ImageToMask
+    - GrowMask
+    - FeatherMask
+    - VAEEncode
+    - SetLatentNoiseMask
+    - TextEncodeQwenImage21
+    - KSampler
+    - VAEDecode
+    - SaveImage

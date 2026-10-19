@@ -3,12 +3,17 @@ import { ImageUp, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
+import {
+  AccelControl,
+  buildInputsWithAccel,
+  defaultAccelState,
+  hasAccel,
+  type AccelState,
+} from "@/components/AccelControl";
 import { PageHeader } from "@/components/PageShell";
 import {
   PromptField,
-  emptyPromptValue,
   resolveEffectivePrompt,
-  type PromptFieldValue,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -18,7 +23,8 @@ import { FileDrop } from "@/components/ui/file-drop";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
-import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 
 interface Props {
   /** i2i = 图生图与编辑；upscale = 修复与放大 */
@@ -51,12 +57,20 @@ export function ImageEditPage({ capability, title, description }: Props) {
   /** 原图+蒙版包：存在名为 mask 的槽；否则按多参考图处理 */
   const isMaskPack = imageInputs.some(([key]) => key === "mask" || key.toLowerCase().includes("mask"));
 
-  const [legacyPrompt, setLegacyPrompt] = usePersistentState(`image-${capability}:prompt`, "");
-  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
+  const [promptValue, setPromptValue] = usePersistentPromptValue(`image-${capability}:prompt`);
   const effectivePrompt = resolveEffectivePrompt(promptValue);
   // File 快照数组（非 FileList 活引用）：分多轮选择时追加合并，可按张删除
   const [files, setFiles] = useState<File[]>([]);
-  const [extra, setExtra] = usePersistentState<Record<string, string>>(`image-${capability}:extra`, {});
+  const imageExclude = ["prompt", ...imageInputs.map(([k]) => k)];
+  // 按包名分存 + 切包重载默认模型（官方/越狱互不污染）
+  const [extra, setExtra] = usePersistentState<Record<string, string>>(
+    `image-${capability}:extra:${pack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(pack?.inputs, imageExclude),
+  );
+  const [accel, setAccel] = usePersistentState<AccelState>(
+    `image-${capability}:accel:${pack?.name ?? "none"}`,
+    () => defaultAccelState(pack?.accel),
+  );
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob(`image-${capability}`);
 
@@ -95,10 +109,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
       form.set("prompt", effectivePrompt);
       if (provider) form.set("provider_id", String(provider.id));
       if (isComfy && pack) form.set("workflow", pack.name);
-      form.set(
-        "inputs",
-        JSON.stringify(Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))),
-      );
+      form.set("inputs", JSON.stringify(buildInputsWithAccel(extra, pack?.accel, accel)));
       return api.editImage(form);
     },
     onSuccess: (j) => {
@@ -240,10 +251,8 @@ export function ImageEditPage({ capability, title, description }: Props) {
                   : "放大或修复时可选，用来约束画面。"
             }
             value={promptValue}
-            onChange={(v) => {
-              setPromptValue(v);
-              setLegacyPrompt(v.raw);
-            }}
+            onChange={setPromptValue}
+            jobScope={`image-${capability}:prompt-opt`}
             task={capability === "upscale" ? "upscale" : "i2i"}
             workflow={isComfy ? pack?.name : undefined}
             placeholder={
@@ -256,12 +265,20 @@ export function ImageEditPage({ capability, title, description }: Props) {
                     : "可选"
             }
           />
+          {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
+            <AccelControl
+              accel={pack.accel}
+              providerId={provider?.id}
+              value={accel}
+              onChange={setAccel}
+            />
+          )}
           {isComfy && pack && (
             <WorkflowInputs
               inputs={pack.inputs}
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={["prompt", ...imageInputs.map(([k]) => k)]}
+              exclude={imageExclude}
               providerId={provider?.id}
             />
           )}

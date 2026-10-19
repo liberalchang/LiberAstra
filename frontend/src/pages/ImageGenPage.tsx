@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
+import {
+  AccelControl,
+  buildInputsWithAccel,
+  defaultAccelState,
+  hasAccel,
+  type AccelState,
+} from "@/components/AccelControl";
 import { PageHeader } from "@/components/PageShell";
 import {
   PromptField,
   emptyPromptValue,
   resolveEffectivePrompt,
-  type PromptFieldValue,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { ASPECT_OPTIONS, AspectSelect, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
@@ -21,7 +27,8 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
-import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 
 const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed", "batch_size"];
 
@@ -43,12 +50,10 @@ export function ImageGenPage() {
 
   const location = useLocation();
   const incomingPrompt = (location.state as { prompt?: string } | null)?.prompt;
-  const [legacyPrompt, setLegacyPrompt] = usePersistentState("image-generate:prompt", "");
-  const [promptValue, setPromptValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyPrompt));
+  const [promptValue, setPromptValue] = usePersistentPromptValue("image-generate:prompt");
   useEffect(() => {
     if (incomingPrompt) {
       setPromptValue(emptyPromptValue(incomingPrompt));
-      setLegacyPrompt(incomingPrompt);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -69,7 +74,15 @@ export function ImageGenPage() {
   const [steps, setSteps] = usePersistentState("image-generate:steps", 20);
   const [seed, setSeed] = usePersistentState("image-generate:seed", -1);
   const [count, setCount] = usePersistentState("image-generate:count", 1);
-  const [extra, setExtra] = usePersistentState<Record<string, string>>("image-generate:extra", {});
+  // 按包名分存 + key 切换时重载：无存档则用该包 options_from 默认（如 UC UNET）
+  const [extra, setExtra] = usePersistentState<Record<string, string>>(
+    `image-generate:extra:${pack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(pack?.inputs, DEDICATED),
+  );
+  const [accel, setAccel] = usePersistentState<AccelState>(
+    `image-generate:accel:${pack?.name ?? "none"}`,
+    () => defaultAccelState(pack?.accel),
+  );
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("image-generate");
 
@@ -85,7 +98,7 @@ export function ImageGenPage() {
         steps,
         seed,
         n: count,
-        inputs: Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== "")),
+        inputs: buildInputsWithAccel(extra, pack?.accel, accel) as Record<string, unknown>,
       }),
     onSuccess: (j) => {
       setError(null);
@@ -142,10 +155,8 @@ export function ImageGenPage() {
 
           <PromptField
             value={promptValue}
-            onChange={(v) => {
-              setPromptValue(v);
-              setLegacyPrompt(v.raw);
-            }}
+            onChange={setPromptValue}
+            jobScope="image-generate:prompt-opt"
             task="t2i"
             workflow={isComfy ? pack?.name : undefined}
             aspect={aspect.ratio}
@@ -205,6 +216,15 @@ export function ImageGenPage() {
               />
             </Field>
           </div>
+
+          {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
+            <AccelControl
+              accel={pack.accel}
+              providerId={provider?.id}
+              value={accel}
+              onChange={setAccel}
+            />
+          )}
 
           {isComfy && pack && (
             <WorkflowInputs

@@ -1,0 +1,116 @@
+name: qwen_image_21_uncensored
+capability: t2i
+description: >
+  Qwen-Image 2.1 文生图（越狱）。默认 UC INT8 主模型；可用「Uncensored LoRA」开关挂
+  qwen-image-2.1-uncensored-lora（与视频 Turbo 同一套 accel 控件）。TE/VAE 与官方共用。
+inputs:
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen-image-2.1-UC-int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: >
+      默认越狱 UC-int8_convrot。可改回官方 int8/bf16，但越狱效果会变弱。
+      须为 .safetensors，勿选 GGUF。
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: 与官方相同，用 qwen3vl_8b；不要选视频 H3 的 qwen3vl_32b
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+    label: 负面提示词
+  width:
+    node: "6"
+    field: inputs.width
+    type: int
+    default: 1024
+    min: 256
+    max: 2560
+  height:
+    node: "6"
+    field: inputs.height
+    type: int
+    default: 1024
+    min: 256
+    max: 2560
+  steps:
+    node: "7"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "7"
+    field: inputs.seed
+    type: int
+    default: -1
+  batch_size:
+    node: "6"
+    field: inputs.batch_size
+    type: int
+    default: 1
+    min: 1
+    max: 8
+    description: 同一次采样出的张数，种子按张递增
+outputs:
+  node: "9"
+  key: images
+accel:
+  label: Uncensored LoRA
+  family: qwen_image
+  hint: 开启后把 UC LoRA 挂到主模型上；关闭则只用 UC UNET（仍可能比官方更松）
+  hint_off: 关闭时从图中摘掉 LoRA 节点，KSampler 直接接 Cache
+  lora_label: LoRA 文件
+  strength_label: LoRA 强度
+  default_enabled: true
+  node: "200"
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: uncensored
+    recommended: qwen-image-2.1-uncensored-lora.safetensors
+  strength:
+    field: inputs.strength_model
+    default: 1.0
+    min: 0.0
+    max: 1.5
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoraLoaderModelOnly
+    - TextEncodeQwenImage21
+    - EmptyLatentImage
+    - KSampler
+    - VAEDecode
+    - SaveImage
+  models:
+    - diffusion_models/qwen-image-2.1-UC-int8_convrot.safetensors
+    - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+    - vae/qwen_image_2.1_vae_bf16.safetensors
+    - loras/qwen-image-2.1-uncensored-lora.safetensors

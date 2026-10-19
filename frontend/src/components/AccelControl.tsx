@@ -58,11 +58,12 @@ type Props = {
   onApplyPreset?: (preset: Record<string, string>) => void;
 };
 
-/** Turbo 加速开关 + LoRA 下拉 + 强度；仅在包声明了 accel 时渲染。 */
+/** LoRA 开关（Turbo / Uncensored 等）+ 文件下拉 + 强度；仅在包声明了 accel 时渲染。 */
 export function AccelControl({ accel, providerId, value, onChange, onApplyPreset }: Props) {
   const folder = accel.lora?.options_from ?? "loras";
   const match = (accel.lora?.match ?? "").toLowerCase();
   const recommended = accel.lora?.recommended ?? "";
+  const isTurbo = (accel.family ?? "").includes("minimax") || (accel.label ?? "").toLowerCase().includes("turbo");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["provider-model-folder", providerId, folder],
@@ -101,9 +102,17 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
     }
   };
 
-  const strengthMin = accel.strength?.min ?? 0.5;
+  const strengthMin = accel.strength?.min ?? 0;
   const strengthMax = accel.strength?.max ?? 1.5;
   const label = accel.label ?? "Turbo 加速";
+  const hintOn =
+    accel.hint ??
+    (isTurbo ? "少步数采样，推荐 6–8 步" : "开启后把 LoRA 挂到主模型上");
+  const hintOff =
+    accel.hint_off ??
+    (isTurbo ? "关闭时从图中摘掉加速 LoRA 节点" : "关闭时从图中摘掉 LoRA 节点");
+  const loraLabel = accel.lora_label ?? (isTurbo ? "加速模型" : "LoRA 文件");
+  const strengthLabel = accel.strength_label ?? (isTurbo ? "加速强度" : "LoRA 强度");
 
   return (
     <div className="flex flex-col gap-3 rounded-[10px] border border-border bg-muted/30 p-3">
@@ -111,7 +120,7 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">{label}</span>
           <span className="text-xs text-muted-foreground">
-            {value.enabled ? "少步数采样，推荐 6–8 步" : "关闭时从图中摘掉加速 LoRA 节点"}
+            {value.enabled ? hintOn : hintOff}
           </span>
         </div>
         <Segmented
@@ -127,7 +136,7 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
 
       {value.enabled && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="加速模型" hint={match ? `仅显示含「${accel.lora?.match}」的 LoRA` : undefined}>
+          <Field label={loraLabel} hint={match ? `仅显示含「${accel.lora?.match}」的 LoRA` : undefined}>
             {providerId == null || isError ? (
               <input
                 className={selectClass}
@@ -174,14 +183,17 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
               </select>
             )}
           </Field>
-          <Field label="加速强度" hint="拖影可上调，过锐可下调">
+          <Field
+            label={strengthLabel}
+            hint={isTurbo ? "拖影可上调，过锐可下调" : "1.0 为推荐；过高可能过拟合"}
+          >
             <NumberStepper
               value={value.strength}
               min={strengthMin}
               max={strengthMax}
               step={0.05}
               onChange={(n) => onChange({ ...value, strength: n })}
-              ariaLabel="加速强度"
+              ariaLabel={strengthLabel}
             />
           </Field>
         </div>

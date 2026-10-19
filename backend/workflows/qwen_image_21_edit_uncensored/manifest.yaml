@@ -1,0 +1,103 @@
+name: qwen_image_21_edit_uncensored
+capability: i2i
+description: >
+  Qwen-Image 2.1 整图编辑（越狱）。默认 UC INT8；「Uncensored LoRA」可开关。
+  TE/VAE 与官方共用。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    description: 要编辑的原图，对应提示词里的 image_1
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen-image-2.1-UC-int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: 编辑指令，例如把背景换成海滩
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  resolution:
+    node: "5"
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 0
+    max: 4096
+  steps:
+    node: "6"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "6"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "8"
+  key: images
+accel:
+  label: Uncensored LoRA
+  family: qwen_image
+  hint: 开启后把 UC LoRA 挂到主模型上；关闭则只用 UC UNET
+  hint_off: 关闭时从图中摘掉 LoRA 节点
+  lora_label: LoRA 文件
+  strength_label: LoRA 强度
+  default_enabled: true
+  node: "200"
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: uncensored
+    recommended: qwen-image-2.1-uncensored-lora.safetensors
+  strength:
+    field: inputs.strength_model
+    default: 1.0
+    min: 0.0
+    max: 1.5
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoraLoaderModelOnly
+    - LoadImage
+    - TextEncodeQwenImage21
+    - KSampler
+    - VAEDecode
+    - SaveImage
+  models:
+    - diffusion_models/qwen-image-2.1-UC-int8_convrot.safetensors
+    - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+    - vae/qwen_image_2.1_vae_bf16.safetensors
+    - loras/qwen-image-2.1-uncensored-lora.safetensors

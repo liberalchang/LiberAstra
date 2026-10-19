@@ -14,9 +14,7 @@ import {
 } from "@/components/AccelControl";
 import {
   PromptField,
-  emptyPromptValue,
   resolveEffectivePrompt,
-  type PromptFieldValue,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -29,7 +27,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
-import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { formatStepName } from "@/lib/utils";
 import { Film, X } from "lucide-react";
 
@@ -94,8 +93,7 @@ export function VideoAssetsPage() {
   // ---- ③ 文案与标题 ----
   const [mode, setMode] = usePersistentState<"script" | "topic">("video-assets:mode", "script");
   const [script, setScript] = usePersistentState("video-assets:script", "");
-  const [legacyTopic, setLegacyTopic] = usePersistentState("video-assets:topic", "");
-  const [topicValue, setTopicValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyTopic));
+  const [topicValue, setTopicValue] = usePersistentPromptValue("video-assets:topic");
   const effectiveTopic = resolveEffectivePrompt(topicValue);
   const [title, setTitle] = usePersistentState("video-assets:title", "");
   const [duration, setDuration] = usePersistentState("video-assets:duration", 30);
@@ -106,7 +104,7 @@ export function VideoAssetsPage() {
 
   // ---- ③ 素材动画（静态图片 → i2v 动起来）----
   const [animate, setAnimate] = usePersistentState("video-assets:animate", false);
-  const [animatePrompt, setAnimatePrompt] = useState<PromptFieldValue>(() => emptyPromptValue(""));
+  const [animatePrompt, setAnimatePrompt] = usePersistentPromptValue("video-assets:animate-prompt");
   const [videoProviderId, setVideoProviderId] = usePersistentState<number | "">("video-assets:video-provider", "");
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
   const { data: i2vPacks } = useQuery({
@@ -116,10 +114,13 @@ export function VideoAssetsPage() {
   });
   const [videoWorkflow, setVideoWorkflow] = usePersistentState("video-assets:video-workflow", "");
   const videoPack = i2vPacks?.find((p) => p.name === videoWorkflow) ?? i2vPacks?.[0];
-  const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>("video-assets:video-extra", {});
+  const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>(
+    `video-assets:video-extra:${videoPack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(videoPack?.inputs, ["prompt", "image", "width", "height", "length", "seed"]),
+  );
   const [videoAccel, setVideoAccel] = usePersistentState<AccelState>(
     `video-assets:accel:${videoPack?.name ?? "none"}`,
-    defaultAccelState(videoPack?.accel),
+    () => defaultAccelState(videoPack?.accel),
   );
 
   // ---- ④ 配音 ----
@@ -389,10 +390,8 @@ export function VideoAssetsPage() {
                 label="主题"
                 hint="AI 结合素材按目标时长写口播；脚本 LLM 使用系统设置中的默认服务。"
                 value={topicValue}
-                onChange={(v) => {
-                  setTopicValue(v);
-                  setLegacyTopic(v.raw);
-                }}
+                onChange={setTopicValue}
+                jobScope="video-assets:topic-opt"
                 task="assets_topic"
                 aspect={aspect}
                 placeholder="例如：宠物店年终大促，语气热情"
@@ -433,6 +432,7 @@ export function VideoAssetsPage() {
                   hint="可选。描述图片如何动起来；留空则用默认轻微推镜运动。"
                   value={animatePrompt}
                   onChange={setAnimatePrompt}
+                  jobScope="video-assets:animate-opt"
                   task="i2v"
                   workflow={videoPack?.name}
                   aspect={aspect}

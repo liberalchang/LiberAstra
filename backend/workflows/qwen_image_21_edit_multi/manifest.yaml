@@ -3,6 +3,7 @@ capability: i2i
 description: >
   Qwen-Image 2.1 多参考图编辑（最多 4 张）。
   image_1 为画布/主图，image_2～4 为参考；提示词里用 image 1 / image 2 … 指代各图。
+  默认官方 INT8；可在参数区切换 UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
   依据 ComfyUI 官方：TextEncodeQwenImage21 支持 images.image_1 … image_16。
 inputs:
   image:
@@ -33,6 +34,31 @@ inputs:
     required: false
     label: 参考图 4（可选）
     description: 可选第四张参考（image 4）
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_2.1_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: >
+      默认官方 int8_convrot。可换 bf16 或越狱 UC（如 qwen-image-2.1-UC-int8_convrot.safetensors）。
+      须为 safetensors。
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
   prompt:
     node: "5"
     field: inputs.prompt
@@ -80,3 +106,7 @@ requirements:
     - KSampler
     - VAEDecode
     - SaveImage
+  models:
+    - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
+    - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+    - vae/qwen_image_2.1_vae_bf16.safetensors

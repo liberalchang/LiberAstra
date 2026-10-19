@@ -1,35 +1,29 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { api } from "@/api/client";
+import { api, TERMINAL_STATUSES } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
+import { useTrackedJob } from "@/hooks/useJob";
+import {
+  type PromptFieldValue,
+  emptyPromptValue,
+  coercePromptValue,
+  resolveEffectivePrompt,
+} from "@/lib/promptValue";
 import { cn } from "@/lib/utils";
 
-export type PromptFieldValue = {
-  raw: string;
-  optimized: string;
-  /** 生成 optimized 时对应的 raw 快照；用于判断是否过期 */
-  optimizedFromRaw: string;
-  useOptimized: boolean;
-};
-
-export function emptyPromptValue(raw = ""): PromptFieldValue {
-  return { raw, optimized: "", optimizedFromRaw: "", useOptimized: false };
-}
-
-/** 提交时实际生效的提示词 */
-export function resolveEffectivePrompt(v: PromptFieldValue): string {
-  if (v.useOptimized && v.optimized.trim()) return v.optimized.trim();
-  return v.raw.trim();
-}
+export type { PromptFieldValue };
+export { emptyPromptValue, coercePromptValue, resolveEffectivePrompt };
 
 type Props = {
   label?: string;
   hint?: string;
   value: PromptFieldValue;
   onChange: (next: PromptFieldValue) => void;
+  /** sessionStorage 任务作用域；刷新后凭此恢复进行中的优化 Job */
+  jobScope: string;
   /** 后端 task id，如 t2i / i2v / quick_topic —— 决定功能级系统提示词 */
   task: string;
   /** 当前工作流包名；后端会注入模型家族与 Guide 等上下文 */
@@ -43,13 +37,15 @@ type Props = {
 };
 
 /**
- * 统一提示词控件：原始 / 优化双 Tab、场景下拉、✨ 紧挨「优化后提示词」、是否使用优化稿执行。
+ * 统一提示词控件：原始 / 优化双 Tab、场景下拉、✨ 提交 prompt.optimize Job。
+ * 父组件应持久化完整 value；进行中任务靠 jobScope + useTrackedJob 跨刷新恢复。
  */
 export function PromptField({
   label = "提示词",
   hint,
   value,
   onChange,
+  jobScope,
   task,
   workflow,
   aspect,
@@ -58,9 +54,19 @@ export function PromptField({
   minRowsClass = "min-h-24",
   disabled,
 }: Props) {
-  const [tab, setTab] = useState<"raw" | "optimized">("raw");
+  const [tab, setTab] = useState<"raw" | "optimized">(() =>
+    value.useOptimized && value.optimized.trim() ? "optimized" : "raw",
+  );
   const [scene, setScene] = useState("auto");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  /** 已把某次成功 Job 写入 value，避免轮询重复 onChange */
+  const appliedJobRef = useRef<string | null>(null);
+  const lastPersistAt = useRef(0);
+
+  const { job, setJobId } = useTrackedJob(jobScope);
+  const running = Boolean(job && (job.status === "pending" || job.status === "running"));
 
   const { data: catalog } = useQuery({
     queryKey: ["prompts-catalog"],
@@ -75,12 +81,95 @@ export function PromptField({
     value.raw !== value.optimizedFromRaw &&
     value.optimizedFromRaw !== "";
 
-  const displayText = tab === "raw" ? value.raw : value.optimized;
+  const jobContent =
+    typeof job?.outputs?.[0]?.content === "string" ? job.outputs[0].content : "";
+  const displayText =
+    tab === "raw"
+      ? value.raw
+      : running && jobContent
+        ? jobContent
+        : value.optimized;
+
+  const persistPartial = (text: string, rawSnapshot: string) => {
+    const now = Date.now();
+    if (now - lastPersistAt.current < 400) return;
+    lastPersistAt.current = now;
+    onChange({
+      ...valueRef.current,
+      optimized: text,
+      optimizedFromRaw: rawSnapshot,
+      useOptimized: true,
+    });
+  };
+
+  // 进行中：把 outputs 增量同步到本地缓存与状态文案
+  useEffect(() => {
+    if (!job) return;
+    const rawSnapshot = String(job.params?.prompt ?? valueRef.current.raw);
+    const out = job.outputs?.[0];
+    const content = typeof out?.content === "string" ? out.content : "";
+    const providerLabel = [out?.provider_name, out?.model ?? job.model]
+      .filter(Boolean)
+      .join(" / ");
+
+    if (job.status === "pending") {
+      setTab("optimized");
+      setStatusMsg("优化任务排队中…");
+      return;
+    }
+    if (job.status === "running") {
+      setTab("optimized");
+      setStatusMsg(
+        providerLabel
+          ? `正在生成（${providerLabel}）· ${content.length} 字`
+          : content
+            ? `正在生成… ${content.length} 字`
+            : "正在生成…",
+      );
+      if (content) persistPartial(content, rawSnapshot);
+      return;
+    }
+    if (job.status === "succeeded" && appliedJobRef.current !== job.id) {
+      appliedJobRef.current = job.id;
+      const finalText = content.trim();
+      onChange({
+        ...valueRef.current,
+        optimized: finalText,
+        optimizedFromRaw: rawSnapshot,
+        useOptimized: Boolean(finalText),
+      });
+      setTab("optimized");
+      setStatusMsg(
+        finalText
+          ? providerLabel
+            ? `已由 ${providerLabel} 生成`
+            : "优化完成"
+          : "模型返回为空，请重试或换模型",
+      );
+      setJobId(null);
+      return;
+    }
+    if (job.status === "failed") {
+      setStatusMsg(job.error || "优化失败");
+      setJobId(null);
+      return;
+    }
+    if (job.status === "canceled") {
+      setStatusMsg("已取消");
+      setJobId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随 job 快照变化
+  }, [job]);
+
+  // 刷新后若仍有进行中任务，切到优化 Tab
+  useEffect(() => {
+    if (running) setTab("optimized");
+  }, [running]);
 
   const optimize = useMutation({
     mutationFn: () =>
       api.optimizePrompt({
-        prompt: value.raw,
+        prompt: valueRef.current.raw,
         task,
         scene: scene === "auto" ? undefined : scene,
         workflow,
@@ -89,19 +178,16 @@ export function PromptField({
       }),
     onMutate: () => {
       setTab("optimized");
-      setStatusMsg("正在优化提示词…");
+      setStatusMsg("正在提交优化任务…");
+      appliedJobRef.current = null;
+      lastPersistAt.current = 0;
     },
-    onSuccess: (r) => {
-      setStatusMsg(r.provider_name ? `已由 ${r.provider_name} / ${r.model} 生成` : null);
-      onChange({
-        ...value,
-        optimized: r.optimized,
-        optimizedFromRaw: value.raw,
-        useOptimized: true,
-      });
+    onSuccess: (j) => {
+      setJobId(j.id);
+      setStatusMsg("优化任务已提交…");
     },
     onError: (err) => {
-      setStatusMsg(err.message || "优化失败");
+      setStatusMsg(err.message || "提交失败");
     },
   });
 
@@ -109,6 +195,8 @@ export function PromptField({
     if (scenes.length) return scenes;
     return [{ id: "auto", name: "自动 / 通用", append: "" }];
   }, [scenes]);
+
+  const busy = running || optimize.isPending;
 
   return (
     <Field
@@ -120,7 +208,6 @@ export function PromptField({
     >
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Tab 与 ✨ 同一组，避免星号单独换行 */}
           <div className="inline-flex items-center rounded-lg border border-border p-0.5 text-sm">
             <button
               type="button"
@@ -156,10 +243,10 @@ export function PromptField({
               size="icon"
               className="ml-0.5 size-8 shrink-0"
               title="用系统默认 LLM 优化提示词（覆盖「优化后提示词」）"
-              disabled={disabled || !value.raw.trim() || optimize.isPending}
+              disabled={disabled || !value.raw.trim() || busy}
               onClick={() => optimize.mutate()}
             >
-              <Sparkles className="size-4" />
+              <Sparkles className={cn("size-4", busy && "animate-pulse")} />
             </Button>
           </div>
           <select
@@ -167,6 +254,7 @@ export function PromptField({
             value={scene}
             onChange={(e) => setScene(e.target.value)}
             title="场景风格预设（叠加在功能模板之上；自动=不强制某一场景）"
+            disabled={busy}
           >
             {sceneOptions.map((s) => (
               <option key={s.id} value={s.id}>
@@ -176,49 +264,47 @@ export function PromptField({
           </select>
         </div>
 
-        {optimize.isPending && tab === "optimized" ? (
-          <div
-            className={cn(
-              areaClass,
-              minRowsClass,
-              "flex items-center justify-center text-sm text-muted-foreground",
-            )}
-          >
-            {statusMsg ?? "正在优化提示词…"}
-          </div>
-        ) : (
-          <textarea
-            className={cn(areaClass, minRowsClass)}
-            placeholder={
-              tab === "raw"
-                ? (placeholder ?? "输入简短描述…")
+        <textarea
+          className={cn(areaClass, minRowsClass)}
+          placeholder={
+            tab === "raw"
+              ? (placeholder ?? "输入简短描述…")
+              : busy
+                ? "优化任务执行中…"
                 : "点击 ✨ 生成优化提示词，也可在此直接编辑"
+          }
+          value={displayText}
+          readOnly={busy && tab === "optimized"}
+          onChange={(e) => {
+            if (busy) return;
+            const text = e.target.value;
+            if (tab === "raw") {
+              onChange({ ...value, raw: text });
+            } else {
+              onChange({ ...value, optimized: text });
             }
-            value={displayText}
-            onChange={(e) => {
-              const text = e.target.value;
-              if (tab === "raw") {
-                onChange({ ...value, raw: text });
-              } else {
-                onChange({ ...value, optimized: text });
-              }
-            }}
-          />
-        )}
+          }}
+        />
 
-        {statusMsg && !optimize.isPending && (
+        {statusMsg && (
           <p
             className={cn(
               "text-xs",
-              statusMsg.includes("失败") || statusMsg.includes("错误") || statusMsg.includes("尚未")
+              statusMsg.includes("失败") ||
+                statusMsg.includes("错误") ||
+                statusMsg.includes("尚未") ||
+                statusMsg.includes("取消")
                 ? "text-red-500"
                 : "text-muted-foreground",
             )}
           >
             {statusMsg}
+            {running && job && !TERMINAL_STATUSES.includes(job.status)
+              ? `（${Math.round((job.progress ?? 0) * 100)}%）`
+              : ""}
           </p>
         )}
-        {stale && (
+        {stale && !busy && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
             原始输入已变更，优化稿可能过期。点击 ✨ 重新生成覆盖，或关闭下方开关使用原始输入。
           </p>
@@ -228,7 +314,7 @@ export function PromptField({
           <input
             type="checkbox"
             checked={value.useOptimized}
-            disabled={!value.optimized.trim()}
+            disabled={!value.optimized.trim() || busy}
             onChange={(e) => onChange({ ...value, useOptimized: e.target.checked })}
           />
           使用优化后提示词执行任务

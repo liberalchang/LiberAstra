@@ -27,6 +27,7 @@ from liberastra.pipelines import register_video_jobs
 from liberastra.services.asr import register_asr_jobs
 from liberastra.services.image import register_image_jobs
 from liberastra.services.llm import register_llm_jobs
+from liberastra.services.prompts import register_prompt_jobs
 from liberastra.services.tts import register_tts_jobs
 
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
         ensure_prompt_store()
         manager = JobManager()
         register_llm_jobs(manager)
+        register_prompt_jobs(manager)
         register_tts_jobs(manager)
         register_asr_jobs(manager)
         register_image_jobs(manager)

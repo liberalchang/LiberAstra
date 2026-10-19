@@ -71,6 +71,9 @@ export interface JobOutput {
   kind?: string;
   format?: string;
   filename?: string;
+  /** prompt.optimize 等任务附带的元信息 */
+  provider_name?: string;
+  model?: string;
 }
 
 export interface JobOut {
@@ -78,6 +81,9 @@ export interface JobOut {
   kind: string;
   status: "pending" | "running" | "succeeded" | "failed" | "canceled";
   progress: number;
+  provider_id?: number | null;
+  model?: string | null;
+  params?: Record<string, unknown>;
   outputs: JobOutput[];
   steps: { name: string; at: string }[];
   error: string | null;
@@ -147,11 +153,6 @@ export interface PromptOptimizeInput {
   model?: string;
 }
 
-export interface PromptOptimizeResult {
-  optimized: string;
-  provider_name: string;
-  model: string;
-}
 
 export interface WorkflowInputSpec {
   node: string;
@@ -175,9 +176,15 @@ export interface WorkflowInputSpec {
   multiple?: number;
 }
 
-/** 工作流包加速能力（Turbo LoRA 等）；空对象表示无加速 */
+/** 工作流包 accel（Turbo / Uncensored LoRA 等）；空对象表示无该能力 */
 export interface WorkflowAccelSpec {
   label?: string;
+  /** 开启时说明；缺省按 Turbo 文案 */
+  hint?: string;
+  /** 关闭时说明 */
+  hint_off?: string;
+  lora_label?: string;
+  strength_label?: string;
   family?: string;
   default_enabled?: boolean;
   node?: string;
@@ -373,11 +380,11 @@ export const api = {
     request<JobOut>("/api/v1/images/edit", { method: "POST", body: form }),
   listPrompts: () =>
     request<{ tasks: PromptTaskOut[]; scenes: PromptSceneOut[] }>("/api/v1/prompts"),
+  /** 提交 prompt.optimize Job（202）；刷新后凭 jobId 继续轮询 */
   optimizePrompt: (body: PromptOptimizeInput | string, provider_id?: number) => {
-    // 兼容旧调用：optimizePrompt(prompt, provider_id)
     const payload: PromptOptimizeInput =
       typeof body === "string" ? { prompt: body, task: "t2i", provider_id } : body;
-    return request<PromptOptimizeResult>("/api/v1/prompts/optimize", {
+    return request<JobOut>("/api/v1/prompts/optimize", {
       method: "POST",
       body: JSON.stringify(payload),
     });

@@ -1,0 +1,82 @@
+name: qwen_image_21_edit
+capability: i2i
+description: >
+  Qwen-Image 2.1 图生图。原图进入 TextEncodeQwenImage21 的 image_1，采样用该节点返回的 latent。
+  默认官方 INT8；可在参数区切换 UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    description: 要编辑的原图，对应提示词里的 image_1
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_2.1_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: >
+      默认官方 int8_convrot。可换 bf16 或越狱 UC（如 qwen-image-2.1-UC-int8_convrot.safetensors）。
+      须为 safetensors。
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: 编辑指令，例如把背景换成海滩
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  resolution:
+    node: "5"
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 0
+    max: 4096
+    description: 参考图缩放到大约这个边长，须为 32 的倍数。0 表示按原图尺寸
+  steps:
+    node: "6"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "6"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "8"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoadImage
+    - TextEncodeQwenImage21
+    - KSampler
+    - VAEDecode
+    - SaveImage

@@ -16,7 +16,6 @@ import {
   PromptField,
   emptyPromptValue,
   resolveEffectivePrompt,
-  type PromptFieldValue,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { TemplateThumb } from "@/components/TemplateThumb";
@@ -29,8 +28,9 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTrackedJob } from "@/hooks/useJob";
-import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { cn, formatStepName } from "@/lib/utils";
 
 const ASPECTS = [
@@ -127,19 +127,16 @@ export function VideoQuickPage() {
   const [mode, setMode] = usePersistentState<"topic" | "script" | "batch">("video-quick:mode", "topic");
   const location = useLocation();
   const incomingTopic = (location.state as { prompt?: string } | null)?.prompt;
-  const [legacyTopic, setLegacyTopic] = usePersistentState("video-quick:topic", "");
-  const [topicValue, setTopicValue] = useState<PromptFieldValue>(() => emptyPromptValue(legacyTopic));
+  const [topicValue, setTopicValue] = usePersistentPromptValue("video-quick:topic");
   useEffect(() => {
     if (incomingTopic) {
       setTopicValue(emptyPromptValue(incomingTopic));
-      setLegacyTopic(incomingTopic);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const effectiveTopic = resolveEffectivePrompt(topicValue);
-  const [legacyScript, setLegacyScript] = usePersistentState("video-quick:script", "");
   /** 固定文案 + 插图/视频：原始=口播，优化后=画面提示词 */
-  const [scriptVisual, setScriptVisual] = useState<PromptFieldValue>(() => emptyPromptValue(legacyScript));
+  const [scriptVisual, setScriptVisual] = usePersistentPromptValue("video-quick:script");
   const script = scriptVisual.raw;
   const [scriptTitle, setScriptTitle] = usePersistentState("video-quick:script-title", "");
   const [splitMode, setSplitMode] = usePersistentState("video-quick:split-mode", "paragraph");
@@ -183,7 +180,14 @@ export function VideoQuickPage() {
     enabled: tpl?.type === "image" && tpl.needs_image,
   });
   const imagePack = imagePacks?.find((p) => p.name === imageWorkflow) ?? imagePacks?.[0];
-  const [imageExtra, setImageExtra] = usePersistentState<Record<string, string>>("video-quick:image-extra", {});
+  const [imageExtra, setImageExtra] = usePersistentState<Record<string, string>>(
+    `video-quick:image-extra:${imagePack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(imagePack?.inputs, ["prompt", "width", "height"]),
+  );
+  const [imageAccel, setImageAccel] = usePersistentState<AccelState>(
+    `video-quick:image-accel:${imagePack?.name ?? "none"}`,
+    () => defaultAccelState(imagePack?.accel),
+  );
   const [stylePrefix, setStylePrefix] = usePersistentState("video-quick:style-prefix", "");
   const { data: videoPacks } = useQuery({
     // 逐镜生成是文生视频（只有提示词、无首帧图），精确按能力筛选
@@ -195,10 +199,13 @@ export function VideoQuickPage() {
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
   const [videoWorkflow, setVideoWorkflow] = usePersistentState("video-quick:video-workflow", "");
   const videoPack = videoPacks?.find((p) => p.name === videoWorkflow) ?? videoPacks?.[0];
-  const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>("video-quick:video-extra", {});
+  const [videoExtra, setVideoExtra] = usePersistentState<Record<string, string>>(
+    `video-quick:video-extra:${videoPack?.name ?? "none"}`,
+    () => modelDefaultsFromInputs(videoPack?.inputs, ["prompt", "width", "height", "length", "seed"]),
+  );
   const [videoAccel, setVideoAccel] = usePersistentState<AccelState>(
     `video-quick:accel:${videoPack?.name ?? "none"}`,
-    defaultAccelState(videoPack?.accel),
+    () => defaultAccelState(videoPack?.accel),
   );
   // 选中 *_enhancer 时自动关闭「使用优化后提示词」，避免与 Guide 双重扩写
   useEffect(() => {
@@ -356,7 +363,7 @@ export function VideoQuickPage() {
         : undefined,
       image_workflow: tpl?.type === "image" && tpl.needs_image ? imagePack?.name : undefined,
       image_inputs: tpl?.type === "image" && tpl.needs_image
-        ? Object.fromEntries(Object.entries(imageExtra).filter(([, v]) => v !== ""))
+        ? buildInputsWithAccel(imageExtra, imagePack?.accel, imageAccel)
         : undefined,
       bgm_path: bgmName ? `bgm/${bgmName}` : undefined,
       bgm_volume: Number(bgmVolume) || 0.2,
@@ -505,10 +512,8 @@ export function VideoQuickPage() {
                 label="主题"
                 hint="主题会作为标题显示在视频画面里；可先 ✨ 扩写意图，再由系统默认 LLM 写口播并拆分镜。"
                 value={topicValue}
-                onChange={(v) => {
-                  setTopicValue(v);
-                  setLegacyTopic(v.raw);
-                }}
+                onChange={setTopicValue}
+                jobScope="video-quick:topic-opt"
                 task="quick_topic"
                 aspect={aspect}
                 workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
@@ -555,9 +560,9 @@ export function VideoQuickPage() {
                   value={scriptVisual}
                   onChange={(v) => {
                     setScriptVisual(v);
-                    setLegacyScript(v.raw);
                     if (v.useOptimized) setOptimizeNotice(null);
                   }}
+                  jobScope="video-quick:script-opt"
                   task="quick_visual"
                   aspect={aspect}
                   workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
@@ -571,7 +576,6 @@ export function VideoQuickPage() {
                     value={script}
                     onChange={(e) => {
                       setScriptVisual((prev) => ({ ...prev, raw: e.target.value }));
-                      setLegacyScript(e.target.value);
                     }}
                   />
                 </Field>
@@ -708,6 +712,14 @@ export function VideoQuickPage() {
                   <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder="例如：电影感，浅景深，" />
                 </Field>
               </div>
+              {imagePack && hasAccel(imagePack.accel) && imagePack.accel && (
+                <AccelControl
+                  accel={imagePack.accel}
+                  providerId={imageProvider?.id}
+                  value={imageAccel}
+                  onChange={setImageAccel}
+                />
+              )}
               {imageProvider?.type === "comfyui" && imagePack && (
                 <WorkflowInputs
                   inputs={imagePack.inputs}

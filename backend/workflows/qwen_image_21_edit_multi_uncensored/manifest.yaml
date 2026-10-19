@@ -1,0 +1,125 @@
+name: qwen_image_21_edit_multi_uncensored
+capability: i2i
+description: >
+  Qwen-Image 2.1 多参考编辑（越狱）。默认 UC INT8；「Uncensored LoRA」可开关。
+  image_1 为主图，image_2～4 为参考。TE/VAE 与官方共用。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 1（主图）
+    description: 主图 / 画布（对应提示词 image 1）
+  image_2:
+    node: "11"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 2
+    description: 第二张参考（对应 image 2）
+  image_3:
+    node: "12"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 3（可选）
+  image_4:
+    node: "13"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 4（可选）
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen-image-2.1-UC-int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "5"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: >
+      编辑指令，按槽位指代图片，例如：
+      将 image 1 中的女性和 image 2 中的男性合成到同一张自然合影
+  negative_prompt:
+    node: "5"
+    field: inputs.negative_prompt
+    type: str
+    default: ""
+  resolution:
+    node: "5"
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 0
+    max: 4096
+  steps:
+    node: "6"
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+  seed:
+    node: "6"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "8"
+  key: images
+accel:
+  label: Uncensored LoRA
+  family: qwen_image
+  hint: 开启后把 UC LoRA 挂到主模型上；关闭则只用 UC UNET
+  hint_off: 关闭时从图中摘掉 LoRA 节点
+  lora_label: LoRA 文件
+  strength_label: LoRA 强度
+  default_enabled: true
+  node: "200"
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: uncensored
+    recommended: qwen-image-2.1-uncensored-lora.safetensors
+  strength:
+    field: inputs.strength_model
+    default: 1.0
+    min: 0.0
+    max: 1.5
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - QwenImage21Cache
+    - LoraLoaderModelOnly
+    - LoadImage
+    - TextEncodeQwenImage21
+    - KSampler
+    - VAEDecode
+    - SaveImage
+  models:
+    - diffusion_models/qwen-image-2.1-UC-int8_convrot.safetensors
+    - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+    - vae/qwen_image_2.1_vae_bf16.safetensors
+    - loras/qwen-image-2.1-uncensored-lora.safetensors

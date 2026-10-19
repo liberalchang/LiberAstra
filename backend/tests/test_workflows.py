@@ -15,6 +15,7 @@ from liberastra.services.workflows import (
     get_pack,
     import_pack,
     list_packs,
+    validate_pack,
 )
 
 MINI_WORKFLOW = {
@@ -507,3 +508,44 @@ def test_qwen_image_21_edit_multi_pack_and_detach() -> None:
     assert kept["images.image_2"] == ["11", 0]
     assert "images.image_3" not in kept
     assert "images.image_4" not in kept
+
+
+def test_qwen_image_uncensored_lora_accel() -> None:
+    """越狱包：默认 UC UNET；LoRA 开/关与视频 accel 同机制。"""
+    for name, capability, sampler in (
+        ("qwen_image_21_uncensored", "t2i", "7"),
+        ("qwen_image_21_edit_uncensored", "i2i", "6"),
+        ("qwen_image_21_edit_multi_uncensored", "i2i", "6"),
+        ("qwen_image_21_inpaint_uncensored", "i2i", "6"),
+    ):
+        pack = get_pack(name)
+        assert pack.capability == capability
+        assert pack.source == "builtin"
+        assert pack.accel.get("node") == "200"
+        assert pack.accel.get("default_enabled") is True
+        assert "UC" in pack.inputs["unet_name"]["default"]
+        assert pack.workflow["200"]["class_type"] == "LoraLoaderModelOnly"
+        values = {"prompt": "test", "seed": 1}
+        if "image" in pack.inputs:
+            values["image"] = "uploads/x.png"
+        if "image_2" in pack.inputs:
+            values["image_2"] = "uploads/y.png"
+        if "mask" in pack.inputs:
+            values["mask"] = "uploads/m.png"
+        off = apply_accel(apply_inputs(pack, values), pack, {"enabled": False}, user_values=values)
+        assert "200" not in off
+        assert off[sampler]["inputs"]["model"] == ["4", 0]
+        on = apply_accel(
+            apply_inputs(pack, values),
+            pack,
+            {
+                "enabled": True,
+                "lora": "qwen-image-2.1-uncensored-lora.safetensors",
+                "strength": 0.85,
+            },
+            user_values=values,
+        )
+        assert on["200"]["inputs"]["lora_name"] == "qwen-image-2.1-uncensored-lora.safetensors"
+        assert on["200"]["inputs"]["strength_model"] == 0.85
+        assert on[sampler]["inputs"]["model"] == ["200", 0]
+        validate_pack(pack)

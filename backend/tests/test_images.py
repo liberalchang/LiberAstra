@@ -125,15 +125,28 @@ def test_optimize_prompt(
     assert resp.status_code == 200
     assert "橘猫" in resp.json()["optimized"]
 
-    # 新路径同样可用
+    # 新路径：提交 Job；wait=true 同步等到终态
     resp2 = client.post(
+        "/api/v1/prompts/optimize?wait=true",
+        json={"provider_id": llm["id"], "prompt": "一只猫", "task": "t2i"},
+        headers=auth_header,
+    )
+    assert resp2.status_code == 202, resp2.text
+    body2 = resp2.json()
+    assert body2["kind"] == "prompt.optimize"
+    assert body2["status"] == "succeeded"
+    assert "橘猫" in (body2["outputs"][0].get("content") or "")
+    assert body2["outputs"][0].get("provider_name")
+
+    # 异步提交同样 202，尚未必终态
+    resp3 = client.post(
         "/api/v1/prompts/optimize",
         json={"provider_id": llm["id"], "prompt": "一只猫", "task": "t2i"},
         headers=auth_header,
     )
-    assert resp2.status_code == 200
-    assert "橘猫" in resp2.json()["optimized"]
-    assert resp2.json().get("provider_name")
+    assert resp3.status_code == 202
+    assert resp3.json()["id"]
+    assert resp3.json()["kind"] == "prompt.optimize"
 
 
 def test_workflows_api(client: TestClient, auth_header: dict[str, str]) -> None:

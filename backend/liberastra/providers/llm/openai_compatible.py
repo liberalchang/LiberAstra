@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -31,6 +33,16 @@ async def _json_request(
     finally:
         if own_client:
             await http.aclose()
+
+
+def _delta_text(chunk: dict[str, Any]) -> str:
+    """从 OpenAI 流式 chunk 抽出增量文本。"""
+    try:
+        delta = chunk["choices"][0].get("delta") or {}
+        content = delta.get("content")
+        return str(content) if content else ""
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ""
 
 
 class OpenAICompatibleLLM:
@@ -68,6 +80,50 @@ class OpenAICompatibleLLM:
             return str(data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderError(f"响应格式异常: {str(data)[:500]}") from exc
+
+    async def chat_stream(
+        self, *, model: str, messages: list[dict[str, Any]], **params: Any
+    ) -> AsyncIterator[str]:
+        """流式 chat：逐段 yield 增量文本（Ollama /v1 与多数 OpenAI 兼容服务均支持）。"""
+        own_client = self._client is None
+        http = self._client or httpx.AsyncClient(timeout=self._timeout)
+        url = f"{self.base_url}/chat/completions"
+        body = {"model": model, "messages": messages, "stream": True, **params}
+        try:
+            async with http.stream(
+                "POST", url, headers=self._headers(), json=body
+            ) as resp:
+                if resp.status_code >= 400:
+                    err_text = (await resp.aread()).decode("utf-8", errors="replace")[:500]
+                    raise ProviderError(f"HTTP {resp.status_code}: {err_text}")
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    if line.startswith(":"):
+                        continue  # SSE 注释 / keep-alive
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload or payload == "[DONE]":
+                        if payload == "[DONE]":
+                            break
+                        continue
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    text = _delta_text(chunk)
+                    if text:
+                        yield text
+        except ProviderError:
+            raise
+        except httpx.TimeoutException as exc:
+            raise ProviderError(f"请求超时 {url}（>{self._timeout:.0f}s）: {exc}") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"无法连接 {url}: {exc}") from exc
+        finally:
+            if own_client:
+                await http.aclose()
 
     async def list_models(self) -> list[str]:
         data = await _json_request(
