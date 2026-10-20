@@ -48,7 +48,9 @@ async def quick(
     request: Request,
     wait: bool = False,
 ) -> Job:
-    voice = _resolve_voice(db, user, body.voice, body.voice_record_id) if (body.voice or body.voice_record_id) else ""
+    voice = ""
+    if body.voice or body.voice_record_id:
+        voice = _resolve_voice(db, user, body.voice, body.voice_record_id)
     # 提前校验 Provider 可用，错误立即反馈而不是等任务失败
     tts_provider = pick_provider(db, "tts", body.tts_provider_id)
     # 模板类型决定哪些 Provider 必需：插图要 image，视频要 video，静态两者都不用

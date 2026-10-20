@@ -90,7 +90,11 @@ def test_minimax_h3_i2v_accel_roundtrip() -> None:
     on = apply_accel(
         apply_inputs(pack, values),
         pack,
-        {"enabled": True, "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors", "strength": 1.0},
+        {
+            "enabled": True,
+            "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+            "strength": 1.0,
+        },
         user_values=values,
     )
     assert on["105:200"]["inputs"]["lora_name"] == "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"

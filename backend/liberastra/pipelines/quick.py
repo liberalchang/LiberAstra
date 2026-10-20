@@ -31,12 +31,8 @@ from liberastra.services.providers import (
     pick_llm_with_model,
     pick_provider,
 )
-from liberastra.services.templates import (
-    TemplateInfo,
-    get_template,
-    list_templates,
-    render as render_template,
-)
+from liberastra.services.templates import TemplateInfo, get_template, list_templates
+from liberastra.services.templates import render as render_template
 from liberastra.services.workflows import get_pack
 from liberastra.storage import create_asset, resolve, save_bytes
 
@@ -286,8 +282,11 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
                     "width": tpl.media_width,
                     "height": tpl.media_height,
                 },
-                on_progress=lambda p: ctx.report(
-                    db, job, progress=0.15 + 0.75 * (i + p) / total, step=f"frame {i + 1}/{total} 视频"
+                on_progress=lambda p, frame_i=i: ctx.report(
+                    db,
+                    job,
+                    progress=0.15 + 0.75 * (frame_i + p) / total,
+                    step=f"frame {frame_i + 1}/{total} 视频",
                 ),
                 wait_timeout=wait_timeout,
             )

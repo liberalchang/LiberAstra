@@ -41,7 +41,11 @@ def _out(t: TemplateInfo) -> dict:
 
 
 @router.get("")
-def list_templates(aspect: str | None = None, type: str | None = None, user: CurrentUser = None) -> list[dict]:  # noqa: A002
+def list_templates(
+    aspect: str | None = None,
+    type: str | None = None,  # noqa: A002
+    user: CurrentUser = None,
+) -> list[dict]:
     return [_out(t) for t in tpl_service.list_templates(aspect, type)]
 
 

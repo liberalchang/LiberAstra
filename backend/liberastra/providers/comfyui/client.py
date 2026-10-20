@@ -283,9 +283,8 @@ class ComfyClient:
                 if msg_type == "progress" and on_progress and data.get("max"):
                     on_progress(data.get("value", 0) / data["max"])
                 elif msg_type == "execution_error":
-                    raise ProviderError(
-                        f"ComfyUI 执行失败: {_with_friendly_hint(str(data.get('exception_message', str(data)[:300])))}"
-                    )
+                    raw_msg = str(data.get("exception_message", str(data)[:300]))
+                    raise ProviderError(f"ComfyUI 执行失败: {_with_friendly_hint(raw_msg)}")
                 elif msg_type == "execution_success":
                     return await self._require_history(prompt_id)
                 elif msg_type == "executing" and data.get("node") is None:

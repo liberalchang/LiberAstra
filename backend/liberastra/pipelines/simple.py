@@ -9,13 +9,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from liberastra.jobs.manager import JobContext
 from liberastra.media import ffmpeg
 from liberastra.media.htmlframe import render_html
 from liberastra.models import Job
-from loguru import logger
 from liberastra.pipelines.quick import (
     _chat_json,
     _single_cue_srt,
@@ -162,7 +162,7 @@ def _title_card_html(title: str, width: int, height: int) -> str:
 
 
 async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """自定义素材：图片/视频素材 + 文案/主题 → 素材元信息 → TTS →（可选 i2v 动画）→ 字幕分段 → 标题卡 → 拼接+BGM。"""
+    """自定义素材：图片/视频素材 + 文案/主题 → 元信息 → TTS → 可选动画 → 字幕 → 标题卡 → 拼接。"""
     started = time.monotonic()
     params = job.params
     # 兼容旧任务（只有 image_paths）
@@ -190,8 +190,10 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         from liberastra.providers.analysis.comfyui import ComfyUIAnalysis
 
         analysis = ComfyUIAnalysis(analysis_provider.base_url)
-        image_pack = get_pack(params["analysis_image_workflow"]) if params.get("analysis_image_workflow") else None
-        video_pack = get_pack(params["analysis_video_workflow"]) if params.get("analysis_video_workflow") else None
+        image_wf = params.get("analysis_image_workflow")
+        video_wf = params.get("analysis_video_workflow")
+        image_pack = get_pack(image_wf) if image_wf else None
+        video_pack = get_pack(video_wf) if video_wf else None
         for i, m in enumerate(media):
             if ctx.cancelled():
                 return []
@@ -316,13 +318,15 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
                 inputs={
                     **params.get("video_inputs", {}),
                     "image": m["path"],  # 相对路径，run_workflow_pack 负责上传
-                    "prompt": (
-                        params.get("animate_prompt")
-                        or f"subtle natural cinematic motion, slow camera push in. {params.get('topic') or ''}"
-                    ),
+                    "prompt": params.get("animate_prompt")
+                    or "subtle natural cinematic motion, slow camera push in. "
+                    + (params.get("topic") or ""),
                 },
-                on_progress=lambda p: ctx.report(
-                    db, job, progress=0.1 + 0.8 * (done + p) / total, step=f"frame {done + 1}/{total} 动画"
+                on_progress=lambda p, step_done=done: ctx.report(
+                    db,
+                    job,
+                    progress=0.1 + 0.8 * (step_done + p) / total,
+                    step=f"frame {step_done + 1}/{total} 动画",
                 ),
                 wait_timeout=wait_timeout,
             )
