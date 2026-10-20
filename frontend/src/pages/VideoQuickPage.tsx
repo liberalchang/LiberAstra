@@ -147,9 +147,8 @@ export function VideoQuickPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
   });
   const [storyboardOnly, setStoryboardOnly] = usePersistentState("video-quick:storyboard-only", false);
-  /** AI 创作时：是否让后端 LLM 写画面提示词（enhancer 包会自动关） */
+  /** AI 创作时：是否让后端 LLM 写画面提示词。与工作流包里的 Guide 无关 */
   const [optimizeVisuals, setOptimizeVisuals] = usePersistentState("video-quick:optimize-visuals", true);
-  const [optimizeNotice, setOptimizeNotice] = useState<string | null>(null);
   const [batchText, setBatchText] = usePersistentState("video-quick:batch-topics", "");
   const [batchJobs, setBatchJobs] = useState<{ topic: string; jobId: string }[] | null>(null);
   /** 批量主题：一行一个，去空行，上限 100 */
@@ -207,23 +206,6 @@ export function VideoQuickPage() {
     `video-quick:accel:${videoPack?.name ?? "none"}`,
     () => defaultAccelState(videoPack?.accel),
   );
-  // 选中 *_enhancer 时自动关闭「使用优化后提示词」，避免与 Guide 双重扩写
-  useEffect(() => {
-    const name = videoPack?.name ?? "";
-    if (!name.includes("enhancer")) return;
-    let wasOn = false;
-    setOptimizeVisuals((prev) => {
-      wasOn = prev;
-      return false;
-    });
-    setScriptVisual((prev) => {
-      if (prev.useOptimized) wasOn = true;
-      return { ...prev, useOptimized: false };
-    });
-    if (wasOn) {
-      setOptimizeNotice(`已关闭「使用优化后提示词」：${name} 自带 Guide 增强，避免双重扩写`);
-    }
-  }, [videoPack?.name, setOptimizeVisuals]);
   const [pickerOpen, setPickerOpen] = useState(false);
   // 文字显隐与字号：模板标题/文案（倍率），视频烧录字幕（字号，0=自动）
   const [showTitle, setShowTitle] = usePersistentState("video-quick:show-title", true);
@@ -528,19 +510,13 @@ export function VideoQuickPage() {
                     <input
                       type="checkbox"
                       checked={optimizeVisuals}
-                      onChange={(e) => {
-                        setOptimizeVisuals(e.target.checked);
-                        if (e.target.checked) setOptimizeNotice(null);
-                      }}
+                      onChange={(e) => setOptimizeVisuals(e.target.checked)}
                     />
                     生成时用 LLM 写画面提示词
                   </label>
                   <span className="text-xs leading-relaxed text-muted-foreground">
-                    开启后将口播改写成画面描述再交给插图/视频工作流。enhancer 包会自动关闭，避免与 Guide 双重扩写。
+                    开启后由 LLM 把口播改写成画面描述，再交给插图或视频工作流。是否再经 Guide 增强只由所选工作流包决定，与本开关无关。
                   </span>
-                  {optimizeNotice && (
-                    <p className="text-sm text-amber-700 dark:text-amber-400">{optimizeNotice}</p>
-                  )}
                 </div>
               )}
             </>
@@ -558,10 +534,7 @@ export function VideoQuickPage() {
                   label="口播文案 / 画面提示词"
                   hint="原始输入为口播（按切分方式拆镜）；✨ 生成每镜画面提示词。开关决定合成时用画面词还是口播原文。"
                   value={scriptVisual}
-                  onChange={(v) => {
-                    setScriptVisual(v);
-                    if (v.useOptimized) setOptimizeNotice(null);
-                  }}
+                  onChange={setScriptVisual}
                   jobScope="video-quick:script-opt"
                   task="quick_visual"
                   aspect={aspect}
@@ -579,9 +552,6 @@ export function VideoQuickPage() {
                     }}
                   />
                 </Field>
-              )}
-              {optimizeNotice && (tpl?.type === "image" || tpl?.type === "video") && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">{optimizeNotice}</p>
               )}
               <Field label="切分方式" hint="决定文案如何拆成一条条分镜。">
                 <select className={selectClass} value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
@@ -745,7 +715,7 @@ export function VideoQuickPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="视频工作流" hint="每个分镜跑一遍该工作流生成片段。含 enhancer 的包自带 Guide 增强，选中后会自动关闭上方「画面提示词优化」。">
+                <Field label="视频工作流" hint="每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。">
                   <select
                     className={selectClass}
                     value={videoPack?.name ?? ""}

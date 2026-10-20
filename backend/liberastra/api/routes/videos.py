@@ -53,7 +53,7 @@ async def quick(
     tts_provider = pick_provider(db, "tts", body.tts_provider_id)
     # 模板类型决定哪些 Provider 必需：插图要 image，视频要 video，静态两者都不用
     tpl = resolve_quick_template(body.template, body.aspect)
-    # LLM：AI 写口播，或 image/video 模板下的画面提示词优化（可关，避免与 Guide 双重扩写）
+    # LLM：AI 写口播，或 image/video 模板下的画面提示词优化（用户开关；与包内 Guide 无关）
     need_script_llm = body.storyboard is None and not body.script
     need_visual_llm = (
         body.storyboard is None
