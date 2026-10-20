@@ -56,15 +56,114 @@
 
 模型怎么配对、内置包名单见 [docs/使用文档.md](docs/使用文档.md)。
 
-## 快速开始
+## 安装部署
+
+两种方式都只安装 **LiberAstra 编排程序**。Ollama、ComfyUI、语音插件是独立组件，装在本机或另一台主机均可。装好后打开页面，首次创建管理员，再到「设置 → 服务提供方」填各服务的地址。
+
+更细的变量说明见 [docs/deployment.md](docs/deployment.md)，分置示例见 [docs/分置部署教程.md](docs/分置部署教程.md)。
+
+### 方式 1：容器部署
+
+在仓库根目录：
 
 ```bash
-docker compose up -d --build     # http://localhost:8000，数据在 ./data
+cp .env.example .env
+docker compose up -d --build
 ```
 
-首次访问创建管理员账号，然后到「设置 → 服务提供方」添加服务（如 Ollama、ComfyUI、或只加一个 edge_tts 即可立即体验 TTS）。
+默认访问 `http://<主机>:8000`，数据在 `./data`。
 
-源码运行与开发指南见下文；详细文档在 [docs/](docs/)：架构、API、Provider 接入、[部署](docs/deployment.md)、[分置部署教程](docs/分置部署教程.md)。
+只起 LiberAstra 时，Ollama / ComfyUI / 语音仍用已经装好的地址（本机或局域网 IP）。需要把可选组件也放进同一套 Compose 时，加上 profile：
+
+```bash
+docker compose --profile ollama up -d      # 额外起 Ollama，宿主机 11434
+docker compose --profile comfyui up -d     # 额外起 ComfyUI，宿主机 8188（需 NVIDIA Container Toolkit）
+docker compose --profile speech up -d      # 额外起语音插件，宿主机 5555（需 NVIDIA）
+docker compose --profile postgres up -d    # 额外起 PostgreSQL；同时设置 LIBERASTRA_DATABASE_URL
+```
+
+语音插件也可以只拷 `services/speech` 到显卡主机，在该目录执行 `docker compose up -d --build`。LiberAstra 里 Base URL 填 `http://<那台主机>:5555`。
+
+常用参数（写在 `.env`，环境变量优先于该文件）：
+
+| 参数 | 默认 | 作用 |
+|------|------|------|
+| `LIBERASTRA_PUBLISH_PORT` | `8000` | 宿主机对外端口。8000 被占用时改为 `18000` 等，容器内仍听 8000 |
+| `LIBERASTRA_HOST` / `LIBERASTRA_PORT` | `0.0.0.0` / `8000` | 进程在容器内的监听地址，一般不用改 |
+| `LIBERASTRA_DATA_DIR` | `./data`（容器内为 `/data`） | 数据库、作品、上传、用户工作流、日志 |
+| `LIBERASTRA_SECRET_KEY` | 空则写入 `data/.secret_key` | JWT 与 Provider 密钥加密。换机器要连这个文件一起拷 |
+| `LIBERASTRA_DATABASE_URL` | 空则 SQLite `data/liberastra.db` | 改用 PostgreSQL 时填写，并启用 `postgres` profile |
+| `LIBER_SPEECH_DEVICE` | `auto` | 语音插件设备：`auto` / `cuda` / `cpu` |
+| `LIBER_SPEECH_API_KEY` | 空 | 语音插件鉴权。LiberAstra 的 Provider 密钥填同一个值 |
+| `LIBER_SPEECH_TTS_MODEL` | `multilingual` | 语音插件默认 TTS：`turbo` / `standard` / `multilingual` |
+| `LIBER_SPEECH_ASR_MODEL` | `large-v3` | 语音插件默认识别模型 |
+
+容器访问**宿主机**上的 ComfyUI / Ollama 时，地址用 `http://host.docker.internal:端口`。访问**另一台机器**时用那台机器的局域网 IP。
+
+### 方式 2：Windows 安装
+
+主程序、Ollama、ComfyUI、语音插件分开安装。主程序不内置模型。
+
+**LiberAstra 主程序（本机安装包）**
+
+安装包自带 Python 运行时和已构建的页面，目标电脑不用另装 Python 或 Node。双击 `LiberAstra-Setup.exe`，按向导安装。完成后从开始菜单或桌面启动，浏览器打开 `http://127.0.0.1:8000`。数据在 `%LOCALAPPDATA%\LiberAstra\data`（账号、作品、密钥）。安装程序会放行本机防火墙的 TCP 8000，局域网里的浏览器可以用 `http://<这台电脑的 IP>:8000` 打开。
+
+仓库里不提交安装包本体。在本机生成：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
+```
+
+产物：`packaging\windows\output\LiberAstra-Setup.exe`。构建机需要 Node.js 20+、外网，以及 [Inno Setup 6](https://jrsoftware.org/isdl.php)（脚本会尝试用 winget 安装）。视频成片还需要系统里能找到 [ffmpeg](https://www.gyan.dev/ffmpeg/builds/)（`winget install Gyan.FFmpeg`）。
+
+Ollama、ComfyUI、语音插件不在这个安装包里。
+
+**Ollama（本机或其它主机，负责 LLM）**
+
+- 安装包：<https://ollama.com/download>
+- 装好后默认 `http://<主机>:11434`
+- 模型从库里拉取，例如对话模型 <https://ollama.com/library/qwen3>：`ollama pull qwen3:8b`（名称以库页面为准）
+- 在 LiberAstra 添加类型为 Ollama 的服务提供方，Base URL 填上面的地址
+
+**ComfyUI（本机或其它主机，负责出图 / 出视频）**
+
+- 桌面安装包：<https://www.comfy.org/download/>（Windows：<https://download.comfy.org/windows/nsis/x64>）
+- 绿色便携包说明：<https://docs.comfy.org/installation/comfyui_portable_windows>，发布页 <https://github.com/Comfy-Org/ComfyUI/releases>
+- 默认 `http://<主机>:8188`
+- 模型按目录放进 ComfyUI 的 `models\`（便携版在 `ComfyUI\models\`）。官方权重复包：
+
+| 用途 | 下载 | 放到 |
+|------|------|------|
+| Qwen-Image 2.1 官方（UNET、8B 文本编码器、VAE） | <https://huggingface.co/Comfy-Org/Qwen-Image-2.1> | `diffusion_models/`、`text_encoders/`、`vae/` |
+| Qwen-Image 2.1 越狱 UNET `qwen-image-2.1-UC-int8_convrot.safetensors` | <https://huggingface.co/abenzerps/Qwen-Image-2.1-Uncensored-Quantized> | `diffusion_models/` |
+| MiniMax H3 官方（主模型、文本编码器、视频/音频 VAE） | <https://huggingface.co/Comfy-Org/MiniMax-H3> | `diffusion_models/`、`text_encoders/`、`vae/` |
+| H3 越狱文本编码器（INT8，增强包用） | <https://huggingface.co/ethanfel/Qwen3-VL-32B-Ultra-Heretic-MiniMax-H3-ComfyUI-INT8-ConvRot> | `text_encoders/` |
+| H3 越狱文本编码器（NVFP4，无增强包用） | <https://huggingface.co/sakamakismile/Qwen3-VL-32B-Heretic-MiniMax-H3-NVFP4> | `text_encoders/` |
+| H3 Turbo LoRA | <https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora> 、<https://huggingface.co/lightx2v/Minimax-h3-Turbo> | `loras/` |
+
+成套文件名见 [docs/使用文档.md](docs/使用文档.md)：官方包配官方 UNET，越狱包配 UC UNET，工作流用 safetensors。图像越狱 LoRA 文件名是 `qwen-image-2.1-uncensored-lora.safetensors`，放进 `loras/`。
+
+**语音插件（可选，本机或其它主机，都用安装方式）**
+
+语音不打进主程序。只做在线朗读时可以不装，在 LiberAstra 里用 edge-tts。需要本地合成或识别时，把插件装到**这台 Windows**，或装到**另一台有 NVIDIA 显卡的主机**。两边都先装好 Docker。
+
+生成插件安装包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\speech\build.ps1
+```
+
+- Windows（本机或另一台 Windows）：运行 `packaging\speech\output\LiberSpeech-Setup.exe`。向导结束时会执行 `docker compose up -d --build`，并放行 TCP 5555。
+- Linux 显卡主机：把 `packaging\speech\output\LiberSpeech-plugin.zip` 拷过去，解压后执行 `sh install.sh`。
+
+装好后插件监听 `0.0.0.0:5555`。在 LiberAstra 添加「Liber Speech API」：
+
+- 插件与主程序在同一台：`http://127.0.0.1:5555`
+- 插件在别的主机：`http://<那台主机的 IP>:5555`
+
+权重在首次运行时按 `LIBER_SPEECH_TTS_MODEL` / `LIBER_SPEECH_ASR_MODEL` 拉取。需要鉴权时，插件和 LiberAstra 使用同一个 `LIBER_SPEECH_API_KEY`。
+
+源码开发方式见下一节。
 
 ## 开发
 
@@ -96,7 +195,8 @@ astra mcp                     # MCP Server（stdio）
 
 - `backend/` — FastAPI 后端、`astra` CLI、MCP、Alembic 迁移、内置工作流包（`workflows/`）
 - `frontend/` — React 19 + Vite + Tailwind v4 + i18next
-- `docker/`、`docker-compose.yml` — 单镜像（ffmpeg + 中文字体）与可选 profile（ollama/comfyui/postgres）
+- `docker/`、`docker-compose.yml` — 单镜像（ffmpeg + 中文字体）与可选 profile（ollama/comfyui/speech/postgres）
+- `packaging/windows/`、`packaging/speech/` — Windows 主程序安装包与语音插件安装包的构建脚本
 - `skills/liberastra/` — Agent Skill
 - `docs/` — 架构 / API / Provider 接入 / 部署
 - `.github/workflows/ci.yml` — lint、测试、前端构建、镜像构建
@@ -149,7 +249,7 @@ The app does not run models. Prompt fields share one control: raw and optimized 
 
 Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
-Run with Docker: `docker compose up -d --build` → http://localhost:8000. See [docs/](docs/) for details.
+Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or a Windows setup built with `packaging/windows/build.ps1`. Ollama, ComfyUI, and the speech plugin install separately. Speech: `packaging/speech/build.ps1` produces `LiberSpeech-Setup.exe` (Windows, local or another host) and `LiberSpeech-plugin.zip` (`install.sh` on Linux). See [docs/](docs/).
 
 ### Reference projects
 

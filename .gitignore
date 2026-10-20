@@ -26,6 +26,13 @@ build/
 node_modules/
 frontend/dist/
 
+# Windows 安装包构建缓存与产物
+packaging/windows/stage/
+packaging/windows/cache/
+packaging/windows/output/
+packaging/speech/stage/
+packaging/speech/output/
+
 # IDE 与系统
 .idea/
 .vscode/
