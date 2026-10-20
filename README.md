@@ -12,7 +12,7 @@
 
 工作台：按图像 / 视频 / 语音切换，写一句提示词即可进入对应功能。下方是常用入口。
 
-![首页](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114313888.png)
+![首页](docs/images/home.png)
 
 ### 图像生成
 
@@ -20,9 +20,9 @@
 - **图生图与编辑**：整图编辑、多参考（最多 4 张，提示词用 image 1 / image 2 指代）、局部重绘（原图 + 蒙版）。官方包与越狱包成对。
 - **修复与放大**：走 Upscale 模型，不是重新生图。
 
-![文生图](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114523703.png)
+![文生图](docs/images/image-generate.png)
 
-![图生图与编辑](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114635001.png)
+![图生图与编辑](docs/images/image-edit.png)
 
 ### 视频生成
 
@@ -33,11 +33,11 @@
 - **动作迁移**：参考视频 + 目标图（需自备 motion 工作流包）。
 - **模板管理**：上传或覆盖分镜模板（`static_` / `image_` / `video_`）。
 
-![快速创作](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114851090.png)
+![快速创作](docs/images/video-quick.png)
 
-![自定义素材](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114934510.png)
+![自定义素材](docs/images/video-assets.png)
 
-![图生视频](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115032731.png)
+![图生视频](docs/images/video-i2v.png)
 
 ### 语音服务
 
@@ -46,7 +46,7 @@
 - **音色库**：登记可复用的克隆音色。
 - **音乐库**：上传 BGM，供快速创作与自定义素材选用。
 
-![文字转语音](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115153407.png)
+![文字转语音](docs/images/speech-tts.png)
 
 ### 平台与接入
 
@@ -119,31 +119,31 @@ LiberAstra 以重新实现为主；下列上游仓库是设计与部分素材的
 
 LiberAstra is a self-hosted, single-user AIGC orchestration hub (MIT). It orchestrates external inference services — ComfyUI, Ollama, OpenAI-compatible servers, and cloud APIs — for speech, image, and video generation. It never runs models itself.
 
-### Features
+### 功能
 
 The app does not run models. Prompt fields share one control: raw and optimized drafts, scene presets, and a sparkle action that keeps running if you refresh.
 
 **Home.** Pick image, video, or speech and jump in with one line.
 
-![Home](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114313888.png)
+![Home](docs/images/home.png)
 
 **Images.** Text-to-image (Qwen-Image 2.1 official or uncensored packs, or a classic checkpoint; uncensored packs can toggle an Uncensored LoRA). Image edit: full-frame, up to four references, or inpaint with a mask. Upscale uses an upscale model, not a new generation. Online image APIs are supported.
 
-![Text to image](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114523703.png)
+![Text to image](docs/images/image-generate.png)
 
-![Image edit](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114635001.png)
+![Image edit](docs/images/image-edit.png)
 
 **Video.** Quick create turns a topic or a fixed script into a short: storyboard, per-shot stills or text-to-video, TTS, subtitles, and BGM. The LLM visual-prompt switch and a pack’s built-in Guide enhancer are independent. Custom assets reuse your clips (optional analysis and image-to-video). Also: talking avatar, image-to-video (MiniMax H3 official / uncensored / enhancer, optional Turbo LoRA), motion transfer, and storyboard templates.
 
-![Quick create](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114851090.png)
+![Quick create](docs/images/video-quick.png)
 
-![Custom assets](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114934510.png)
+![Custom assets](docs/images/video-assets.png)
 
-![Image to video](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115032731.png)
+![Image to video](docs/images/video-i2v.png)
 
 **Speech.** Text-to-speech (edge-tts, OpenAI-compatible, Liber Speech, or a Comfy TTS pack), speech-to-text (txt/srt/vtt/json), a voice library, and a music library for BGM.
 
-![Text to speech](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115153407.png)
+![Text to speech](docs/images/speech-tts.png)
 
 **Platform.** Asset library, job queue (SSE, cancel/retry), providers, workflow-pack import, default LLM. Clients: Web UI (zh/en, light/dark), `astra` CLI, MCP server, OpenAI-compatible `/v1`.
 
@@ -155,8 +155,8 @@ Run with Docker: `docker compose up -d --build` → http://localhost:8000. See [
 
 Upstream repos LiberAstra drew from (re-implementation first; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licenses and what was ported):
 
-| Project | Original GitHub | License | How we use it |
-|---------|-----------------|---------|---------------|
-| [Pixelle-Video](https://github.com/AIDC-AI/Pixelle-Video) | https://github.com/AIDC-AI/Pixelle-Video | Apache-2.0 | Video pipeline design; storyboard templates and analysis workflows ported |
-| [Dreamifly](https://github.com/LastLighter/Dreamifly) | https://github.com/LastLighter/Dreamifly | MIT | Image UX / ComfyUI workflow-mapping design reference |
-| [Liber_SpeechAPI](https://github.com/liberalchang/Liber_SpeechAPI) | https://github.com/liberalchang/Liber_SpeechAPI | AGPL-3.0 | **API shape only**; `services/speech` is an independent implementation |
+| 项目                                                                 | Original GitHub                                 | License    | How we use it                                                             |
+| ------------------------------------------------------------------ | ----------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| [Pixelle-Video](https://github.com/AIDC-AI/Pixelle-Video)          | https://github.com/AIDC-AI/Pixelle-Video        | Apache-2.0 | Video pipeline design; storyboard templates and analysis workflows ported |
+| [Dreamifly](https://github.com/LastLighter/Dreamifly)              | https://github.com/LastLighter/Dreamifly        | MIT        | Image UX / ComfyUI workflow-mapping design reference                      |
+| [Liber_SpeechAPI](https://github.com/liberalchang/Liber_SpeechAPI) | https://github.com/liberalchang/Liber_SpeechAPI | AGPL-3.0   | **API shape only**; `services/speech` is an independent implementation    |
