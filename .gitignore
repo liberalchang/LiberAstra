@@ -25,6 +25,14 @@ build/
 # Node
 node_modules/
 frontend/dist/
+# tsc 落到源码旁的 .js。Vite 会优先加载它，从而盖住同名 .tsx
+frontend/src/**/*.js
+frontend/vite.config.js
+*.tsbuildinfo
+
+# 本机运维脚本与临时导出（主机、口令、绝对路径），不是产品代码
+scripts/
+backend/scripts/
 
 # Windows 安装包构建缓存与产物
 packaging/windows/stage/

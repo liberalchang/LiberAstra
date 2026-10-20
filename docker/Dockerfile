@@ -7,8 +7,8 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --no-audit --no-fund
 COPY frontend/ ./
-# 使用文档在仓库 docs/，页面用相对路径引用，构建时放到镜像里对应位置
-COPY docs/使用文档.md /docs/使用文档.md
+# 使用文档和 CLI 文档在仓库 docs/。页面从 /docs 相对路径引用，构建时要放到镜像里对应位置
+COPY docs/使用文档.md docs/cli.md docs/cli.en.md /docs/
 RUN npm run build
 
 FROM python:3.11-slim AS runtime
