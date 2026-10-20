@@ -6,11 +6,55 @@
 
 ## 功能
 
-- **语音**：文字转语音（OpenAI 兼容 TTS、edge-tts 兜底）、声音克隆音色库、语音转文字（txt/srt/vtt/json 字幕导出）
-- **图像**：ComfyUI 工作流驱动的文生图 / 图生图 / 修复放大，在线图像 API（gpt-image 及兼容网关），统一 PromptField + 场景模板库的 LLM 提示词优化
-- **视频**：快速创作（一句话出短视频：LLM 脚本 → 分镜 → 逐帧 TTS+图像 → 字幕 → 拼接+BGM）、自定义素材成片、数字人口播、图生视频、动作迁移、分镜编辑器
-- **平台**：单用户 + API Token、持久化任务队列（SSE 进度、取消/重试）、Provider 密钥加密、工作流包导入向导、中英文界面、明暗主题
-- **接入**：Web UI、`astra` CLI、MCP Server、OpenAI 兼容 `/v1`（chat/audio/images）
+平台本身不做模型推理。界面按侧栏分组；出图、出声、出视频都交给已配置的外部服务。各页提示词共用 **PromptField**（原始稿 / 优化稿、场景模板、✨ 提交优化任务，刷新后仍可接着看）。
+
+### 首页
+
+工作台：按图像 / 视频 / 语音切换，写一句提示词即可进入对应功能。下方是常用入口。
+
+![首页](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114313888.png)
+
+### 图像生成
+
+- **文生图**：选图像服务与 `t2i` 工作流包。内置 Qwen-Image 2.1（官方 / 越狱）与传统 checkpoint 包。参数区可换 UNET、文本编码器、VAE；越狱包可开关 Uncensored LoRA。也支持在线图像 API。
+- **图生图与编辑**：整图编辑、多参考（最多 4 张，提示词用 image 1 / image 2 指代）、局部重绘（原图 + 蒙版）。官方包与越狱包成对。
+- **修复与放大**：走 Upscale 模型，不是重新生图。
+
+![文生图](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114523703.png)
+
+![图生图与编辑](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114635001.png)
+
+### 视频生成
+
+- **快速创作**：AI 创作 / 固定文案 / 批量。口播拆成多镜，再按分镜模板出画面：静态排版、逐镜插图或逐镜文生视频，最后配音、字幕、BGM 拼接。是否用 LLM 写画面提示词由开关决定；工作流包里的 Guide 增强只跟所选包有关，两者互不关闭。包声明了 Turbo 时可开关加速 LoRA。
+- **自定义素材**：已有图片或视频做成口播短片。可选素材分析、静图动画（`i2v`）、配音与 BGM。
+- **数字人口播**：人物图 + 口播文案 → TTS → avatar 工作流（需自备并导入工作流包）。
+- **图生视频**：首帧 + 提示词，走 `i2v`。内置 MiniMax H3 官方、越狱、越狱+提示词增强三套，可开 Turbo。
+- **动作迁移**：参考视频 + 目标图（需自备 motion 工作流包）。
+- **模板管理**：上传或覆盖分镜模板（`static_` / `image_` / `video_`）。
+
+![快速创作](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114851090.png)
+
+![自定义素材](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114934510.png)
+
+![图生视频](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115032731.png)
+
+### 语音服务
+
+- **文字转语音**：按服务类型切换控件。edge-tts、OpenAI 兼容 TTS、Liber Speech 音色库，或 Comfy `tts` 工作流。
+- **语音转文字**：导出 txt / srt / vtt / json。
+- **音色库**：登记可复用的克隆音色。
+- **音乐库**：上传 BGM，供快速创作与自定义素材选用。
+
+![文字转语音](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115153407.png)
+
+### 平台与接入
+
+- **作品**、**任务**：生成结果与任务进度（SSE、取消 / 重试）。
+- **设置**：服务提供方（地址与密钥）、工作流包导入、默认 LLM 与运行参数。
+- **接入**：Web UI（中英文、明暗主题）、`astra` CLI、MCP Server、OpenAI 兼容 `/v1`（chat / audio / images）。单用户，API Token；Provider 密钥加密保存。
+
+模型怎么配对、内置包名单见 [docs/使用文档.md](docs/使用文档.md)。
 
 ## 快速开始
 
@@ -75,10 +119,35 @@ LiberAstra 以重新实现为主；下列上游仓库是设计与部分素材的
 
 LiberAstra is a self-hosted, single-user AIGC orchestration hub (MIT). It orchestrates external inference services — ComfyUI, Ollama, OpenAI-compatible servers, and cloud APIs — for speech, image, and video generation. It never runs models itself.
 
-- **Speech**: TTS (OpenAI-compatible, edge-tts fallback), voice library with cloning metadata, ASR with srt/vtt/txt/json export
-- **Image**: ComfyUI workflow-pack-driven T2I / I2I / upscale, online image APIs, LLM prompt optimization
-- **Video**: one-topic short-video pipeline (LLM script → storyboard → per-frame TTS+image → subtitles → concat+BGM), custom assets, digital human, I2V, motion transfer, storyboard editor
-- **Clients**: Web UI (zh/en), `astra` CLI, MCP server, OpenAI-compatible `/v1` endpoints
+### Features
+
+The app does not run models. Prompt fields share one control: raw and optimized drafts, scene presets, and a sparkle action that keeps running if you refresh.
+
+**Home.** Pick image, video, or speech and jump in with one line.
+
+![Home](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114313888.png)
+
+**Images.** Text-to-image (Qwen-Image 2.1 official or uncensored packs, or a classic checkpoint; uncensored packs can toggle an Uncensored LoRA). Image edit: full-frame, up to four references, or inpaint with a mask. Upscale uses an upscale model, not a new generation. Online image APIs are supported.
+
+![Text to image](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114523703.png)
+
+![Image edit](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114635001.png)
+
+**Video.** Quick create turns a topic or a fixed script into a short: storyboard, per-shot stills or text-to-video, TTS, subtitles, and BGM. The LLM visual-prompt switch and a pack’s built-in Guide enhancer are independent. Custom assets reuse your clips (optional analysis and image-to-video). Also: talking avatar, image-to-video (MiniMax H3 official / uncensored / enhancer, optional Turbo LoRA), motion transfer, and storyboard templates.
+
+![Quick create](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114851090.png)
+
+![Custom assets](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020114934510.png)
+
+![Image to video](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115032731.png)
+
+**Speech.** Text-to-speech (edge-tts, OpenAI-compatible, Liber Speech, or a Comfy TTS pack), speech-to-text (txt/srt/vtt/json), a voice library, and a music library for BGM.
+
+![Text to speech](https://liberc.oss-cn-shanghai.aliyuncs.com/liber/20261020115153407.png)
+
+**Platform.** Asset library, job queue (SSE, cancel/retry), providers, workflow-pack import, default LLM. Clients: Web UI (zh/en, light/dark), `astra` CLI, MCP server, OpenAI-compatible `/v1`.
+
+Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
 Run with Docker: `docker compose up -d --build` → http://localhost:8000. See [docs/](docs/) for details.
 
