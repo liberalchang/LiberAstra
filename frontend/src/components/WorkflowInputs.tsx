@@ -6,6 +6,7 @@ import { AspectSelect, ASPECT_OPTIONS, CUSTOM_RATIO, type AspectOption } from "@
 import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { useTx } from "@/i18n/tx";
 
 interface Props {
   inputs: Record<string, WorkflowInputSpec>;
@@ -72,6 +73,7 @@ function ModelFolderField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const tx = useTx();
   const { data, isError, isLoading } = useQuery({
     queryKey: ["provider-model-folder", providerId, folder],
     queryFn: () => api.fetchProviderModelFolder(providerId!, folder),
@@ -123,19 +125,19 @@ function ModelFolderField({
       onChange={(e) => onChange(e.target.value)}
       disabled={isLoading}
     >
-      {isLoading && <option value="">加载模型列表…</option>}
+      {isLoading && <option value="">{tx("加载模型列表…")}</option>}
       {/* 已保存的值不在列表里时保留显示，避免被静默清空 */}
       {!isLoading && value && !options.includes(value) && (
-        <option value={value}>{value}（不在列表中）</option>
+        <option value={value}>{value}{tx("（不在列表中）")}</option>
       )}
       {recommended.length > 0 && rest.length > 0 ? (
         <>
-          <optgroup label="推荐（与当前工作流匹配）">
+          <optgroup label={tx("推荐（与当前工作流匹配）")}>
             {recommended.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </optgroup>
-          <optgroup label="全部">
+          <optgroup label={tx("全部")}>
             {rest.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
@@ -160,6 +162,7 @@ function intValueOf(raw: string | undefined, spec: WorkflowInputSpec): number {
 
 /** 按工作流包 manifest 动态渲染参数表单。 */
 export function WorkflowInputs({ inputs, values, onChange, exclude = [], providerId, fps }: Props) {
+  const tx = useTx();
   // 帧数对齐：有效帧数 = align_base × k + align_offset（如 MiniMax 的 17k+5、Wan 的 4k+1）
   const snapFrames = (n: number, spec: WorkflowInputSpec) => {
     if (!spec.align_base) return n;
@@ -224,9 +227,9 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
     const curH = intValueOf(values.height, heightSpec);
     const matched = ratioOptions.find((o) => o.width === curW && o.height === curH);
     aspectBlock = (
-      <Field label="宽高比" hint={`按比例一次设置宽高；长边对齐包默认尺寸，两边自动吸附 ${mult} 的倍数（视频潜变量要求）。`} className="sm:col-span-2">
+      <Field label={tx("宽高比")} hint={tx("按比例一次设置宽高；长边对齐包默认尺寸，两边自动吸附 {mult} 的倍数（视频潜变量要求）。", { mult })} className="sm:col-span-2">
         <AspectSelect
-          label="宽高比"
+          label={tx("宽高比")}
           options={ratioOptions}
           value={matched ?? { ratio: CUSTOM_RATIO, width: curW, height: curH }}
           onChange={(o) => {
@@ -242,20 +245,20 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
     <div className="grid gap-3 sm:grid-cols-2">
       {aspectBlock}
       {entries.map(([key, spec]) => {
-        const label = `${labelOf(key, spec)}${spec.required ? " *" : ""}`;
         // 视频包给了 fps：帧数参数改按"时长（秒）"设置，提交时换算回帧数并按包声明对齐
         const isFramesParam = (key === "length" || key === "frames") && spec.type === "int" && !!fps;
         const framesNow = isFramesParam ? intValueOf(values[key], spec) : 0;
-        const alignNote =
-          isFramesParam && spec.align_base ? `，按 ${spec.align_base}k+${spec.align_offset ?? 0} 对齐` : "";
         return (
           <Field
             key={key}
-            label={isFramesParam ? "时长（秒）" : label}
+            label={tx(isFramesParam ? tx("时长（秒）") : labelOf(key, spec)) + (spec.required ? " *" : "")}
             hint={
               isFramesParam
-                ? `帧数 = 秒 × ${fps}fps，当前 ${framesNow} 帧${alignNote}`
-                : spec.description || "来自工作流包 manifest 的参数"
+                ? tx("帧数 = 秒 × {fps}fps，当前 {frames} 帧", { fps, frames: framesNow }) +
+                  (spec.align_base
+                    ? tx("，按 {base}k+{off} 对齐", { base: spec.align_base, off: spec.align_offset ?? 0 })
+                    : "")
+                : tx(spec.description || tx("来自工作流包 manifest 的参数"))
             }
             className={key === "negative_prompt" ? "sm:col-span-2" : undefined}
           >
@@ -268,7 +271,7 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
               >
                 {spec.options.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {tx(String(opt))}
                   </option>
                 ))}
               </select>
@@ -282,7 +285,7 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
               />
             ) : isFramesParam ? (
               <NumberStepper
-                ariaLabel="时长（秒）"
+                ariaLabel={tx("时长（秒）")}
                 min={Math.max(1, Math.round((spec.min ?? fps) / fps))}
                 max={Math.max(2, Math.round((spec.max ?? 300) / fps))}
                 value={Math.max(1, Math.round(framesNow / fps))}
@@ -290,7 +293,7 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
               />
             ) : spec.type === "int" ? (
               <NumberStepper
-                ariaLabel={label}
+                ariaLabel={tx(labelOf(key, spec))}
                 min={spec.min}
                 max={spec.max}
                 value={intValueOf(values[key], spec)}
@@ -298,7 +301,7 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
               />
             ) : spec.type === "float" && spec.min != null && spec.max != null ? (
               <NumberStepper
-                ariaLabel={label}
+                ariaLabel={tx(labelOf(key, spec))}
                 min={spec.min}
                 max={spec.max}
                 step={0.1}

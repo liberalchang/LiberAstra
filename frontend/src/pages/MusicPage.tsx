@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { formatSize } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 /** 单条音乐的试听播放器：带鉴权拉 blob 后交给 audio 标签。 */
 function BgmPlayer({ name }: { name: string }) {
+  const tx = useTx();
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -32,13 +34,14 @@ function BgmPlayer({ name }: { name: string }) {
       if (url) URL.revokeObjectURL(url);
     };
   }, [name]);
-  if (failed) return <span className="text-xs text-red-500">加载失败</span>;
-  if (!src) return <span className="text-xs text-muted-foreground">加载中…</span>;
+  if (failed) return <span className="text-xs text-red-500">{tx("加载失败")}</span>;
+  if (!src) return <span className="text-xs text-muted-foreground">{tx("加载中…")}</span>;
   return <audio controls preload="none" src={src} className="h-9 w-full" />;
 }
 
 /** 音乐库：背景音乐的上传（自动入库）、试听与删除。 */
 export function MusicPage() {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const { data: items } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
 
@@ -50,7 +53,7 @@ export function MusicPage() {
   const upload = useMutation({
     mutationFn: () => api.uploadBgm(file!),
     onSuccess: (item) => {
-      setFeedback({ ok: true, message: `已入库：${item.name}` });
+      setFeedback({ ok: true, message: tx("已入库：{name}", { name: item.name }) });
       setFile(null);
       invalidate();
     },
@@ -67,20 +70,20 @@ export function MusicPage() {
       <PageHeader
         kind="music"
         icon={Music}
-        title="音乐库"
-        description="管理背景音乐：上传后自动入库，快速创作页可直接选用。同名文件自动加序号，不会覆盖。"
+        title={tx("音乐库")}
+        description={tx("管理背景音乐：上传后自动入库，快速创作页可直接选用。同名文件自动加序号，不会覆盖。")}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>上传音乐</CardTitle>
-          <CardDescription>支持 MP3 / WAV / M4A / OGG / FLAC / AAC，单个不超过 50MB。</CardDescription>
+          <CardTitle>{tx("上传音乐")}</CardTitle>
+          <CardDescription>{tx("支持 MP3 / WAV / M4A / OGG / FLAC / AAC，单个不超过 50MB。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Field label="音乐文件" hint="上传后即进入音乐库，全站可复用。">
+          <Field label={tx("音乐文件")} hint={tx("上传后即进入音乐库，全站可复用。")}>
             <FileDrop
               accept="audio/*"
-              title="点击或拖拽上传音乐"
+              title={tx("点击或拖拽上传音乐")}
               subtitle="MP3 / WAV / M4A / OGG / FLAC / AAC"
               names={file ? [file.name] : []}
               onSelect={(fs) => setFile(fs?.[0] ?? null)}
@@ -88,7 +91,7 @@ export function MusicPage() {
           </Field>
           <div className="flex items-center gap-3">
             <Button onClick={() => upload.mutate()} disabled={!file || upload.isPending}>
-              {upload.isPending ? "上传中…" : "上传"}
+              {upload.isPending ? tx("上传中…") : tx("上传")}
             </Button>
             {feedback && (
               <span className={`text-sm ${feedback.ok ? "text-green-600" : "text-red-500"}`}>
@@ -101,7 +104,7 @@ export function MusicPage() {
 
       <div className="flex flex-col gap-3">
         {items?.length === 0 && (
-          <p className="text-sm text-muted-foreground">还没有音乐，先上传一首。</p>
+          <p className="text-sm text-muted-foreground">{tx("还没有音乐，先上传一首。")}</p>
         )}
         {items?.map((item) => (
           <Card key={item.name}>
@@ -116,7 +119,7 @@ export function MusicPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                title="删除"
+                title={tx("删除")}
                 onClick={() => remove.mutate(item.name)}
                 disabled={remove.isPending}
               >

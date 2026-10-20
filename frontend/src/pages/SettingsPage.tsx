@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useTx } from "@/i18n/tx";
 
 export function SettingsPage() {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const { data: caps } = useQuery({ queryKey: ["capabilities"], queryFn: api.capabilities });
   const {
@@ -67,7 +69,7 @@ export function SettingsPage() {
     mutationFn: (id: number) => api.fetchProviderModels(id),
     onSuccess: (_models, id) => {
       setExpandedModels((prev) => ({ ...prev, [id]: true }));
-      setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: "模型列表已更新" } }));
+      setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: tx("模型列表已更新") } }));
       invalidate();
     },
     onError: (err, id) =>
@@ -88,7 +90,7 @@ export function SettingsPage() {
         enabled: editEnabled,
       }),
     onSuccess: (_p, id) => {
-      setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: "已保存修改" } }));
+      setRowFeedback((prev) => ({ ...prev, [id]: { ok: true, message: tx("已保存修改") } }));
       setEditingId(null);
       invalidate();
     },
@@ -109,12 +111,12 @@ export function SettingsPage() {
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
-      <PageHeader kind="settings" icon={Settings} title="服务提供方" description="对接局域网或云端模型服务，密钥加密后保存。" />
+      <PageHeader kind="settings" icon={Settings} title={tx("服务提供方")} description={tx("对接局域网或云端模型服务，密钥加密后保存。")} />
 
       <Card>
         <CardHeader>
-          <CardTitle>添加 Provider</CardTitle>
-          <CardDescription>对接局域网或云端的模型服务；密钥加密存储。</CardDescription>
+          <CardTitle>{tx("添加 Provider")}</CardTitle>
+          <CardDescription>{tx("对接局域网或云端的模型服务；密钥加密存储。")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -125,7 +127,7 @@ export function SettingsPage() {
               create.mutate();
             }}
           >
-            <Field label="类型" hint={selectedType?.description ?? "先选择服务类型，再填写地址。"}>
+            <Field label={tx("类型")} hint={tx(selectedType?.description ?? tx("先选择服务类型，再填写地址。"))}>
               <select
                 className={selectClass}
                 value={type}
@@ -137,21 +139,21 @@ export function SettingsPage() {
                 }}
               >
                 <option value="" disabled>
-                  选择类型…
+                  {tx("选择类型…")}
                 </option>
                 {caps?.provider_types.map((item) => (
                   <option key={item.type} value={item.type}>
-                    {item.label}
+                    {tx(item.label)}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field label="名称" hint="方便自己区分，例如家里的 Ollama。">
+            <Field label={tx("名称")} hint={tx("方便自己区分，例如家里的 Ollama。")}>
               <Input value={name} required onChange={(e) => setName(e.target.value)} />
             </Field>
-            <Field className="sm:col-span-2" label="Base URL" hint="服务根地址。局域网机器请填那台机器的 IP 和端口。">
+            <Field className="sm:col-span-2" label="Base URL" hint={tx("服务根地址。局域网机器请填那台机器的 IP 和端口。")}>
               <Input
-                placeholder={selectedType?.default_base_url ?? "例如 http://192.168.1.10:11434"}
+                placeholder={selectedType?.default_base_url ?? tx("例如 http://192.168.1.10:11434")}
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
               />
@@ -159,7 +161,7 @@ export function SettingsPage() {
             <Field
               className="sm:col-span-2"
               label="API Key"
-              hint={selectedType?.requires_api_key ? "这个类型必须填写，保存时会加密。" : "没有密钥可以留空。填写后会加密保存。"}
+              hint={selectedType?.requires_api_key ? tx("这个类型必须填写，保存时会加密。") : tx("没有密钥可以留空。填写后会加密保存。")}
             >
               <Input
                 type="password"
@@ -170,7 +172,7 @@ export function SettingsPage() {
             </Field>
             {formError && <p className="text-sm text-red-500 sm:col-span-2">{formError}</p>}
             <Button type="submit" disabled={create.isPending} className="sm:w-fit">
-              {create.isPending ? "添加中…" : "添加"}
+              {create.isPending ? tx("添加中…") : tx("添加")}
             </Button>
           </form>
         </CardContent>
@@ -183,7 +185,7 @@ export function SettingsPage() {
           </p>
         )}
         {providers?.length === 0 && (
-          <p className="text-sm text-muted-foreground">还没有 Provider，先添加一个。</p>
+          <p className="text-sm text-muted-foreground">{tx("还没有 Provider，先添加一个。")}</p>
         )}
         {providers?.map((p) => (
           <Card key={p.id}>
@@ -192,8 +194,8 @@ export function SettingsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{p.name}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{typeLabel(p)}</span>
-                  {!p.enabled && <span className="rounded bg-muted px-1.5 py-0.5 text-xs">已停用</span>}
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{tx(typeLabel(p))}</span>
+                  {!p.enabled && <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{tx("已停用")}</span>}
                 </div>
                 <div className="truncate text-sm text-muted-foreground">{p.base_url}</div>
                 <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -211,12 +213,12 @@ export function SettingsPage() {
                       ) : (
                         <ChevronRight className="size-3.5" />
                       )}
-                      {p.models.length} 个模型
+                      {tx("{n} 个模型", { n: p.models.length })}
                     </button>
                   ) : (
-                    <span>没有已保存的模型</span>
+                    <span>{tx("没有已保存的模型")}</span>
                   )}
-                  {p.has_api_key ? <span>已配置密钥</span> : null}
+                  {p.has_api_key ? <span>{tx("已配置密钥")}</span> : null}
                 </div>
                 {rowFeedback[p.id] && (
                   <div className={`text-xs ${rowFeedback[p.id].ok ? "text-green-600" : "text-red-500"}`}>
@@ -225,14 +227,14 @@ export function SettingsPage() {
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={() => test.mutate(p.id)} disabled={test.isPending}>
-                <PlugZap /> 测试
+                <PlugZap /> {tx('测试')}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => (editingId === p.id ? setEditingId(null) : startEdit(p))}
               >
-                <Pencil /> {editingId === p.id ? "收起" : "编辑"}
+                <Pencil /> {editingId === p.id ? tx("收起") : tx("编辑")}
               </Button>
               <Button
                 variant="outline"
@@ -240,9 +242,9 @@ export function SettingsPage() {
                 onClick={() => fetchModels.mutate(p.id)}
                 disabled={fetchModels.isPending}
               >
-                <RefreshCw /> 模型
+                <RefreshCw /> {tx('模型')}
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => remove.mutate(p.id)} title="删除">
+              <Button variant="ghost" size="icon" onClick={() => remove.mutate(p.id)} title={tx("删除")}>
                 <Trash2 />
               </Button>
               </div>
@@ -254,16 +256,16 @@ export function SettingsPage() {
                     update.mutate(p.id);
                   }}
                 >
-                  <Field label="名称" hint="展示用名字。">
+                  <Field label={tx("名称")} hint={tx("展示用名字。")}>
                     <Input value={editName} required onChange={(e) => setEditName(e.target.value)} />
                   </Field>
-                  <Field label="Base URL" hint="服务根地址。">
+                  <Field label="Base URL" hint={tx("服务根地址。")}>
                     <Input value={editBaseUrl} onChange={(e) => setEditBaseUrl(e.target.value)} />
                   </Field>
-                  <Field label="API Key" hint="留空保持不变；输入新值则替换并加密保存。">
+                  <Field label="API Key" hint={tx("留空保持不变；输入新值则替换并加密保存。")}>
                     <Input
                       type="password"
-                      placeholder={p.has_api_key ? "已配置，留空保持不变" : "未配置，可在此填写"}
+                      placeholder={p.has_api_key ? tx("已配置，留空保持不变") : tx("未配置，可在此填写")}
                       value={editApiKey}
                       onChange={(e) => setEditApiKey(e.target.value)}
                     />
@@ -274,14 +276,14 @@ export function SettingsPage() {
                       checked={editEnabled}
                       onChange={(e) => setEditEnabled(e.target.checked)}
                     />
-                    启用该服务
+                    {tx('启用该服务')}
                   </label>
                   <div className="flex items-center gap-2 sm:col-span-2">
                     <Button type="submit" disabled={update.isPending}>
-                      {update.isPending ? "保存中…" : "保存修改"}
+                      {update.isPending ? tx("保存中…") : tx("保存修改")}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setEditingId(null)}>
-                      取消
+                      {tx('取消')}
                     </Button>
                   </div>
                 </form>

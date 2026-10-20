@@ -13,6 +13,7 @@ import {
   resolveEffectivePrompt,
 } from "@/lib/promptValue";
 import { cn } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 export type { PromptFieldValue };
 export { emptyPromptValue, coercePromptValue, resolveEffectivePrompt };
@@ -54,6 +55,7 @@ export function PromptField({
   minRowsClass = "min-h-24",
   disabled,
 }: Props) {
+  const tx = useTx();
   const [tab, setTab] = useState<"raw" | "optimized">(() =>
     value.useOptimized && value.optimized.trim() ? "optimized" : "raw",
   );
@@ -114,17 +116,17 @@ export function PromptField({
 
     if (job.status === "pending") {
       setTab("optimized");
-      setStatusMsg("优化任务排队中…");
+      setStatusMsg(tx("优化任务排队中…"));
       return;
     }
     if (job.status === "running") {
       setTab("optimized");
       setStatusMsg(
         providerLabel
-          ? `正在生成（${providerLabel}）· ${content.length} 字`
+          ? tx("正在生成（{who}）· {n} 字", { who: providerLabel, n: content.length })
           : content
-            ? `正在生成… ${content.length} 字`
-            : "正在生成…",
+            ? tx("正在生成… {n} 字", { n: content.length })
+            : tx("正在生成…"),
       );
       if (content) persistPartial(content, rawSnapshot);
       return;
@@ -142,20 +144,20 @@ export function PromptField({
       setStatusMsg(
         finalText
           ? providerLabel
-            ? `已由 ${providerLabel} 生成`
-            : "优化完成"
-          : "模型返回为空，请重试或换模型",
+            ? tx("已由 {who} 生成", { who: providerLabel })
+            : tx("优化完成")
+          : tx("模型返回为空，请重试或换模型"),
       );
       setJobId(null);
       return;
     }
     if (job.status === "failed") {
-      setStatusMsg(job.error || "优化失败");
+      setStatusMsg(job.error || tx("优化失败"));
       setJobId(null);
       return;
     }
     if (job.status === "canceled") {
-      setStatusMsg("已取消");
+      setStatusMsg(tx("已取消"));
       setJobId(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随 job 快照变化
@@ -178,32 +180,34 @@ export function PromptField({
       }),
     onMutate: () => {
       setTab("optimized");
-      setStatusMsg("正在提交优化任务…");
+      setStatusMsg(tx("正在提交优化任务…"));
       appliedJobRef.current = null;
       lastPersistAt.current = 0;
     },
     onSuccess: (j) => {
       setJobId(j.id);
-      setStatusMsg("优化任务已提交…");
+      setStatusMsg(tx("优化任务已提交…"));
     },
     onError: (err) => {
-      setStatusMsg(err.message || "提交失败");
+      setStatusMsg(err.message || tx("提交失败"));
     },
   });
 
   const sceneOptions = useMemo(() => {
     if (scenes.length) return scenes;
-    return [{ id: "auto", name: "自动 / 通用", append: "" }];
+    return [{ id: "auto", name: tx("自动 / 通用"), append: "" }];
   }, [scenes]);
 
   const busy = running || optimize.isPending;
 
   return (
     <Field
-      label={label}
+      label={tx(label)}
       hint={
         hint ??
-        `点击 ✨ 按当前功能${taskLabel ? `（${taskLabel}）` : ""}与所选工作流优化；场景预设仅叠加风格倾向。「自动」不改功能模板。`
+        tx("点击 ✨ 按当前功能{task}与所选工作流优化；场景预设仅叠加风格倾向。「自动」不改功能模板。", {
+          task: taskLabel ? `（${tx(taskLabel)}）` : "",
+        })
       }
     >
       <div className="flex flex-col gap-2">
@@ -217,7 +221,7 @@ export function PromptField({
               )}
               onClick={() => setTab("raw")}
             >
-              原始输入
+              {tx("原始输入")}
             </button>
             <button
               type="button"
@@ -229,11 +233,11 @@ export function PromptField({
               )}
               onClick={() => setTab("optimized")}
             >
-              优化后提示词
+              {tx("优化后提示词")}
               {stale && (
                 <span
                   className="size-1.5 rounded-full bg-amber-500"
-                  title="原始输入已变更，优化稿可能过期"
+                  title={tx("原始输入已变更，优化稿可能过期")}
                 />
               )}
             </button>
@@ -242,7 +246,7 @@ export function PromptField({
               variant="ghost"
               size="icon"
               className="ml-0.5 size-8 shrink-0"
-              title="用系统默认 LLM 优化提示词（覆盖「优化后提示词」）"
+              title={tx("用系统默认 LLM 优化提示词（覆盖「优化后提示词」）")}
               disabled={disabled || !value.raw.trim() || busy}
               onClick={() => optimize.mutate()}
             >
@@ -253,12 +257,12 @@ export function PromptField({
             className={`${selectClass} w-auto min-w-[8rem]`}
             value={scene}
             onChange={(e) => setScene(e.target.value)}
-            title="场景风格预设（叠加在功能模板之上；自动=不强制某一场景）"
+            title={tx("场景风格预设（叠加在功能模板之上；自动=不强制某一场景）")}
             disabled={busy}
           >
             {sceneOptions.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name}
+                {tx(s.name)}
               </option>
             ))}
           </select>
@@ -268,10 +272,10 @@ export function PromptField({
           className={cn(areaClass, minRowsClass)}
           placeholder={
             tab === "raw"
-              ? (placeholder ?? "输入简短描述…")
+              ? (placeholder ?? tx("输入简短描述…"))
               : busy
-                ? "优化任务执行中…"
-                : "点击 ✨ 生成优化提示词，也可在此直接编辑"
+                ? tx("优化任务执行中…")
+                : tx("点击 ✨ 生成优化提示词，也可在此直接编辑")
           }
           value={displayText}
           readOnly={busy && tab === "optimized"}
@@ -290,10 +294,9 @@ export function PromptField({
           <p
             className={cn(
               "text-xs",
-              statusMsg.includes("失败") ||
-                statusMsg.includes("错误") ||
-                statusMsg.includes("尚未") ||
-                statusMsg.includes("取消")
+              job?.status === "failed" ||
+                job?.status === "canceled" ||
+                /失败|错误|尚未|取消|fail|error|cancel/i.test(statusMsg)
                 ? "text-red-500"
                 : "text-muted-foreground",
             )}
@@ -306,7 +309,7 @@ export function PromptField({
         )}
         {stale && !busy && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            原始输入已变更，优化稿可能过期。点击 ✨ 重新生成覆盖，或关闭下方开关使用原始输入。
+            {tx("原始输入已变更，优化稿可能过期。点击 ✨ 重新生成覆盖，或关闭下方开关使用原始输入。")}
           </p>
         )}
 
@@ -317,7 +320,7 @@ export function PromptField({
             disabled={!value.optimized.trim() || busy}
             onChange={(e) => onChange({ ...value, useOptimized: e.target.checked })}
           />
-          使用优化后提示词执行任务
+          {tx("使用优化后提示词执行任务")}
         </label>
       </div>
     </Field>

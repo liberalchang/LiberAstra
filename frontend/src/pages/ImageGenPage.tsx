@@ -29,10 +29,12 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { useTx } from "@/i18n/tx";
 
 const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed", "batch_size"];
 
 export function ImageGenPage() {
+  const tx = useTx();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const imageProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("image"));
 
@@ -114,8 +116,8 @@ export function ImageGenPage() {
       <PageHeader
         kind="image"
         icon={ImageIcon}
-        title="文生图"
-        description="选择图像服务，用提示词生成图片。ComfyUI 工作流会带出额外参数。"
+        title={tx("文生图")}
+        description={tx("选择图像服务，用提示词生成图片。ComfyUI 工作流会带出额外参数。")}
       />
       <SplitPane
         storageKey="image-generate"
@@ -123,7 +125,7 @@ export function ImageGenPage() {
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="图像服务" hint="只列出已启用、且具备 image 能力的 Provider。">
+            <Field label={tx("图像服务")} hint={tx("只列出已启用、且具备 image 能力的 Provider。")}>
               <select
                 className={selectClass}
                 value={provider?.id ?? ""}
@@ -137,7 +139,7 @@ export function ImageGenPage() {
               </select>
             </Field>
             {isComfy && (
-              <Field label="工作流包" hint="ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。">
+              <Field label={tx("工作流包")} hint={tx("ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。")}>
                 <select
                   className={selectClass}
                   value={pack?.name ?? ""}
@@ -162,34 +164,37 @@ export function ImageGenPage() {
             aspect={aspect.ratio}
             extraContext={
               !isComfy && provider
-                ? `图像服务：${provider.name}（type=${provider.type}）。按该服务常见自然语言提示词风格扩写。`
+                ? tx("图像服务：{name}（type={type}）。按该服务常见自然语言提示词风格扩写。", {
+                    name: provider.name,
+                    type: provider.type,
+                  })
                 : undefined
             }
-            placeholder="例如：窗边的陶瓷杯，柔和侧光，浅景深"
+            placeholder={tx("例如：窗边的陶瓷杯，柔和侧光，浅景深")}
           />
-          <Field label="负面提示词" hint="不希望出现的内容，可以留空。">
+          <Field label={tx("负面提示词")} hint={tx("不希望出现的内容，可以留空。")}>
             <Input
-              placeholder="例如：模糊，变形，多余手指"
+              placeholder={tx("例如：模糊，变形，多余手指")}
               value={negative}
               onChange={(e) => setNegative(e.target.value)}
             />
           </Field>
           <AspectSelect value={aspect} onChange={setAspect} />
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="步数" hint="采样步数，1 到 150。数值越大通常越慢。">
+            <Field label={tx("步数")} hint={tx("采样步数，1 到 150。数值越大通常越慢。")}>
               <NumberStepper
-                ariaLabel="步数"
+                ariaLabel={tx("步数")}
                 min={1}
                 max={150}
                 value={steps}
                 onChange={setSteps}
               />
             </Field>
-            <Field label="种子" hint="-1 表示每次随机，也可以用右侧按钮摇一个。">
+            <Field label={tx("种子")} hint={tx("-1 表示每次随机，也可以用右侧按钮摇一个。")}>
               <div className="flex gap-2">
                 <div className="min-w-0 flex-1">
                   <NumberStepper
-                    ariaLabel="种子"
+                    ariaLabel={tx("种子")}
                     min={-1}
                     max={2147483647}
                     value={seed}
@@ -199,16 +204,16 @@ export function ImageGenPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  title="随机一个种子"
+                  title={tx("随机一个种子")}
                   onClick={() => setSeed(Math.floor(Math.random() * 2147483647))}
                 >
                   <Dices />
                 </Button>
               </div>
             </Field>
-            <Field label="张数" hint="同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。">
+            <Field label={tx("张数")} hint={tx("同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。")}>
               <NumberStepper
-                ariaLabel="张数"
+                ariaLabel={tx("张数")}
                 min={1}
                 max={4}
                 value={count}
@@ -239,7 +244,7 @@ export function ImageGenPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
-              {running ? `生成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "生成"}
+              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
             </Button>
           </div>
         </CardContent>
@@ -250,13 +255,13 @@ export function ImageGenPage() {
             job={job ?? null}
             mediaKind="image"
             historyKind="image"
-            emptyHint="填写左侧参数，生成第一张图片"
+            emptyHint={tx("填写左侧参数，生成第一张图片")}
             meta={[
-              { label: "服务", value: provider?.name ?? "" },
-              { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
-              { label: "尺寸", value: `${aspect.width}×${aspect.height}` },
+              { label: tx("服务"), value: provider?.name ?? "" },
+              { label: tx("工作流"), value: isComfy ? (pack?.name ?? "") : "" },
+              { label: tx("尺寸"), value: `${aspect.width}×${aspect.height}` },
               {
-                label: promptValue.useOptimized && promptValue.optimized.trim() ? "提示词（已优化）" : "提示词",
+                label: promptValue.useOptimized && promptValue.optimized.trim() ? tx("提示词（已优化）") : tx("提示词"),
                 value: effectivePrompt,
               },
             ]}

@@ -2,6 +2,7 @@ import { Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 interface NumberStepperProps {
   value: number;
@@ -15,6 +16,7 @@ interface NumberStepperProps {
 /** 数字步进器：− / + 微调（自动钳位），中间可直接键入，失焦或回车才校验提交。
  *  step 为小数时按小数模式工作（不取整，允许输入小数点）。 */
 export function NumberStepper({ value, onChange, min, max, step = 1, ariaLabel }: NumberStepperProps) {
+  const tx = useTx();
   const isFloat = step % 1 !== 0;
   const decimals = isFloat ? Math.max(1, String(step).split(".")[1]?.length ?? 1) : 0;
   const clamp = (n: number) => {
@@ -46,7 +48,7 @@ export function NumberStepper({ value, onChange, min, max, step = 1, ariaLabel }
 
   return (
     <div className="flex h-11 items-stretch overflow-hidden rounded-[10px] border border-border bg-field focus-within:ring-2 focus-within:ring-ring">
-      <button type="button" aria-label="减少" className={btnClass} disabled={atMin} onClick={bump(-1)}>
+      <button type="button" aria-label={tx("减少")} className={btnClass} disabled={atMin} onClick={bump(-1)}>
         <Minus className="size-4" />
       </button>
       <input
@@ -67,7 +69,7 @@ export function NumberStepper({ value, onChange, min, max, step = 1, ariaLabel }
         }}
         className="w-full min-w-0 flex-1 bg-transparent text-center text-sm text-foreground focus-visible:outline-none"
       />
-      <button type="button" aria-label="增加" className={btnClass} disabled={atMax} onClick={bump(1)}>
+      <button type="button" aria-label={tx("增加")} className={btnClass} disabled={atMax} onClick={bump(1)}>
         <Plus className="size-4" />
       </button>
     </div>

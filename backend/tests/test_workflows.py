@@ -86,19 +86,66 @@ def test_minimax_h3_i2v_accel_roundtrip() -> None:
     assert off["105:16"]["inputs"]["model"] == ["105:6", 0]
     assert off["105:9"]["inputs"]["model"] == ["105:6", 0]
     assert off["105:9"]["inputs"]["steps"] == 20
-    # 开启：注入 LoRA + preset 步数
+    # 开启：注入 EMA + preset 步数/采样器；用户没改采样器时落到 euler
     on = apply_accel(
         apply_inputs(pack, values),
         pack,
         {
             "enabled": True,
-            "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+            "lora": "minimax_h3_turbo_v4_step600_ema.safetensors",
             "strength": 1.0,
         },
         user_values=values,
     )
-    assert on["105:200"]["inputs"]["lora_name"] == "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+    assert on["105:200"]["class_type"] == "MiniMaxH3TurboLoRA"
+    assert on["105:200"]["inputs"]["lora_name"] == "minimax_h3_turbo_v4_step600_ema.safetensors"
+    assert on["105:200"]["inputs"]["strength"] == 1.0
     assert on["105:9"]["inputs"]["steps"] == 8
+    assert on["105:17"]["inputs"]["sampler_name"] == "euler"
+
+
+H3_VIDEO_PACKS = (
+    "minimax_h3_i2v",
+    "minimax_h3_t2v",
+    "minimax_h3_i2v_enhancer",
+    "minimax_h3_t2v_enhancer",
+    "minimax_h3_i2v_uncensored",
+    "minimax_h3_t2v_uncensored",
+)
+
+
+def test_minimax_h3_video_packs_use_turbo_lora_node() -> None:
+    """六个 H3 视频包共用剪枝主模型可用的 Turbo 节点，而不是标准 LoRA 加载器。"""
+    ema = "minimax_h3_turbo_v4_step600_ema.safetensors"
+    for name in H3_VIDEO_PACKS:
+        pack = get_pack(name)
+        node = pack.workflow["105:200"]
+        assert node["class_type"] == "MiniMaxH3TurboLoRA", name
+        assert node["inputs"]["model"] == ["105:6", 0]
+        assert node["inputs"]["lora_name"] == ema
+        assert node["inputs"]["strength"] == 1.0
+        assert node["inputs"]["low_vram"] is False
+        assert pack.accel["lora"]["recommended"] == ema
+        assert pack.accel["lora"]["match"] == "_ema"
+        assert pack.accel["strength"]["field"] == "inputs.strength"
+        assert pack.accel["preset"]["steps"] == 8
+        assert pack.accel["preset"]["sampler_name"] == "euler"
+        assert "MiniMaxH3TurboLoRA" in (pack.requirements.get("nodes") or [])
+        assert "LoraLoaderModelOnly" not in (pack.requirements.get("nodes") or [])
+        values = {"prompt": "test", "seed": 1}
+        if "image" in pack.inputs:
+            values["image"] = "uploads/x.png"
+        on = apply_accel(apply_inputs(pack, values), pack, {"enabled": True}, user_values=values)
+        assert on["105:200"]["inputs"]["lora_name"] == ema
+        assert on["105:200"]["inputs"]["strength"] == 1.0
+        assert on["105:9"]["inputs"]["steps"] == 8
+        assert on["105:9"]["inputs"]["scheduler"] == "simple"
+        assert on["105:17"]["inputs"]["sampler_name"] == "euler"
+        off = apply_accel(apply_inputs(pack, values), pack, {"enabled": False}, user_values=values)
+        assert "105:200" not in off
+        assert off["105:16"]["inputs"]["model"] == ["105:6", 0]
+        assert off["105:9"]["inputs"]["model"] == ["105:6", 0]
+        assert off["105:17"]["inputs"]["sampler_name"] == "res_multistep"
 
 
 def test_minimax_h3_enhancer_pack_loads() -> None:
@@ -118,13 +165,14 @@ def test_minimax_h3_enhancer_pack_loads() -> None:
 
 
 def test_minimax_h3_i2v_uncensored_pack() -> None:
-    """图生越狱无增强：heretic NVFP4 + LightX2V 8-step；保留 first_frame。"""
+    """图生越狱无增强：heretic NVFP4 + EMA Turbo 节点；保留 first_frame。"""
     unc = get_pack("minimax_h3_i2v_uncensored")
     assert unc.capability == "i2v"
     assert "image" in unc.inputs
     assert unc.workflow["105:104"]["inputs"]["first_frame"] == ["114", 0]
     assert unc.workflow["105:13"]["inputs"]["clip_name"] == "qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors"
-    assert "fl2v_turbo_8step" in unc.workflow["105:200"]["inputs"]["lora_name"]
+    assert unc.workflow["105:200"]["class_type"] == "MiniMaxH3TurboLoRA"
+    assert unc.workflow["105:200"]["inputs"]["lora_name"].endswith("_ema.safetensors")
     assert "MiniMaxH3PromptEnhancer" not in (unc.requirements.get("nodes") or [])
     values = {"prompt": "画中人转身", "seed": 6, "image": "uploads/x.png"}
     uwf = apply_inputs(unc, values)
@@ -138,12 +186,14 @@ def test_minimax_h3_i2v_uncensored_pack() -> None:
         unc,
         {
             "enabled": True,
-            "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+            "lora": "minimax_h3_turbo_v4_step600_ema.safetensors",
             "strength": 1.0,
         },
         user_values=values,
     )
     assert uon["105:9"]["inputs"]["steps"] == 8
+    assert uon["105:17"]["inputs"]["sampler_name"] == "euler"
+    assert uon["105:200"]["inputs"]["strength"] == 1.0
 
 
 def test_minimax_h3_t2v_packs() -> None:
@@ -173,7 +223,8 @@ def test_minimax_h3_t2v_packs() -> None:
     assert "image" not in unc.inputs
     assert "first_frame" not in unc.workflow["105:104"]["inputs"]
     assert unc.workflow["105:13"]["inputs"]["clip_name"] == "qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors"
-    assert "fl2v_turbo_8step" in unc.workflow["105:200"]["inputs"]["lora_name"]
+    assert unc.workflow["105:200"]["class_type"] == "MiniMaxH3TurboLoRA"
+    assert unc.workflow["105:200"]["inputs"]["lora_name"].endswith("_ema.safetensors")
     uwf = apply_inputs(unc, {"prompt": "民国上海", "seed": 5})
     assert uwf["105:104"]["inputs"]["prompt"] == "民国上海"
     uoff = apply_accel(uwf, unc, {"enabled": False}, user_values={"prompt": "民国上海"})
@@ -183,12 +234,13 @@ def test_minimax_h3_t2v_packs() -> None:
         unc,
         {
             "enabled": True,
-            "lora": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+            "lora": "minimax_h3_turbo_v4_step600_ema.safetensors",
             "strength": 1.0,
         },
         user_values={"prompt": "民国上海"},
     )
     assert uon["105:9"]["inputs"]["steps"] == 8
+    assert uon["105:17"]["inputs"]["sampler_name"] == "euler"
 
 
 def test_extract_texts_from_declared_nodes() -> None:

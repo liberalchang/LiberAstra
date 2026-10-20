@@ -35,6 +35,7 @@ const zh = {
     workflows: "工作流包",
     system: "系统设置",
     apiDocs: "API 文档",
+    cliDocs: "CLI 文档",
   },
   common: {
     logout: "退出登录",
@@ -151,6 +152,7 @@ const en: typeof zh = {
     workflows: "Workflow Packs",
     system: "System",
     apiDocs: "API Docs",
+    cliDocs: "CLI Docs",
   },
   common: {
     logout: "Sign out",

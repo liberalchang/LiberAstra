@@ -32,6 +32,7 @@ import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { cn, formatStepName } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 const ASPECTS = [
   { value: "9:16", label: "9:16 竖屏" },
@@ -47,12 +48,16 @@ const TYPE_MODES: { value: string; label: string; desc: string }[] = [
 ];
 
 /** 配音服务下拉显示名：edge_tts 固定为「本地」。 */
-function ttsProviderLabel(p: { type: string; name: string }): string {
-  return p.type === "edge_tts" ? "本地" : p.name;
+function ttsProviderLabel(
+  p: { type: string; name: string },
+  tx: (zh: string, vars?: Record<string, string | number>) => string,
+): string {
+  return p.type === "edge_tts" ? tx("本地") : p.name;
 }
 
 /** 批量任务的单行状态：3 秒轮询直到终态，成功后刷新历史作品。 */
 function BatchJobRow({ topic, jobId }: { topic: string; jobId: string }) {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const { data: job } = useQuery({
     queryKey: ["job", jobId],
@@ -67,16 +72,16 @@ function BatchJobRow({ topic, jobId }: { topic: string; jobId: string }) {
   }, [job?.status, queryClient]);
 
   const statusText = !job
-    ? "加载中…"
+    ? tx("加载中…")
     : job.status === "pending"
-      ? "排队中"
+      ? tx("排队中")
       : job.status === "running"
-        ? `进行中… ${Math.round(job.progress * 100)}%`
+        ? tx("进行中… {pct}%", { pct: Math.round(job.progress * 100) })
         : job.status === "succeeded"
-          ? "完成"
+          ? tx("完成")
           : job.status === "failed"
-            ? `失败：${job.error ?? ""}`
-            : "已取消";
+            ? tx("失败：{err}", { err: job.error ?? "" })
+            : tx("已取消");
   const cls =
     job?.status === "succeeded"
       ? "text-green-600"
@@ -95,11 +100,12 @@ function BatchJobRow({ topic, jobId }: { topic: string; jobId: string }) {
 
 /** 批量任务总览卡。 */
 function BatchStatus({ jobs }: { jobs: { topic: string; jobId: string }[] }) {
+  const tx = useTx();
   return (
     <Card>
       <CardHeader>
-        <CardTitle>批量任务</CardTitle>
-        <CardDescription>每个主题一个任务，排队执行；单个失败不影响其他。</CardDescription>
+        <CardTitle>{tx("批量任务")}</CardTitle>
+        <CardDescription>{tx("每个主题一个任务，排队执行；单个失败不影响其他。")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {jobs.map((j) => (
@@ -111,6 +117,7 @@ function BatchStatus({ jobs }: { jobs: { topic: string; jobId: string }[] }) {
 }
 
 export function VideoQuickPage() {
+  const tx = useTx();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const enabled = providers?.filter((p) => p.enabled);
   const llmProviders = enabled?.filter((p) => p.capabilities.includes("llm"));
@@ -303,7 +310,7 @@ export function VideoQuickPage() {
           .map((s) => s.trim())
           .filter(Boolean);
         board = {
-          title: scriptTitle || "自定义文案",
+          title: scriptTitle || tx("自定义文案"),
           frames: segments.map((text, i) => ({
             text,
             visual: visuals[i] || visuals[0] || text,
@@ -375,7 +382,7 @@ export function VideoQuickPage() {
       try {
         storyboard = JSON.parse(storyboardText ?? "");
       } catch (e) {
-        throw new Error(`分镜 JSON 解析失败: ${(e as Error).message}`);
+        throw new Error(tx("分镜 JSON 解析失败: {err}", { err: (e as Error).message }));
       }
       return api.submitQuickVideo(await buildBody(storyboard));
     },
@@ -437,7 +444,7 @@ export function VideoQuickPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader kind="video" icon={Clapperboard} title="快速创作" description="一句话出短视频：文案、分镜、配音、字幕和拼接。" />
+      <PageHeader kind="video" icon={Clapperboard} title={tx("快速创作")} description={tx("一句话出短视频：文案、分镜、配音、字幕和拼接。")} />
       <SplitPane
         storageKey="video-quick"
         left={
@@ -445,16 +452,16 @@ export function VideoQuickPage() {
       {/* ① 视频脚本 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><FileText className="size-4" /> 视频脚本</CardTitle>
-          <CardDescription>AI 按主题写口播，或直接用你自己的文案。</CardDescription>
+          <CardTitle className="flex items-center gap-2"><FileText className="size-4" />{tx("视频脚本")}</CardTitle>
+          <CardDescription>{tx("AI 按主题写口播，或直接用你自己的文案。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Segmented
-            ariaLabel="文案来源"
+            ariaLabel={tx("文案来源")}
             options={[
-              { value: "topic", label: "AI 创作" },
-              { value: "script", label: "固定文案" },
-              { value: "batch", label: "批量创作" },
+              { value: "topic", label: tx("AI 创作") },
+              { value: "script", label: tx("固定文案") },
+              { value: "batch", label: tx("批量创作") },
             ]}
             value={mode}
             onChange={setMode}
@@ -463,46 +470,46 @@ export function VideoQuickPage() {
             <p className="text-sm text-amber-700 dark:text-amber-400">
               尚未配置 LLM。请到{" "}
               <Link className="underline" to="/settings/system">
-                系统设置
+                {tx('系统设置')}
               </Link>{" "}
-              或「服务提供方」添加后再创作。
+              {tx('或「服务提供方」添加后再创作。')}
             </p>
           )}
           {mode === "batch" ? (
             <>
               <Field
-                label="主题列表"
-                hint="一行一个主题，每个主题即该视频的标题，AI 分别生成口播文案并各出一条视频。上限 100 个。脚本 LLM 使用系统设置中的默认服务。"
+                label={tx("主题列表")}
+                hint={tx("一行一个主题，每个主题即该视频的标题，AI 分别生成口播文案并各出一条视频。上限 100 个。脚本 LLM 使用系统设置中的默认服务。")}
               >
                 <textarea
                   className={`${areaClass} min-h-32`}
-                  placeholder={"例如：\n三个提高效率的小技巧\n职场新人沟通指南\n五分钟学会番茄工作法"}
+                  placeholder={tx("例如：\n三个提高效率的小技巧\n职场新人沟通指南\n五分钟学会番茄工作法")}
                   value={batchText}
                   onChange={(e) => setBatchText(e.target.value)}
                 />
               </Field>
-              <Field label="分镜数" hint="每条视频的分镜数，范围 1 到 12，全部主题共用。">
-                <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
+              <Field label={tx("分镜数")} hint={tx("每条视频的分镜数，范围 1 到 12，全部主题共用。")}>
+                <NumberStepper ariaLabel={tx("分镜数")} min={1} max={12} value={count} onChange={setCount} />
               </Field>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                共 {batchTopics.length} 个主题。每个主题一个任务、排队执行，可在任务中心查看或取消。
+                {tx("共 {n} 个主题。每个主题一个任务、排队执行，可在任务中心查看或取消。", { n: batchTopics.length })}
               </p>
             </>
           ) : mode === "topic" ? (
             <>
               <PromptField
-                label="主题"
-                hint="主题会作为标题显示在视频画面里；可先 ✨ 扩写意图，再由系统默认 LLM 写口播并拆分镜。"
+                label={tx("主题")}
+                hint={tx("主题会作为标题显示在视频画面里；可先 ✨ 扩写意图，再由系统默认 LLM 写口播并拆分镜。")}
                 value={topicValue}
                 onChange={setTopicValue}
                 jobScope="video-quick:topic-opt"
                 task="quick_topic"
                 aspect={aspect}
                 workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
-                placeholder="例如：三个提高效率的小技巧，语气轻快，面向职场新人"
+                placeholder={tx("例如：三个提高效率的小技巧，语气轻快，面向职场新人")}
               />
-              <Field label="分镜数" hint="范围 1 到 12。AI 按这个数量拆镜。">
-                <NumberStepper ariaLabel="分镜数" min={1} max={12} value={count} onChange={setCount} />
+              <Field label={tx("分镜数")} hint={tx("范围 1 到 12。AI 按这个数量拆镜。")}>
+                <NumberStepper ariaLabel={tx("分镜数")} min={1} max={12} value={count} onChange={setCount} />
               </Field>
               {(tpl?.type === "image" || tpl?.type === "video") && (
                 <div className="flex flex-col gap-1.5">
@@ -512,38 +519,38 @@ export function VideoQuickPage() {
                       checked={optimizeVisuals}
                       onChange={(e) => setOptimizeVisuals(e.target.checked)}
                     />
-                    生成时用 LLM 写画面提示词
+                    {tx('生成时用 LLM 写画面提示词')}
                   </label>
                   <span className="text-xs leading-relaxed text-muted-foreground">
-                    开启后由 LLM 把口播改写成画面描述，再交给插图或视频工作流。是否再经 Guide 增强只由所选工作流包决定，与本开关无关。
+                    {tx('开启后由 LLM 把口播改写成画面描述，再交给插图或视频工作流。是否再经 Guide 增强只由所选工作流包决定，与本开关无关。')}
                   </span>
                 </div>
               )}
             </>
           ) : (
             <>
-              <Field label="主题" hint="作为标题显示在视频画面里，不经过 AI 改写。">
+              <Field label={tx("主题")} hint={tx("作为标题显示在视频画面里，不经过 AI 改写。")}>
                 <Input
-                  placeholder="例如：三个提高效率的小技巧"
+                  placeholder={tx("例如：三个提高效率的小技巧")}
                   value={scriptTitle}
                   onChange={(e) => setScriptTitle(e.target.value)}
                 />
               </Field>
               {tpl?.type === "image" || tpl?.type === "video" ? (
                 <PromptField
-                  label="口播文案 / 画面提示词"
-                  hint="原始输入为口播（按切分方式拆镜）；✨ 生成每镜画面提示词。开关决定合成时用画面词还是口播原文。"
+                  label={tx("口播文案 / 画面提示词")}
+                  hint={tx("原始输入为口播（按切分方式拆镜）；✨ 生成每镜画面提示词。开关决定合成时用画面词还是口播原文。")}
                   value={scriptVisual}
                   onChange={setScriptVisual}
                   jobScope="video-quick:script-opt"
                   task="quick_visual"
                   aspect={aspect}
                   workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
-                  placeholder="输入口播文案…"
+                  placeholder={tx("输入口播文案…")}
                   minRowsClass="min-h-28"
                 />
               ) : (
-                <Field label="口播文案" hint="按下方切分方式拆成多个分镜，文案原样朗读。">
+                <Field label={tx("口播文案")} hint={tx("按下方切分方式拆成多个分镜，文案原样朗读。")}>
                   <textarea
                     className={`${areaClass} min-h-28`}
                     value={script}
@@ -553,11 +560,11 @@ export function VideoQuickPage() {
                   />
                 </Field>
               )}
-              <Field label="切分方式" hint="决定文案如何拆成一条条分镜。">
+              <Field label={tx("切分方式")} hint={tx("决定文案如何拆成一条条分镜。")}>
                 <select className={selectClass} value={splitMode} onChange={(e) => setSplitMode(e.target.value)}>
-                  <option value="paragraph">按段切分</option>
-                  <option value="line">按行切分</option>
-                  <option value="sentence">按句切分</option>
+                  <option value="paragraph">{tx("按段切分")}</option>
+                  <option value="line">{tx("按行切分")}</option>
+                  <option value="sentence">{tx("按句切分")}</option>
                 </select>
               </Field>
             </>
@@ -566,10 +573,10 @@ export function VideoQuickPage() {
             <div className="flex flex-col gap-1.5">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={storyboardOnly} onChange={(e) => setStoryboardOnly(e.target.checked)} />
-                生成分镜后暂停，人工确认后再合成
+                {tx('生成分镜后暂停，人工确认后再合成')}
               </label>
               <span className="text-xs leading-relaxed text-muted-foreground">
-                勾选后只出脚本和分镜 JSON，可以在下方修改画面提示词，确认无误再合成视频。
+                {tx('勾选后只出脚本和分镜 JSON，可以在下方修改画面提示词，确认无误再合成视频。')}
               </span>
             </div>
           )}
@@ -579,19 +586,19 @@ export function VideoQuickPage() {
       {/* ② 分镜模板 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" /> 分镜模板</CardTitle>
-          <CardDescription>模板决定每镜的画面：静态样式纯排版、生成插图逐镜出图、生成视频逐镜出片段。</CardDescription>
+          <CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />{tx("分镜模板")}</CardTitle>
+          <CardDescription>{tx("模板决定每镜的画面：静态样式纯排版、生成插图逐镜出图、生成视频逐镜出片段。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Field label="画幅" hint="竖屏适合短视频平台，横屏适合宽画面。">
+          <Field label={tx("画幅")} hint={tx("竖屏适合短视频平台，横屏适合宽画面。")}>
             <select className={selectClass} value={aspect} onChange={(e) => setAspect(e.target.value)}>
               {ASPECTS.map((a) => (
-                <option key={a.value} value={a.value}>{a.label}</option>
+                <option key={a.value} value={a.value}>{tx(a.label)}</option>
               ))}
             </select>
           </Field>
           {usableTemplates && usableTemplates.length === 0 && (
-            <p className="text-sm text-muted-foreground">当前画幅没有模板，请到「模板管理」上传。</p>
+            <p className="text-sm text-muted-foreground">{tx("当前画幅没有模板，请到「模板管理」上传。")}</p>
           )}
           {/* 已选模板摘要：缩略图 + 名称 + 类型，默认折叠不占空间 */}
           {tpl && (
@@ -601,11 +608,11 @@ export function VideoQuickPage() {
                 <div className="truncate text-sm font-medium">{tpl.name}</div>
                 <div className="text-xs leading-relaxed text-muted-foreground">
                   {tpl.type_label} · {tpl.width}x{tpl.height}
-                  {tpl.source === "builtin" ? " · 内置" : ""}
+                  {tpl.source === "builtin" ? tx(" · 内置") : ""}
                 </div>
               </div>
               <Button variant="outline" size="sm" onClick={() => setPickerOpen((v) => !v)}>
-                {pickerOpen ? "收起" : "更换模板"}
+                {pickerOpen ? tx("收起") : tx("更换模板")}
               </Button>
             </div>
           )}
@@ -613,13 +620,13 @@ export function VideoQuickPage() {
           {(pickerOpen || !tpl) && (
             <div className="flex flex-col gap-3">
               <Segmented
-                ariaLabel="分镜模式"
-                options={TYPE_MODES.map((m) => ({ value: m.value, label: m.label }))}
+                ariaLabel={tx("分镜模式")}
+                options={TYPE_MODES.map((m) => ({ value: m.value, label: tx(m.label) }))}
                 value={modeType}
                 onChange={switchModeType}
               />
               <p className="text-xs text-muted-foreground">
-                {TYPE_MODES.find((m) => m.value === modeType)?.desc}
+                {tx(TYPE_MODES.find((m) => m.value === modeType)?.desc ?? "")}
               </p>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {usableTemplates
@@ -647,14 +654,14 @@ export function VideoQuickPage() {
                   ))}
               </div>
               {usableTemplates && !usableTemplates.some((t) => t.type === modeType) && (
-                <p className="text-sm text-muted-foreground">该模式下当前画幅没有模板，可到「模板管理」上传。</p>
+                <p className="text-sm text-muted-foreground">{tx("该模式下当前画幅没有模板，可到「模板管理」上传。")}</p>
               )}
             </div>
           )}
           {tpl?.type === "image" && tpl.needs_image && (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="插图服务" hint="逐镜生成插图的图像 Provider。">
+                <Field label={tx("插图服务")} hint={tx("逐镜生成插图的图像 Provider。")}>
                   <select
                     className={selectClass}
                     value={imageProvider?.id ?? ""}
@@ -666,7 +673,7 @@ export function VideoQuickPage() {
                   </select>
                 </Field>
                 {imageProvider?.type === "comfyui" && (
-                  <Field label="插图工作流" hint="逐镜出图用的工作流包，其参数（模型等）在下方展开。">
+                  <Field label={tx("插图工作流")} hint={tx("逐镜出图用的工作流包，其参数（模型等）在下方展开。")}>
                     <select
                       className={selectClass}
                       value={imagePack?.name ?? ""}
@@ -678,8 +685,8 @@ export function VideoQuickPage() {
                     </select>
                   </Field>
                 )}
-                <Field label="风格前缀" hint="加在每个画面提示词前面，保持全片风格统一，可以留空。">
-                  <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder="例如：电影感，浅景深，" />
+                <Field label={tx("风格前缀")} hint={tx("加在每个画面提示词前面，保持全片风格统一，可以留空。")}>
+                  <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder={tx("例如：电影感，浅景深，")} />
                 </Field>
               </div>
               {imagePack && hasAccel(imagePack.accel) && imagePack.accel && (
@@ -704,7 +711,7 @@ export function VideoQuickPage() {
           {tpl?.type === "video" && (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="视频服务" hint="逐镜生成片段的 Provider（决定下方模型列表来源）。">
+                <Field label={tx("视频服务")} hint={tx("逐镜生成片段的 Provider（决定下方模型列表来源）。")}>
                   <select
                     className={selectClass}
                     value={videoProvider?.id ?? ""}
@@ -715,7 +722,7 @@ export function VideoQuickPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="视频工作流" hint="每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。">
+                <Field label={tx("视频工作流")} hint={tx("每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。")}>
                   <select
                     className={selectClass}
                     value={videoPack?.name ?? ""}
@@ -755,16 +762,16 @@ export function VideoQuickPage() {
                 />
               )}
               <p className="text-xs leading-relaxed text-amber-500">
-                注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。
+                {tx("注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。", { count })}
               </p>
             </>
           )}
           {/* 文字与字幕：模板标题/文案的显隐与字号倍率，视频烧录字幕的开关与字号 */}
           <div className="flex flex-col gap-3 border-t border-border pt-3">
-            <span className="text-sm font-medium text-foreground">文字与字幕</span>
+            <span className="text-sm font-medium text-foreground">{tx("文字与字幕")}</span>
             {tpl?.type !== "video" && (
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="模板标题" hint="模板排版顶部的视频标题。关闭后不显示；倍率 1 为模板默认大小。">
+                <Field label={tx("模板标题")} hint={tx("模板排版顶部的视频标题。关闭后不显示；倍率 1 为模板默认大小。")}>
                   <div className="flex items-center gap-2">
                     <label className="flex shrink-0 items-center gap-1.5 text-sm">
                       <input
@@ -772,14 +779,14 @@ export function VideoQuickPage() {
                         checked={showTitle}
                         onChange={(e) => setShowTitle(e.target.checked)}
                       />
-                      显示
+                      {tx('显示')}
                     </label>
                     <div className="min-w-0 flex-1">
-                      <NumberStepper ariaLabel="标题字号倍率" min={0.5} max={2} step={0.1} value={titleScale} onChange={setTitleScale} />
+                      <NumberStepper ariaLabel={tx("标题字号倍率")} min={0.5} max={2} step={0.1} value={titleScale} onChange={setTitleScale} />
                     </div>
                   </div>
                 </Field>
-                <Field label="模板文案" hint="模板排版里的分镜文案（卡片/正文区）。关闭后模板不显示文案；画面底部的字幕条由下方「视频字幕」单独控制。">
+                <Field label={tx("模板文案")} hint={tx("模板排版里的分镜文案（卡片/正文区）。关闭后模板不显示文案；画面底部的字幕条由下方「视频字幕」单独控制。")}>
                   <div className="flex items-center gap-2">
                     <label className="flex shrink-0 items-center gap-1.5 text-sm">
                       <input
@@ -787,39 +794,39 @@ export function VideoQuickPage() {
                         checked={showText}
                         onChange={(e) => setShowText(e.target.checked)}
                       />
-                      显示
+                      {tx('显示')}
                     </label>
                     <div className="min-w-0 flex-1">
-                      <NumberStepper ariaLabel="文案字号倍率" min={0.5} max={2} step={0.1} value={textScale} onChange={setTextScale} />
+                      <NumberStepper ariaLabel={tx("文案字号倍率")} min={0.5} max={2} step={0.1} value={textScale} onChange={setTextScale} />
                     </div>
                   </div>
                 </Field>
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="视频字幕" hint="烧录在画面底部的字幕条（分镜文案），由 ffmpeg 生成，与模板内文案相互独立。关闭后成片无字幕。">
+              <Field label={tx("视频字幕")} hint={tx("烧录在画面底部的字幕条（分镜文案），由 ffmpeg 生成，与模板内文案相互独立。关闭后成片无字幕。")}>
                 <label className="flex h-11 items-center gap-1.5 text-sm">
                   <input
                     type="checkbox"
                     checked={showSubtitle}
                     onChange={(e) => setShowSubtitle(e.target.checked)}
                   />
-                  烧录字幕
+                  {tx('烧录字幕')}
                 </label>
               </Field>
-              <Field label="字幕字号" hint="底部字幕条的字号。0 为自动（跟随画面高度）；静态/插图/视频模式通用。">
+              <Field label={tx("字幕字号")} hint={tx("底部字幕条的字号。0 为自动（跟随画面高度）；静态/插图/视频模式通用。")}>
                 <NumberStepper
-                  ariaLabel="字幕字号"
+                  ariaLabel={tx("字幕字号")}
                   min={0}
                   max={64}
                   value={subtitleSize}
                   onChange={setSubtitleSize}
                 />
               </Field>
-              <Field label="字幕颜色" hint="底部字幕条文字颜色，默认白色。">
+              <Field label={tx("字幕颜色")} hint={tx("底部字幕条文字颜色，默认白色。")}>
                 <input
                   type="color"
-                  aria-label="字幕颜色"
+                  aria-label={tx("字幕颜色")}
                   value={subtitleColor}
                   onChange={(e) => setSubtitleColor(e.target.value.toUpperCase())}
                   className="h-11 w-full cursor-pointer rounded-[10px] border border-border bg-field p-1.5"
@@ -833,15 +840,15 @@ export function VideoQuickPage() {
       {/* ③ 配音合成 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Volume2 className="size-4" /> 配音合成</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Volume2 className="size-4" />{tx("配音合成")}</CardTitle>
           <CardDescription>
-            逐镜配音。ComfyUI 语音工作流、Liber Speech（音色库克隆）或本机/第三方 TTS（服务音色列表）。
+            {tx('逐镜配音。ComfyUI 语音工作流、Liber Speech（音色库克隆）或本机/第三方 TTS（服务音色列表）。')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Field
-            label="配音服务"
-            hint="已配置且具备 tts 能力的服务。「本地」为微软 Edge TTS。"
+            label={tx("配音服务")}
+            hint={tx("已配置且具备 tts 能力的服务。「本地」为微软 Edge TTS。")}
           >
             <select
               className={selectClass}
@@ -850,14 +857,14 @@ export function VideoQuickPage() {
             >
               {ttsProviders?.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {ttsProviderLabel(p)}
+                  {ttsProviderLabel(p, tx)}
                 </option>
               ))}
             </select>
           </Field>
           {ttsIsComfy ? (
             <>
-              <Field label="语音工作流" hint="选择已导入的 Comfy 语音工作流包，朗读文本会自动注入。">
+              <Field label={tx("语音工作流")} hint={tx("选择已导入的 Comfy 语音工作流包，朗读文本会自动注入。")}>
                 <select
                   className={selectClass}
                   value={ttsPack?.name ?? ""}
@@ -872,7 +879,7 @@ export function VideoQuickPage() {
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  没有 tts 能力的工作流包，请到「设置 → 工作流包」导入（如 IndexTTS2）。
+                  {tx('没有 tts 能力的工作流包，请到「设置 → 工作流包」导入（如 IndexTTS2）。')}
                 </p>
               )}
               {ttsPack && (
@@ -887,29 +894,29 @@ export function VideoQuickPage() {
             </>
           ) : isLibraryVoice ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="音色" hint="选自音色库（参考音频克隆）。不选则在右侧填写音色名。">
+              <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则在右侧填写音色名。")}>
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">手动指定音色…</option>
+                  <option value="">{tx("手动指定音色…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
-                      {v.is_default ? "（默认）" : ""}
+                      {v.is_default ? tx("（默认）") : ""}
                     </option>
                   ))}
                 </select>
               </Field>
               {voiceRecordId === "" && (
-                <Field label="音色名" hint="Liber Speech 用语言代码，例如 zh、en。">
+                <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
                   <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
                 </Field>
               )}
             </div>
           ) : (
-            <Field label="音色" hint="来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。">
+            <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
               <div className="flex gap-2">
                 {serviceVoices.length > 0 ? (
                   <select
@@ -917,9 +924,9 @@ export function VideoQuickPage() {
                     value={voiceName}
                     onChange={(e) => setVoiceName(e.target.value)}
                   >
-                    <option value="">选择音色…</option>
+                    <option value="">{tx("选择音色…")}</option>
                     {voiceName && !serviceVoices.includes(voiceName) && (
-                      <option value={voiceName}>{voiceName}（不在列表中）</option>
+                      <option value={voiceName}>{voiceName}{tx("（不在列表中）")}</option>
                     )}
                     {serviceVoices.map((v) => (
                       <option key={v} value={v}>{v}</option>
@@ -927,7 +934,7 @@ export function VideoQuickPage() {
                   </select>
                 ) : (
                   <Input
-                    placeholder={refreshModels.isPending ? "正在从服务拉取音色…" : "拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural"}
+                    placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural")}
                     value={voiceName}
                     onChange={(e) => setVoiceName(e.target.value)}
                   />
@@ -935,7 +942,7 @@ export function VideoQuickPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  title="从服务拉取音色列表"
+                  title={tx("从服务拉取音色列表")}
                   disabled={!ttsProvider || refreshModels.isPending}
                   onClick={() => ttsProvider && refreshModels.mutate(ttsProvider.id)}
                 >
@@ -950,27 +957,27 @@ export function VideoQuickPage() {
       {/* ④ 背景音乐 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Music className="size-4" /> 背景音乐</CardTitle>
-          <CardDescription>可选。上传后按设定音量混入成片。</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Music className="size-4" />{tx("背景音乐")}</CardTitle>
+          <CardDescription>{tx("可选。上传后按设定音量混入成片。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="背景音乐" hint="从音乐库选择；留空则只有人声。">
+            <Field label={tx("背景音乐")} hint={tx("从音乐库选择；留空则只有人声。")}>
               <select
                 className={selectClass}
                 value={bgmName}
                 onChange={(e) => setBgmName(e.target.value)}
               >
-                <option value="">无背景音乐</option>
+                <option value="">{tx("无背景音乐")}</option>
                 {bgmName && !bgmList?.some((b) => b.name === bgmName) && (
-                  <option value={bgmName}>{bgmName}（已不在库中）</option>
+                  <option value={bgmName}>{bgmName}{tx("（已不在库中）")}</option>
                 )}
                 {bgmList?.map((b) => (
                   <option key={b.name} value={b.name}>{b.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="BGM 音量" hint="0 到 1，建议 0.1 到 0.3，别盖过人声。">
+            <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3，别盖过人声。")}>
               <Input
                 type="number"
                 min={0}
@@ -981,10 +988,10 @@ export function VideoQuickPage() {
               />
             </Field>
           </div>
-          <Field label="上传新音乐" hint="上传到音乐库并直接选中；支持 MP3 / WAV / M4A / OGG，以后可直接复用。">
+          <Field label={tx("上传新音乐")} hint={tx("上传到音乐库并直接选中；支持 MP3 / WAV / M4A / OGG，以后可直接复用。")}>
             <FileDrop
               accept="audio/*"
-              title={uploadBgm.isPending ? "上传中…" : "点击或拖拽上传，自动存入音乐库"}
+              title={uploadBgm.isPending ? tx("上传中…") : tx("点击或拖拽上传，自动存入音乐库")}
               subtitle="MP3 / WAV / M4A / OGG / FLAC / AAC"
               onSelect={(fs) => {
                 const f = fs?.[0];
@@ -996,16 +1003,16 @@ export function VideoQuickPage() {
           <div className="flex items-center gap-3">
             {mode === "batch" ? (
               <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
-                {batchSubmit.isPending ? "提交中…" : `批量生成 ${batchTopics.length} 个视频`}
+                {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
               </Button>
             ) : (
               <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
-                {running ? `进行中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始创作"}
+                {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
               </Button>
             )}
             {running && job?.steps?.length > 0 && (
               <span className="text-sm text-muted-foreground">
-                {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""))}
+                {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
               </span>
             )}
           </div>
@@ -1019,11 +1026,11 @@ export function VideoQuickPage() {
             {storyboardText && (
               <Card>
                 <CardHeader>
-                  <CardTitle>分镜编辑</CardTitle>
-                  <CardDescription>修改 frames 后重新合成（跳过 LLM）。</CardDescription>
+                  <CardTitle>{tx("分镜编辑")}</CardTitle>
+                  <CardDescription>{tx("修改 frames 后重新合成（跳过 LLM）。")}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
-                  <Field label="分镜 JSON" hint="每镜一条：text 是口播句、visual 是画面提示词。">
+                  <Field label={tx("分镜 JSON")} hint={tx("每镜一条：text 是口播句、visual 是画面提示词。")}>
                     <textarea
                       className={`${areaClass} min-h-48 font-mono text-xs`}
                       value={storyboardText}
@@ -1031,7 +1038,7 @@ export function VideoQuickPage() {
                     />
                   </Field>
                   <Button className="w-fit" variant="outline" onClick={() => resubmit.mutate()} disabled={resubmit.isPending || !!running}>
-                    按修改后的分镜重新合成
+                    {tx('按修改后的分镜重新合成')}
                   </Button>
                 </CardContent>
               </Card>
@@ -1040,11 +1047,11 @@ export function VideoQuickPage() {
               job={job ?? null}
               mediaKind="video"
               historyKind="video"
-              emptyHint="一句话或一段文案，生成一条短视频"
+              emptyHint={tx("一句话或一段文案，生成一条短视频")}
               meta={[
-                { label: "画幅", value: aspect },
-                { label: "模板", value: tpl ? `${tpl.name}（${tpl.type_label}）` : "" },
-                { label: "内容", value: mode === "batch" ? `批量 ${batchTopics.length} 个主题` : mode === "topic" ? effectiveTopic : script },
+                { label: tx("画幅"), value: aspect },
+                { label: tx("模板"), value: tpl ? tx("{name}（{type}）", { name: tpl.name, type: tx(tpl.type_label) }) : "" },
+                { label: tx("内容"), value: mode === "batch" ? tx("批量 {n} 个主题", { n: batchTopics.length }) : mode === "topic" ? effectiveTopic : script },
               ]}
             />
           </div>

@@ -1,8 +1,8 @@
 # 由本地 Comfy 画布【文生视频】video_minimax_h3_t2v.json 整理：
-# 越狱 NVFP4 TE + LightX2V 8-step Turbo；无提示词增强；适配 LiberAstra accel（非图内 Switch）。
+# 越狱 NVFP4 TE；Turbo 与官方包相同（EMA + MiniMaxH3TurboLoRA）；无提示词增强。
 name: minimax_h3_t2v_uncensored
 capability: t2v
-description: MiniMax H3 文生视频（越狱 NVFP4 TE；无增强器；默认 LightX2V 8 步 Turbo LoRA；输出带同步音效）
+description: MiniMax H3 文生视频（越狱 NVFP4 TE；无增强器；可选 EMA Turbo LoRA；输出带同步音效）
 fps: 24
 inputs:
   prompt:
@@ -83,19 +83,20 @@ accel:
   lora:
     field: inputs.lora_name
     options_from: loras
-    match: minimax_h3
-    recommended: minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors
+    match: _ema
+    recommended: minimax_h3_turbo_v4_step600_ema.safetensors
   strength:
-    field: inputs.strength_model
+    field: inputs.strength
     default: 1.0
     min: 0.5
     max: 1.5
   preset:
     steps: 8
+    sampler_name: euler
 requirements:
   nodes:
     - MiniMaxH3ImageToVideo
-    - LoraLoaderModelOnly
+    - MiniMaxH3TurboLoRA
     - SamplerCustomAdvanced
     - SaveVideo
     - CreateVideo
@@ -104,4 +105,4 @@ requirements:
     - text_encoders/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors
     - vae/minimax_h3_video_vae_fp16.safetensors
     - vae/minimax_h3_audio_vae_fp32.safetensors
-    - loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors
+    - loras/minimax_h3_turbo_v4_step600_ema.safetensors

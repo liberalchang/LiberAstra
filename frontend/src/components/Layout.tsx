@@ -9,6 +9,7 @@ import {
   ImageUp,
   Images,
   Languages,
+  Terminal,
   LayoutDashboard,
   LayoutTemplate,
   Library,
@@ -88,7 +89,10 @@ const NAV_GROUPS: {
   },
   {
     labelKey: "group.developer",
-    items: [{ to: "/dev", icon: Code2, key: "nav.apiDocs", href: "/docs" }],
+    items: [
+      { to: "/dev", icon: Code2, key: "nav.apiDocs", href: "/docs" },
+      { to: "/dev/cli", icon: Terminal, key: "nav.cliDocs" },
+    ],
   },
 ];
 
@@ -245,7 +249,7 @@ export function Layout() {
         )}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
-            <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="打开导航">
+            <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label={t("common.expand")}>
               <Menu />
             </Button>
             <span className="text-sm font-semibold">LiberAstra</span>

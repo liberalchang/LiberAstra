@@ -7,6 +7,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { AsrPage } from "@/pages/AsrPage";
 import { AssetsPage } from "@/pages/AssetsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { CliPage } from "@/pages/CliPage";
 import { GuidePage } from "@/pages/GuidePage";
 import { ImageEditPage } from "@/pages/ImageEditPage";
 import { ImageGenPage } from "@/pages/ImageGenPage";
@@ -21,6 +22,7 @@ import { VideoPackPage } from "@/pages/VideoPackPage";
 import { VideoQuickPage } from "@/pages/VideoQuickPage";
 import { VoicesPage } from "@/pages/VoicesPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
+import { useTx } from "@/i18n/tx";
 import { useAuthStore } from "@/stores/auth";
 
 function HomeRedirect() {
@@ -36,6 +38,7 @@ function HomeRedirect() {
 }
 
 export default function App() {
+  const tx = useTx();
   return (
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
@@ -43,6 +46,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/guide" element={<GuidePage />} />
+        <Route path="/dev/cli" element={<CliPage />} />
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
         <Route path="/speech/voices" element={<VoicesPage />} />
@@ -53,8 +57,8 @@ export default function App() {
           element={
             <ImageEditPage
               capability="i2i"
-              title="图生图与编辑"
-              description="上传参考图，配合提示词进行编辑或风格迁移。"
+              title={tx("图生图与编辑")}
+              description={tx("上传参考图，配合提示词进行编辑或风格迁移。")}
             />
           }
         />
@@ -63,8 +67,8 @@ export default function App() {
           element={
             <ImageEditPage
               capability="upscale"
-              title="修复与放大"
-              description="上传图片，用 RealESRGAN 放大 4 倍。模型文件需放在 ComfyUI 的 upscale_models 目录。"
+              title={tx("修复与放大")}
+              description={tx("上传图片，用 RealESRGAN 放大 4 倍。模型文件需放在 ComfyUI 的 upscale_models 目录。")}
             />
           }
         />

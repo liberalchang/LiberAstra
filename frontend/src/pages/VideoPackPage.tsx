@@ -26,6 +26,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { useTx } from "@/i18n/tx";
 
 export type PackVideoKind = "i2v" | "avatar" | "motion";
 
@@ -54,6 +55,7 @@ const CONFIG: Record<
 };
 
 export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
+  const tx = useTx();
   const cfg = CONFIG[kind];
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const videoProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("video"));
@@ -157,14 +159,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader kind={kind === "avatar" ? "avatar" : kind === "motion" ? "motion" : "i2v"} icon={kind === "avatar" ? UserRound : kind === "motion" ? PersonStanding : Film} title={cfg.title} description={cfg.description} />
+      <PageHeader kind={kind === "avatar" ? "avatar" : kind === "motion" ? "motion" : "i2v"} icon={kind === "avatar" ? UserRound : kind === "motion" ? PersonStanding : Film} title={tx(cfg.title)} description={tx(cfg.description)} />
       <SplitPane
         storageKey={`video-${kind}`}
         left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="视频服务" hint="只列出已启用、且具备 video 能力的 Provider。">
+            <Field label={tx("视频服务")} hint={tx("只列出已启用、且具备 video 能力的 Provider。")}>
               <select
                 className={selectClass}
                 value={provider?.id ?? ""}
@@ -177,7 +179,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 ))}
               </select>
             </Field>
-            <Field label="工作流包" hint="必须与当前功能匹配，例如图生视频、数字人或动作迁移。">
+            <Field label={tx("工作流包")} hint={tx("必须与当前功能匹配，例如图生视频、数字人或动作迁移。")}>
               <select
                 className={selectClass}
                 value={pack?.name ?? ""}
@@ -190,7 +192,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     </option>
                   ))
                 ) : (
-                  <option value="">无 {cfg.packCaps.join("/")} 工作流包</option>
+                  <option value="">{tx("无 {caps} 工作流包", { caps: cfg.packCaps.join(" / ") })}</option>
                 )}
               </select>
             </Field>
@@ -198,25 +200,27 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
           {missingModels.length > 0 && (
             <p className="text-xs leading-relaxed text-amber-500">
-              该工作流声明需要但服务上没有找到：{missingModels.join("、")}。请改选已有模型或先把模型文件放进对应目录。
+              {tx("该工作流声明需要但服务上没有找到：{list}。请改选已有模型或先把模型文件放进对应目录。", {
+                list: missingModels.join("、"),
+              })}
             </p>
           )}
 
           {kind === "motion" && (
-            <Field label="参考视频" hint="动作来源，建议不超过 30 秒。">
+            <Field label={tx("参考视频")} hint={tx("动作来源，建议不超过 30 秒。")}>
               <FileDrop
                 accept="video/*"
-                title="点击或拖拽上传参考视频"
-                subtitle="建议不超过 30 秒"
+                title={tx("点击或拖拽上传参考视频")}
+                subtitle={tx("建议不超过 30 秒")}
                 names={videoFile ? [videoFile.name] : []}
                 onSelect={(fs) => setVideoFile(fs?.[0] ?? null)}
               />
             </Field>
           )}
-          <Field label={kind === "avatar" ? "人物图片" : "图片"} hint={kind === "i2v" ? "作为视频首帧。" : "目标人物或画面。"}>
+          <Field label={kind === "avatar" ? tx("人物图片") : tx("图片")} hint={kind === "i2v" ? tx("作为视频首帧。") : tx("目标人物或画面。")}>
             <FileDrop
               accept="image/*"
-              title="点击或拖拽上传图片"
+              title={tx("点击或拖拽上传图片")}
               names={imageFile ? [imageFile.name] : []}
               onSelect={(fs) => setImageFile(fs?.[0] ?? null)}
             />
@@ -224,14 +228,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
           {kind === "avatar" ? (
             <>
-              <Field label="口播文案" hint="先合成语音，再交给数字人工作流。">
+              <Field label={tx("口播文案")} hint={tx("先合成语音，再交给数字人工作流。")}>
                 <textarea
                   className={`${areaClass} min-h-24`}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
               </Field>
-              <Field label="配音服务" hint="comfy 需先导入 tts 语音工作流包；Liber Speech 用音色库克隆；其余用服务音色列表。">
+              <Field label={tx("配音服务")} hint={tx("comfy 需先导入 tts 语音工作流包；Liber Speech 用音色库克隆；其余用服务音色列表。")}>
                 <select
                   className={selectClass}
                   value={ttsProvider?.id ?? ""}
@@ -239,14 +243,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 >
                   {ttsProviders?.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.type === "edge_tts" ? `${p.name}（本地）` : p.name}
+                      {p.type === "edge_tts" ? tx("{name}（本地）", { name: p.name }) : p.name}
                     </option>
                   ))}
                 </select>
               </Field>
               {ttsIsComfy ? (
                 <>
-                  <Field label="语音工作流" hint="tts 能力的工作流包，口播文本自动注入。">
+                  <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本自动注入。")}>
                     <select
                       className={selectClass}
                       value={ttsPack?.name ?? ""}
@@ -269,13 +273,13 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 </>
               ) : isLibraryVoice ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="音色" hint="选自音色库（参考音频克隆）。不选则填写音色名。">
+                  <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则填写音色名。")}>
                     <select
                       className={selectClass}
                       value={voiceRecordId}
                       onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                     >
-                      <option value="">手动指定音色…</option>
+                      <option value="">{tx("手动指定音色…")}</option>
                       {voices?.map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.name}
@@ -284,22 +288,22 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     </select>
                   </Field>
                   {voiceRecordId === "" && (
-                    <Field label="音色名" hint="Liber Speech 用语言代码，例如 zh、en。">
+                    <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
                       <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
                     </Field>
                   )}
                 </div>
               ) : (
-                <Field label="音色" hint="来自所选服务的音色列表；服务提供方页可拉取/刷新模型列表。">
+                <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；服务提供方页可拉取/刷新模型列表。")}>
                   {serviceVoices.length > 0 ? (
                     <select
                       className={selectClass}
                       value={voiceName}
                       onChange={(e) => setVoiceName(e.target.value)}
                     >
-                      <option value="">选择音色…</option>
+                      <option value="">{tx("选择音色…")}</option>
                       {voiceName && !serviceVoices.includes(voiceName) && (
-                        <option value={voiceName}>{voiceName}（不在列表中）</option>
+                        <option value={voiceName}>{voiceName}{tx("（不在列表中）")}</option>
                       )}
                       {serviceVoices.map((v) => (
                         <option key={v} value={v}>{v}</option>
@@ -307,7 +311,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     </select>
                   ) : (
                     <Input
-                      placeholder="如 zh-CN-XiaoxiaoNeural（列表为空时可到服务提供方页拉取模型）"
+                      placeholder={tx("如 zh-CN-XiaoxiaoNeural（列表为空时可到服务提供方页拉取模型）")}
                       value={voiceName}
                       onChange={(e) => setVoiceName(e.target.value)}
                     />
@@ -317,14 +321,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             </>
           ) : (
             <PromptField
-              label="提示词"
-              hint="描述希望画面如何运动或变化。"
+              label={tx("提示词")}
+              hint={tx("描述希望画面如何运动或变化。")}
               value={promptValue}
               onChange={setPromptValue}
               jobScope={`video-${kind}:prompt-opt`}
               task={kind === "motion" ? "motion" : "i2v"}
               workflow={pack?.name}
-              placeholder="例如：缓慢推近，微风吹动发丝，环境音轻柔"
+              placeholder={tx("例如：缓慢推近，微风吹动发丝，环境音轻柔")}
             />
           )}
 
@@ -360,7 +364,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? `生成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始生成"}
+              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
             </Button>
           </div>
         </CardContent>
@@ -371,17 +375,17 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
-            emptyHint="上传素材，生成第一段视频"
+            emptyHint={tx("上传素材，生成第一段视频")}
             meta={[
-              { label: "服务", value: provider?.name ?? "" },
-              { label: "工作流", value: pack?.name ?? "" },
+              { label: tx("服务"), value: provider?.name ?? "" },
+              { label: tx("工作流"), value: pack?.name ?? "" },
               {
                 label:
                   kind === "avatar"
-                    ? "文案"
+                    ? tx("文案")
                     : promptValue.useOptimized && promptValue.optimized.trim()
-                      ? "提示词（已优化）"
-                      : "提示词",
+                      ? tx("提示词（已优化）")
+                      : tx("提示词"),
                 value: kind === "avatar" ? text : effectivePrompt,
               },
             ]}

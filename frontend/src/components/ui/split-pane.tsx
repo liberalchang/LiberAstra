@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { useTx } from "@/i18n/tx";
 
 interface SplitPaneProps {
   left: ReactNode;
@@ -11,6 +12,7 @@ interface SplitPaneProps {
 
 /** 左右分栏，分割线支持拖动；小屏自动堆叠为上下布局。 */
 export function SplitPane({ left, right, storageKey, defaultRatio = 0.46 }: SplitPaneProps) {
+  const tx = useTx();
   const [ratio, setRatio] = useState(() => {
     try {
       const saved = localStorage.getItem(`liberastra-split:${storageKey}`);
@@ -51,7 +53,7 @@ export function SplitPane({ left, right, storageKey, defaultRatio = 0.46 }: Spli
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="调整左右面板宽度"
+        aria-label={tx("调整左右面板宽度")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

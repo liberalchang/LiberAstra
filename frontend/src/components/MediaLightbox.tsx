@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, fetchAssetBlob } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { assetDownloadName, assetSummary, assetTitle, cn, formatSize, formatTime } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 export interface PreviewTarget {
   id: number;
@@ -118,6 +119,7 @@ function useAssetText(assetId: number | null, kind: string | null) {
  * 用于结果卡片与资产列表，点击交互由外层按钮负责（弹出 MediaLightbox）。
  */
 export function MediaThumb({ assetId, kind, className }: { assetId: number; kind: string; className?: string }) {
+  const tx = useTx();
   const url = useAssetUrl(assetId, kind);
   const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? FileText;
 
@@ -128,7 +130,7 @@ export function MediaThumb({ assetId, kind, className }: { assetId: number; kind
       </div>
     );
   }
-  if (kind === "image") return <img src={url} alt="预览" className={cn("object-cover", className)} />;
+  if (kind === "image") return <img src={url} alt={tx("预览")} className={cn("object-cover", className)} />;
   if (kind === "video") {
     return <video src={url} muted playsInline preload="metadata" className={cn("object-cover", className)} />;
   }
@@ -141,6 +143,7 @@ export function MediaThumb({ assetId, kind, className }: { assetId: number; kind
 
 /** 全屏弹窗预览：图片放大查看，视频/音频弹出播放。Esc 或点击遮罩关闭。 */
 export function MediaLightbox({ target, onClose }: { target: PreviewTarget | null; onClose: () => void }) {
+  const tx = useTx();
   const url = useAssetUrl(target?.id ?? null, target?.kind ?? null);
   const text = useAssetText(target?.id ?? null, target?.kind ?? null);
   const targetId = target?.id ?? null;
@@ -195,7 +198,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
           size="icon"
           className="absolute right-3 top-3 z-10 rounded-full bg-card/90 shadow-md"
           onClick={onClose}
-          title="关闭 (Esc)"
+          title={tx("关闭 (Esc)")}
         >
           <X />
         </Button>
@@ -230,7 +233,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
           ) : (
             <div className="flex flex-col items-center gap-3 p-10 text-center">
               <FileText className="size-12 text-white/50" />
-              <p className="text-sm text-white/70">此类型暂不支持在线预览，可直接下载查看</p>
+              <p className="text-sm text-white/70">{tx("此类型暂不支持在线预览，可直接下载查看")}</p>
             </div>
           )}
         </div>
@@ -238,11 +241,11 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
         {/* 信息区 */}
         <div className="flex w-full shrink-0 flex-col gap-4 p-5 md:w-72 md:overflow-y-auto">
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-primary">快速预览</span>
+            <span className="text-xs font-medium text-primary">{tx("快速预览")}</span>
             <h2 className="break-all text-lg font-semibold leading-snug">{name}</h2>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">{kindLabel(target.kind)}</span>
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">{tx(kindLabel(target.kind))}</span>
             {size != null && (
               <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {formatSize(size)}
@@ -255,7 +258,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
             )}
             {duration && (
               <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                耗时 {duration}
+                {tx("耗时 {duration}", { duration })}
               </span>
             )}
           </div>
@@ -271,7 +274,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
                 if (v == null || v === "") return null;
                 return (
                   <div key={key} className="contents">
-                    <dt className="shrink-0 text-muted-foreground">{label}</dt>
+                    <dt className="shrink-0 text-muted-foreground">{tx(label)}</dt>
                     <dd className="break-all">{String(v)}</dd>
                   </div>
                 );
@@ -280,10 +283,10 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
           )}
           <div className="mt-auto flex flex-col gap-2">
             <Button onClick={() => downloadAssetById(target.id, downloadName)}>
-              <Download /> 下载
+              <Download /> {tx("下载")}
             </Button>
             <Button variant="outline" onClick={onClose}>
-              关闭
+              {tx("关闭 (Esc)")}
             </Button>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useTx } from "@/i18n/tx";
 
 const INPUTS_PLACEHOLDER = `{
   "prompt": { "node": "6", "field": "inputs.text", "type": "str", "required": true },
@@ -36,6 +37,7 @@ function looksLikeCanvas(data: unknown): boolean {
 }
 
 export function WorkflowsPage() {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const { data: packs } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
 
@@ -88,8 +90,12 @@ export function WorkflowsPage() {
     );
     const tips = [
       ...(result.warnings ?? []),
-      `节点 ${result.node_count} 个`,
-      result.node_types?.length ? `类型：${result.node_types.slice(0, 8).join("、")}${result.node_types.length > 8 ? "…" : ""}` : "",
+      tx("节点 {n} 个", { n: result.node_count }),
+      result.node_types?.length
+        ? tx("类型：{list}", {
+            list: `${result.node_types.slice(0, 8).join("、")}${result.node_types.length > 8 ? "…" : ""}`,
+          })
+        : "",
     ].filter(Boolean);
     setNotice(tips.join(" · "));
     setError(null);
@@ -114,7 +120,7 @@ export function WorkflowsPage() {
         outputs = outputsJson ? JSON.parse(outputsJson) : {};
         accel = accelJson.trim() ? JSON.parse(accelJson) : undefined;
       } catch (e) {
-        throw new Error(`JSON 解析失败: ${(e as Error).message}`);
+        throw new Error(tx("JSON 解析失败: {err}", { err: (e as Error).message }));
       }
       const body: Record<string, unknown> = {
         name,
@@ -129,7 +135,7 @@ export function WorkflowsPage() {
       return editing ? api.updateWorkflow(editing, body) : api.importWorkflow(body);
     },
     onSuccess: (pack) => {
-      setNotice(editing ? `已保存 ${pack.name}` : `已导入 ${pack.name}`);
+      setNotice(editing ? tx("已保存 {name}", { name: pack.name }) : tx("已导入 {name}", { name: pack.name }));
       setError(null);
       resetForm();
       invalidate();
@@ -143,7 +149,7 @@ export function WorkflowsPage() {
   const remove = useMutation({
     mutationFn: (n: string) => api.deleteWorkflow(n),
     onSuccess: () => {
-      setNotice("已删除");
+      setNotice(tx("已删除"));
       invalidate();
     },
     onError: (err) => setError(err.message),
@@ -160,7 +166,7 @@ export function WorkflowsPage() {
       a.click();
       URL.revokeObjectURL(url);
     },
-    onSuccess: () => setNotice("已导出"),
+    onSuccess: () => setNotice(tx("已导出")),
     onError: (err) => setError(err.message),
   });
 
@@ -206,19 +212,19 @@ export function WorkflowsPage() {
             ? JSON.stringify(data.accel, null, 2)
             : "",
         );
-        setNotice(`已从 ${file.name} 读取完整工作流包，确认后点击导入`);
+        setNotice(tx("已从 {file} 读取完整工作流包，确认后点击导入", { file: file.name }));
         setError(null);
         return;
       }
       // 画布或 API Format → 后端转换 + 启发式 manifest
-      setNotice(`正在转换 ${file.name}…`);
+      setNotice(tx("正在转换 {file}…", { file: file.name }));
       const result = await api.convertWorkflow(data);
       applyConvertResult(result, {
         packName: nameFromFile(file.name) || undefined,
         fileName: file.name,
       });
     } catch (e) {
-      setError(`文件处理失败: ${(e as Error).message}`);
+      setError(tx("文件处理失败: {err}", { err: (e as Error).message }));
       setNotice(null);
     }
   };
@@ -227,7 +233,7 @@ export function WorkflowsPage() {
   const convertFromTextarea = async () => {
     try {
       const data = JSON.parse(workflowJson) as Record<string, unknown>;
-      setNotice("正在转换…");
+      setNotice(tx("正在转换…"));
       await convertMut.mutateAsync(data); // onSuccess 填表
     } catch {
       // onError 已处理
@@ -239,8 +245,8 @@ export function WorkflowsPage() {
       <PageHeader
         kind="workflow"
         icon={Workflow}
-        title="工作流包"
-        description="支持 LiberAstra 包、ComfyUI API Format，以及画布 JSON（自动转换）。"
+        title={tx("工作流包")}
+        description={tx("支持 LiberAstra 包、ComfyUI API Format，以及画布 JSON（自动转换）。")}
       />
 
       <div className="flex flex-col gap-3">
@@ -252,12 +258,12 @@ export function WorkflowsPage() {
                   <span className="font-medium">{p.name}</span>
                   <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{p.capability}</span>
                   <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                    {p.source === "builtin" ? "内置" : "用户"}
+                    {p.source === "builtin" ? tx("内置") : tx("用户")}
                   </span>
                 </div>
                 <div className="text-sm text-muted-foreground">{p.description}</div>
                 <div className="text-xs text-muted-foreground">
-                  参数：{Object.keys(p.inputs).join("、") || "无"}
+                  参数：{Object.keys(p.inputs).join("、") || tx("无")}
                 </div>
               </div>
               <Button
@@ -265,7 +271,7 @@ export function WorkflowsPage() {
                 size="icon"
                 onClick={() => exportPack.mutate(p)}
                 disabled={exportPack.isPending}
-                title="导出为 JSON 文件"
+                title={tx("导出为 JSON 文件")}
               >
                 <Download />
               </Button>
@@ -276,7 +282,7 @@ export function WorkflowsPage() {
                     size="icon"
                     onClick={() => startEdit.mutate(p.name)}
                     disabled={startEdit.isPending}
-                    title="编辑"
+                    title={tx("编辑")}
                   >
                     <Pencil />
                   </Button>
@@ -284,9 +290,9 @@ export function WorkflowsPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      if (window.confirm(`确定删除工作流包 ${p.name}？`)) remove.mutate(p.name);
+                      if (window.confirm(tx("确定删除工作流包 {name}？", { name: p.name }))) remove.mutate(p.name);
                     }}
-                    title="删除"
+                    title={tx("删除")}
                   >
                     <Trash2 />
                   </Button>
@@ -302,11 +308,11 @@ export function WorkflowsPage() {
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1.5">
-                <CardTitle>{editing ? `编辑工作流包：${editing}` : "导入工作流包"}</CardTitle>
+                <CardTitle>{editing ? `编辑工作流包：${editing}` : tx("导入工作流包")}</CardTitle>
                 <CardDescription>
                   {editing
-                    ? "修改后点击保存。包名不可更改；如需改名请导出后重新导入。"
-                    : "可导入 LiberAstra 包、ComfyUI「Save (API Format)」，或画布工作流 JSON（含 nodes/links，会自动转成 API Format 并生成参数草稿）。"}
+                    ? tx("修改后点击保存。包名不可更改；如需改名请导出后重新导入。")
+                    : tx("可导入 LiberAstra 包、ComfyUI「Save (API Format)」，或画布工作流 JSON（含 nodes/links，会自动转成 API Format 并生成参数草稿）。")}
                 </CardDescription>
               </div>
               {!editing && (
@@ -324,7 +330,7 @@ export function WorkflowsPage() {
                   />
                   <Button variant="outline" className="shrink-0 gap-1.5" onClick={() => fileRef.current?.click()}>
                     <FileUp className="size-4" />
-                    导入 JSON 文件
+                    {tx('导入 JSON 文件')}
                   </Button>
                 </>
               )}
@@ -332,33 +338,33 @@ export function WorkflowsPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="包名" hint={editing ? "编辑时包名不可更改。" : "只用字母、数字、横线和下划线。"}>
+              <Field label={tx("包名")} hint={editing ? tx("编辑时包名不可更改。") : tx("只用字母、数字、横线和下划线。")}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!!editing} />
               </Field>
-              <Field label="能力" hint="决定这个包会出现在哪个功能页（转换时会猜测，可改）。">
+              <Field label={tx("能力")} hint={tx("决定这个包会出现在哪个功能页（转换时会猜测，可改）。")}>
                 <select
                   className={selectClass}
                   value={capability}
                   onChange={(e) => setCapability(e.target.value)}
                 >
-                  <option value="t2i">t2i 文生图</option>
-                  <option value="i2i">i2i 图生图</option>
-                  <option value="upscale">upscale 修复放大</option>
-                  <option value="t2v">t2v 文生视频</option>
-                  <option value="i2v">i2v 图生视频</option>
-                  <option value="avatar">avatar 数字人</option>
-                  <option value="motion">motion 动作迁移</option>
-                  <option value="tts">tts 语音</option>
-                  <option value="analysis">analysis 素材分析</option>
+                  <option value="t2i">{tx("t2i 文生图")}</option>
+                  <option value="i2i">{tx("i2i 图生图")}</option>
+                  <option value="upscale">{tx("upscale 修复放大")}</option>
+                  <option value="t2v">{tx("t2v 文生视频")}</option>
+                  <option value="i2v">{tx("i2v 图生视频")}</option>
+                  <option value="avatar">{tx("avatar 数字人")}</option>
+                  <option value="motion">{tx("motion 动作迁移")}</option>
+                  <option value="tts">{tx("tts 语音")}</option>
+                  <option value="analysis">{tx("analysis 素材分析")}</option>
                 </select>
               </Field>
             </div>
-            <Field label="描述" hint="一句话说明这个包做什么，会显示在包列表里。">
+            <Field label={tx("描述")} hint={tx("一句话说明这个包做什么，会显示在包列表里。")}>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </Field>
             <Field
               label="workflow.json"
-              hint="粘贴画布或 API Format 后，可点「转换画布/API」；或直接用右上角导入文件（画布会自动转换）。"
+              hint={tx("粘贴画布或 API Format 后，可点「转换画布/API」；或直接用右上角导入文件（画布会自动转换）。")}
             >
               <textarea
                 className={`${areaClass} min-h-40 font-mono text-xs`}
@@ -376,13 +382,13 @@ export function WorkflowsPage() {
               >
                 <WandSparkles className="size-4" />
                 {convertMut.isPending
-                  ? "转换中…"
+                  ? tx("转换中…")
                   : looksLikeCanvas(safeParse(workflowJson))
-                    ? "转换画布 JSON"
-                    : "从当前 JSON 生成参数草稿"}
+                    ? tx("转换画布 JSON")
+                    : tx("从当前 JSON 生成参数草稿")}
               </Button>
             )}
-            <Field label="参数映射" hint="声明页面参数对应哪个节点。画布转换会预填草稿，请核对 node / field。">
+            <Field label={tx("参数映射")} hint={tx("声明页面参数对应哪个节点。画布转换会预填草稿，请核对 node / field。")}>
               <textarea
                 className={`${areaClass} min-h-32 font-mono text-xs`}
                 placeholder={INPUTS_PLACEHOLDER}
@@ -390,24 +396,24 @@ export function WorkflowsPage() {
                 onChange={(e) => setInputsJson(e.target.value)}
               />
             </Field>
-            <Field label="输出节点" hint='例如 { "node": "9", "key": "images" }；可含 texts 列表。'>
+            <Field label={tx("输出节点")} hint={tx("例如 node 与 key；可含 texts 列表。")}>
               <Input value={outputsJson} onChange={(e) => setOutputsJson(e.target.value)} />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="帧率 fps" hint="视频包可选；有值时前端可按秒设时长。留空表示无。">
+              <Field label={tx("帧率 fps")} hint={tx("视频包可选；有值时前端可按秒设时长。留空表示无。")}>
                 <Input
                   type="number"
                   min={1}
                   max={60}
                   value={fps}
                   onChange={(e) => setFps(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="例如 24"
+                  placeholder={tx("例如 24")}
                 />
               </Field>
             </div>
             <Field
-              label="加速 accel（可选）"
-              hint='Turbo LoRA 声明。空=无加速。示例含 node / bypass_input / lora / preset。'
+              label={tx("加速 accel（可选）")}
+              hint={tx("Turbo LoRA 声明。空=无加速。示例含 node / bypass_input / lora / preset。")}
             >
               <textarea
                 className={`${areaClass} min-h-24 font-mono text-xs`}
@@ -424,12 +430,12 @@ export function WorkflowsPage() {
                 onClick={() => savePack.mutate()}
                 disabled={!name || !workflowJson || savePack.isPending}
               >
-                {editing ? "保存修改" : "导入"}
+                {editing ? tx("保存修改") : tx("导入")}
               </Button>
               {editing && (
                 <Button variant="ghost" className="w-fit gap-1.5" onClick={resetForm}>
                   <X className="size-4" />
-                  取消编辑
+                  {tx('取消编辑')}
                 </Button>
               )}
             </div>

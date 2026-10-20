@@ -5,6 +5,7 @@ import { api, type WorkflowAccelSpec } from "@/api/client";
 import { Field, selectClass } from "@/components/ui/field";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
+import { useTx } from "@/i18n/tx";
 
 export type AccelState = {
   enabled: boolean;
@@ -60,6 +61,7 @@ type Props = {
 
 /** LoRA 开关（Turbo / Uncensored 等）+ 文件下拉 + 强度；仅在包声明了 accel 时渲染。 */
 export function AccelControl({ accel, providerId, value, onChange, onApplyPreset }: Props) {
+  const tx = useTx();
   const folder = accel.lora?.options_from ?? "loras";
   const match = (accel.lora?.match ?? "").toLowerCase();
   const recommended = accel.lora?.recommended ?? "";
@@ -83,13 +85,20 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
   const rest = filtered.filter((n) => !preferred.includes(n));
   const options = [...preferred, ...rest];
 
-  // 开启后若还没选 LoRA，自动选推荐项或列表第一项
+  // 开启后：未选、或已选文件不在当前过滤结果里（例如旧的 T8 文件名）时，改选推荐项
   useEffect(() => {
-    if (!value.enabled || value.lora || options.length === 0) return;
-    const pick = options.includes(recommended) ? recommended : options[0];
-    if (pick) onChange({ ...value, lora: pick });
+    if (!value.enabled) return;
+    const lora = value.lora ?? "";
+    const matchesFilter = !match || lora.toLowerCase().includes(match);
+    const listed = lora && options.includes(lora);
+    if (lora && matchesFilter && (options.length === 0 || listed)) return;
+    const pick =
+      (recommended && options.includes(recommended) && recommended) ||
+      (options.length > 0 ? options[0] : "") ||
+      recommended;
+    if (pick && pick !== lora) onChange({ ...value, lora: pick });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value.enabled, value.lora, options, recommended]);
+  }, [value.enabled, value.lora, options, recommended, match]);
 
   const setEnabled = (on: boolean) => {
     onChange({ ...value, enabled: on });
@@ -104,15 +113,15 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
 
   const strengthMin = accel.strength?.min ?? 0;
   const strengthMax = accel.strength?.max ?? 1.5;
-  const label = accel.label ?? "Turbo 加速";
-  const hintOn =
-    accel.hint ??
-    (isTurbo ? "少步数采样，推荐 6–8 步" : "开启后把 LoRA 挂到主模型上");
-  const hintOff =
-    accel.hint_off ??
-    (isTurbo ? "关闭时从图中摘掉加速 LoRA 节点" : "关闭时从图中摘掉 LoRA 节点");
-  const loraLabel = accel.lora_label ?? (isTurbo ? "加速模型" : "LoRA 文件");
-  const strengthLabel = accel.strength_label ?? (isTurbo ? "加速强度" : "LoRA 强度");
+  const label = tx(accel.label ?? tx("Turbo 加速"));
+  const hintOn = tx(
+    accel.hint ?? (isTurbo ? tx("少步数采样，推荐 6–8 步") : tx("开启后把 LoRA 挂到主模型上")),
+  );
+  const hintOff = tx(
+    accel.hint_off ?? (isTurbo ? tx("关闭时从图中摘掉加速 LoRA 节点") : tx("关闭时从图中摘掉 LoRA 节点")),
+  );
+  const loraLabel = tx(accel.lora_label ?? (isTurbo ? tx("加速模型") : tx("LoRA 文件")));
+  const strengthLabel = tx(accel.strength_label ?? (isTurbo ? tx("加速强度") : tx("LoRA 强度")));
 
   return (
     <div className="flex flex-col gap-3 rounded-[10px] border border-border bg-muted/30 p-3">
@@ -128,15 +137,15 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
           value={value.enabled ? "on" : "off"}
           onChange={(v) => setEnabled(v === "on")}
           options={[
-            { value: "off", label: "关闭" },
-            { value: "on", label: "开启" },
+            { value: "off", label: tx("关闭") },
+            { value: "on", label: tx("开启") },
           ]}
         />
       </div>
 
       {value.enabled && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={loraLabel} hint={match ? `仅显示含「${accel.lora?.match}」的 LoRA` : undefined}>
+          <Field label={loraLabel} hint={match ? tx("仅显示含「{match}」的 LoRA", { match: accel.lora?.match ?? "" }) : undefined}>
             {providerId == null || isError ? (
               <input
                 className={selectClass}
@@ -152,20 +161,20 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
                 disabled={isLoading}
                 onChange={(e) => onChange({ ...value, lora: e.target.value })}
               >
-                {isLoading && <option value="">加载中…</option>}
+                {isLoading && <option value="">{tx("加载中…")}</option>}
                 {!isLoading && value.lora && !options.includes(value.lora) && (
-                  <option value={value.lora}>{value.lora}（不在列表中）</option>
+                  <option value={value.lora}>{value.lora}{tx("（不在列表中）")}</option>
                 )}
                 {preferred.length > 0 && rest.length > 0 ? (
                   <>
-                    <optgroup label="推荐">
+                    <optgroup label={tx("推荐")}>
                       {preferred.map((m) => (
                         <option key={m} value={m}>
                           {m}
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="全部匹配">
+                    <optgroup label={tx("全部匹配")}>
                       {rest.map((m) => (
                         <option key={m} value={m}>
                           {m}
@@ -185,7 +194,7 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
           </Field>
           <Field
             label={strengthLabel}
-            hint={isTurbo ? "拖影可上调，过锐可下调" : "1.0 为推荐；过高可能过拟合"}
+            hint={isTurbo ? tx("拖影可上调，过锐可下调") : tx("1.0 为推荐；过高可能过拟合")}
           >
             <NumberStepper
               value={value.strength}

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { fetchTemplatePreview } from "@/api/client";
+import { useTx } from "@/i18n/tx";
 import { cn } from "@/lib/utils";
 
 async function blobToDataUri(blob: Blob): Promise<string> {
@@ -24,6 +25,7 @@ export function TemplateThumb({
   name: string;
   className?: string;
 }) {
+  const tx = useTx();
   const { data, isError } = useQuery({
     queryKey: ["template-preview", aspect, name],
     queryFn: () => fetchTemplatePreview(aspect, name),
@@ -51,7 +53,7 @@ export function TemplateThumb({
           className,
         )}
       >
-        {isError ? "预览不可用" : "渲染中…"}
+        {isError ? tx("预览不可用") : tx("渲染中…")}
       </div>
     );
   }

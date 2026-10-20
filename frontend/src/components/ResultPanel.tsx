@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { assetTitle, formatSize, formatStepName, formatTime } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 export interface MetaItem {
   label: string;
@@ -30,8 +31,9 @@ interface ResultPanelProps {
 
 /** 生成中的精美进度展示。 */
 function GeneratingState({ job }: { job: JobOut }) {
+  const tx = useTx();
   const pct = Math.round(job.progress * 100);
-  const step = job.steps.length > 0 ? formatStepName(String(job.steps[job.steps.length - 1].name)) : null;
+  const step = job.steps.length > 0 ? formatStepName(String(job.steps[job.steps.length - 1].name), tx) : null;
   return (
     <div className="flex flex-col items-center gap-5 px-6 py-12">
       <div className="relative grid size-16 place-items-center">
@@ -46,7 +48,7 @@ function GeneratingState({ job }: { job: JobOut }) {
         <div className="progress-shine absolute inset-0" />
       </div>
       <div className="text-sm text-muted-foreground">
-        {job.status === "pending" ? "排队中…" : (step ?? "生成中…")}
+        {job.status === "pending" ? tx("排队中…") : (step ?? tx("生成中…"))}
       </div>
     </div>
   );
@@ -62,23 +64,25 @@ function ClickableThumb({
   onOpen: (t: PreviewTarget) => void;
   className?: string;
 }) {
+  const tx = useTx();
   return (
     <button
       type="button"
       onClick={() => onOpen(target)}
       className="group relative block w-full overflow-hidden rounded-xl"
-      title="点击预览"
+      title={tx("点击预览")}
     >
       <MediaThumb assetId={target.id} kind={target.kind} className={className} />
       <span className="absolute inset-0 grid place-items-center gap-1 bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
         <Maximize2 className="size-6 drop-shadow" />
-        <span className="text-xs font-medium drop-shadow">点击预览</span>
+        <span className="text-xs font-medium drop-shadow">{tx("点击预览")}</span>
       </span>
     </button>
   );
 }
 
 export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint }: ResultPanelProps) {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
@@ -139,14 +143,14 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
             {primaryTarget && (
               <div className="ml-auto flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setPreview(primaryTarget)}>
-                  <Maximize2 /> 预览
+                  <Maximize2 /> {tx("预览")}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => downloadAssetById(primaryTarget.id, primaryTarget.name ?? `result-${primaryTarget.id}`)}
                 >
-                  <Download /> 下载
+                  <Download /> {tx("下载")}
                 </Button>
               </div>
             )}
@@ -163,16 +167,16 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
                   <ImageIcon className="size-6" />
                 )}
               </span>
-              <p className="text-sm text-muted-foreground">{emptyHint ?? "填写左侧参数开始生成"}</p>
+              <p className="text-sm text-muted-foreground">{emptyHint ?? tx("填写左侧参数开始生成")}</p>
             </div>
           ) : running ? (
             <GeneratingState job={job} />
           ) : job.status === "failed" ? (
             <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">
-              {job.error ?? "任务失败"}
+              {job.error ?? tx("任务失败")}
             </div>
           ) : job.status === "canceled" ? (
-            <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">任务已取消</div>
+            <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{tx("任务已取消")}</div>
           ) : (
             <div className="flex flex-col gap-3">
               {primaryTarget && (
@@ -207,8 +211,8 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
 
       {/* 下方：历史资产 */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">历史作品</h2>
-        {history?.length === 0 && <p className="text-sm text-muted-foreground">暂无历史记录</p>}
+        <h2 className="text-sm font-medium text-muted-foreground">{tx("历史作品")}</h2>
+        {history?.length === 0 && <p className="text-sm text-muted-foreground">{tx("暂无历史记录")}</p>}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
           {history?.map((a) => {
             const name = assetTitle(a);

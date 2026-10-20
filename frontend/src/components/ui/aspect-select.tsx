@@ -2,6 +2,7 @@ import { Check, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTx } from "@/i18n/tx";
 
 export interface AspectOption {
   ratio: string;
@@ -98,6 +99,7 @@ interface AspectSelectProps {
 
 /** 宽高比下拉：标签在左、当前值在右，展开为选项列表（参考 piax 创作间的行式控件）。支持自定义宽高。 */
 export function AspectSelect({ label = "宽高比", value, onChange, options }: AspectSelectProps) {
+  const tx = useTx();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const ratioOptions = options ?? ASPECT_OPTIONS;
@@ -138,10 +140,10 @@ export function AspectSelect({ label = "宽高比", value, onChange, options }: 
           open && "ring-2 ring-ring",
         )}
       >
-        <span className="font-medium text-foreground">{label}</span>
+        <span className="font-medium text-foreground">{tx(label)}</span>
         <span className="flex items-center gap-2.5">
           <RatioGlyph width={value.width} height={value.height} active />
-          <span className="font-semibold text-foreground">{value.ratio}</span>
+          <span className="font-semibold text-foreground">{tx(value.ratio)}</span>
           <span className="text-muted-foreground">
             {value.width}×{value.height}
           </span>
@@ -172,7 +174,7 @@ export function AspectSelect({ label = "宽高比", value, onChange, options }: 
                 )}
               >
                 <RatioGlyph width={o.width} height={o.height} active={selected} />
-                <span className="font-semibold text-foreground">{o.ratio}</span>
+                <span className="font-semibold text-foreground">{tx(o.ratio)}</span>
                 <span className="text-muted-foreground">
                   {o.width}×{o.height}
                 </span>
@@ -195,7 +197,7 @@ export function AspectSelect({ label = "宽高比", value, onChange, options }: 
               )}
             >
               <SlidersHorizontal className={cn("size-3.5", isCustom ? "text-primary" : "text-muted-foreground/60")} />
-              <span className="font-semibold text-foreground">{CUSTOM_RATIO}</span>
+              <span className="font-semibold text-foreground">{tx(CUSTOM_RATIO)}</span>
               {isCustom && (
                 <span className="text-muted-foreground">
                   {value.width}×{value.height}
@@ -206,13 +208,13 @@ export function AspectSelect({ label = "宽高比", value, onChange, options }: 
             {isCustom && (
               <div className="flex items-center gap-2 px-4 pb-3">
                 <SideInput
-                  label="自定义宽度"
+                  label={tx("自定义宽度")}
                   value={value.width}
                   onCommit={(n) => onChange({ ...value, ratio: CUSTOM_RATIO, width: n })}
                 />
                 <span className="shrink-0 text-muted-foreground">×</span>
                 <SideInput
-                  label="自定义高度"
+                  label={tx("自定义高度")}
                   value={value.height}
                   onCommit={(n) => onChange({ ...value, ratio: CUSTOM_RATIO, height: n })}
                 />

@@ -14,8 +14,10 @@ import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
+import { useTx } from "@/i18n/tx";
 
 export function TtsPage() {
+  const tx = useTx();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
   const { data: ttsPacks } = useQuery({
@@ -76,14 +78,14 @@ export function TtsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader kind="tts" icon={AudioLines} title="文字转语音" description="选择音色，把文本合成为语音文件。" />
+      <PageHeader kind="tts" icon={AudioLines} title={tx("文字转语音")} description={tx("选择音色，把文本合成为语音文件。")} />
       <SplitPane
         storageKey="tts"
         left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="语音服务" hint="只列出已启用、且具备 tts 能力的 Provider。">
+            <Field label={tx("语音服务")} hint={tx("只列出已启用、且具备 tts 能力的 Provider。")}>
               <select
                 className={selectClass}
                 value={provider?.id ?? ""}
@@ -97,38 +99,38 @@ export function TtsPage() {
               </select>
             </Field>
             {!isComfy && (
-              <Field label="音色记录" hint="选自音色库。不选则在下面手动填写音色名。">
+              <Field label={tx("音色记录")} hint={tx("选自音色库。不选则在下面手动填写音色名。")}>
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">手动指定音色…</option>
+                  <option value="">{tx("手动指定音色…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
-                      {v.is_default ? "（默认）" : ""}
+                      {v.is_default ? tx("（默认）") : ""}
                     </option>
                   ))}
                 </select>
               </Field>
             )}
             {!isComfy && (
-              <Field label="朗读语言" hint="只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。">
+              <Field label={tx("朗读语言")} hint={tx("只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。")}>
                 <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="">自动</option>
-                  <option value="zh">中文 zh</option>
-                  <option value="en">英文 en</option>
-                  <option value="ja">日文 ja</option>
-                  <option value="ko">韩文 ko</option>
-                  <option value="fr">法文 fr</option>
-                  <option value="de">德文 de</option>
-                  <option value="es">西班牙文 es</option>
+                  <option value="">{tx("自动")}</option>
+                  <option value="zh">{tx("中文 zh")}</option>
+                  <option value="en">{tx("英文 en")}</option>
+                  <option value="ja">{tx("日文 ja")}</option>
+                  <option value="ko">{tx("韩文 ko")}</option>
+                  <option value="fr">{tx("法文 fr")}</option>
+                  <option value="de">{tx("德文 de")}</option>
+                  <option value="es">{tx("西班牙文 es")}</option>
                 </select>
               </Field>
             )}
             {isComfy ? (
-              <Field label="语音工作流" hint="tts 能力的工作流包，朗读文本会自动注入。">
+              <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，朗读文本会自动注入。")}>
                 <select
                   className={selectClass}
                   value={pack?.name ?? ""}
@@ -142,7 +144,7 @@ export function TtsPage() {
                 </select>
               </Field>
             ) : (
-              <Field label="输出格式" hint="wav / ogg 需要兼容服务支持。">
+              <Field label={tx("输出格式")} hint={tx("wav / ogg 需要兼容服务支持。")}>
                 <select className={selectClass} value={format} onChange={(e) => setFormat(e.target.value)}>
                   <option value="mp3">mp3</option>
                   <option value="wav">wav</option>
@@ -153,7 +155,7 @@ export function TtsPage() {
           </div>
           {isComfy && ttsPacks && ttsPacks.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              没有 tts 能力的工作流包，请到「设置 → 工作流包」导入。
+              {tx('没有 tts 能力的工作流包，请到「设置 → 工作流包」导入。')}
             </p>
           )}
           {isComfy && pack && (
@@ -166,14 +168,14 @@ export function TtsPage() {
             />
           )}
           {!isComfy && voiceRecordId === "" && (
-            <Field label="音色名" hint="需与所选服务匹配，例如 zh、alloy、af_heart。">
+            <Field label={tx("音色名")} hint={tx("需与所选服务匹配，例如 zh、alloy、af_heart。")}>
               <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
             </Field>
           )}
-          <Field label="合成文本" hint="这段文字会按所选音色朗读。">
+          <Field label={tx("合成文本")} hint={tx("这段文字会按所选音色朗读。")}>
             <textarea
               className={`${areaClass} min-h-32`}
-              placeholder="输入要合成的文本…"
+              placeholder={tx("输入要合成的文本…")}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -190,7 +192,7 @@ export function TtsPage() {
                 !!running
               }
             >
-              {running ? `合成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始合成"}
+              {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
             </Button>
           </div>
         </CardContent>
@@ -201,19 +203,19 @@ export function TtsPage() {
             job={job ?? null}
             mediaKind="audio"
             historyKind="audio"
-            emptyHint="输入文本，合成第一段语音"
+            emptyHint={tx("输入文本，合成第一段语音")}
             meta={[
-              { label: "服务", value: provider?.name ?? "" },
+              { label: tx("服务"), value: provider?.name ?? "" },
               {
-                label: "音色",
+                label: tx("音色"),
                 value: isComfy
                   ? (pack?.name ?? "")
                   : voiceRecordId === ""
                     ? voiceName
                     : (voices?.find((v) => v.id === voiceRecordId)?.name ?? ""),
               },
-              { label: "语言", value: language || "自动" },
-              { label: "格式", value: format },
+              { label: tx("语言"), value: language || tx("自动") },
+              { label: tx("格式"), value: format },
             ]}
           />
         }

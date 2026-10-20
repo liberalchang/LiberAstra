@@ -85,8 +85,8 @@ def test_example_packs_load() -> None:
     assert packs["minimax_h3_i2v_uncensored"].capability == "i2v"
     assert "image" in packs["minimax_h3_i2v_uncensored"].inputs
     assert packs["minimax_h3_i2v_uncensored"].accel.get("lora", {}).get("recommended", "").endswith(
-        "fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+        "minimax_h3_turbo_v4_step600_ema.safetensors"
     )
     assert packs["minimax_h3_t2v_uncensored"].accel.get("lora", {}).get("recommended", "").endswith(
-        "fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors"
+        "minimax_h3_turbo_v4_step600_ema.safetensors"
     )

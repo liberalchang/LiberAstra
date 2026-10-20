@@ -33,11 +33,12 @@
     }
   },
   "105:200": {
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "MiniMaxH3TurboLoRA",
     "inputs": {
       "model": ["105:6", 0],
-      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
-      "strength_model": 1.0
+      "lora_name": "minimax_h3_turbo_v4_step600_ema.safetensors",
+      "strength": 1.0,
+      "low_vram": false
     }
   },
   "105:104": {

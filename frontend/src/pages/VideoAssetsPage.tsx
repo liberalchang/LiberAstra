@@ -31,11 +31,13 @@ import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersist
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { formatStepName } from "@/lib/utils";
 import { Film, X } from "lucide-react";
+import { useTx } from "@/i18n/tx";
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp)$/i;
 
 /** 自定义素材：图片/视频素材 + 文案/主题 → 配音字幕短片。支持素材动画（i2v）与背景音乐。 */
 export function VideoAssetsPage() {
+  const tx = useTx();
   const queryClient = useQueryClient();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const enabled = providers?.filter((p) => p.enabled);
@@ -220,7 +222,7 @@ export function VideoAssetsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader kind="clips" icon={Images} title="自定义素材" description="上传图片或视频素材，配旁白和字幕后拼成短片，支持标题卡、素材动画与背景音乐。" />
+      <PageHeader kind="clips" icon={Images} title={tx("自定义素材")} description={tx("上传图片或视频素材，配旁白和字幕后拼成短片，支持标题卡、素材动画与背景音乐。")} />
       <SplitPane
         storageKey="video-assets"
         left={
@@ -228,17 +230,17 @@ export function VideoAssetsPage() {
       {/* ① 素材 */}
       <Card>
         <CardHeader>
-          <CardTitle>素材</CardTitle>
-          <CardDescription>图片和视频都可以，顺序即分镜顺序。视频素材会循环/截断对齐配音时长。</CardDescription>
+          <CardTitle>{tx("素材")}</CardTitle>
+          <CardDescription>{tx("图片和视频都可以，顺序即分镜顺序。视频素材会循环/截断对齐配音时长。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Field label="素材文件" hint="支持 JPG/PNG/WebP/GIF 图片和 MP4/MOV/AVI/WebM 视频，可分多次添加。">
+          <Field label={tx("素材文件")} hint={tx("支持 JPG/PNG/WebP/GIF 图片和 MP4/MOV/AVI/WebM 视频，可分多次添加。")}>
             <FileDrop
               accept="image/*,video/*"
               multiple
               clearAfterSelect
-              title="点击或拖拽上传素材"
-              subtitle="图片与视频，支持多选、多次添加"
+              title={tx("点击或拖拽上传素材")}
+              subtitle={tx("图片与视频，支持多选、多次添加")}
               onSelect={addFiles}
             />
           </Field>
@@ -259,7 +261,7 @@ export function VideoAssetsPage() {
                   <button
                     type="button"
                     onClick={() => removeFile(i)}
-                    title={`移除 ${f.name}`}
+                    title={tx("移除 {name}", { name: f.name })}
                     className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
                   >
                     <X className="size-3" />
@@ -277,10 +279,10 @@ export function VideoAssetsPage() {
       {/* ② 素材分析（可选） */}
       <Card>
         <CardHeader>
-          <CardTitle>素材分析</CardTitle>
+          <CardTitle>{tx("素材分析")}</CardTitle>
           <CardDescription>
-            开启后先用视觉模型逐素材生成内容描述，写文案的 AI 会参考真实内容而不是只看文件名。需要
-            ComfyUI 装 ComfyUI-AILab 插件与 Qwen-VL 视觉模型。
+            {tx('开启后先用视觉模型逐素材生成内容描述，写文案的 AI 会参考真实内容而不是只看文件名。需要')}
+            {tx('ComfyUI 装 ComfyUI-AILab 插件与 Qwen-VL 视觉模型。')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -290,12 +292,12 @@ export function VideoAssetsPage() {
               checked={analysisEnabled}
               onChange={(e) => setAnalysisEnabled(e.target.checked)}
             />
-            启用素材分析（较慢，每个素材一次视觉推理）
+            {tx('启用素材分析（较慢，每个素材一次视觉推理）')}
           </label>
           {analysisEnabled && (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="分析服务" hint="执行分析工作流的 ComfyUI。">
+                <Field label={tx("分析服务")} hint={tx("执行分析工作流的 ComfyUI。")}>
                   <select
                     className={selectClass}
                     value={analysisProvider?.id ?? ""}
@@ -306,7 +308,7 @@ export function VideoAssetsPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="图片分析工作流" hint="analysis 能力包，如 analysis_image_qwenvl。">
+                <Field label={tx("图片分析工作流")} hint={tx("analysis 能力包，如 analysis_image_qwenvl。")}>
                   <select
                     className={selectClass}
                     value={analysisImagePack?.name ?? ""}
@@ -317,7 +319,7 @@ export function VideoAssetsPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="视频分析工作流" hint="有视频素材时使用，如 analysis_video_qwenvl。">
+                <Field label={tx("视频分析工作流")} hint={tx("有视频素材时使用，如 analysis_video_qwenvl。")}>
                   <select
                     className={selectClass}
                     value={analysisVideoPack?.name ?? ""}
@@ -331,7 +333,7 @@ export function VideoAssetsPage() {
               </div>
               {analysisPacks && analysisPacks.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  没有 analysis 能力的工作流包，请到「设置 → 工作流包」导入。
+                  {tx('没有 analysis 能力的工作流包，请到「设置 → 工作流包」导入。')}
                 </p>
               )}
               {analysisImagePack && (
@@ -351,24 +353,24 @@ export function VideoAssetsPage() {
       {/* ③ 文案与标题 */}
       <Card>
         <CardHeader>
-          <CardTitle>文案与标题</CardTitle>
-          <CardDescription>标题会作为 2 秒标题卡放在片头；文案决定每镜的口播与字幕。</CardDescription>
+          <CardTitle>{tx("文案与标题")}</CardTitle>
+          <CardDescription>{tx("标题会作为 2 秒标题卡放在片头；文案决定每镜的口播与字幕。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Field label="视频标题" hint="选填。留空则没有标题卡。">
-            <Input placeholder="例如：宠物店年终大促" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Field label={tx("视频标题")} hint={tx("选填。留空则没有标题卡。")}>
+            <Input placeholder={tx("例如：宠物店年终大促")} value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
           <Segmented
-            ariaLabel="文案来源"
+            ariaLabel={tx("文案来源")}
             options={[
-              { value: "script", label: "自备文案（按行对应素材）" },
-              { value: "topic", label: "主题生成文案" },
+              { value: "script", label: tx("自备文案（按行对应素材）") },
+              { value: "topic", label: tx("主题生成文案") },
             ]}
             value={mode}
             onChange={setMode}
           />
           {mode === "script" ? (
-            <Field label="口播文案" hint="每行一句，行数建议与素材数量一致；不够会循环使用。">
+            <Field label={tx("口播文案")} hint={tx("每行一句，行数建议与素材数量一致；不够会循环使用。")}>
               <textarea
                 className={`${areaClass} min-h-24`}
                 value={script}
@@ -381,23 +383,23 @@ export function VideoAssetsPage() {
                 <p className="text-sm text-amber-700 dark:text-amber-400">
                   尚未配置 LLM。请到{" "}
                   <Link className="underline" to="/settings/system">
-                    系统设置
+                    {tx('系统设置')}
                   </Link>{" "}
-                  或「服务提供方」添加。
+                  {tx('或「服务提供方」添加。')}
                 </p>
               )}
               <PromptField
-                label="主题"
-                hint="AI 结合素材按目标时长写口播；脚本 LLM 使用系统设置中的默认服务。"
+                label={tx("主题")}
+                hint={tx("AI 结合素材按目标时长写口播；脚本 LLM 使用系统设置中的默认服务。")}
                 value={topicValue}
                 onChange={setTopicValue}
                 jobScope="video-assets:topic-opt"
                 task="assets_topic"
                 aspect={aspect}
-                placeholder="例如：宠物店年终大促，语气热情"
+                placeholder={tx("例如：宠物店年终大促，语气热情")}
               />
-              <Field label="目标时长（秒）" hint="AI 按它控制文案长度，5 到 600。">
-                <NumberStepper ariaLabel="目标时长" min={5} max={600} step={5} value={duration} onChange={setDuration} />
+              <Field label={tx("目标时长（秒）")} hint={tx("AI 按它控制文案长度，5 到 600。")}>
+                <NumberStepper ariaLabel={tx("目标时长")} min={5} max={600} step={5} value={duration} onChange={setDuration} />
               </Field>
             </>
           )}
@@ -407,14 +409,14 @@ export function VideoAssetsPage() {
       {/* ③ 素材动画（常驻显示；没有图片素材时提示） */}
       <Card>
         <CardHeader>
-          <CardTitle>素材动画</CardTitle>
+          <CardTitle>{tx("素材动画")}</CardTitle>
           <CardDescription>
-            开启后，静态图片先经 i2v 工作流动画化再合成（每张图一次图生视频，较慢）。视频素材不受影响。
+            {tx('开启后，静态图片先经 i2v 工作流动画化再合成（每张图一次图生视频，较慢）。视频素材不受影响。')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {!hasImage && (
-            <p className="text-sm text-muted-foreground">当前没有图片素材。上传图片后可启用素材动画。</p>
+            <p className="text-sm text-muted-foreground">{tx("当前没有图片素材。上传图片后可启用素材动画。")}</p>
           )}
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -423,23 +425,23 @@ export function VideoAssetsPage() {
               disabled={!hasImage}
               onChange={(e) => setAnimate(e.target.checked)}
             />
-            静态图片动画化（i2v）
+            {tx('静态图片动画化（i2v）')}
           </label>
             {animate && (
               <>
                 <PromptField
-                  label="动画提示词"
-                  hint="可选。描述图片如何动起来；留空则用默认轻微推镜运动。"
+                  label={tx("动画提示词")}
+                  hint={tx("可选。描述图片如何动起来；留空则用默认轻微推镜运动。")}
                   value={animatePrompt}
                   onChange={setAnimatePrompt}
                   jobScope="video-assets:animate-opt"
                   task="i2v"
                   workflow={videoPack?.name}
                   aspect={aspect}
-                  placeholder="例如：微风吹动，缓慢推近，环境轻柔"
+                  placeholder={tx("例如：微风吹动，缓慢推近，环境轻柔")}
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="动画服务" hint="执行 i2v 的视频 Provider。">
+                  <Field label={tx("动画服务")} hint={tx("执行 i2v 的视频 Provider。")}>
                     <select
                       className={selectClass}
                       value={videoProvider?.id ?? ""}
@@ -450,7 +452,7 @@ export function VideoAssetsPage() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="动画工作流" hint="i2v 能力的工作流包，图片作为首帧。">
+                  <Field label={tx("动画工作流")} hint={tx("i2v 能力的工作流包，图片作为首帧。")}>
                     <select
                       className={selectClass}
                       value={videoPack?.name ?? ""}
@@ -497,11 +499,11 @@ export function VideoAssetsPage() {
       {/* ⑤ 配音 */}
       <Card>
         <CardHeader>
-          <CardTitle>配音</CardTitle>
-          <CardDescription>逐素材配音：ComfyUI 语音工作流、Liber Speech 或第三方 TTS API。</CardDescription>
+          <CardTitle>{tx("配音")}</CardTitle>
+          <CardDescription>{tx("逐素材配音：ComfyUI 语音工作流、Liber Speech 或第三方 TTS API。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Field label="配音服务" hint="只列出已启用、且具备 tts 能力的 Provider。">
+          <Field label={tx("配音服务")} hint={tx("只列出已启用、且具备 tts 能力的 Provider。")}>
             <select
               className={selectClass}
               value={ttsProvider?.id ?? ""}
@@ -514,7 +516,7 @@ export function VideoAssetsPage() {
           </Field>
           {ttsIsComfy ? (
             <>
-              <Field label="语音工作流" hint="tts 能力的工作流包，口播文本会自动注入。">
+              <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本会自动注入。")}>
                 <select
                   className={selectClass}
                   value={ttsPack?.name ?? ""}
@@ -526,7 +528,7 @@ export function VideoAssetsPage() {
                 </select>
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
-                <p className="text-sm text-muted-foreground">没有 tts 能力的工作流包，请到「设置 → 工作流包」导入。</p>
+                <p className="text-sm text-muted-foreground">{tx("没有 tts 能力的工作流包，请到「设置 → 工作流包」导入。")}</p>
               )}
               {ttsPack && (
                 <WorkflowInputs
@@ -540,29 +542,29 @@ export function VideoAssetsPage() {
             </>
           ) : isLibraryVoice ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="音色" hint="选自音色库（参考音频克隆）。不选则填写音色名。">
+              <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则填写音色名。")}>
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">手动指定音色…</option>
+                  <option value="">{tx("手动指定音色…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
-                      {v.is_default ? "（默认）" : ""}
+                      {v.is_default ? tx("（默认）") : ""}
                     </option>
                   ))}
                 </select>
               </Field>
               {voiceRecordId === "" && (
-                <Field label="音色名" hint="Liber Speech 用语言代码，例如 zh、en。">
+                <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
                   <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
                 </Field>
               )}
             </div>
           ) : (
-            <Field label="音色" hint="来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。">
+            <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
               <div className="flex gap-2">
                 {serviceVoices.length > 0 ? (
                   <select
@@ -570,9 +572,9 @@ export function VideoAssetsPage() {
                     value={voiceName}
                     onChange={(e) => setVoiceName(e.target.value)}
                   >
-                    <option value="">选择音色…</option>
+                    <option value="">{tx("选择音色…")}</option>
                     {voiceName && !serviceVoices.includes(voiceName) && (
-                      <option value={voiceName}>{voiceName}（不在列表中）</option>
+                      <option value={voiceName}>{voiceName}{tx("（不在列表中）")}</option>
                     )}
                     {serviceVoices.map((v) => (
                       <option key={v} value={v}>{v}</option>
@@ -580,7 +582,7 @@ export function VideoAssetsPage() {
                   </select>
                 ) : (
                   <Input
-                    placeholder={refreshModels.isPending ? "正在从服务拉取音色…" : "拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural"}
+                    placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural")}
                     value={voiceName}
                     onChange={(e) => setVoiceName(e.target.value)}
                   />
@@ -588,7 +590,7 @@ export function VideoAssetsPage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  title="从服务拉取音色列表"
+                  title={tx("从服务拉取音色列表")}
                   disabled={!ttsProvider || refreshModels.isPending}
                   onClick={() => ttsProvider && refreshModels.mutate(ttsProvider.id)}
                 >
@@ -603,26 +605,26 @@ export function VideoAssetsPage() {
       {/* ⑥ 画幅与背景音乐 */}
       <Card>
         <CardHeader>
-          <CardTitle>画幅与背景音乐</CardTitle>
+          <CardTitle>{tx("画幅与背景音乐")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="画幅" hint="成片宽高比。">
+            <Field label={tx("画幅")} hint={tx("成片宽高比。")}>
               <select className={selectClass} value={aspect} onChange={(e) => setAspect(e.target.value)}>
-                <option value="9:16">9:16 竖屏</option>
-                <option value="1:1">1:1 方形</option>
-                <option value="16:9">16:9 横屏</option>
+                <option value="9:16">{tx("9:16 竖屏")}</option>
+                <option value="1:1">{tx("1:1 方形")}</option>
+                <option value="16:9">{tx("16:9 横屏")}</option>
               </select>
             </Field>
-            <Field label="背景音乐" hint="从音乐库选择；留空则只有人声。">
+            <Field label={tx("背景音乐")} hint={tx("从音乐库选择；留空则只有人声。")}>
               <select className={selectClass} value={bgmName} onChange={(e) => setBgmName(e.target.value)}>
-                <option value="">无背景音乐</option>
+                <option value="">{tx("无背景音乐")}</option>
                 {bgmList?.map((b) => (
                   <option key={b.name} value={b.name}>{b.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="BGM 音量" hint="0 到 1，建议 0.1 到 0.3。">
+            <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
               <Input
                 type="number"
                 min={0}
@@ -636,7 +638,7 @@ export function VideoAssetsPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? `合成中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始合成"}
+              {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
             </Button>
             {running && job?.steps?.length > 0 && (
               <span className="text-sm text-muted-foreground">
@@ -653,11 +655,11 @@ export function VideoAssetsPage() {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
-            emptyHint="上传素材，拼成一条短片"
+            emptyHint={tx("上传素材，拼成一条短片")}
             meta={[
-              { label: "画幅", value: aspect },
-              { label: "标题", value: title },
-              { label: "内容", value: mode === "script" ? script : effectiveTopic },
+              { label: tx("画幅"), value: aspect },
+              { label: tx("标题"), value: title },
+              { label: tx("内容"), value: mode === "script" ? script : effectiveTopic },
             ]}
           />
         }

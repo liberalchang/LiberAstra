@@ -1,6 +1,6 @@
 # MiniMax H3：模型清单、Turbo 加速与越狱增强工作流开发计划
 
-> 状态（2026-10-19 远程核对）：**代码侧** M2/M3/M4、E2/E3/E5 已完成。**运维侧** E1 物料已齐（Guide + 越狱 TE/tail，SHA 校验通过）；M1 物料部分齐（T8 Turbo LoRA 已上传，**缺** Larry Turbo 节点包与 `ema` / `fl2v_turbo_8step` 推荐文件）。**尚未做**：Comfy 网页/ LiberAstra 端到端出片验收；M3「默认开加速」偏好、M5、E4、E6。
+> 状态（2026-10-20）：**代码侧** 六个 H3 视频包已切到方案 A（`MiniMaxH3TurboLoRA` + `minimax_h3_turbo_v4_step600_ema.safetensors`，采样器预设 `euler`、8 步）。**运维侧** 远程仍缺 Larry Turbo 节点包；EMA 已在本地下好，待上传到 `models/loras/`。出片验收未做。
 >
 > 远程实测摘要（`ps@10.10.12.140`，ComfyUI 0.37.0 / PyTorch 2.14.1+cu130）：磁盘剩余约 89G；内存 62G、可用约 20G；Guide `054ccb8`；`MiniMaxH3PromptEnhancer` / `MiniMaxH3GenerationTailLoader` 已注册；无 `ComfyUI-MiniMax-H3-Turbo`。
 >
@@ -19,7 +19,7 @@
 
 远程 ComfyUI 已有的原生 H3 支持（通过 `/object_info` 实测）：`MiniMaxH3ImageToVideo`、`ResolutionSelector`、`ComfyMathExpression`、`CreateVideo`、`SaveVideo`、`LoraLoaderModelOnly`、`PreviewAny`、`PrimitiveFloat`；`comfy/model_sampling.py` 里有 `ModelSamplingAV`（音视频双调度原生支持）。
 
-远程**已具备** Guide 节点：`MiniMaxH3PromptEnhancer`、`MiniMaxH3GenerationTailLoader`（包目录 `ComfyUI-MiniMax-H3-Guide` @ `054ccb8`）。**仍缺**：Larry `ComfyUI-MiniMax-H3-Turbo` 节点包（当前 LiberAstra 包走方案 B：`LoraLoaderModelOnly`，可不装）。
+远程**已具备** Guide 节点：`MiniMaxH3PromptEnhancer`、`MiniMaxH3GenerationTailLoader`（包目录 `ComfyUI-MiniMax-H3-Guide` @ `054ccb8`）。内置 H3 视频包已改为方案 A：节点 `MiniMaxH3TurboLoRA`，推荐 `minimax_h3_turbo_v4_step600_ema.safetensors`。远程仍需安装 Larry `ComfyUI-MiniMax-H3-Turbo`，并上传该 EMA 文件后才能开加速出片。
 
 ---
 
@@ -105,9 +105,9 @@ Turbo LoRA（低秩适配权重）是针对 MiniMax H3 DiT 蒸馏训练的少步
 | 文件 | 来源 | 本地 | 远程 | 说明 |
 |------|------|------|------|------|
 | `minimax_h3_turbo_4step_comfyui.safetensors`（本地改名） | [t8star 转换版](https://huggingface.co/t8star/minimax-h3-4step-turbo-loras-comfyui-exp)：`minimax_h3_turbo_4步加速_comfyui.safetensors` | 有 0.73 GiB | **有** | v1 系列初版，T8 → 标准 LoRA；配 pruned 主模型**不保证**可用 |
-| `minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors` | t8star 转换版 | 有 0.73 GiB | **有** | v4-600（非 EMA）转换版；当前内置包 `accel.recommended` 指向此文件 |
-| `minimax_h3_turbo_v4_step600_ema.safetensors` | [larryvrh 原版](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora) | 无 | **无** | 原作者推荐；需方案 A（Turbo 节点包） |
-| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | 社区/其它转换 | 视本地 | **无** | 曾出现在早期 manifest 推荐名；远程未部署 |
+| `minimax_h3_turbo_v4_step600_comfyui_T8-convert.safetensors` | t8star 转换版 | 有 0.73 GiB | **有** | v4-600（非 EMA）转换版；**不能**挂剪枝主模型。内置包已不再推荐 |
+| `minimax_h3_turbo_v4_step600_ema.safetensors` | [larryvrh 原版](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora) | 有（`models/loras/`，779849816 字节） | **无**（待上传） | 原作者格式；内置包 `accel.recommended` 指向此文件，由 `MiniMaxH3TurboLoRA` 加载 |
+| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | 社区/其它转换 | 视本地 | **无** | 越狱包曾推荐；现已改用 EMA，不再作为加速文件 |
 
 ### 2.3 两种接法（关键差异）
 
@@ -135,7 +135,7 @@ Turbo LoRA（低秩适配权重）是针对 MiniMax H3 DiT 蒸馏训练的少步
 
 | 模型族 | 加速方式 | 现状 |
 |--------|----------|------|
-| MiniMax H3 | Turbo LoRA（本节） | **机制已接入**；远程用 T8 LoRA + `LoraLoaderModelOnly`，待出片验收 |
+| MiniMax H3 | Turbo LoRA（本节） | **机制已接入**；内置包走 `MiniMaxH3TurboLoRA` + EMA，采样器预设 `euler`、8 步；远程装节点并上传 EMA 后待出片验收 |
 | Wan 2.2 | lightx2v / FusionX 类少步 LoRA（本地有 `wan-fusionx` 目录） | 待接入（M5），同一套机制 |
 | Qwen-Image 2.1 | 直接换 turbo 主模型（`qwen_image_2.1_turbo_*`），不是 LoRA | 现有包可通过换模型实现 |
 
@@ -226,7 +226,7 @@ accel:
 
 | 阶段 | 内容 | 产出 | 状态 |
 |------|------|------|------|
-| M1 | 远程装 Turbo / 上传 LoRA，Comfy 网页手工跑通 8 步 i2v | 可用的 API Format 工作流 | 🟡 LoRA 已上传（T8×2）；缺 Larry Turbo 包/`ema`；**出片验收未做** |
+| M1 | 远程装 Turbo / 上传 EMA，Comfy 网页手工跑通 8 步 i2v | 可用的 API Format 工作流 | 🟡 内置包已改方案 A；远程缺 Larry 节点包，EMA 待上传 |
 | M2 | 后端 `accel` 机制 + 单测 | manifest 支持加速声明 | ✅ |
 | M3 | 前端开关、模型下拉框；（可选）系统默认开加速偏好 | 用户可开关、可选模型 | ✅ 控件已做；偏好未做 |
 | M4 | 内置 `minimax_h3_i2v` + 使用文档 | 开箱可用 | ✅ |
@@ -282,7 +282,7 @@ accel:
 | 层面 | 现状 |
 |------|------|
 | 直接导入这个 JSON | **不能**。它是画布格式（含 `nodes` / `links` / `definitions.subgraphs`），LiberAstra 只接受 API Format（`{节点id: {class_type, inputs}}`），见 `使用文档.md`「工作流包」一节 |
-| 远程 ComfyUI | **Guide + 越狱 TE/tail 已就绪**；原生 H3 节点齐全；Turbo 走标准 `LoraLoaderModelOnly`（远程已有） |
+| 远程 ComfyUI | **Guide + 越狱 TE/tail 已就绪**；原生 H3 节点齐全；Turbo 需再装 Larry `ComfyUI-MiniMax-H3-Turbo` 并放入 EMA 文件 |
 | LiberAstra 后端 | 内置包 `minimax_h3_i2v` / `minimax_h3_i2v_enhancer` 已可用：`accel`、`outputs.texts`、帧数 17k+5 / fps 24 等均已接线 |
 | 展示增强后的提示词 | ✅ E3：`outputs.texts` → `extract_texts` → 任务 `type:text` → ResultPanel |
 | 开关增强 | ❌ E4 未做；用两个包代替（有/无 enhancer） |

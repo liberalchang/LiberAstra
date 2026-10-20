@@ -296,10 +296,14 @@ def _guess_fps(api: dict[str, Any]) -> int | None:
     return None
 
 
+# 单路 MODEL→MODEL 的加速节点。Turbo 节点能在剪枝主模型上补回时间条件。
+_ACCEL_NODE_TYPES = ("LoraLoaderModelOnly", "MiniMaxH3TurboLoRA")
+
+
 def _guess_accel(api: dict[str, Any]) -> dict[str, Any] | None:
-    """找 LoraLoaderModelOnly：model 来自 UNET，且被 Guider/Scheduler 引用。"""
+    """找加速 LoRA 节点：model 来自 UNET，且被 Guider/Scheduler 引用。"""
     for nid, node in api.items():
-        if node.get("class_type") != "LoraLoaderModelOnly":
+        if node.get("class_type") not in _ACCEL_NODE_TYPES:
             continue
         inputs = node.get("inputs") or {}
         model_in = inputs.get("model")
@@ -322,8 +326,18 @@ def _guess_accel(api: dict[str, Any]) -> dict[str, Any] | None:
             continue
         lora_name = inputs.get("lora_name", "")
         strength_field = "strength_model" if "strength_model" in inputs else "strength"
-        match = "minimax_h3" if "minimax" in str(lora_name).lower() else "turbo"
+        is_turbo_node = node.get("class_type") == "MiniMaxH3TurboLoRA"
+        # EMA 原版才能挂剪枝主模型；T8 / LightX2V 转换文件不要进同一个下拉框
+        if is_turbo_node:
+            match = "_ema"
+        elif "minimax" in str(lora_name).lower():
+            match = "minimax_h3"
+        else:
+            match = "turbo"
         recommended = lora_name if isinstance(lora_name, str) and lora_name else None
+        preset: dict[str, Any] = {"steps": 8}
+        if is_turbo_node:
+            preset["sampler_name"] = "euler"
         accel: dict[str, Any] = {
             "label": "Turbo 加速",
             "default_enabled": False,
@@ -340,12 +354,12 @@ def _guess_accel(api: dict[str, Any]) -> dict[str, Any] | None:
                 "min": 0.5,
                 "max": 1.5,
             },
-            "preset": {"steps": 8},
+            "preset": preset,
         }
         if recommended:
             accel["lora"]["recommended"] = recommended
-        # 家族提示
-        if "minimax" in match:
+        # 家族提示：Turbo 节点或文件名含 minimax 都算 H3
+        if is_turbo_node or "minimax" in match or "minimax" in str(lora_name).lower():
             accel["family"] = "minimax_h3"
         return accel
     return None
@@ -486,6 +500,10 @@ def suggest_manifest(api: dict[str, Any]) -> dict[str, Any]:
     if fps is not None:
         manifest["fps"] = fps
     if accel:
+        # 图里没有采样器控件时，不要把 euler 写进 preset（校验要求 preset 键都在 inputs 里）
+        preset = accel.get("preset") or {}
+        if "sampler_name" in preset and "sampler_name" not in inputs:
+            preset.pop("sampler_name", None)
         manifest["accel"] = accel
     return manifest
 

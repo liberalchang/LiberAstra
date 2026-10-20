@@ -25,6 +25,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { useTx } from "@/i18n/tx";
 
 interface Props {
   /** i2i = 图生图与编辑；upscale = 修复与放大 */
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function ImageEditPage({ capability, title, description }: Props) {
+  const tx = useTx();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const imageProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("image"));
 
@@ -136,7 +138,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="图像服务" hint="只列出已启用、且具备 image 能力的 Provider。">
+            <Field label={tx("图像服务")} hint={tx("只列出已启用、且具备 image 能力的 Provider。")}>
               <select
                 className={selectClass}
                 value={provider?.id ?? ""}
@@ -150,7 +152,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
               </select>
             </Field>
             {isComfy && (
-              <Field label="工作流包" hint="按当前能力（图生图或放大）过滤。没有对应包时先导入。">
+              <Field label={tx("工作流包")} hint={tx("按当前能力（图生图或放大）过滤。没有对应包时先导入。")}>
                 <select
                   className={selectClass}
                   value={pack?.name ?? ""}
@@ -167,23 +169,23 @@ export function ImageEditPage({ capability, title, description }: Props) {
           </div>
           {noPacks && (
             <p className="text-sm text-muted-foreground">
-              没有 {capability} 能力的工作流包，请到「设置 → 工作流包」导入。
+              {tx("没有 {capability} 能力的工作流包，请到「设置 → 工作流包」导入。", { capability })}
             </p>
           )}
           <Field
             label={
               imageSlots <= 1
-                ? "原图"
+                ? tx("原图")
                 : isMaskPack
-                  ? "原图和蒙版"
-                  : `参考图（至少 ${requiredImageSlots} 张，最多 ${imageSlots} 张）`
+                  ? tx("原图和蒙版")
+                  : tx("参考图（至少 {min} 张，最多 {max} 张）", { min: requiredImageSlots, max: imageSlots })
             }
             hint={
               imageSlots <= 1
-                ? "可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。"
+                ? tx("可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。")
                 : isMaskPack
-                  ? "按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。"
-                  : "按顺序对应 image 1、image 2…。第 1 张为主图/画布，其余为参考。提示词里用「image 1」「image 2」指代。可分多次添加。"
+                  ? tx("按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。")
+                  : tx("按顺序对应 image 1、image 2…。第 1 张为主图/画布，其余为参考。提示词里用「image 1」「image 2」指代。可分多次添加。")
             }
           >
             <FileDrop
@@ -192,17 +194,17 @@ export function ImageEditPage({ capability, title, description }: Props) {
               clearAfterSelect
               title={
                 imageSlots <= 1
-                  ? "点击或拖拽上传图片"
+                  ? tx("点击或拖拽上传图片")
                   : isMaskPack
-                    ? "依次添加原图和蒙版"
-                    : "按顺序添加参考图"
+                    ? tx("依次添加原图和蒙版")
+                    : tx("按顺序添加参考图")
               }
               subtitle={
                 imageSlots <= 1
-                  ? "支持多选、多次添加"
+                  ? tx("支持多选、多次添加")
                   : isMaskPack
-                    ? "白色重画，黑色保留"
-                    : `必选 ${requiredImageSlots} 张，可选至 ${imageSlots} 张`
+                    ? tx("白色重画，黑色保留")
+                    : tx("必选 {min} 张，可选至 {max} 张", { min: requiredImageSlots, max: imageSlots })
               }
               onSelect={addFiles}
             />
@@ -218,17 +220,17 @@ export function ImageEditPage({ capability, title, description }: Props) {
                       <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[10px] leading-none text-white">
                         {isMaskPack
                           ? i === 0
-                            ? "原图"
+                            ? tx("原图")
                             : i === 1
-                              ? "蒙版"
+                              ? tx("蒙版")
                               : `#${i + 1}`
-                          : imageInputs[i]?.[1]?.label?.replace(/（.*?）/g, "") || `图${i + 1}`}
+                          : tx(imageInputs[i]?.[1]?.label?.replace(/（.*?）/g, "") || "") || tx("图{n}", { n: i + 1 })}
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={() => removeFile(i)}
-                      title={`移除 ${f.name}`}
+                      title={tx("移除 {name}", { name: f.name })}
                       className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
                     >
                       <X className="size-3" />
@@ -242,13 +244,13 @@ export function ImageEditPage({ capability, title, description }: Props) {
             )}
           </Field>
           <PromptField
-            label="提示词"
+            label={tx("提示词")}
             hint={
               imageSlots > 1
-                ? "只写白色区域里要变成什么，并写明脸、姿势等要保持的部分。"
+                ? tx("只写白色区域里要变成什么，并写明脸、姿势等要保持的部分。")
                 : capability === "i2i"
-                  ? "说明要怎么改，例如把背景换成海滩。"
-                  : "放大或修复时可选，用来约束画面。"
+                  ? tx("说明要怎么改，例如把背景换成海滩。")
+                  : tx("放大或修复时可选，用来约束画面。")
             }
             value={promptValue}
             onChange={setPromptValue}
@@ -257,12 +259,12 @@ export function ImageEditPage({ capability, title, description }: Props) {
             workflow={isComfy ? pack?.name : undefined}
             placeholder={
               isMaskPack
-                ? "例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势"
+                ? tx("例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势")
                 : imageSlots > 1
-                  ? "例如：将 image 1 中的女性和 image 2 中的男性合成同一张合影，统一光照"
+                  ? tx("例如：将 image 1 中的女性和 image 2 中的男性合成同一张合影，统一光照")
                   : capability === "i2i"
-                    ? "例如：把背景换成海滩"
-                    : "可选"
+                    ? tx("例如：把背景换成海滩")
+                    : tx("可选")
             }
           />
           {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
@@ -294,13 +296,19 @@ export function ImageEditPage({ capability, title, description }: Props) {
                 !!running
               }
             >
-              {running ? `处理中… ${Math.round((job?.progress ?? 0) * 100)}%` : "开始"}
+              {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
             </Button>
             {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
               <span className="text-sm text-muted-foreground">
                 {isMaskPack
-                  ? `此工作流需要 ${requiredImageSlots} 张图（原图 + 蒙版），还差 ${requiredImageSlots - files.length} 张`
-                  : `至少上传 ${requiredImageSlots} 张参考图，还差 ${requiredImageSlots - files.length} 张`}
+                  ? tx("此工作流需要 {need} 张图（原图 + 蒙版），还差 {left} 张", {
+                      need: requiredImageSlots,
+                      left: requiredImageSlots - files.length,
+                    })
+                  : tx("至少上传 {need} 张参考图，还差 {left} 张", {
+                      need: requiredImageSlots,
+                      left: requiredImageSlots - files.length,
+                    })}
               </span>
             )}
           </div>
@@ -312,12 +320,12 @@ export function ImageEditPage({ capability, title, description }: Props) {
             job={job ?? null}
             mediaKind="image"
             historyKind="image"
-            emptyHint="上传原图后开始处理"
+            emptyHint={tx("上传原图后开始处理")}
             meta={[
-              { label: "服务", value: provider?.name ?? "" },
-              { label: "工作流", value: isComfy ? (pack?.name ?? "") : "" },
+              { label: tx("服务"), value: provider?.name ?? "" },
+              { label: tx("工作流"), value: isComfy ? (pack?.name ?? "") : "" },
               {
-                label: promptValue.useOptimized && promptValue.optimized.trim() ? "提示词（已优化）" : "提示词",
+                label: promptValue.useOptimized && promptValue.optimized.trim() ? tx("提示词（已优化）") : tx("提示词"),
                 value: effectivePrompt,
               },
             ]}
