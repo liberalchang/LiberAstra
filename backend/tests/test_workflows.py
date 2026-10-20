@@ -605,3 +605,79 @@ def test_qwen_image_uncensored_lora_accel() -> None:
         assert on["200"]["inputs"]["strength_model"] == 0.85
         assert on[sampler]["inputs"]["model"] == ["200", 0]
         validate_pack(pack)
+
+
+def test_flux3_klein_packs() -> None:
+    """蒸馏文生图 / 单图编辑 / 多图编辑：INT8 四件套，扩展器开着，可选参考图可断开。"""
+    from liberastra.providers.comfyui.workflow import _detach_unused_media_links
+
+    t2i = get_pack("flux3_klein")
+    assert t2i.source == "builtin"
+    assert t2i.capability == "t2i"
+    wired = apply_inputs(
+        t2i,
+        {
+            "prompt": "a red door",
+            "negative_prompt": "blur",
+            "width": 768,
+            "height": 768,
+            "steps": 16,
+            "seed": 7,
+            "batch_size": 1,
+        },
+    )
+    assert wired["18:17"]["inputs"]["value"] == "a red door"
+    assert wired["18:5"]["inputs"]["text"] == "blur"
+    assert wired["18:6"]["inputs"]["width"] == 768
+    assert wired["18:6"]["inputs"]["height"] == 768
+    assert wired["18:7"]["inputs"]["steps"] == 16
+    assert wired["18:7"]["inputs"]["cfg"] == 1
+    assert wired["18:7"]["inputs"]["sampler_name"] == "euler"
+    assert wired["18:1"]["inputs"]["unet_name"] == "flux3-image-klein-int8-convrot.safetensors"
+    assert wired["18:12"]["inputs"]["clip_name"].endswith("w4a8.safetensors")
+    assert wired["18:16"]["inputs"]["switch"] is True
+    assert wired["18:11"]["inputs"]["sampling_mode"] == "on"
+    assert "PreviewAny" not in {n["class_type"] for n in wired.values()}
+    validate_pack(t2i)
+
+    edit = get_pack("flux3_klein_edit")
+    assert edit.capability == "i2i"
+    assert [k for k, s in edit.inputs.items() if s.get("type") == "image"] == ["image"]
+    edited = apply_inputs(edit, {"prompt": "换成海滩", "seed": 3, "image": "uploads/a.png"})
+    assert edited["49"]["inputs"]["prompt"] == "换成海滩"
+    assert edited["7"]["inputs"]["latent_image"] == ["17", 2]
+    assert edited["7"]["inputs"]["cfg"] == 1
+    assert edited["51"]["inputs"]["switch"] is False
+    assert edited["17"]["inputs"]["resolution"] == "resize"
+    validate_pack(edit)
+
+    multi = get_pack("flux3_klein_edit_multi")
+    assert multi.capability == "i2i"
+    assert [k for k, s in multi.inputs.items() if s.get("type") == "image"] == [
+        "image",
+        "image_2",
+        "image_3",
+        "image_4",
+    ]
+    assert multi.inputs["image_3"].get("required") is False
+    filled = apply_inputs(
+        multi,
+        {
+            "prompt": "第一张的人走到第二张的林子里",
+            "seed": 1,
+            "image": "uploads/a.png",
+            "image_2": "uploads/b.png",
+        },
+    )
+    assert filled["28"]["inputs"]["value"] == "第一张的人走到第二张的林子里"
+    assert filled["128:136"]["inputs"]["images.image3"] == ["149", 0]
+    assert filled["128:107"]["inputs"]["cfg"] == 1.0
+    wf = deepcopy(filled)
+    _detach_unused_media_links(wf, multi, {"image": "a.png", "image_2": "b.png"})
+    assert wf["128:136"]["inputs"]["images.image0"] == ["145:138", 0]
+    assert wf["128:136"]["inputs"]["images.image1"] == ["147", 0]
+    assert "images.image2" not in wf["128:136"]["inputs"]
+    assert "images.image3" not in wf["128:136"]["inputs"]
+    assert "images.image2" not in wf["127:146"]["inputs"]
+    assert "images.image3" not in wf["127:146"]["inputs"]
+    validate_pack(multi)

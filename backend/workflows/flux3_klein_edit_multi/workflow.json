@@ -1,0 +1,509 @@
+{
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "flux3_klein_edit_multi",
+      "images": [
+        "128:108",
+        0
+      ]
+    }
+  },
+  "25": {
+    "class_type": "CreateBoundingBoxes",
+    "inputs": {
+      "width": 1000,
+      "height": 1000,
+      "editor_state": [],
+      "background": [
+        "133",
+        0
+      ]
+    }
+  },
+  "28": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "the woman from the first image standing on a lookout in front of the autumn forest from the second image"
+    }
+  },
+  "133": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "147": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "148": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "149": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "127:112": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
+      "type": "flux3",
+      "device": "default"
+    }
+  },
+  "127:116": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "127:27",
+        0
+      ],
+      "on_true": [
+        "127:111",
+        0
+      ]
+    }
+  },
+  "127:27": {
+    "class_type": "Flux3LayoutPrompt",
+    "inputs": {
+      "prompt": [
+        "28",
+        0
+      ],
+      "element": [
+        "25",
+        2
+      ]
+    }
+  },
+  "127:118": {
+    "class_type": "Flux3LayoutPrompt",
+    "inputs": {
+      "element": [
+        "25",
+        2
+      ]
+    }
+  },
+  "127:119": {
+    "class_type": "StringTrim",
+    "inputs": {
+      "string": [
+        "127:118",
+        0
+      ],
+      "mode": "Both"
+    }
+  },
+  "127:120": {
+    "class_type": "StringContains",
+    "inputs": {
+      "string": [
+        "127:119",
+        0
+      ],
+      "substring": "\"bbox\"",
+      "case_sensitive": true
+    }
+  },
+  "127:126": {
+    "class_type": "StringTrim",
+    "inputs": {
+      "string": [
+        "28",
+        0
+      ],
+      "mode": "Both"
+    }
+  },
+  "127:121": {
+    "class_type": "StringConcatenate",
+    "inputs": {
+      "string_b": [
+        "127:126",
+        0
+      ],
+      "string_a": "ORIGINAL PROMPT:\n",
+      "delimiter": ""
+    }
+  },
+  "127:122": {
+    "class_type": "StringConcatenate",
+    "inputs": {
+      "string_a": [
+        "127:121",
+        0
+      ],
+      "string_b": [
+        "127:119",
+        0
+      ],
+      "delimiter": "\n\nLOCKED BOUNDING-BOX ANNOTATIONS ([y_min, x_min, y_max, x_max] on a 0-1000 canvas, with (0, 0) at the top-left). This is an authoritative JSON list of dictionaries; preserve every supplied identity, provenance value, null, and coordinate exactly:\n"
+    }
+  },
+  "127:123": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": [
+        "127:134",
+        0
+      ],
+      "on_true": [
+        "127:135",
+        0
+      ],
+      "switch": [
+        "127:120",
+        0
+      ]
+    }
+  },
+  "127:114": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "You are the prompt upsampler of an image-editing model. You see the reference image(s), attached in order (the first image, the second image, ...), and the user's short request. Expand it into ONE detailed, self-contained instruction: the caption the editing model receives together with the same images. Output only the instruction as one continuous English prose block, with no greetings, explanations, Markdown, JSON, coordinates, ids or angle-bracket tokens. Read a vague or conversational request as the most plausible edit of the supplied images.\n\nPick the voice by task shape. When one reference stays and gets bounded changes, write an imperative editing instruction on it (\"Remove the ...\", \"Change the ... to ...\", \"Zoom in on ...\"); a whole-image transformation opens with its scope (\"Convert the entire image into ...\", \"Apply a ... filter over the entire scene\", \"Horizontally flip the entire image so that ...\", \"Shift the camera viewpoint to ...\", then where the major elements should now be). When the references are drawn into a newly composed frame (combining subjects, a new scene, a garment, object or style donor), write a generation request (\"Create a photograph of ...\", \"Create an anime-style illustration of ...\", \"Generate a new image featuring ...\") that says what to take from each image, by ordinal, and what is newly generated.\n\nKeep every explicit edit, constraint, count, position, style cue and piece of wording, and decide what is left open as one concrete plan. Ground everything in what is actually visible: identify each referent unambiguously by its real appearance, never mention content that is not there, and use every image the user attached. State every end state concretely (which color, how large, which pose, which material) and give new content enough appearance to be generated. Cover the knock-on effects of the change (shadows, reflections, occlusion, perspective, scale, lighting) and say what fills a removed region. A zoom-in names what stays in frame and which neighbors are cropped out; an outpainting continues the scene in the same medium. Describe the change, not the whole scene, and close an editing instruction with one compact clause naming what stays unchanged; transferred people keep their identity, face and accessories unless asked otherwise. Transcribe on-image text verbatim in its original language inside double quotes, with line breaks as \\n, and match the original font, size and color when replacing it. Name recognizable public figures, brands and landmarks you can see. Directions are frame-relative; use no evaluative or quality words. Typical length is 50 to 150 words.\n\nOutput only the instruction."
+    }
+  },
+  "127:124": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "You are the annotation system an image-editing model was trained on. You see the source image(s), attached in order as ref_image_0, ref_image_1, ..., and the user's editing instruction; the edited target image does not exist yet. Determine the edit precisely, imagine the target consistently with the source, and write the record its annotator would have written, on one line: the instruction paragraph, one space, then ONE JSON array. Output nothing else.\n\nThe paragraph: English, instruction voice (\"Change the ...\", \"Remove the ...\", or \"Create a photograph of ...\" when the references are drawn into a new frame), never observer phrasing and never a comparison with the target. Cite every involved object, person or text block at its first mention with its table id in its own angle brackets (\"remove the delivery van <van_1>\"), every table id exactly once and no other id; cite a reference image by its token when content is taken from it (\"the cup <cup_1> from <ref_image_1>\"). End states (new color, new text in quotes, pose, degree) live in the paragraph, static appearance in the descs; no coordinates. An editing instruction closes with one compact clause that everything else stays identical to the source.\n\nThe table, rows {\"id\", \"from\", \"src_bbox\", \"tgt_bbox\", \"desc\"}: one row per edited, removed, added, moved or anchoring item, plus the scene or background when it is itself changed or preserved; no rows for untouched scenery. id: a lowercase class noun plus an index (person_1, cup_2) numbered left to right, then top to bottom; text blocks are En_Text_1 and so on; ids are unique. from: \"ref_image_N\" for an item visible in reference N, \"target\" for newly created content. src_bbox is the item's box in its from-image and null for target rows; tgt_bbox is its box in the imagined result and null for removed items; moved or resized items carry both; new items are sized like similar objects in the frame. Boxes are [y_min, x_min, y_max, x_max] integers from 0 to 1000, top-left origin, tight around objects, with 5 to 15 units of margin around text. A row may also carry src_bbox_1stage and tgt_bbox_1stage, a first-pass estimate of the same boxes. desc: one English paragraph of the item's static appearance in its from-image (for target rows, its decided appearance), opening with its identity; people get the richest descs (ethnicity, gender, age range, skin tone, hair, face, garments, accessories, pose, expression); text rows quote their text verbatim.\n\nState only decided facts: visible in the source, demanded by the instruction, or a concrete default needed to realize it. Settle whether the edit targets one instance, all of a class or several; land every magnitude on a concrete value; include visible knock-on effects; added objects are new objects at real-world size; a zoom-in names the neighbors it excludes; an outpainting keeps the source whole and continues it in the same medium. Everything the instruction does not involve stays identical to the source.\n\nOutput only the paragraph and the table."
+    }
+  },
+  "127:125": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": [
+        "127:114",
+        0
+      ],
+      "on_true": [
+        "127:124",
+        0
+      ],
+      "switch": [
+        "127:120",
+        0
+      ]
+    }
+  },
+  "127:111": {
+    "class_type": "TextGenerate",
+    "inputs": {
+      "prompt": [
+        "127:123",
+        0
+      ],
+      "max_length": 3584,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 1,
+      "sampling_mode.top_k": 1,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0,
+      "sampling_mode.repetition_penalty": 1,
+      "sampling_mode.seed": 758781618552631,
+      "sampling_mode.presence_penalty": 0,
+      "thinking": false,
+      "use_default_template": true,
+      "mtp": "off",
+      "clip": [
+        "127:112",
+        0
+      ],
+      "image": [
+        "127:146",
+        0
+      ],
+      "system_prompt": [
+        "127:125",
+        0
+      ]
+    }
+  },
+  "127:134": {
+    "class_type": "StringFormat",
+    "inputs": {
+      "values.a": [
+        "28",
+        0
+      ],
+      "f_string": "Reference images follow in order (the first image, the second image, ...).\nUser request: {a}\nOutput the caption."
+    }
+  },
+  "127:135": {
+    "class_type": "StringFormat",
+    "inputs": {
+      "values.a": [
+        "127:122",
+        0
+      ],
+      "f_string": "Reference images follow in attachment order: ref_image_0, ref_image_1, ...\nUser editing instruction: {a}\nDecide the edit, imagine the target image, and output the annotation record."
+    }
+  },
+  "127:146": {
+    "class_type": "BatchImagesNode",
+    "inputs": {
+      "images.image0": [
+        "133",
+        0
+      ],
+      "images.image1": [
+        "147",
+        0
+      ],
+      "images.image2": [
+        "148",
+        0
+      ],
+      "images.image3": [
+        "149",
+        0
+      ]
+    }
+  },
+  "128:101": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux3-image-klein-int8-convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "128:102": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_4b_int8_convrot.safetensors",
+      "type": "flux3",
+      "device": "default"
+    }
+  },
+  "128:103": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "128:104": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "127:116",
+        0
+      ],
+      "clip": [
+        "128:102",
+        0
+      ]
+    }
+  },
+  "128:105": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "",
+      "clip": [
+        "128:102",
+        0
+      ]
+    }
+  },
+  "128:107": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 758781618552631,
+      "steps": 16,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "128:132",
+        0
+      ],
+      "positive": [
+        "128:136",
+        0
+      ],
+      "negative": [
+        "128:136",
+        1
+      ],
+      "latent_image": [
+        "128:137",
+        0
+      ]
+    }
+  },
+  "128:108": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "128:107",
+        0
+      ],
+      "vae": [
+        "128:103",
+        0
+      ]
+    }
+  },
+  "128:130": {
+    "class_type": "PrimitiveFloat",
+    "inputs": {
+      "value": 16.0
+    }
+  },
+  "128:131": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "values.a": [
+        "128:130",
+        0
+      ],
+      "expression": "log(a)"
+    }
+  },
+  "128:132": {
+    "class_type": "ModelSamplingFlux",
+    "inputs": {
+      "model": [
+        "128:101",
+        0
+      ],
+      "max_shift": [
+        "128:131",
+        0
+      ],
+      "base_shift": [
+        "128:131",
+        0
+      ],
+      "width": 1024,
+      "height": 1024
+    }
+  },
+  "128:136": {
+    "class_type": "ReferenceMultiLatent",
+    "inputs": {
+      "positive": [
+        "128:104",
+        0
+      ],
+      "negative": [
+        "128:105",
+        0
+      ],
+      "vae": [
+        "128:103",
+        0
+      ],
+      "images.image0": [
+        "145:138",
+        0
+      ],
+      "images.image1": [
+        "147",
+        0
+      ],
+      "images.image2": [
+        "148",
+        0
+      ],
+      "images.image3": [
+        "149",
+        0
+      ],
+      "resolution": "resize",
+      "resolution.megapixels": 1.0
+    }
+  },
+  "128:137": {
+    "class_type": "RepeatLatentBatch",
+    "inputs": {
+      "samples": [
+        "128:139",
+        0
+      ],
+      "amount": 1
+    }
+  },
+  "128:139": {
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "width": [
+        "145:143",
+        0
+      ],
+      "height": [
+        "145:144",
+        0
+      ],
+      "batch_size": 1
+    }
+  },
+  "145:144": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": [
+        "145:141",
+        1
+      ],
+      "on_true": [
+        "145:142",
+        1
+      ],
+      "switch": true
+    }
+  },
+  "145:138": {
+    "class_type": "ImageScaleToTotalPixels",
+    "inputs": {
+      "image": [
+        "133",
+        0
+      ],
+      "megapixels": 2.0,
+      "upscale_method": "lanczos",
+      "resolution_steps": 16
+    }
+  },
+  "145:141": {
+    "class_type": "ResolutionSelector",
+    "inputs": {
+      "aspect_ratio": "1:1 (Square)",
+      "megapixels": 2.0,
+      "multiple": 8
+    }
+  },
+  "145:142": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": [
+        "145:138",
+        0
+      ]
+    }
+  },
+  "145:143": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": [
+        "145:141",
+        0
+      ],
+      "on_true": [
+        "145:142",
+        0
+      ],
+      "switch": true
+    }
+  }
+}

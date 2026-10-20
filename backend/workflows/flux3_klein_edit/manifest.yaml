@@ -1,0 +1,90 @@
+name: flux3_klein_edit
+capability: i2i
+description: >
+  FLUX.3 Image Klein 蒸馏单图编辑。上传 1 张图，提示词写要改什么。
+  输出尺寸跟原图，参考图按约 1MP 缩放后编码。提示词扩展器默认开。
+  采样固定 CFG 1、euler、simple、16 步。权重与文生图同一套 INT8。
+  需要 ComfyUI ≥ 0.41。没有画框控件；要框选重绘请用 Qwen inpaint 包。
+inputs:
+  image:
+    node: "11"
+    field: inputs.image
+    type: image
+    required: true
+    label: 原图
+    description: 要修改的那一张图
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: flux3-image-klein-int8-convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: 蒸馏 INT8。24GB 不要选 bf16 或 NVFP4。
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_4b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen3-VL-4B。CLIPLoader type 保持 flux3。
+  upsampler_name:
+    node: "46"
+    field: inputs.clip_name
+    type: str
+    default: qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
+    options_from: text_encoders
+    label: 提示词扩展器
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: flux2-vae.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "49"
+    field: inputs.prompt
+    type: str
+    required: true
+    description: 编辑指令，例如把背景换成海滩，人脸和姿势保持不变
+  steps:
+    node: "7"
+    field: inputs.steps
+    type: int
+    default: 16
+    min: 1
+    max: 32
+    description: 蒸馏版官方 16 步，CFG 固定为 1
+  seed:
+    node: "7"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "9"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - LoadImage
+    - Flux3LayoutPrompt
+    - CreateBoundingBoxes
+    - BatchImagesNode
+    - TextGenerate
+    - PrimitiveStringMultiline
+    - ComfySwitchNode
+    - CLIPTextEncode
+    - ConditioningZeroOut
+    - ReferenceMultiLatent
+    - KSampler
+    - VAEDecode
+    - SaveImage
+  models:
+    - diffusion_models/flux3-image-klein-int8-convrot.safetensors
+    - text_encoders/qwen3vl_4b_int8_convrot.safetensors
+    - text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
+    - vae/flux2-vae.safetensors

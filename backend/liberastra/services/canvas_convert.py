@@ -159,6 +159,10 @@ def convert_canvas(canvas: dict[str, Any]) -> dict[str, Any]:
                     boundary_from_outside[name] = inst_widgets[wname]
 
         input_slot_names = [i.get("name") for i in (sg.get("inputs") or [])]
+        # 子图实例上提升出来的控件可能只在 widgets_values 里，不在 inputs 列表
+        for bname in input_slot_names:
+            if bname and bname not in boundary_from_outside and bname in inst_widgets:
+                boundary_from_outside[bname] = inst_widgets[bname]
 
         for n in inner_nodes:
             if n["id"] in (input_node_id, output_node_id):

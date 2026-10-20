@@ -1,0 +1,119 @@
+name: flux3_klein_edit_multi
+capability: i2i
+description: >
+  FLUX.3 Image Klein 蒸馏多图编辑，2 到 4 张参考。
+  提示词按上传顺序指代（第一张、第二张）。没传的第 3、4 张会从扩展器和采样里断开，不会加载占位图。
+  第一张会先缩到约 2MP，再按约 1MP 编码；输出尺寸跟第一张。
+  采样固定 CFG 1、euler、simple、16 步。需要 ComfyUI ≥ 0.41。
+inputs:
+  image:
+    node: "133"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 1（主图）
+    description: 第一张，决定输出尺寸
+  image_2:
+    node: "147"
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 2
+  image_3:
+    node: "148"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 3（可选）
+  image_4:
+    node: "149"
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 4（可选）
+  unet_name:
+    node: "128:101"
+    field: inputs.unet_name
+    type: str
+    default: flux3-image-klein-int8-convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: 蒸馏 INT8。24GB 不要选 bf16 或 NVFP4。
+  clip_name:
+    node: "128:102"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_4b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen3-VL-4B。CLIPLoader type 保持 flux3。
+  upsampler_name:
+    node: "127:112"
+    field: inputs.clip_name
+    type: str
+    default: qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
+    options_from: text_encoders
+    label: 提示词扩展器
+  vae_name:
+    node: "128:103"
+    field: inputs.vae_name
+    type: str
+    default: flux2-vae.safetensors
+    options_from: vae
+    label: VAE
+  prompt:
+    node: "28"
+    field: inputs.value
+    type: str
+    required: true
+    description: >
+      按顺序指代参考图，例如：第一张里的人站在第二张的秋日森林观景台前
+  steps:
+    node: "128:107"
+    field: inputs.steps
+    type: int
+    default: 16
+    min: 1
+    max: 32
+  seed:
+    node: "128:107"
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: "9"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - LoadImage
+    - Flux3LayoutPrompt
+    - CreateBoundingBoxes
+    - TextGenerate
+    - PrimitiveStringMultiline
+    - ComfySwitchNode
+    - StringFormat
+    - StringConcatenate
+    - StringContains
+    - StringTrim
+    - BatchImagesNode
+    - CLIPTextEncode
+    - ModelSamplingFlux
+    - ComfyMathExpression
+    - PrimitiveFloat
+    - ReferenceMultiLatent
+    - ImageScaleToTotalPixels
+    - GetImageSize
+    - ResolutionSelector
+    - EmptyFlux2LatentImage
+    - RepeatLatentBatch
+    - KSampler
+    - VAEDecode
+    - SaveImage
+  models:
+    - diffusion_models/flux3-image-klein-int8-convrot.safetensors
+    - text_encoders/qwen3vl_4b_int8_convrot.safetensors
+    - text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
+    - vae/flux2-vae.safetensors
