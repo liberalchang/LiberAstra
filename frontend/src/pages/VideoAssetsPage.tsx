@@ -26,6 +26,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -309,26 +310,30 @@ export function VideoAssetsPage() {
                   </select>
                 </Field>
                 <Field label={tx("图片分析工作流")} hint={tx("analysis 能力包，如 analysis_image_qwenvl。")}>
-                  <select
-                    className={selectClass}
-                    value={analysisImagePack?.name ?? ""}
-                    onChange={(e) => setAnalysisImageWorkflow(e.target.value)}
-                  >
-                    {analysisPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                  <WorkflowPackControl name={analysisImagePack?.name} description={analysisImagePack?.description}>
+                    <select
+                      className={selectClass}
+                      value={analysisImagePack?.name ?? ""}
+                      onChange={(e) => setAnalysisImageWorkflow(e.target.value)}
+                    >
+                      {analysisPacks?.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </WorkflowPackControl>
                 </Field>
                 <Field label={tx("视频分析工作流")} hint={tx("有视频素材时使用，如 analysis_video_qwenvl。")}>
-                  <select
-                    className={selectClass}
-                    value={analysisVideoPack?.name ?? ""}
-                    onChange={(e) => setAnalysisVideoWorkflow(e.target.value)}
-                  >
-                    {analysisPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                  <WorkflowPackControl name={analysisVideoPack?.name} description={analysisVideoPack?.description}>
+                    <select
+                      className={selectClass}
+                      value={analysisVideoPack?.name ?? ""}
+                      onChange={(e) => setAnalysisVideoWorkflow(e.target.value)}
+                    >
+                      {analysisPacks?.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </WorkflowPackControl>
                 </Field>
               </div>
               {analysisPacks && analysisPacks.length === 0 && (
@@ -453,15 +458,17 @@ export function VideoAssetsPage() {
                     </select>
                   </Field>
                   <Field label={tx("动画工作流")} hint={tx("i2v 能力的工作流包，图片作为首帧。")}>
-                    <select
-                      className={selectClass}
-                      value={videoPack?.name ?? ""}
-                      onChange={(e) => setVideoWorkflow(e.target.value)}
-                    >
-                      {i2vPacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                    <WorkflowPackControl name={videoPack?.name} description={videoPack?.description}>
+                      <select
+                        className={selectClass}
+                        value={videoPack?.name ?? ""}
+                        onChange={(e) => setVideoWorkflow(e.target.value)}
+                      >
+                        {i2vPacks?.map((p) => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    </WorkflowPackControl>
                   </Field>
                 </div>
                 {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
@@ -517,15 +524,17 @@ export function VideoAssetsPage() {
           {ttsIsComfy ? (
             <>
               <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本会自动注入。")}>
-                <select
-                  className={selectClass}
-                  value={ttsPack?.name ?? ""}
-                  onChange={(e) => setTtsWorkflow(e.target.value)}
-                >
-                  {ttsPacks?.map((p) => (
-                    <option key={p.name} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
+                <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
+                  <select
+                    className={selectClass}
+                    value={ttsPack?.name ?? ""}
+                    onChange={(e) => setTtsWorkflow(e.target.value)}
+                  >
+                    {ttsPacks?.map((p) => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </WorkflowPackControl>
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
                 <p className="text-sm text-muted-foreground">{tx("没有 tts 能力的工作流包，请到「设置 → 工作流包」导入。")}</p>

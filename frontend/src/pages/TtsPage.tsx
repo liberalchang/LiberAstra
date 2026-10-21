@@ -12,6 +12,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
@@ -131,17 +132,19 @@ export function TtsPage() {
             )}
             {isComfy ? (
               <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，朗读文本会自动注入。")}>
-                <select
-                  className={selectClass}
-                  value={pack?.name ?? ""}
-                  onChange={(e) => setWorkflow(e.target.value)}
-                >
-                  {ttsPacks?.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <WorkflowPackControl name={pack?.name} description={pack?.description}>
+                  <select
+                    className={selectClass}
+                    value={pack?.name ?? ""}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                  >
+                    {ttsPacks?.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </WorkflowPackControl>
               </Field>
             ) : (
               <Field label={tx("输出格式")} hint={tx("wav / ogg 需要兼容服务支持。")}>

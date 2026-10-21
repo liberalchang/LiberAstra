@@ -538,6 +538,45 @@ def test_convert_api_endpoint(client: TestClient, auth_header: dict[str, str]) -
     assert "prompt" in body["inputs"] or body["workflow"]["6"]["inputs"]["text"] == "a cat"
 
 
+def test_qwen_edit_2511_color_grade_pack() -> None:
+    """参考图调色：原图进 ColorMatch 目标，解码小图只做颜色参考；空提示词保留触发词。"""
+    pack = get_pack("qwen_edit_2511_color_grade")
+    assert pack.capability == "i2i"
+    assert pack.source == "builtin"
+    assert [k for k, spec in pack.inputs.items() if spec.get("type") == "image"] == ["image", "image_2"]
+    assert pack.inputs["image"]["required"] is True
+    assert pack.inputs["image_2"]["required"] is True
+    trigger = "Transfer ONLY the color grading from Image 2 onto Image 1"
+    assert pack.inputs["prompt"]["default"] == trigger
+
+    kept = apply_inputs(pack, {"image": "uploads/a.png", "image_2": "uploads/b.png", "seed": 3})
+    assert kept["13"]["inputs"]["prompt"] == trigger
+    assert kept["13"]["inputs"]["image1"] == ["12", 0]
+    assert kept["13"]["inputs"]["image2"] == ["11", 0]
+    assert kept["12"]["inputs"]["image"] == ["10", 0]
+    assert kept["20"]["inputs"]["image_ref"] == ["19", 0]
+    assert kept["20"]["inputs"]["image_target"] == ["10", 0]
+    assert kept["20"]["inputs"]["method"] == "hm-mvgd-hm"
+    assert kept["21"]["inputs"]["images"] == ["20", 0]
+    assert kept["18"]["inputs"]["steps"] == 20
+    assert kept["18"]["inputs"]["cfg"] == 4
+    assert kept["6"]["inputs"]["lora_name"] == "QIE-2511-Color-Grade-Transfer-LoRA.safetensors"
+
+    custom = apply_inputs(
+        pack,
+        {
+            "prompt": "Transfer ONLY the color grading from Image 2 onto Image 1, slightly less contrast",
+            "match_strength": 0.7,
+            "seed": 3,
+            "image": "uploads/a.png",
+            "image_2": "uploads/b.png",
+        },
+    )
+    assert "less contrast" in custom["13"]["inputs"]["prompt"]
+    assert custom["20"]["inputs"]["strength"] == 0.7
+    validate_pack(pack)
+
+
 def test_qwen_image_21_edit_multi_pack_and_detach() -> None:
     """多参考编辑：4 槽、前两张必填；未上传槽从 TextEncode 断开连线。"""
     from liberastra.providers.comfyui.workflow import _detach_unused_media_links
@@ -649,6 +688,8 @@ def test_flux3_klein_packs() -> None:
     assert edited["7"]["inputs"]["cfg"] == 1
     assert edited["51"]["inputs"]["switch"] is False
     assert edited["17"]["inputs"]["resolution"] == "resize"
+    # 空列表会被 Comfy 当成连线，列表控件必须包在 __value__ 里
+    assert edited["33"]["inputs"]["editor_state"] == {"__value__": []}
     validate_pack(edit)
 
     multi = get_pack("flux3_klein_edit_multi")
@@ -670,6 +711,9 @@ def test_flux3_klein_packs() -> None:
         },
     )
     assert filled["28"]["inputs"]["value"] == "第一张的人走到第二张的林子里"
+    assert filled["25"]["inputs"]["editor_state"] == {"__value__": []}
+    # 只输出框标注的节点没有用户提示词，空字符串也必须带上，否则整条保存链路会被丢掉
+    assert filled["127:118"]["inputs"]["prompt"] == ""
     assert filled["128:136"]["inputs"]["images.image3"] == ["149", 0]
     assert filled["128:107"]["inputs"]["cfg"] == 1.0
     wf = deepcopy(filled)

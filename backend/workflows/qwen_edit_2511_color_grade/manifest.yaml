@@ -1,0 +1,137 @@
+name: qwen_edit_2511_color_grade
+capability: i2i
+description: >
+  跟一张参考图给摄影原图调色。Qwen-Image-Edit-2511 加 Color Grade Transfer LoRA
+  只生成约 1MP 的调色参考，再由 KJNodes ColorMatch 把颜色贴回全尺寸原图，不重绘像素。
+  第 1 张是原图，第 2 张是调色参考。提示词留空则使用 LoRA 触发词。
+  需要 ComfyUI-KJNodes，以及 pip install color-matcher。不要和 Qwen-Image 2.1 的权重混用。
+inputs:
+  image:
+    node: "10"
+    field: inputs.image
+    type: image
+    required: true
+    label: 原图
+    description: 要调色的摄影原图。输出分辨率跟这张，像素不被重绘
+  image_2:
+    node: "11"
+    field: inputs.image
+    type: image
+    required: true
+    label: 调色参考
+    description: 只借用这张图的颜色，不借用构图和内容
+  unet_name:
+    node: "1"
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_edit_2511_fp8mixed.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: Qwen-Image-Edit-2511。24GB 用 fp8mixed；显存够可换 bf16
+  clip_name:
+    node: "2"
+    field: inputs.clip_name
+    type: str
+    default: qwen_2.5_vl_7b_fp8_scaled.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: qwen_2.5_vl_7b。CLIPLoader type 保持 qwen_image，不要选 Qwen-Image 2.1 的 qwen3vl_8b
+  vae_name:
+    node: "3"
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_vae.safetensors
+    options_from: vae
+    label: VAE
+    description: qwen_image_vae，不要用 Qwen-Image 2.1 的 vae
+  lora_name:
+    node: "6"
+    field: inputs.lora_name
+    type: str
+    default: QIE-2511-Color-Grade-Transfer-LoRA.safetensors
+    options_from: loras
+    label: 调色 LoRA
+    description: ovi054 的 QIE-2511 Color Grade Transfer。文件放在 loras/
+  lora_strength:
+    node: "6"
+    field: inputs.strength_model
+    type: float
+    default: 1.0
+    min: 0
+    max: 1.5
+    label: LoRA 强度
+  prompt:
+    node: "13"
+    field: inputs.prompt
+    type: str
+    default: "Transfer ONLY the color grading from Image 2 onto Image 1"
+    label: 提示词
+    description: LoRA 触发词。留空会用这句；不要改成普通修图指令
+  negative_prompt:
+    node: "14"
+    field: inputs.prompt
+    type: str
+    default: ""
+    label: 负面提示词
+  steps:
+    node: "18"
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 1
+    max: 40
+    description: 官方模板在不开 Lightning 时用 20 步
+  cfg:
+    node: "18"
+    field: inputs.cfg
+    type: float
+    default: 4
+    min: 1
+    max: 8
+    description: 不开 Lightning 时 CFG 为 4
+  seed:
+    node: "18"
+    field: inputs.seed
+    type: int
+    default: -1
+  match_method:
+    node: "20"
+    field: inputs.method
+    type: str
+    default: hm-mvgd-hm
+    label: 颜色迁移算法
+    description: ColorMatch 方法。推荐 hm-mvgd-hm，也可填 mkl、hm、reinhard、mvgd、hm-mkl-hm
+  match_strength:
+    node: "20"
+    field: inputs.strength
+    type: float
+    default: 1.0
+    min: 0
+    max: 1
+    label: 调色强度
+    description: 1 为完全套用参考色，0.7 更淡，0 等于原图
+outputs:
+  node: "21"
+  key: images
+requirements:
+  nodes:
+    - UNETLoader
+    - CLIPLoader
+    - VAELoader
+    - ModelSamplingAuraFlow
+    - CFGNorm
+    - LoraLoaderModelOnly
+    - LoadImage
+    - FluxKontextImageScale
+    - TextEncodeQwenImageEditPlus
+    - FluxKontextMultiReferenceLatentMethod
+    - VAEEncode
+    - KSampler
+    - VAEDecode
+    - ColorMatch
+    - SaveImage
+  models:
+    - diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors
+    - text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+    - vae/qwen_image_vae.safetensors
+    - loras/QIE-2511-Color-Grade-Transfer-LoRA.safetensors

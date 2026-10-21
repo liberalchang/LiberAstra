@@ -28,6 +28,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
@@ -674,15 +675,17 @@ export function VideoQuickPage() {
                 </Field>
                 {imageProvider?.type === "comfyui" && (
                   <Field label={tx("插图工作流")} hint={tx("逐镜出图用的工作流包，其参数（模型等）在下方展开。")}>
-                    <select
-                      className={selectClass}
-                      value={imagePack?.name ?? ""}
-                      onChange={(e) => setImageWorkflow(e.target.value)}
-                    >
-                      {imagePacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                    <WorkflowPackControl name={imagePack?.name} description={imagePack?.description}>
+                      <select
+                        className={selectClass}
+                        value={imagePack?.name ?? ""}
+                        onChange={(e) => setImageWorkflow(e.target.value)}
+                      >
+                        {imagePacks?.map((p) => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    </WorkflowPackControl>
                   </Field>
                 )}
                 <Field label={tx("风格前缀")} hint={tx("加在每个画面提示词前面，保持全片风格统一，可以留空。")}>
@@ -723,15 +726,17 @@ export function VideoQuickPage() {
                   </select>
                 </Field>
                 <Field label={tx("视频工作流")} hint={tx("每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。")}>
-                  <select
-                    className={selectClass}
-                    value={videoPack?.name ?? ""}
-                    onChange={(e) => setVideoWorkflow(e.target.value)}
-                  >
-                    {videoPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                  <WorkflowPackControl name={videoPack?.name} description={videoPack?.description}>
+                    <select
+                      className={selectClass}
+                      value={videoPack?.name ?? ""}
+                      onChange={(e) => setVideoWorkflow(e.target.value)}
+                    >
+                      {videoPacks?.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </WorkflowPackControl>
                 </Field>
               </div>
               {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
@@ -865,17 +870,19 @@ export function VideoQuickPage() {
           {ttsIsComfy ? (
             <>
               <Field label={tx("语音工作流")} hint={tx("选择已导入的 Comfy 语音工作流包，朗读文本会自动注入。")}>
-                <select
-                  className={selectClass}
-                  value={ttsPack?.name ?? ""}
-                  onChange={(e) => setTtsWorkflow(e.target.value)}
-                >
-                  {ttsPacks?.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
+                  <select
+                    className={selectClass}
+                    value={ttsPack?.name ?? ""}
+                    onChange={(e) => setTtsWorkflow(e.target.value)}
+                  >
+                    {ttsPacks?.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </WorkflowPackControl>
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
                 <p className="text-sm text-muted-foreground">

@@ -1,0 +1,142 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_edit_2511_fp8mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "ModelSamplingAuraFlow",
+    "inputs": {
+      "model": ["1", 0],
+      "shift": 3.1
+    }
+  },
+  "5": {
+    "class_type": "CFGNorm",
+    "inputs": {
+      "model": ["4", 0],
+      "strength": 1
+    }
+  },
+  "6": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["5", 0],
+      "lora_name": "QIE-2511-Color-Grade-Transfer-LoRA.safetensors",
+      "strength_model": 1
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "11": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "12": {
+    "class_type": "FluxKontextImageScale",
+    "inputs": {
+      "image": ["10", 0]
+    }
+  },
+  "13": {
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "image1": ["12", 0],
+      "image2": ["11", 0],
+      "prompt": "Transfer ONLY the color grading from Image 2 onto Image 1"
+    }
+  },
+  "14": {
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "image1": ["12", 0],
+      "image2": ["11", 0],
+      "prompt": ""
+    }
+  },
+  "15": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": ["13", 0],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "16": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": ["14", 0],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "17": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["12", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "18": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": ["6", 0],
+      "positive": ["15", 0],
+      "negative": ["16", 0],
+      "latent_image": ["17", 0]
+    }
+  },
+  "19": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["18", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "20": {
+    "class_type": "ColorMatch",
+    "inputs": {
+      "image_ref": ["19", 0],
+      "image_target": ["10", 0],
+      "method": "hm-mvgd-hm",
+      "strength": 1
+    }
+  },
+  "21": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "qwen-color-grade",
+      "images": ["20", 0]
+    }
+  }
+}

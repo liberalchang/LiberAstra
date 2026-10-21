@@ -106,6 +106,10 @@ async def edit(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"inputs JSON 解析失败: {exc}"
         ) from exc
 
+    # 提示词留空时不覆盖包里的默认句（调色包要保留 LoRA 触发词）
+    merged_inputs = dict(extra_inputs)
+    if prompt.strip():
+        merged_inputs["prompt"] = prompt
     job = request.app.state.jobs.submit(
         db,
         owner_id=user.id,
@@ -114,7 +118,7 @@ async def edit(
             "workflow": workflow,
             "prompt": prompt,
             "image_paths": image_paths,
-            "inputs": {"prompt": prompt, **extra_inputs},
+            "inputs": merged_inputs,
         },
         provider_id=provider.id,
         model=None,

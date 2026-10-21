@@ -22,6 +22,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -153,17 +154,19 @@ export function ImageEditPage({ capability, title, description }: Props) {
             </Field>
             {isComfy && (
               <Field label={tx("工作流包")} hint={tx("按当前能力（图生图或放大）过滤。没有对应包时先导入。")}>
-                <select
-                  className={selectClass}
-                  value={pack?.name ?? ""}
-                  onChange={(e) => setWorkflow(e.target.value)}
-                >
-                  {packs?.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <WorkflowPackControl name={pack?.name} description={pack?.description}>
+                  <select
+                    className={selectClass}
+                    value={pack?.name ?? ""}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                  >
+                    {packs?.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </WorkflowPackControl>
               </Field>
             )}
           </div>

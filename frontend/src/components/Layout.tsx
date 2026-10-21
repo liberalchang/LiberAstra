@@ -40,7 +40,7 @@ import { useAuthStore } from "@/stores/auth";
 
 const NAV_GROUPS: {
   labelKey: string;
-  items: { to: string; icon: typeof LayoutDashboard; key: string; href?: string }[];
+  items: { to: string; icon: typeof LayoutDashboard; key: string; href?: string; end?: boolean }[];
 }[] = [
   {
     labelKey: "group.workbench",
@@ -82,7 +82,8 @@ const NAV_GROUPS: {
   {
     labelKey: "group.settings",
     items: [
-      { to: "/settings", icon: PlugZap, key: "nav.providers" },
+      // end：只在正好是 /settings 时高亮，避免 /settings/system 等子页把它一起点亮
+      { to: "/settings", icon: PlugZap, key: "nav.providers", end: true },
       { to: "/settings/workflows", icon: Workflow, key: "nav.workflows" },
       { to: "/settings/system", icon: Settings, key: "nav.system" },
     ],
@@ -167,6 +168,7 @@ export function Layout() {
                   <NavLink
                     key={item.to}
                     to={item.to}
+                    end={item.end}
                     className={({ isActive }) => navClass(isActive, mini)}
                     title={mini ? t(item.key) : undefined}
                     onClick={() => setOpen(false)}

@@ -14,7 +14,9 @@
     "inputs": {
       "width": 1000,
       "height": 1000,
-      "editor_state": [],
+      "editor_state": {
+        "__value__": []
+      },
       "background": [
         "133",
         0
@@ -89,6 +91,7 @@
   "127:118": {
     "class_type": "Flux3LayoutPrompt",
     "inputs": {
+      "prompt": "",
       "element": [
         "25",
         2

@@ -126,7 +126,9 @@
     "inputs": {
       "width": 1360,
       "height": 752,
-      "editor_state": [],
+      "editor_state": {
+        "__value__": []
+      },
       "background": [
         "11",
         0

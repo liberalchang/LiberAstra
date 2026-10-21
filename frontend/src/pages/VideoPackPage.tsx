@@ -23,6 +23,7 @@ import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -180,21 +181,23 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               </select>
             </Field>
             <Field label={tx("工作流包")} hint={tx("必须与当前功能匹配，例如图生视频、数字人或动作迁移。")}>
-              <select
-                className={selectClass}
-                value={pack?.name ?? ""}
-                onChange={(e) => setWorkflow(e.target.value)}
-              >
-                {packs?.length ? (
-                  packs.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))
-                ) : (
-                  <option value="">{tx("无 {caps} 工作流包", { caps: cfg.packCaps.join(" / ") })}</option>
-                )}
-              </select>
+              <WorkflowPackControl name={pack?.name} description={pack?.description}>
+                <select
+                  className={selectClass}
+                  value={pack?.name ?? ""}
+                  onChange={(e) => setWorkflow(e.target.value)}
+                >
+                  {packs?.length ? (
+                    packs.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">{tx("无 {caps} 工作流包", { caps: cfg.packCaps.join(" / ") })}</option>
+                  )}
+                </select>
+              </WorkflowPackControl>
             </Field>
           </div>
 
@@ -251,15 +254,17 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               {ttsIsComfy ? (
                 <>
                   <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本自动注入。")}>
-                    <select
-                      className={selectClass}
-                      value={ttsPack?.name ?? ""}
-                      onChange={(e) => setTtsWorkflow(e.target.value)}
-                    >
-                      {ttsPacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                    <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
+                      <select
+                        className={selectClass}
+                        value={ttsPack?.name ?? ""}
+                        onChange={(e) => setTtsWorkflow(e.target.value)}
+                      >
+                        {ttsPacks?.map((p) => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    </WorkflowPackControl>
                   </Field>
                   {ttsPack && (
                     <WorkflowInputs

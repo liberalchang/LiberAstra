@@ -242,6 +242,9 @@ export const UI_EN: Record<string, string> = {
   "图像服务": "Image service",
   "只列出已启用、且具备 image 能力的 Provider。": "Enabled providers with image capability only.",
   "工作流包": "Workflow pack",
+  "查看当前工作流包的用途和用法": "How to use the selected workflow pack",
+  "工作流包说明": "Workflow pack",
+  "这个工作流包没有填写描述。": "This workflow pack has no description.",
   "ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。":
     "ComfyUI uses this pack. Import one on the Workflow Packs page if the list is empty.",
   "不希望出现的内容，可以留空。": "Things to avoid. Optional.",

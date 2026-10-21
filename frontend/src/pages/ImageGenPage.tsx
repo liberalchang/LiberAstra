@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -140,17 +141,19 @@ export function ImageGenPage() {
             </Field>
             {isComfy && (
               <Field label={tx("工作流包")} hint={tx("ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。")}>
-                <select
-                  className={selectClass}
-                  value={pack?.name ?? ""}
-                  onChange={(e) => setWorkflow(e.target.value)}
-                >
-                  {packs?.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <WorkflowPackControl name={pack?.name} description={pack?.description}>
+                  <select
+                    className={selectClass}
+                    value={pack?.name ?? ""}
+                    onChange={(e) => setWorkflow(e.target.value)}
+                  >
+                    {packs?.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </WorkflowPackControl>
               </Field>
             )}
           </div>
