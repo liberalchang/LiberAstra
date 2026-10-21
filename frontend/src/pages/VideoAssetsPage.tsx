@@ -1,7 +1,7 @@
 import { Images, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -35,6 +35,18 @@ import { Film, X } from "lucide-react";
 import { useTx } from "@/i18n/tx";
 
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp)$/i;
+
+function pickAnalysisPack<T extends { name: string }>(
+  packs: T[] | undefined,
+  stored: string,
+  kind: "image" | "video",
+): T | undefined {
+  return (
+    packs?.find((p) => p.name === stored) ??
+    packs?.find((p) => p.name.includes(kind)) ??
+    packs?.[0]
+  );
+}
 
 /** 自定义素材：图片/视频素材 + 文案/主题 → 配音字幕短片。支持素材动画（i2v）与背景音乐。 */
 export function VideoAssetsPage() {
@@ -77,6 +89,7 @@ export function VideoAssetsPage() {
   );
   useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
   const hasImage = files.some((f) => IMAGE_EXT.test(f.name));
+  const hasVideo = files.some((f) => !IMAGE_EXT.test(f.name));
 
   // ---- ② 素材分析（可选：视觉模型逐素材产出内容描述，喂给写文案的 LLM）----
   const { data: analysisPacks } = useQuery({
@@ -84,18 +97,19 @@ export function VideoAssetsPage() {
     queryFn: () => api.listWorkflows("analysis"),
   });
   const comfyProviders = enabled?.filter((p) => p.type === "comfyui");
-  const [analysisEnabled, setAnalysisEnabled] = usePersistentState("video-assets:analysis-enabled", false);
   const [analysisProviderId, setAnalysisProviderId] = usePersistentState<number | "">("video-assets:analysis-provider", "");
   const analysisProvider = comfyProviders?.find((p) => p.id === analysisProviderId) ?? comfyProviders?.[0];
   const [analysisImageWorkflow, setAnalysisImageWorkflow] = usePersistentState("video-assets:analysis-image-workflow", "");
   const [analysisVideoWorkflow, setAnalysisVideoWorkflow] = usePersistentState("video-assets:analysis-video-workflow", "");
-  const analysisImagePack = analysisPacks?.find((p) => p.name === analysisImageWorkflow) ?? analysisPacks?.[0];
-  const analysisVideoPack = analysisPacks?.find((p) => p.name === analysisVideoWorkflow) ?? analysisPacks?.[0];
+  const analysisImagePack = pickAnalysisPack(analysisPacks, analysisImageWorkflow, "image");
+  const analysisVideoPack = pickAnalysisPack(analysisPacks, analysisVideoWorkflow, "video");
   const [analysisExtra, setAnalysisExtra] = usePersistentState<Record<string, string>>("video-assets:analysis-extra", {});
 
   // ---- ③ 文案与标题 ----
-  const [mode, setMode] = usePersistentState<"script" | "topic">("video-assets:mode", "script");
+  const [mode, setMode] = usePersistentState<"script" | "topic" | "analysis">("video-assets:mode", "script");
   const [script, setScript] = usePersistentState("video-assets:script", "");
+  const [analysisScript, setAnalysisScript] = usePersistentState("video-assets:analysis-script", "");
+  const [analysisHint, setAnalysisHint] = usePersistentState("video-assets:analysis-hint", "");
   const [topicValue, setTopicValue] = usePersistentPromptValue("video-assets:topic");
   const effectiveTopic = resolveEffectivePrompt(topicValue);
   const [title, setTitle] = usePersistentState("video-assets:title", "");
@@ -166,14 +180,47 @@ export function VideoAssetsPage() {
   const [bgmVolume, setBgmVolume] = usePersistentState("video-assets:bgm-volume", "0.2");
 
   const [error, setError] = useState<string | null>(null);
+  const [scriptError, setScriptError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("video-assets");
+  const { job: scriptJob, setJobId: setScriptJobId } = useTrackedJob("video-assets:analysis-script");
+  const appliedScriptJob = useRef<string | null>(null);
+  useEffect(() => {
+    if (!scriptJob || scriptJob.status !== "succeeded") return;
+    if (appliedScriptJob.current === scriptJob.id) return;
+    appliedScriptJob.current = scriptJob.id;
+    const out = scriptJob.outputs.find((item) => item.type === "text" && item.content?.trim());
+    if (out?.content) setAnalysisScript(out.content.trim());
+    setScriptJobId(null);
+  }, [scriptJob, setAnalysisScript, setScriptJobId]);
+
+  const draftScript = useMutation({
+    mutationFn: () => {
+      const form = new FormData();
+      for (const f of files) form.append("images", f);
+      form.set("duration", String(duration));
+      if (analysisHint.trim()) form.set("hint", analysisHint.trim());
+      if (analysisProvider) form.set("analysis_provider_id", String(analysisProvider.id));
+      if (hasImage && analysisImagePack) form.set("analysis_image_workflow", analysisImagePack.name);
+      if (hasVideo && analysisVideoPack) form.set("analysis_video_workflow", analysisVideoPack.name);
+      form.set(
+        "analysis_inputs",
+        JSON.stringify(Object.fromEntries(Object.entries(analysisExtra).filter(([, v]) => v !== ""))),
+      );
+      return api.submitVideoAssetsScript(form);
+    },
+    onSuccess: (j) => {
+      setScriptError(null);
+      setScriptJobId(j.id);
+    },
+    onError: (err) => setScriptError(err.message),
+  });
 
   const submit = useMutation({
     mutationFn: () => {
       const form = new FormData();
       for (const f of files) form.append("images", f);
-      if (mode === "script") form.set("script", script);
-      else form.set("topic", effectiveTopic);
+      if (mode === "topic") form.set("topic", effectiveTopic);
+      else form.set("script", mode === "analysis" ? analysisScript : script);
       if (title) form.set("title", title);
       form.set("duration", String(duration));
       form.set("aspect", aspect);
@@ -194,12 +241,6 @@ export function VideoAssetsPage() {
         form.set("tts_workflow", ttsPack.name);
         form.set("tts_inputs", JSON.stringify(Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))));
       }
-      if (analysisEnabled && (analysisImagePack || analysisVideoPack)) {
-        if (analysisProvider) form.set("analysis_provider_id", String(analysisProvider.id));
-        if (analysisImagePack) form.set("analysis_image_workflow", analysisImagePack.name);
-        if (analysisVideoPack) form.set("analysis_video_workflow", analysisVideoPack.name);
-        form.set("analysis_inputs", JSON.stringify(Object.fromEntries(Object.entries(analysisExtra).filter(([, v]) => v !== ""))));
-      }
       if (bgmName) {
         form.set("bgm_path", `bgm/${bgmName}`);
         form.set("bgm_volume", bgmVolume || "0.2");
@@ -214,10 +255,22 @@ export function VideoAssetsPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const scriptRunning =
+    draftScript.isPending ||
+    (scriptJob != null && (scriptJob.status === "pending" || scriptJob.status === "running"));
+  const canDraft =
+    files.length > 0 &&
+    hasLlm &&
+    !scriptRunning &&
+    !!analysisProvider &&
+    (!hasImage || !!analysisImagePack) &&
+    (!hasVideo || !!analysisVideoPack);
+  const copyReady =
+    mode === "script" ? script.trim() : mode === "topic" ? effectiveTopic : analysisScript.trim();
   const ready =
     files.length > 0 &&
-    (mode === "script" ? script : effectiveTopic) &&
-    (mode !== "topic" || hasLlm) &&
+    copyReady &&
+    (mode === "script" || hasLlm) &&
     (ttsIsComfy ? !!ttsPack : isLibraryVoice ? voiceRecordId !== "" || !!voiceName : !!voiceName) &&
     (!animate || !hasImage || !!videoPack);
 
@@ -277,26 +330,82 @@ export function VideoAssetsPage() {
         </CardContent>
       </Card>
 
-      {/* ② 素材分析（可选） */}
+      {/* ② 文案与标题 */}
       <Card>
         <CardHeader>
-          <CardTitle>{tx("素材分析")}</CardTitle>
+          <CardTitle>{tx("文案与标题")}</CardTitle>
           <CardDescription>
-            {tx('开启后先用视觉模型逐素材生成内容描述，写文案的 AI 会参考真实内容而不是只看文件名。需要')}
-            {tx('ComfyUI 装 ComfyUI-AILab 插件与 Qwen-VL 视觉模型。')}
+            {tx("标题会作为 2 秒标题卡放在片头。自备文案和主题生成都不看画面；看素材写会先生成一段可改的口播。")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={analysisEnabled}
-              onChange={(e) => setAnalysisEnabled(e.target.checked)}
+          <Field label={tx("视频标题")} hint={tx("选填。留空则没有标题卡。")}>
+            <Input placeholder={tx("例如：宠物店年终大促")} value={title} onChange={(e) => setTitle(e.target.value)} />
+          </Field>
+          <div className="overflow-x-auto">
+            <Segmented
+              ariaLabel={tx("文案来源")}
+              options={[
+                { value: "script", label: tx("自备文案（按行对应素材）") },
+                { value: "topic", label: tx("主题生成文案") },
+                { value: "analysis", label: tx("看素材写文案") },
+              ]}
+              value={mode}
+              onChange={setMode}
             />
-            {tx('启用素材分析（较慢，每个素材一次视觉推理）')}
-          </label>
-          {analysisEnabled && (
+          </div>
+          {mode === "script" ? (
+            <Field label={tx("口播文案")} hint={tx("每行一句，行数建议与素材数量一致；不够会循环使用。")}>
+              <textarea
+                className={`${areaClass} min-h-24`}
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+              />
+            </Field>
+          ) : mode === "topic" ? (
             <>
+              {!hasLlm && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  尚未配置 LLM。请到{" "}
+                  <Link className="underline" to="/settings/system">
+                    {tx('系统设置')}
+                  </Link>{" "}
+                  {tx('或「服务提供方」添加。')}
+                </p>
+              )}
+              <PromptField
+                label={tx("主题")}
+                hint={tx("AI 按文件名和目标时长写口播，不看画面内容。脚本 LLM 使用系统设置中的默认服务。")}
+                value={topicValue}
+                onChange={setTopicValue}
+                jobScope="video-assets:topic-opt"
+                task="assets_topic"
+                aspect={aspect}
+                placeholder={tx("例如：宠物店年终大促，语气热情")}
+              />
+              <Field label={tx("目标时长（秒）")} hint={tx("AI 按它控制文案长度，5 到 600。")}>
+                <NumberStepper ariaLabel={tx("目标时长")} min={5} max={600} step={5} value={duration} onChange={setDuration} />
+              </Field>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {tx("先看每张图、每段视频里实际是什么，再写成口播。生成后可以改，出片时用这段文字。")}
+              </p>
+              {!hasLlm && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  尚未配置 LLM。请到{" "}
+                  <Link className="underline" to="/settings/system">
+                    {tx("系统设置")}
+                  </Link>{" "}
+                  {tx("或「服务提供方」添加。")}
+                </p>
+              )}
+              {comfyProviders && comfyProviders.length === 0 && (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  {tx("还没有 ComfyUI 服务。请到「服务提供方」添加后再生成文案。")}
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-3">
                 <Field label={tx("分析服务")} hint={tx("执行分析工作流的 ComfyUI。")}>
                   <select
@@ -309,7 +418,7 @@ export function VideoAssetsPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label={tx("图片分析工作流")} hint={tx("analysis 能力包，如 analysis_image_qwenvl。")}>
+                <Field label={tx("图片分析工作流")} hint={tx("analysis 能力包，如 analysis_image_qwenvl。有图片时必选。")}>
                   <WorkflowPackControl name={analysisImagePack?.name} description={analysisImagePack?.description}>
                     <select
                       className={selectClass}
@@ -338,73 +447,48 @@ export function VideoAssetsPage() {
               </div>
               {analysisPacks && analysisPacks.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {tx('没有 analysis 能力的工作流包，请到「设置 → 工作流包」导入。')}
+                  {tx("没有 analysis 能力的工作流包，请到「设置 → 工作流包」导入。")}
                 </p>
               )}
-              {analysisImagePack && (
+              {(hasImage ? analysisImagePack : analysisVideoPack) && (
                 <WorkflowInputs
-                  inputs={analysisImagePack.inputs}
+                  inputs={(hasImage ? analysisImagePack : analysisVideoPack)!.inputs}
                   values={analysisExtra}
                   onChange={(k, v) => setAnalysisExtra((prev) => ({ ...prev, [k]: v }))}
                   exclude={["image", "video"]}
                   providerId={analysisProvider?.id}
                 />
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ③ 文案与标题 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{tx("文案与标题")}</CardTitle>
-          <CardDescription>{tx("标题会作为 2 秒标题卡放在片头；文案决定每镜的口播与字幕。")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Field label={tx("视频标题")} hint={tx("选填。留空则没有标题卡。")}>
-            <Input placeholder={tx("例如：宠物店年终大促")} value={title} onChange={(e) => setTitle(e.target.value)} />
-          </Field>
-          <Segmented
-            ariaLabel={tx("文案来源")}
-            options={[
-              { value: "script", label: tx("自备文案（按行对应素材）") },
-              { value: "topic", label: tx("主题生成文案") },
-            ]}
-            value={mode}
-            onChange={setMode}
-          />
-          {mode === "script" ? (
-            <Field label={tx("口播文案")} hint={tx("每行一句，行数建议与素材数量一致；不够会循环使用。")}>
-              <textarea
-                className={`${areaClass} min-h-24`}
-                value={script}
-                onChange={(e) => setScript(e.target.value)}
-              />
-            </Field>
-          ) : (
-            <>
-              {!hasLlm && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  尚未配置 LLM。请到{" "}
-                  <Link className="underline" to="/settings/system">
-                    {tx('系统设置')}
-                  </Link>{" "}
-                  {tx('或「服务提供方」添加。')}
-                </p>
-              )}
-              <PromptField
-                label={tx("主题")}
-                hint={tx("AI 结合素材按目标时长写口播；脚本 LLM 使用系统设置中的默认服务。")}
-                value={topicValue}
-                onChange={setTopicValue}
-                jobScope="video-assets:topic-opt"
-                task="assets_topic"
-                aspect={aspect}
-                placeholder={tx("例如：宠物店年终大促，语气热情")}
-              />
+              <Field label={tx("补充要求")} hint={tx("选填。例如语气、要强调的卖点。留空就只按画面写。")}>
+                <Input
+                  placeholder={tx("例如：语气热情，突出价格")}
+                  value={analysisHint}
+                  onChange={(e) => setAnalysisHint(e.target.value)}
+                />
+              </Field>
               <Field label={tx("目标时长（秒）")} hint={tx("AI 按它控制文案长度，5 到 600。")}>
                 <NumberStepper ariaLabel={tx("目标时长")} min={5} max={600} step={5} value={duration} onChange={setDuration} />
+              </Field>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" disabled={!canDraft} onClick={() => draftScript.mutate()}>
+                  {scriptRunning ? tx("正在看素材并写文案…") : tx("生成文案")}
+                </Button>
+                {scriptRunning && scriptJob?.steps.at(-1) && (
+                  <span className="text-sm text-muted-foreground">
+                    {formatStepName(scriptJob.steps.at(-1)!.name, tx)}
+                  </span>
+                )}
+              </div>
+              {(scriptError || (scriptJob?.status === "failed" && scriptJob.error)) && (
+                <p className="text-sm text-red-600 dark:text-red-400">{scriptError || scriptJob?.error}</p>
+              )}
+              <Field label={tx("口播文案")} hint={tx("一行对应一段素材。生成后可以再改，出片用的就是这里的文字。")}>
+                <textarea
+                  className={`${areaClass} min-h-24`}
+                  value={analysisScript}
+                  placeholder={tx("点「生成文案」后出现在这里。")}
+                  onChange={(e) => setAnalysisScript(e.target.value)}
+                />
               </Field>
             </>
           )}

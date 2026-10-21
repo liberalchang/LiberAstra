@@ -81,6 +81,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [characterId, setCharacterId] = usePersistentState<number | "">(`video-${kind}:character`, "");
+  const [characterView, setCharacterView] = usePersistentState(`video-${kind}:character-view`, "front");
+  const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
+  const character = characters?.find((item) => item.id === characterId);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [promptValue, setPromptValue] = usePersistentPromptValue(`video-${kind}:prompt`);
   const effectivePrompt = resolveEffectivePrompt(promptValue);
@@ -123,6 +127,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       const form = new FormData();
       if (kind === "motion" && videoFile) form.set("video", videoFile);
       if (imageFile) form.set("image", imageFile);
+      if (character) {
+        form.set("character_id", String(character.id));
+        if (kind === "i2v") form.set("character_view", characterView);
+      }
       form.set("workflow", pack?.name ?? "");
       form.set("prompt", effectivePrompt);
       if (kind === "avatar") {
@@ -132,10 +140,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           if (ttsPack) form.set("tts_workflow", ttsPack.name);
           form.set("tts_inputs", JSON.stringify(Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))));
           form.set("voice", ttsExtra.voice ?? "");
-        } else if (isLibraryVoice && voiceRecordId !== "") {
-          form.set("voice_record_id", String(voiceRecordId));
+        } else if (isLibraryVoice && (voiceRecordId !== "" || character?.voice_record_id)) {
+          form.set("voice_record_id", String(voiceRecordId !== "" ? voiceRecordId : character?.voice_record_id));
         } else {
-          form.set("voice", voiceName);
+          form.set("voice", voiceName || character?.voice_name || "");
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
@@ -152,11 +160,15 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const running = job && (job.status === "pending" || job.status === "running");
   const ready =
     pack &&
-    imageFile &&
+    (imageFile || character) &&
     (kind !== "motion" || videoFile) &&
     (kind !== "avatar" ||
       (text &&
-        (ttsIsComfy ? !!ttsPack : isLibraryVoice ? voiceRecordId !== "" || !!voiceName : !!voiceName)));
+        (ttsIsComfy
+          ? !!ttsPack
+          : isLibraryVoice
+            ? voiceRecordId !== "" || !!voiceName || !!character?.voice_record_id
+            : !!voiceName || !!character?.voice_name)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -220,7 +232,34 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               />
             </Field>
           )}
-          <Field label={kind === "avatar" ? tx("人物图片") : tx("图片")} hint={kind === "i2v" ? tx("作为视频首帧。") : tx("目标人物或画面。")}>
+          <Field
+            label={kind === "avatar" ? tx("人物图片") : tx("图片")}
+            hint={
+              kind === "i2v"
+                ? tx("作为视频首帧。选了角色时用该视角的单人图。")
+                : kind === "avatar"
+                  ? tx("口播人物图。选了角色时用定妆照右侧的面部半身特写。")
+                  : tx("目标人物。选了角色时用正面、侧面、背面三张全身图。")
+            }
+          >
+            <select
+              className={`${selectClass} mb-2`}
+              value={characterId}
+              onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">{tx("从角色库选择，或在下面上传")}</option>
+              {characters?.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+            {kind === "i2v" && character && (
+              <select className={`${selectClass} mb-2`} value={characterView} onChange={(e) => setCharacterView(e.target.value)}>
+                <option value="portrait">{tx("面部半身特写")}</option>
+                <option value="front">{tx("正面全身")}</option>
+                <option value="side">{tx("侧面全身")}</option>
+                <option value="back">{tx("背面全身")}</option>
+              </select>
+            )}
             <FileDrop
               accept="image/*"
               title={tx("点击或拖拽上传图片")}

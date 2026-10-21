@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
+import { Bot, ImageIcon, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
@@ -64,12 +64,23 @@ export function SystemSettingsPage() {
   const [serialSameHost, setSerialSameHost] = useState(false);
   const [llmProviderId, setLlmProviderId] = useState(0);
   const [llmModel, setLlmModel] = useState("");
+  const [characterProviderId, setCharacterProviderId] = useState(0);
+  const [characterWorkflow, setCharacterWorkflow] = useState("qwen_image_21");
   const [prefSaved, setPrefSaved] = useState(false);
 
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const llmProviders = useMemo(
     () => (providers ?? []).filter((p) => p.enabled && p.capabilities.includes("llm")),
     [providers],
+  );
+  const imageProviders = useMemo(
+    () => (providers ?? []).filter((p) => p.enabled && p.capabilities.includes("image")),
+    [providers],
+  );
+  const { data: workflows } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
+  const t2iPacks = useMemo(
+    () => (workflows ?? []).filter((pack) => pack.capability === "t2i"),
+    [workflows],
   );
   const selectedLlm = llmProviders.find((p) => p.id === llmProviderId) ?? null;
   const fetchModels = useMutation({
@@ -85,6 +96,8 @@ export function SystemSettingsPage() {
       setSerialSameHost(prefs.serial_same_host === 1);
       setLlmProviderId(prefs.default_llm_provider_id ?? 0);
       setLlmModel(prefs.default_llm_model ?? "");
+      setCharacterProviderId(prefs.default_character_provider_id ?? 0);
+      setCharacterWorkflow(prefs.default_character_workflow || "qwen_image_21");
     }
   }, [prefs]);
 
@@ -97,6 +110,8 @@ export function SystemSettingsPage() {
         serial_same_host: serialSameHost ? 1 : 0,
         default_llm_provider_id: llmProviderId,
         default_llm_model: llmModel,
+        default_character_provider_id: characterProviderId,
+        default_character_workflow: characterWorkflow,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -250,6 +265,60 @@ export function SystemSettingsPage() {
             {prefSaved && !savePrefs.isPending && (
               <span className="text-sm text-green-600">{tx("已保存。")}</span>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="size-4" /> {tx("默认角色生图")}
+          </CardTitle>
+          <CardDescription>
+            {tx("角色库生成四段式定妆照时使用这里的图像服务和文生图工作流包，不用在角色页重复选择。")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("图像服务商")} hint={tx("在「服务提供方」中添加 ComfyUI 等图像服务。")}>
+            <select
+              className={selectClass}
+              value={characterProviderId}
+              onChange={(e) => setCharacterProviderId(Number(e.target.value))}
+            >
+              <option value={0}>{tx("自动（第一个启用的图像服务）")}</option>
+              {imageProviders.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={tx("定妆照工作流包")} hint={tx("只列出文生图工作流包。默认 Qwen-Image 2.1。")}>
+            <select
+              className={selectClass}
+              value={characterWorkflow}
+              onChange={(e) => setCharacterWorkflow(e.target.value)}
+            >
+              {t2iPacks.length === 0 && <option value={characterWorkflow}>{characterWorkflow}</option>}
+              {t2iPacks.map((pack) => (
+                <option key={pack.name} value={pack.name}>
+                  {pack.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              disabled={savePrefs.isPending}
+              onClick={() => {
+                setPrefSaved(false);
+                savePrefs.mutate();
+              }}
+            >
+              {savePrefs.isPending ? tx("保存中…") : tx("保存")}
+            </Button>
+            {prefSaved && !savePrefs.isPending && <span className="text-sm text-green-600">{tx("已保存。")}</span>}
           </div>
         </CardContent>
       </Card>

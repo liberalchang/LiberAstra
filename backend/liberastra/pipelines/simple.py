@@ -85,21 +85,41 @@ async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
     params = job.params
     inputs = {"prompt": params.get("prompt", ""), **params.get("inputs", {})}
     image_keys = _input_keys(params["workflow"], "image")
-    if image_keys:
-        inputs[image_keys[0]] = params["image_path"]
+    image_path = params.get("image_path")
+    if image_keys and image_path:
+        inputs[image_keys[0]] = image_path
     return await _run_video_pack(db, job, ctx, inputs)
 
 
 async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """动作迁移：参考视频（≤30s）+ 目标图片 + 提示词 → motion 工作流。"""
     params = job.params
-    inputs = {"prompt": params.get("prompt", ""), **params.get("inputs", {})}
+    raw_prompt = str(params.get("prompt") or "").strip()
+    image_paths = [path for path in params.get("image_paths") or [] if path]
+    if not image_paths and params.get("image_path"):
+        image_paths = [params["image_path"]]
+    if not raw_prompt:
+        if len(image_paths) >= 3:
+            prompt_text = (
+                "参考 <Picture 1>（正面）、<Picture 2>（侧面）、<Picture 3>（背面）里的同一个角色，"
+                "让这个角色完整复刻 <Video 1> 的肢体动作、姿态变化与镜头运动，外观、五官和服装保持一致。"
+            )
+        else:
+            prompt_text = (
+                "让 <Picture 1> 中的人物完整复刻 <Video 1> 中的肢体动作、姿态变化与镜头运动，"
+                "保持 <Picture 1> 的人物外观、五官与服装一致，动作自然流畅。"
+            )
+    elif "<Picture" not in raw_prompt and "<Video" not in raw_prompt:
+        prompt_text = f"参考 <Picture 1> 的人物外观，复刻 <Video 1> 的动作运动：{raw_prompt}"
+    else:
+        prompt_text = raw_prompt
+    inputs = {"prompt": prompt_text, **params.get("inputs", {})}
     video_keys = _input_keys(params["workflow"], "video")
     image_keys = _input_keys(params["workflow"], "image")
     if video_keys:
         inputs[video_keys[0]] = params["video_path"]
-    if image_keys:
-        inputs[image_keys[0]] = params["image_path"]
+    for key, path in zip(image_keys, image_paths, strict=False):
+        inputs[key] = path
     return await _run_video_pack(db, job, ctx, inputs)
 
 
@@ -135,7 +155,14 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         return []
 
     audio_rel = f"outputs/{job.id}/voiceover.{ext}"
-    inputs = {"prompt": params.get("prompt", params["text"]), **params.get("inputs", {})}
+    spoken_text = str(params.get("text") or "").strip()
+    custom_prompt = str(params.get("prompt") or "").strip()
+    prompt_text = (
+        custom_prompt
+        if custom_prompt
+        else f'正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。台词："{spoken_text}"'
+    )
+    inputs = {"prompt": prompt_text, **params.get("inputs", {})}
     image_keys = _input_keys(params["workflow"], "image")
     audio_keys = _input_keys(params["workflow"], "audio")
     if image_keys:
@@ -161,59 +188,179 @@ def _title_card_html(title: str, width: int, height: int) -> str:
     )
 
 
+def media_of(params: dict[str, Any]) -> list[dict]:
+    """任务里的素材列表。旧任务只有 image_paths。"""
+    return params.get("media") or [
+        {"path": p, "kind": "image"} for p in params.get("image_paths", [])
+    ]
+
+
+def analysis_pack_gaps(media: list[dict], image_workflow: str, video_workflow: str) -> str:
+    """看素材写文案时，缺哪一类分析包。都齐则返回空串。"""
+    if any(m.get("kind") != "video" for m in media) and not image_workflow:
+        return "有图片素材，请选择图片分析工作流"
+    if any(m.get("kind") == "video" for m in media) and not video_workflow:
+        return "有视频素材，请选择视频分析工作流"
+    return ""
+
+
+def segments_from_reply(data: dict, count: int) -> list[str]:
+    """LLM JSON 里的 segments，数量必须和素材一致且每句非空。"""
+    segments = data.get("segments")
+    if not isinstance(segments, list) or len(segments) != count:
+        raise ProviderError("文案分段数量与素材不一致，请重试")
+    texts = [str(s).strip() for s in segments]
+    if any(not s for s in texts):
+        raise ProviderError("文案有空句，请重试")
+    return texts
+
+
+async def _media_briefs(media: list[dict]) -> list[str]:
+    """文件名和视频时长，视觉分析失败时的回退说明。"""
+    briefs: list[str] = []
+    for i, m in enumerate(media):
+        info = f"素材{i + 1}（{'视频' if m['kind'] == 'video' else '图片'}，文件 {Path(m['path']).name}）"
+        if m["kind"] == "video":
+            d = await ffmpeg.probe_duration(resolve(m["path"]))
+            info += f"，素材时长 {d:.1f} 秒"
+        briefs.append(info)
+    return briefs
+
+
+async def _fill_vision_descriptions(
+    db: Session,
+    job: Job,
+    ctx: JobContext,
+    media: list[dict],
+    briefs: list[str],
+    *,
+    image_workflow: str,
+    video_workflow: str,
+    inputs: dict[str, Any],
+    provider_id: int | None,
+    strict: bool,
+) -> list[str]:
+    """用分析工作流替换每条素材说明。strict 时失败直接中断，否则退回文件信息。"""
+    if not image_workflow and not video_workflow:
+        return briefs
+    analysis_provider = pick_provider(db, "image", provider_id)
+    from liberastra.providers.analysis.comfyui import ComfyUIAnalysis
+
+    analysis = ComfyUIAnalysis(analysis_provider.base_url)
+    wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
+    image_pack = get_pack(image_workflow) if image_workflow else None
+    video_pack = get_pack(video_workflow) if video_workflow else None
+    described = list(briefs)
+    for i, m in enumerate(media):
+        if ctx.cancelled():
+            return []
+        pack = video_pack if m["kind"] == "video" else image_pack
+        if pack is None:
+            if strict:
+                kind = "视频" if m["kind"] == "video" else "图片"
+                raise ProviderError(f"素材 {i + 1} 是{kind}，还没有对应的分析工作流")
+            continue
+        # 出片任务保持原来很短的分析进度；单独写文案时把进度拉满到写口播之前
+        progress = (
+            0.05 + 0.67 * i / len(media)
+            if strict
+            else 0.02 + 0.03 * (i + 1) / len(media)
+        )
+        ctx.report(db, job, progress=progress, step=f"分析素材 {i + 1}/{len(media)}")
+        try:
+            desc = await analysis.analyze(
+                pack=pack,
+                inputs={**inputs, m["kind"]: m["path"]},
+                wait_timeout=wait_timeout,
+            )
+        except ProviderError as exc:
+            if strict:
+                raise ProviderError(f"素材 {i + 1} 分析失败: {exc}") from exc
+            logger.warning("素材 {} 分析失败，退回元信息：{}", m["path"], exc)
+            continue
+        if strict and not desc.strip():
+            raise ProviderError(f"素材 {i + 1} 分析没有返回内容")
+        kind = "视频" if m["kind"] == "video" else "图片"
+        described[i] = f"素材{i + 1}（{kind}），内容：{desc.strip()}"
+    return described
+
+
+async def run_assets_script_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """看素材写文案：视觉描述每一段素材，再写成可编辑的口播。不出片。"""
+    params = job.params
+    media = media_of(params)
+    if not media:
+        raise ProviderError("没有素材，无法写文案")
+    gap = analysis_pack_gaps(
+        media,
+        str(params.get("analysis_image_workflow") or ""),
+        str(params.get("analysis_video_workflow") or ""),
+    )
+    if gap:
+        raise ProviderError(gap)
+    briefs = await _media_briefs(media)
+    if ctx.cancelled():
+        return []
+    described = await _fill_vision_descriptions(
+        db,
+        job,
+        ctx,
+        media,
+        briefs,
+        image_workflow=str(params.get("analysis_image_workflow") or ""),
+        video_workflow=str(params.get("analysis_video_workflow") or ""),
+        inputs=dict(params.get("analysis_inputs") or {}),
+        provider_id=(params.get("providers") or {}).get("analysis"),
+        strict=True,
+    )
+    if ctx.cancelled() or not described:
+        return []
+    ctx.report(db, job, progress=0.8, step="narration")
+    llm_provider, llm_model = pick_llm_with_model(db, None, "")
+    llm = build_llm_adapter(llm_provider, db=db)
+    hint = str(params.get("hint") or "").strip() or "无"
+    duration = int(params.get("duration") or 30)
+    data = await _chat_json(
+        llm,
+        llm_provider,
+        "你在看短视频的每个画面描述，为每个画面写一句口语口播。"
+        f"目标总时长约 {duration} 秒，按每秒 4 到 5 个字估算每句长度。"
+        "只根据给出的画面写，不要编画面里没有的情节。"
+        '只输出 JSON：{"segments": ["...", "..."]}，数量必须与画面数一致。',
+        f"补充要求：{hint}\n画面：\n" + "\n".join(described),
+        llm_model,
+    )
+    texts = segments_from_reply(data, len(media))
+    ctx.report(db, job, progress=1.0, step="文案已生成")
+    return [{"type": "text", "content": "\n".join(texts)}]
+
+
 async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """自定义素材：图片/视频素材 + 文案/主题 → 元信息 → TTS → 可选动画 → 字幕 → 标题卡 → 拼接。"""
     started = time.monotonic()
     params = job.params
-    # 兼容旧任务（只有 image_paths）
-    media: list[dict] = params.get("media") or [
-        {"path": p, "kind": "image"} for p in params.get("image_paths", [])
-    ]
+    media = media_of(params)
     if not media:
         raise ProviderError("没有素材，无法继续")
     tts_provider = pick_provider(db, "tts", params.get("providers", {}).get("tts"))
     tts = build_tts_adapter(tts_provider)
     wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
 
-    # 素材元信息（喂给 LLM：类型/文件名/视频时长），相当于轻量素材分析
-    asset_desc: list[str] = []
-    for i, m in enumerate(media):
-        info = f"素材{i + 1}（{'视频' if m['kind'] == 'video' else '图片'}，文件 {Path(m['path']).name}）"
-        if m["kind"] == "video":
-            d = await ffmpeg.probe_duration(resolve(m["path"]))
-            info += f"，素材时长 {d:.1f} 秒"
-        asset_desc.append(info)
-
-    # 素材分析（可选）：Comfy 分析工作流逐素材产出真实内容描述，替换元信息
-    if params.get("analysis_image_workflow") or params.get("analysis_video_workflow"):
-        analysis_provider = pick_provider(db, "image", params.get("providers", {}).get("analysis"))
-        from liberastra.providers.analysis.comfyui import ComfyUIAnalysis
-
-        analysis = ComfyUIAnalysis(analysis_provider.base_url)
-        image_wf = params.get("analysis_image_workflow")
-        video_wf = params.get("analysis_video_workflow")
-        image_pack = get_pack(image_wf) if image_wf else None
-        video_pack = get_pack(video_wf) if video_wf else None
-        for i, m in enumerate(media):
-            if ctx.cancelled():
-                return []
-            pack = image_pack if m["kind"] == "image" else video_pack
-            if pack is None:
-                continue
-            ctx.report(
-                db, job, progress=0.02 + 0.03 * (i + 1) / len(media), step=f"analyze {i + 1}/{len(media)}"
-            )
-            try:
-                desc = await analysis.analyze(
-                    pack=pack,
-                    inputs={**params.get("analysis_inputs", {}), m["kind"]: m["path"]},
-                    wait_timeout=wait_timeout,
-                )
-                asset_desc[i] = (
-                    f"素材{i + 1}（{'视频' if m['kind'] == 'video' else '图片'}），内容：{desc.strip()}"
-                )
-            except ProviderError as exc:
-                logger.warning("素材 {} 分析失败，退回元信息：{}", m["path"], exc)
+    asset_desc = await _media_briefs(media)
+    asset_desc = await _fill_vision_descriptions(
+        db,
+        job,
+        ctx,
+        media,
+        asset_desc,
+        image_workflow=str(params.get("analysis_image_workflow") or ""),
+        video_workflow=str(params.get("analysis_video_workflow") or ""),
+        inputs=dict(params.get("analysis_inputs") or {}),
+        provider_id=(params.get("providers") or {}).get("analysis"),
+        strict=False,
+    )
+    if ctx.cancelled():
+        return []
 
     # 文案：优先固定文案切分，否则 LLM 按主题+素材元信息逐图写一句
     if params.get("script"):

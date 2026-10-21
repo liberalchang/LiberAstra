@@ -16,6 +16,7 @@ class QuickVideoRequest(BaseModel):
     aspect: str = Field(default="9:16", pattern="^(9:16|1:1|16:9)$")
     voice: str = ""
     voice_record_id: int | None = None
+    character_id: int | None = None
     style_prefix: str = ""
     storyboard: dict[str, Any] | None = None  # 提供则跳过 LLM（分镜编辑器回传）
     storyboard_only: bool = False  # 只生成脚本与分镜

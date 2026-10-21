@@ -65,6 +65,7 @@ const NAV_GROUPS: {
       { to: "/video/avatar", icon: UserRound, key: "nav.avatar" },
       { to: "/video/i2v", icon: Film, key: "nav.i2v" },
       { to: "/video/motion", icon: PersonStanding, key: "nav.motion" },
+      { to: "/video/characters", icon: UserRound, key: "nav.characters" },
       { to: "/video/templates", icon: LayoutTemplate, key: "nav.templates" },
     ],
   },

@@ -18,12 +18,16 @@ SPECS: dict[str, tuple[int, int, int]] = {
     "serial_same_host": (0, 0, 1),
     # 默认 LLM Provider id；0=自动取第一个启用的 llm Provider
     "default_llm_provider_id": (0, 0, 2_147_483_647),
+    # 角色定妆照图像 Provider id；0=自动取第一个启用的 image Provider
+    "default_character_provider_id": (0, 0, 2_147_483_647),
 }
 
 # 字符串偏好：key -> 默认值
 STR_SPECS: dict[str, str] = {
     # 默认 LLM 模型名；空则用 Provider.extra.model 或已拉取列表首项
     "default_llm_model": "",
+    # 角色四段式定妆照使用的文生图工作流包
+    "default_character_workflow": "qwen_image_21",
 }
 
 

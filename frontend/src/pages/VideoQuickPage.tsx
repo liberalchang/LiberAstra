@@ -196,6 +196,8 @@ export function VideoQuickPage() {
     () => defaultAccelState(imagePack?.accel),
   );
   const [stylePrefix, setStylePrefix] = usePersistentState("video-quick:style-prefix", "");
+  const [characterId, setCharacterId] = usePersistentState<number | "">("video-quick:character", "");
+  const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
   const { data: videoPacks } = useQuery({
     // 逐镜生成是文生视频（只有提示词、无首帧图），精确按能力筛选
     queryKey: ["workflows", "t2v"],
@@ -336,6 +338,7 @@ export function VideoQuickPage() {
           ? ""
           : voiceName,
       style_prefix: stylePrefix,
+      character_id: characterId === "" ? undefined : characterId,
       storyboard: board,
       storyboard_only: storyboardOnly,
       optimize_visuals: optimize,
@@ -688,6 +691,14 @@ export function VideoQuickPage() {
                     </WorkflowPackControl>
                   </Field>
                 )}
+                <Field label={tx("登场角色")} hint={tx("可选。外观描述会加到每个画面提示词前面，帮助各镜头保持同一个人。")}>
+                  <select className={selectClass} value={characterId} onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}>
+                    <option value="">{tx("不指定")}</option>
+                    {characters?.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label={tx("风格前缀")} hint={tx("加在每个画面提示词前面，保持全片风格统一，可以留空。")}>
                   <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder={tx("例如：电影感，浅景深，")} />
                 </Field>

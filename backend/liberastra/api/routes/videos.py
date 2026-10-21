@@ -11,10 +11,12 @@ from sqlalchemy.orm import Session
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.api.utils import wait_for_job
-from liberastra.models import Job, User, Voice
+from liberastra.models import Character, Job, User, Voice
 from liberastra.pipelines.quick import resolve_quick_template
+from liberastra.pipelines.simple import analysis_pack_gaps
 from liberastra.schemas.job import JobOut
 from liberastra.schemas.video import QuickVideoRequest
+from liberastra.services.characters import appearance_prefix, paths_for_task
 from liberastra.services.providers import pick_llm_with_model, pick_provider
 from liberastra.storage import save_upload
 
@@ -32,6 +34,35 @@ def _resolve_voice(db: Session, user: User, voice: str, voice_record_id: int | N
             status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 voice 或 voice_record_id"
         )
     return voice
+
+
+def _character(db: Session, user: User, character_id: int | None) -> Character | None:
+    if character_id is None:
+        return None
+    record = db.get(Character, character_id)
+    if record is None or record.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色不存在")
+    return record
+
+
+async def _image_or_character(
+    image: UploadFile | None,
+    character: Character | None,
+    view: str,
+    *,
+    multi: bool,
+) -> list[str]:
+    """上传图优先；否则从角色库按视角取单人图，动作迁移可一次取正/侧/背。"""
+    if image is not None and image.filename:
+        content = await image.read()
+        if content:
+            return [save_upload(image.filename or "image.png", content)]
+    if character is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传图片或选择角色")
+    try:
+        return paths_for_task(character, view, multi=multi)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 def _submit(request: Request, db: Session, user: User, kind: str, params: dict, provider_id=None) -> Job:  # noqa: ANN001
@@ -74,6 +105,8 @@ async def quick(
             status_code=status.HTTP_400_BAD_REQUEST, detail="配音 Provider 是 ComfyUI，需要选择语音工作流包"
         )
 
+    character = _character(db, user, body.character_id)
+    style_prefix = f"{appearance_prefix(character)}{body.style_prefix}" if character else body.style_prefix
     job = _submit(
         request,
         db,
@@ -87,7 +120,7 @@ async def quick(
             "storyboard_count": body.storyboard_count,
             "aspect": body.aspect,
             "voice": voice,
-            "style_prefix": body.style_prefix,
+            "style_prefix": style_prefix,
             "storyboard": body.storyboard,
             "storyboard_only": body.storyboard_only,
             "optimize_visuals": body.optimize_visuals,
@@ -126,15 +159,18 @@ async def i2v(
     user: CurrentUser,
     db: DbSession,
     request: Request,
-    image: Annotated[UploadFile, File()],
     workflow: Annotated[str, Form()],
+    image: Annotated[UploadFile | None, File()] = None,
     prompt: Annotated[str, Form()] = "",
+    character_id: Annotated[int | None, Form()] = None,
+    character_view: Annotated[str, Form()] = "front",
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
     wait: bool = False,
 ) -> Job:
     provider = pick_provider(db, "video", provider_id)
-    image_path = save_upload(image.filename or "image.png", await image.read())
+    paths = await _image_or_character(image, _character(db, user, character_id), character_view, multi=False)
+    image_path = paths[0]
     job = _submit(
         request, db, user, "video.i2v",
         {
@@ -155,11 +191,12 @@ async def avatar(
     user: CurrentUser,
     db: DbSession,
     request: Request,
-    image: Annotated[UploadFile, File()],
     text: Annotated[str, Form(min_length=1)],
     workflow: Annotated[str, Form()],
+    image: Annotated[UploadFile | None, File()] = None,
     voice: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
+    character_id: Annotated[int | None, Form()] = None,
     tts_provider_id: Annotated[int | None, Form()] = None,
     tts_workflow: Annotated[str | None, Form()] = None,
     tts_inputs: Annotated[str, Form()] = "{}",
@@ -168,8 +205,13 @@ async def avatar(
     wait: bool = False,
 ) -> Job:
     provider = pick_provider(db, "video", provider_id)
+    character = _character(db, user, character_id)
+    if character and not voice and voice_record_id is None:
+        voice_record_id = character.voice_record_id
+        voice = character.voice_name or ""
     voice_name = _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ""
-    image_path = save_upload(image.filename or "person.png", await image.read())
+    paths = await _image_or_character(image, character, "portrait", multi=False)
+    image_path = paths[0]
     job = _submit(
         request, db, user, "video.avatar",
         {
@@ -195,9 +237,10 @@ async def motion(
     db: DbSession,
     request: Request,
     video: Annotated[UploadFile, File()],
-    image: Annotated[UploadFile, File()],
     workflow: Annotated[str, Form()],
+    image: Annotated[UploadFile | None, File()] = None,
     prompt: Annotated[str, Form()] = "",
+    character_id: Annotated[int | None, Form()] = None,
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
     wait: bool = False,
@@ -207,14 +250,15 @@ async def motion(
     if len(video_content) > 500 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="参考视频过大")
     video_path = save_upload(video.filename or "ref.mp4", video_content)
-    image_path = save_upload(image.filename or "target.png", await image.read())
+    image_paths = await _image_or_character(image, _character(db, user, character_id), "front", multi=True)
     job = _submit(
         request, db, user, "video.motion",
         {
             "workflow": workflow,
             "prompt": prompt,
             "video_path": video_path,
-            "image_path": image_path,
+            "image_path": image_paths[0],
+            "image_paths": image_paths,
             "inputs": _parse_inputs(inputs),
         },
         provider.id,
@@ -259,23 +303,7 @@ async def custom_assets(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传至少一个素材")
     if not script and not topic:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少文案或主题")
-    # 素材按扩展名分流：图片 / 视频
-    image_ext = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
-    video_ext = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
-    media: list[dict] = []
-    for i, up in enumerate(images):
-        ext = Path(up.filename or "").suffix.lower()
-        if ext in image_ext:
-            kind = "image"
-        elif ext in video_ext:
-            kind = "video"
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"不支持的素材格式: {up.filename}",
-            )
-        rel = save_upload(up.filename or f"asset_{i}", await up.read())
-        media.append({"path": rel, "kind": kind})
+    media = await _read_media(images)
     has_image = any(m["kind"] == "image" for m in media)
     if animate and has_image:
         if not video_workflow:
@@ -315,6 +343,70 @@ async def custom_assets(
                 "analysis": analysis_provider_id,
             },
             "llm_model": llm_model,
+        },
+    )
+    if wait:
+        return await wait_for_job(db, job.id)
+    return job
+
+
+async def _read_media(images: list[UploadFile]) -> list[dict]:
+    """按扩展名把上传文件存成图片或视频素材。"""
+    image_ext = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+    video_ext = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+    media: list[dict] = []
+    for i, up in enumerate(images):
+        ext = Path(up.filename or "").suffix.lower()
+        if ext in image_ext:
+            kind = "image"
+        elif ext in video_ext:
+            kind = "video"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"不支持的素材格式: {up.filename}",
+            )
+        rel = save_upload(up.filename or f"asset_{i}", await up.read())
+        media.append({"path": rel, "kind": kind})
+    return media
+
+
+@router.post("/assets/script", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+async def custom_assets_script(
+    user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    images: Annotated[list[UploadFile], File()],
+    duration: Annotated[int, Form()] = 30,
+    hint: Annotated[str, Form()] = "",
+    analysis_image_workflow: Annotated[str, Form()] = "",
+    analysis_video_workflow: Annotated[str, Form()] = "",
+    analysis_inputs: Annotated[str, Form()] = "{}",
+    analysis_provider_id: Annotated[int | None, Form()] = None,
+    wait: bool = False,
+) -> Job:
+    """先看素材再写口播。结果是一段可编辑文本，不合成视频。"""
+    if not images:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传至少一个素材")
+    media = await _read_media(images)
+    gap = analysis_pack_gaps(media, analysis_image_workflow, analysis_video_workflow)
+    if gap:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=gap)
+    pick_provider(db, "image", analysis_provider_id)
+    pick_llm_with_model(db, None, "")
+    job = _submit(
+        request,
+        db,
+        user,
+        "video.assets.script",
+        {
+            "media": media,
+            "duration": duration,
+            "hint": hint,
+            "analysis_image_workflow": analysis_image_workflow or None,
+            "analysis_video_workflow": analysis_video_workflow or None,
+            "analysis_inputs": _parse_inputs(analysis_inputs),
+            "providers": {"analysis": analysis_provider_id},
         },
     )
     if wait:

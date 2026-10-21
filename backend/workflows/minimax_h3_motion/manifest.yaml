@@ -1,0 +1,137 @@
+# 基于 MiniMax H3 ReferenceToVideo (ref2va) 的动作迁移工作流包：
+# <Picture 1> 注入目标人物图片潜变量锁定身份外观，<Video 1> 注入 24fps 参考动作视频潜变量与时间轴，
+# 由多模态 Qwen3-VL-32B 与 H3 联合 DiT 在无骨骼提取下直接将参考视频动作迁移到目标图片人物。
+name: minimax_h3_motion
+capability: motion
+description: MiniMax H3 动作迁移（MiniMaxH3ReferenceToVideo 多模态参考；<Picture 1> 锁定人物 + <Video 1> 迁移参考动作；官方 TE；可选 Turbo LoRA）
+fps: 24
+inputs:
+  video:
+    node: "115"
+    field: inputs.video
+    type: video
+    required: true
+    label: 参考视频
+  image:
+    node: "114"
+    field: inputs.image
+    type: image
+    required: true
+    label: 目标图片
+  image_2:
+    node: "116"
+    field: inputs.image
+    type: image
+    required: false
+    label: 侧面参考
+    description: 可选。角色库会把侧面单人图放在这里，对应 <Picture 2>
+  image_3:
+    node: "117"
+    field: inputs.image
+    type: image
+    required: false
+    label: 背面参考
+    description: 可选。角色库会把背面单人图放在这里，对应 <Picture 3>
+  prompt:
+    node: "105:104"
+    field: inputs.prompt
+    type: str
+    required: true
+    label: 提示词
+    description: 可用 <Picture 1> 指代目标图、<Video 1> 指代参考视频；未写标签或留空时自动补齐动作迁移指令
+  width:
+    node: "105:104"
+    field: inputs.width
+    type: int
+    default: 768
+    min: 512
+    max: 1920
+    multiple: 32
+  height:
+    node: "105:104"
+    field: inputs.height
+    type: int
+    default: 1344
+    min: 512
+    max: 1920
+    multiple: 32
+  length:
+    node: "105:104"
+    field: inputs.length
+    type: int
+    default: 124
+    min: 73
+    max: 362
+    align_base: 17
+    align_offset: 5
+    label: 帧数
+  seed:
+    node: "105:15"
+    field: inputs.noise_seed
+    type: int
+    default: -1
+  steps:
+    node: "105:9"
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 4
+    max: 50
+  sampler_name:
+    node: "105:17"
+    field: inputs.sampler_name
+    type: str
+    default: res_multistep
+    label: 采样器
+  clip_name:
+    node: "105:13"
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: 官方 TE；可换成越狱版同族文件（type 仍为 minimax）
+  unet_name:
+    node: "105:6"
+    field: inputs.unet_name
+    type: str
+    default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（FL2VA）
+outputs:
+  node: "92"
+  key: images
+accel:
+  label: Turbo 加速
+  family: minimax_h3
+  default_enabled: false
+  node: "105:200"
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: _ema
+    recommended: minimax_h3_turbo_v4_step600_ema.safetensors
+  strength:
+    field: inputs.strength
+    default: 1.0
+    min: 0.5
+    max: 1.5
+  preset:
+    steps: 8
+    sampler_name: euler
+requirements:
+  nodes:
+    - LoadImage
+    - VHS_LoadVideo
+    - MiniMaxH3ReferenceToVideo
+    - MiniMaxH3TurboLoRA
+    - SamplerCustomAdvanced
+    - SaveVideo
+    - CreateVideo
+  models:
+    - diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    - text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+    - vae/minimax_h3_video_vae_fp16.safetensors
+    - vae/minimax_h3_audio_vae_fp32.safetensors
+    - loras/minimax_h3_turbo_v4_step600_ema.safetensors

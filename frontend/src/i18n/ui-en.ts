@@ -737,6 +737,26 @@ export const UI_EN: Record<string, string> = {
   "文案与标题": "Script and title",
   "标题会作为 2 秒标题卡放在片头；文案决定每镜的口播与字幕。":
     "The title becomes a 2-second title card. The script is the narration and subtitles.",
+  "标题会作为 2 秒标题卡放在片头。自备文案和主题生成都不看画面；看素材写会先生成一段可改的口播。":
+    "The title becomes a 2-second title card. Your own script and a topic script ignore the picture. Look-and-write drafts narration you can edit first.",
+  "看素材写文案": "Write from the clips",
+  "还没有 ComfyUI 服务。请到「服务提供方」添加后再生成文案。":
+    "No ComfyUI service yet. Add one on Providers before writing from the clips.",
+  "先看每张图、每段视频里实际是什么，再写成口播。生成后可以改，出片时用这段文字。":
+    "The vision model describes each image and video, then writes narration. Edit it before making the video.",
+  "AI 按文件名和目标时长写口播，不看画面内容。脚本 LLM 使用系统设置中的默认服务。":
+    "The model writes from file names and the target length. It does not look at the picture. The script model is the default in System Settings.",
+  "analysis 能力包，如 analysis_image_qwenvl。有图片时必选。":
+    "An analysis pack, such as analysis_image_qwenvl. Required when you upload images.",
+  "补充要求": "Extra notes",
+  "选填。例如语气、要强调的卖点。留空就只按画面写。":
+    "Optional. Tone or a point to stress. Leave empty to follow the picture only.",
+  "例如：语气热情，突出价格": "For example: warm tone, mention the price",
+  "生成文案": "Write the script",
+  "正在看素材并写文案…": "Looking at the clips and writing…",
+  "一行对应一段素材。生成后可以再改，出片用的就是这里的文字。":
+    "One line per clip. Edit it after it appears. The video uses this text.",
+  "点「生成文案」后出现在这里。": "Appears here after you write the script.",
   "或「服务提供方」添加。": "or Providers.",
   "素材动画": "Clip animation",
   "开启后，静态图片先经 i2v 工作流动画化再合成（每张图一次图生视频，较慢）。视频素材不受影响。":
@@ -813,4 +833,58 @@ export const UI_EN: Record<string, string> = {
   "Turbo LoRA 声明。空=无加速。示例含 node / bypass_input / lora / preset。":
     "Turbo LoRA declaration. Empty means off. Example fields: node, bypass_input, lora, preset.",
   "取消编辑": "Cancel editing",
+  "角色库": "Character library",
+  "保存角色外观和四段式定妆照。视频任务按镜头取一张单人图，不会把整张设定图当成画面。":
+    "Save a character's look and a four-panel sheet. Each video shot uses one panel, never the whole sheet.",
+  "新建角色": "New character",
+  "只写年龄、脸型、发型和服装。生成时会补上四段式构图，图像服务在系统设置里配置。":
+    "Describe age, face, hair, and clothes. Generation adds the four-panel layout. The image service is chosen in Settings.",
+  "上传已经做好的横版设定图，从左到右是正面全身、侧面全身、背面全身、右侧面部特写。":
+    "Upload a finished wide sheet: full-body front, side, back, then a large face close-up on the right.",
+  "添加方式": "How to add",
+  "按描述生成": "Generate from a description",
+  "上传设定图": "Upload a sheet",
+  "外观描述": "Appearance",
+  "可先写年龄、脸型、发型、服装，再点优化补成四段式定妆照提示词。":
+    "Start with age, face, hair, and clothes, then optimize into a four-panel sheet prompt.",
+  "例如：20岁左右，冷白皮，黑色长卷发，奶油白衬衫":
+    "For example: about 20, fair skin, long black curls, a cream shirt",
+  "四段式设定图": "Four-panel sheet",
+  "从左到右：正面全身、侧面全身、背面全身、右侧面部特写。人物之间留出浅色空隙。":
+    "Left to right: full-body front, side, back, then a face close-up. Leave light gaps between figures.",
+  "点击或拖拽上传设定图": "Click or drop a character sheet",
+  "选填。快速创作会把这段文字加到每个画面前面。":
+    "Optional. Quick create prefixes this text to every shot.",
+  "生成角色定妆照": "Generate character sheet",
+  "保存并自动切分": "Save and split",
+  "面部特写": "Face close-up",
+  "正面全身": "Full-body front",
+  "侧面全身": "Full-body side",
+  "背面全身": "Full-body back",
+  "定妆照": "Character sheet",
+  "面部半身特写": "Face close-up",
+  "默认角色生图": "Default character image",
+  "角色库生成四段式定妆照时使用这里的图像服务和文生图工作流包，不用在角色页重复选择。":
+    "Character sheets use the image service and text-to-image workflow chosen here.",
+  "图像服务商": "Image provider",
+  "在「服务提供方」中添加 ComfyUI 等图像服务。": "Add a ComfyUI or other image provider under Providers.",
+  "自动（第一个启用的图像服务）": "Automatic (first enabled image service)",
+  "定妆照工作流包": "Character-sheet workflow",
+  "只列出文生图工作流包。默认 Qwen-Image 2.1。": "Text-to-image packs only. Defaults to Qwen-Image 2.1.",
+  "还没有外观描述": "No appearance yet",
+  "正面": "Front",
+  "侧面": "Side",
+  "背面": "Back",
+  "主图": "Portrait",
+  "从角色库选择，或在下面上传": "Pick a saved character, or upload below",
+  "登场角色": "Character",
+  "可选。外观描述会加到每个画面提示词前面，帮助各镜头保持同一个人。":
+    "Optional. The appearance is prefixed to every shot so the character stays recognizable.",
+  "不指定": "None",
+  "作为视频首帧。选了角色时用该视角的单人图。": "Used as the first frame. A saved character uses the chosen single view.",
+  "目标人物或画面。选了角色时用角色库里的单人图。": "The target person. A saved character uses the single-view images.",
+  "口播人物图。选了角色时用定妆照右侧的面部半身特写。":
+    "The talking-head image. A saved character uses the face close-up from the sheet.",
+  "目标人物。选了角色时用正面、侧面、背面三张全身图。":
+    "The target person. A saved character uses the full-body front, side, and back.",
 };

@@ -7,6 +7,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { AsrPage } from "@/pages/AsrPage";
 import { AssetsPage } from "@/pages/AssetsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { CharactersPage } from "@/pages/CharactersPage";
 import { CliPage } from "@/pages/CliPage";
 import { GuidePage } from "@/pages/GuidePage";
 import { ImageEditPage } from "@/pages/ImageEditPage";
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />
         <Route path="/video/i2v" element={<VideoPackPage kind="i2v" />} />
         <Route path="/video/motion" element={<VideoPackPage kind="motion" />} />
+        <Route path="/video/characters" element={<CharactersPage />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
     </Routes>

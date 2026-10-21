@@ -8,6 +8,7 @@ from liberastra.api.routes import (
     auth,
     bgm,
     capabilities,
+    characters,
     images,
     jobs,
     llm,
@@ -35,6 +36,7 @@ api_router.include_router(llm.router)
 api_router.include_router(tts.router)
 api_router.include_router(asr.router)
 api_router.include_router(voices.router)
+api_router.include_router(characters.router)
 api_router.include_router(bgm.router)
 api_router.include_router(assets.router)
 api_router.include_router(images.router)

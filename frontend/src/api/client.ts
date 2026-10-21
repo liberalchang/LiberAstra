@@ -47,6 +47,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(path, { headers });
+  if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
+  return resp.blob();
+}
+
 export type AuthStatus = components["schemas"]["AuthStatus"];
 export type UserOut = components["schemas"]["UserOut"];
 export type TokenResponse = components["schemas"]["TokenResponse"];
@@ -103,6 +111,21 @@ export interface VoiceOut {
   created_at: string;
 }
 
+export interface CharacterOut {
+  id: number;
+  name: string;
+  description: string;
+  portrait_path: string | null;
+  turnaround_path: string | null;
+  front_path: string | null;
+  side_path: string | null;
+  back_path: string | null;
+  voice_record_id: number | null;
+  voice_name: string | null;
+  tags: string[];
+  created_at: string;
+}
+
 export interface AssetOut {
   id: number;
   kind: string;
@@ -127,6 +150,10 @@ export interface SystemPreferences {
   default_llm_provider_id: number;
   /** 默认 LLM 模型名；空则用 Provider.extra.model 或已拉取列表首项 */
   default_llm_model: string;
+  /** 角色定妆照图像 Provider id；0=自动取第一个启用的 image */
+  default_character_provider_id: number;
+  /** 角色四段式定妆照使用的文生图工作流包 */
+  default_character_workflow: string;
 }
 
 export interface PromptTaskOut {
@@ -316,6 +343,14 @@ export const api = {
   deleteVoice: (id: number) => request<void>(`/api/v1/voices/${id}`, { method: "DELETE" }),
   setDefaultVoice: (id: number) =>
     request<VoiceOut>(`/api/v1/voices/${id}/default`, { method: "POST" }),
+  listCharacters: () => request<CharacterOut[]>("/api/v1/characters"),
+  createCharacter: (form: FormData) =>
+    request<CharacterOut>("/api/v1/characters", { method: "POST", body: form }),
+  generateCharacter: (form: FormData) =>
+    request<JobOut>("/api/v1/characters/generate", { method: "POST", body: form }),
+  deleteCharacter: (id: number) => request<void>(`/api/v1/characters/${id}`, { method: "DELETE" }),
+  characterImage: (id: number, slot: string) =>
+    requestBlob(`/api/v1/characters/${id}/image/${slot}`),
   listAssets: (kind?: string) =>
     request<AssetOut[]>(`/api/v1/assets${kind ? `?kind=${kind}` : ""}`),
 
@@ -408,6 +443,9 @@ export const api = {
     request<JobOut>("/api/v1/videos/motion", { method: "POST", body: form }),
   submitVideoAssets: (form: FormData) =>
     request<JobOut>("/api/v1/videos/assets", { method: "POST", body: form }),
+  /** 看素材写口播（202）。结果是文本，确认后再走 submitVideoAssets。 */
+  submitVideoAssetsScript: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/assets/script", { method: "POST", body: form }),
 };
 
 /** 带鉴权下载资产内容为 Blob（audio 标签无法带 Authorization 头）。 */
