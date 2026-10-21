@@ -30,7 +30,9 @@ _SLOT_ATTR = {
 
 # 16:9 四段式定妆照。未点提示词优化时，拼在用户外观描述后面。
 SHEET_PROMPT = (
-    "16:9横版角色设定图，浅灰纯色影棚背景，画面从左到右依次展示完整全身正面、完整全身侧面、"
+    "16:9横版角色设定图，浅灰纯色影棚背景，四段使用同一浅灰背景，段与段之间留出空白间隔，"
+    "头发、披帛和手臂不要伸进间隔或其他栏。"
+    "画面从左到右依次展示完整全身正面、完整全身侧面、"
     "完整全身背面、右侧超大面部半身特写，四个视角保持同一人物、同一脸型、同一发型、同一服装与配饰。"
     "人物全身完整入镜，不裁脚，正面自然站立；右侧特写正面看向镜头，可带轻微俏皮眨眼表情。"
     "写实真人质感，柔和棚拍光，皮肤细腻通透，发丝清晰，服装面料真实，高级时尚Lookbook质感，8K超高清。"
@@ -50,6 +52,8 @@ _LAYOUT_MARKERS = (
     "不裁脚",
     "浅灰纯色",
     "影棚背景",
+    "空白间隔",
+    "不要伸进",
     "Lookbook",
     "8K",
     "写实真人质感",
@@ -75,33 +79,16 @@ def save_character_bytes(content: bytes, suffix: str) -> str:
 def split_turnaround(content: bytes) -> tuple[bytes, bytes, bytes, bytes]:
     """把横版四段式设定图切成正面、侧面、背面、面部特写四张 PNG。
 
-    优先按浅色竖缝切成四栏；缝不够时按三个全身加右侧特写的比例切。
+    在人物之间的空隙中点下刀。特写若换成另一种背景，再把左缘收到背景色跳变之后，
+    避免把全身图的灰边留进特写。
     """
     image = Image.open(io.BytesIO(content)).convert("RGB")
     width, height = image.size
-    if width < 4 or height < 1:
+    if width < 8 or height < 8:
         raise ProviderError("设定图尺寸过小，无法拆分")
-    background = image.getpixel((0, 0))
-    gaps: list[tuple[int, int]] = []
-    gap_start: int | None = None
-    min_gap = max(4, width // 40)
-    for x in range(width):
-        if _column_is_background(image, x, height, background):
-            if gap_start is None:
-                gap_start = x
-        elif gap_start is not None:
-            if x - gap_start > min_gap:
-                gaps.append((gap_start, x))
-            gap_start = None
-    interior = [(a, b) for a, b in gaps if a > width * 0.08 and b < width * 0.92]
-    if len(interior) >= 3:
-        widest = sorted(interior, key=lambda item: item[1] - item[0], reverse=True)[:3]
-        mids = sorted((a + b) // 2 for a, b in widest)
-        edges = [0, *mids, width]
-        boxes = [(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
-    else:
-        cuts = [0, int(width * 0.23), int(width * 0.45), int(width * 0.68), width]
-        boxes = [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
+    cuts = _nudge_portrait_cut(image, _sheet_cuts(_column_activity(image)))
+    edges = [0, *cuts, width]
+    boxes = [(edges[index], edges[index + 1]) for index in range(len(edges) - 1)]
     parts: list[bytes] = []
     for left, right in boxes:
         if right - left < 2:
@@ -231,15 +218,138 @@ def register_character_jobs(manager: JobManager) -> None:
     manager.register("character.generate", run_character_generate_job)
 
 
-def _column_is_background(image: Image.Image, x: int, height: int, background: tuple[int, int, int]) -> bool:
-    hits = 0
-    samples = 0
-    for y in range(0, height, 4):
-        pixel = image.getpixel((x, y))
-        samples += 1
-        if sum(abs(int(a) - int(b)) for a, b in zip(pixel, background, strict=False)) < 36:
-            hits += 1
-    return samples > 0 and hits / samples > 0.9
+def _column_activity(image: Image.Image) -> list[float]:
+    """每一列的亮度标准差。人身上颜色变化大，空隙和渐变背景几乎是平的。"""
+    width, height = image.size
+    pixels = image.load()
+    step = max(1, height // 180)
+    count = sum(1 for _ in range(0, height, step))
+    total = [0.0] * width
+    total_sq = [0.0] * width
+    for y in range(0, height, step):
+        for x in range(width):
+            red, green, blue = pixels[x, y]
+            luma = 0.299 * red + 0.587 * green + 0.114 * blue
+            total[x] += luma
+            total_sq[x] += luma * luma
+    activity: list[float] = []
+    for x in range(width):
+        mean = total[x] / count
+        variance = max(0.0, total_sq[x] / count - mean * mean)
+        activity.append(variance**0.5)
+    return activity
+
+
+def _smooth(values: list[float], radius: int) -> list[float]:
+    smoothed: list[float] = []
+    for index in range(len(values)):
+        start = max(0, index - radius)
+        end = min(len(values), index + radius + 1)
+        smoothed.append(sum(values[start:end]) / (end - start))
+    return smoothed
+
+
+def _interior_gaps(activity: list[float], threshold: float) -> list[tuple[int, int]]:
+    """低于阈值的连续列。贴着左右边缘的是画面留白，不当成人物之间的缝。"""
+    width = len(activity)
+    gaps: list[tuple[int, int]] = []
+    start: int | None = None
+    for x, value in enumerate(activity):
+        if value <= threshold:
+            if start is None:
+                start = x
+        elif start is not None:
+            gaps.append((start, x))
+            start = None
+    if start is not None:
+        gaps.append((start, width))
+    min_width = max(3, width // 80)
+    interior: list[tuple[int, int]] = []
+    for gap_start, gap_end in gaps:
+        if gap_end - gap_start < min_width:
+            continue
+        if gap_start <= 1 or gap_end >= width - 1:
+            continue
+        interior.append((gap_start, gap_end))
+    return interior
+
+
+def _sheet_cuts(activity: list[float]) -> list[int]:
+    """返回三条切线的 x。优先取最干净的三条空隙的中点。"""
+    width = len(activity)
+    smoothed = _smooth(activity, max(2, width // 80))
+    ordered = sorted(smoothed)
+    baseline = ordered[width // 5]
+    peak = ordered[min(width - 1, int(width * 0.9))]
+    spread = peak - baseline
+    if spread >= 4:
+        for factor in (0.08, 0.12, 0.18, 0.28, 0.4, 0.55):
+            gaps = _interior_gaps(smoothed, baseline + spread * factor)
+            if len(gaps) < 3:
+                continue
+            chosen = gaps
+            if len(chosen) > 3:
+                widest = sorted(chosen, key=lambda item: item[1] - item[0], reverse=True)[:3]
+                chosen = sorted(widest)
+            mids = [(start + end) // 2 for start, end in chosen]
+            edges = [0, *mids, width]
+            panel_wide = all(edges[index + 1] - edges[index] >= width * 0.08 for index in range(4))
+            separated = all(mids[index + 1] - mids[index] >= width * 0.1 for index in range(2))
+            if panel_wide and separated:
+                return mids
+    return [int(width * 0.23), int(width * 0.45), int(width * 0.68)]
+
+
+def _top_column_colors(image: Image.Image) -> tuple[list[tuple[float, float, float]], list[bool]]:
+    """每列顶部的平均色，以及这一小段是不是纯背景。头顶的头发方差会很高。"""
+    width, height = image.size
+    pixels = image.load()
+    top = max(4, height // 8)
+    step = max(1, top // 40)
+    colors: list[tuple[float, float, float]] = []
+    flat: list[bool] = []
+    for x in range(width):
+        samples = [pixels[x, y] for y in range(0, top, step)]
+        count = len(samples)
+        mean = tuple(sum(pixel[channel] for pixel in samples) / count for channel in range(3))
+        variance = sum(
+            sum((pixel[channel] - mean[channel]) ** 2 for channel in range(3)) for pixel in samples
+        )
+        colors.append(mean)
+        flat.append(variance / count < 400)
+    return colors, flat
+
+
+def _color_delta(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
+    return sum(abs(left[channel] - right[channel]) for channel in range(3))
+
+
+def _nudge_portrait_cut(image: Image.Image, cuts: list[int]) -> list[int]:
+    """特写背景和全身不是同一种颜色时，切在跳变结束的那一列。"""
+    if len(cuts) != 3:
+        return cuts
+    width = image.size[0]
+    colors, flat = _top_column_colors(image)
+    end = int(width * 0.92)
+    best_at = -1
+    best_delta = 0.0
+    for x in range(cuts[1] + 1, end - 1):
+        if not flat[x] or not flat[x + 1]:
+            continue
+        delta = _color_delta(colors[x], colors[x + 1])
+        if delta > best_delta:
+            best_delta = delta
+            best_at = x
+    if best_at < 0 or best_delta < 70:
+        return cuts
+    edge = best_at + 1
+    while edge < end - 1 and flat[edge] and flat[edge + 1]:
+        if _color_delta(colors[edge], colors[edge + 1]) <= 20:
+            break
+        edge += 1
+    if edge <= cuts[1] + int(width * 0.08) or width - edge < int(width * 0.18):
+        return cuts
+    return [cuts[0], cuts[1], edge]
 
 
 def _ext_of(content: bytes, filename: str = "") -> str:

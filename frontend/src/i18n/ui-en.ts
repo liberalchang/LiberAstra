@@ -862,6 +862,10 @@ export const UI_EN: Record<string, string> = {
   "侧面全身": "Full-body side",
   "背面全身": "Full-body back",
   "定妆照": "Character sheet",
+  "点击查看大图": "View full size",
+  "上一张": "Previous",
+  "下一张": "Next",
+  "{name} · {label}": "{name} · {label}",
   "面部半身特写": "Face close-up",
   "默认角色生图": "Default character image",
   "角色库生成四段式定妆照时使用这里的图像服务和文生图工作流包，不用在角色页重复选择。":
