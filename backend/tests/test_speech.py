@@ -75,6 +75,43 @@ def test_tts_job_and_asset(
     assert any(a["id"] == output["asset_id"] for a in assets)
 
 
+def test_tts_preview_returns_mp3(
+    client: TestClient,
+    auth_header: dict[str, str],
+    tts_provider: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from liberastra.api.routes import tts as tts_routes
+
+    monkeypatch.setattr(tts_routes, "build_tts_adapter", lambda record: _FakeTTS())
+    resp = client.post(
+        "/api/v1/tts/preview",
+        json={"provider_id": tts_provider, "voice": "af_heart", "text": "你好"},
+        headers=auth_header,
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("audio/mpeg")
+    assert resp.content == "AUDIO:af_heart:你好".encode()
+
+
+def test_tts_preview_rejects_speech_service(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    created = client.post(
+        "/api/v1/providers",
+        json={"name": "speech", "type": "liber_speech", "base_url": "http://127.0.0.1:5555"},
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+    resp = client.post(
+        "/api/v1/tts/preview",
+        json={"provider_id": created.json()["id"], "voice": "zh", "text": "你好"},
+        headers=auth_header,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "当前配音服务不支持试听"
+
+
 def test_asr_job_subtitle_export(
     client: TestClient,
     auth_header: dict[str, str],

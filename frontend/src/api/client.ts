@@ -466,6 +466,33 @@ export async function fetchTemplatePreview(aspect: string, name: string): Promis
   return resp.blob();
 }
 
+/** 本地 TTS / API TTS 短句试听。直接返回 mp3，不进入任务队列。 */
+export async function previewTts(body: {
+  provider_id: number;
+  voice: string;
+  text: string;
+}): Promise<Blob> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch("/api/v1/tts/preview", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 401 && authToken && onUnauthorized) onUnauthorized();
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try {
+      const payload = await resp.json();
+      detail = payload.detail ?? detail;
+    } catch {
+      /* 非 JSON 响应 */
+    }
+    throw new ApiError(resp.status, String(detail));
+  }
+  return resp.blob();
+}
+
 /** 带鉴权获取音乐内容（audio 标签无法带 Authorization 头）。 */
 export async function fetchBgmBlob(name: string): Promise<Blob> {
   const headers = new Headers();

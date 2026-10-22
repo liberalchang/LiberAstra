@@ -18,6 +18,8 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
+import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -336,7 +338,9 @@ export function VideoQuickPage() {
         ? (ttsExtra.voice ?? "")
         : isLibraryVoice && voiceRecordId !== ""
           ? ""
-          : voiceName,
+          : isLibraryVoice
+            ? speechLanguage(voiceName)
+            : voiceName,
       style_prefix: stylePrefix,
       character_id: characterId === "" ? undefined : characterId,
       storyboard: board,
@@ -432,7 +436,7 @@ export function VideoQuickPage() {
     (mode === "topic" ? !effectiveTopic : !script.trim()) ||
     !tpl ||
     (needsLlm && !hasLlm) ||
-    (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
+    (!ttsIsComfy && !isLibraryVoice && !voiceName) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     submit.isPending ||
@@ -441,7 +445,7 @@ export function VideoQuickPage() {
     batchTopics.length === 0 ||
     !tpl ||
     !hasLlm ||
-    (!ttsIsComfy && (isLibraryVoice ? voiceRecordId === "" && !voiceName : !voiceName)) ||
+    (!ttsIsComfy && !isLibraryVoice && !voiceName) ||
     (ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     batchSubmit.isPending;
@@ -912,13 +916,13 @@ export function VideoQuickPage() {
             </>
           ) : isLibraryVoice ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则在右侧填写音色名。")}>
+              <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">{tx("手动指定音色…")}</option>
+                  <option value="">{tx("使用默认声音…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -928,9 +932,7 @@ export function VideoQuickPage() {
                 </select>
               </Field>
               {voiceRecordId === "" && (
-                <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
-                  <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
-                </Field>
+                <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
               )}
             </div>
           ) : (
@@ -968,6 +970,9 @@ export function VideoQuickPage() {
                 </Button>
               </div>
             </Field>
+          )}
+          {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
+            <TtsPreview providerId={ttsProvider.id} voice={voiceName} />
           )}
         </CardContent>
       </Card>

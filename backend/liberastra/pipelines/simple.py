@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import math
+import re
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -123,21 +126,355 @@ async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     return await _run_video_pack(db, job, ctx, inputs)
 
 
+# 中文口播约 4.25 字/秒，英文约 2.5 词/秒。估算只用来合并分句，真正的帧数看 TTS 时长。
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_WORD_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z]+)?")
+_SENTENCE_RE = re.compile(r"[^。！？!?；;\n]+[。！？!?；;\n]*")
+_CLAUSE_RE = re.compile(r"[^，,、]+[，,、]*")
+_CJK_PER_SEC = 4.25
+_WORDS_PER_SEC = 2.5
+# 比 H3 单段上限（约 15 秒）再留余量，避免合成后略超时又要重切
+_GROUP_CAP_SECONDS = 12.0
+
+
+def estimate_speech_seconds(text: str) -> float:
+    """按字数粗估口播秒数，只用于分段，不用于最终帧数。"""
+    cjk = len(_CJK_RE.findall(text))
+    words = _WORD_RE.findall(_CJK_RE.sub(" ", text))
+    seconds = cjk / _CJK_PER_SEC + len(words) / _WORDS_PER_SEC
+    if seconds <= 0 and text.strip():
+        seconds = max(len(text.strip()) / _CJK_PER_SEC, 0.4)
+    return seconds
+
+
+def frames_for_duration(duration: float, fps: float, spec: dict[str, Any]) -> int:
+    """把秒数向上吸附到工作流允许的帧数。MiniMax H3 为 17k+5。"""
+    if fps <= 0:
+        fps = 24.0
+    base = int(spec.get("align_base") or 0)
+    offset = int(spec.get("align_offset") or 0)
+    minimum = int(spec.get("min") or 1)
+    maximum = int(spec.get("max") or 0) or 10**9
+    target = max(1, math.ceil(max(0.0, duration) * fps))
+    if base > 0:
+        k = math.ceil(max(0, target - offset) / base)
+        frames = base * k + offset
+        if frames < minimum:
+            k = math.ceil(max(0, minimum - offset) / base)
+            frames = base * k + offset
+    else:
+        frames = target
+    return max(minimum, min(maximum, frames))
+
+
+def max_aligned_seconds(fps: float, spec: dict[str, Any]) -> float:
+    """单段能完整播完的最长秒数：不超过 max、且满足对齐规则的最大帧数 / fps。"""
+    if fps <= 0:
+        fps = 24.0
+    maximum = int(spec.get("max") or 0)
+    if maximum <= 0:
+        return 600.0
+    base = int(spec.get("align_base") or 0)
+    offset = int(spec.get("align_offset") or 0)
+    minimum = int(spec.get("min") or 1)
+    if base > 0:
+        k = max(0, (maximum - offset) // base)
+        frames = base * k + offset
+        if frames < minimum:
+            frames = minimum
+    else:
+        frames = maximum
+    return frames / fps
+
+
+def _text_pieces(text: str, pattern: re.Pattern[str]) -> list[str]:
+    return [piece for piece in pattern.findall(text) if piece.strip()]
+
+
+def _hard_split(text: str, max_seconds: float) -> list[str]:
+    """没有标点的长句按估算字数切开，避免一段超过模型帧数上限。
+
+    切点上的空格留在前一段末尾，合并时单词才不会粘在一起。
+    """
+    budget = max(8, int(max_seconds * _CJK_PER_SEC))
+    parts: list[str] = []
+    rest = text.strip()
+    while rest:
+        if estimate_speech_seconds(rest) <= max_seconds:
+            parts.append(rest)
+            break
+        head, rest = rest[:budget], rest[budget:]
+        if not head.strip():
+            rest = rest.lstrip()
+            continue
+        parts.append(head)
+    return parts
+
+
+def split_avatar_script(text: str, max_seconds: float) -> list[str]:
+    """先按句末标点切开，过长的句子再按逗号切，最后贪心合并到估算时长以内。"""
+    raw = text.strip()
+    if not raw:
+        return []
+    limit = max(max_seconds, 1.0)
+    pieces = _text_pieces(raw, _SENTENCE_RE) or [raw]
+    expanded: list[str] = []
+    for piece in pieces:
+        if estimate_speech_seconds(piece) <= limit:
+            expanded.append(piece)
+            continue
+        clauses = _text_pieces(piece, _CLAUSE_RE) or [piece]
+        for clause in clauses:
+            if estimate_speech_seconds(clause) <= limit:
+                expanded.append(clause)
+            else:
+                expanded.extend(_hard_split(clause, limit))
+    grouped: list[str] = []
+    buf = ""
+    for piece in expanded:
+        candidate = piece if not buf else f"{buf}{piece}"
+        if buf and estimate_speech_seconds(candidate) > limit:
+            grouped.append(buf.strip())
+            buf = piece
+        else:
+            buf = candidate
+    if buf.strip():
+        grouped.append(buf.strip())
+    return grouped
+
+
+def split_text_half(text: str) -> list[str]:
+    """在最靠近中点的标点处对半切。合成后仍超长时用来重做 TTS。"""
+    marks = "。！？!?；;，,、\n "
+    mid = len(text) // 2
+    best: int | None = None
+    for index, char in enumerate(text):
+        if char in marks and 0 < index < len(text) - 1:
+            if best is None or abs(index - mid) < abs(best - mid):
+                best = index
+    cleaned = text.strip()
+    if best is None:
+        if len(cleaned) < 8:
+            return [cleaned] if cleaned else []
+        return [part for part in (cleaned[:mid].strip(), cleaned[mid:].strip()) if part]
+    left, right = text[: best + 1].strip(), text[best + 1 :].strip()
+    if not left or not right:
+        return [cleaned] if cleaned else []
+    return [left, right]
+
+
+async def _trim_take(video: Path, out: Path, seconds: float, fps: float) -> None:
+    await ffmpeg.trim_video(video, out, seconds, fps=fps)
+
+
+async def _concat_takes(segments: list[Path], out: Path, list_file: Path) -> None:
+    await ffmpeg.concat_segments(segments, out, list_file=list_file)
+
+
+def avatar_segment_prompt(text: str, custom: str) -> str:
+    """每段提示词都带上这一段自己的台词，避免后段还在念整篇文案。"""
+    line = f'台词："{text}"'
+    custom = custom.strip()
+    if custom:
+        return f"{custom} {line}"
+    return f"正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。{line}"
+
+
+async def render_avatar_takes(
+    *,
+    takes: list[tuple[str, str, float]],
+    first_image: str,
+    base_inputs: dict[str, Any],
+    length_spec: dict[str, Any] | None,
+    fps: float,
+    image_key: str,
+    audio_key: str,
+    custom_prompt: str,
+    generate: Callable[[dict[str, Any], Callable[[float], None]], Awaitable[list[tuple[str, bytes]]]],
+    work: Callable[[str], Path],
+    rel_of: Callable[[Path], str],
+    report: Callable[[float, str], None],
+    cancelled: Callable[[], bool],
+    trim: Callable[[Path, Path, float, float], Awaitable[None]] = _trim_take,
+    last_frame: Callable[[Path, Path], Awaitable[None]] = ffmpeg.extract_last_frame,
+    concat: Callable[[list[Path], Path, Path], Awaitable[None]] = _concat_takes,
+) -> Path | None:
+    """逐段生成口播，裁到配音时长，下一段用上一段尾帧，最后合成一条视频。"""
+    if not takes:
+        raise ProviderError("口播文案为空")
+    total = len(takes)
+    current_image = first_image
+    clips: list[Path] = []
+    for index, (line, audio_rel, duration) in enumerate(takes):
+        if cancelled():
+            return None
+        start = 0.08 + 0.84 * index / total
+        span = 0.84 / total
+
+        def on_progress(frac: float, *, _start: float = start, _span: float = span, _i: int = index) -> None:
+            report(_start + _span * frac, f"分段 {_i + 1}/{total}")
+
+        inputs = {**base_inputs, "prompt": avatar_segment_prompt(line, custom_prompt)}
+        if length_spec:
+            # 向上取整到对齐帧数，多出来的画面在裁切时去掉，避免段间停顿叠在一起
+            inputs["length"] = frames_for_duration(duration + 0.1, fps, length_spec)
+        if image_key:
+            inputs[image_key] = current_image
+        if audio_key:
+            inputs[audio_key] = audio_rel
+        videos = await generate(inputs, on_progress)
+        if not videos:
+            raise ProviderError("ComfyUI 完成但未产出视频")
+        raw = work(f"take_{index:02d}_raw.mp4")
+        raw.write_bytes(videos[0][1])
+        clip = work(f"take_{index:02d}.mp4")
+        # 只多留一帧，尾帧就是观众看到的最后一帧，下一段不会往回跳
+        await trim(raw, clip, duration + (1.0 / fps if fps > 0 else 0.04), fps)
+        clips.append(clip)
+        if index < total - 1:
+            frame = work(f"take_{index:02d}_last.png")
+            await last_frame(clip, frame)
+            current_image = rel_of(frame)
+    if cancelled():
+        return None
+    final = work("video_0.mp4")
+    if len(clips) == 1:
+        final.write_bytes(clips[0].read_bytes())
+    else:
+        report(0.94, "concat")
+        await concat(clips, final, work("concat.txt"))
+    return final
+
+
 async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """数字人口播：人物图 + 文案 → TTS → avatar 工作流。"""
+    """数字人口播：按配音时长出画面；超过单段上限则分段，并用上一段尾帧衔接。"""
     params = job.params
+    spoken = str(params.get("text") or "").strip()
+    if not spoken:
+        raise ProviderError("口播文案为空")
+    video_pack = get_pack(params["workflow"])
+    length_spec = video_pack.inputs.get("length") if "length" in video_pack.inputs else None
+    fps = float(video_pack.fps or 24)
+    ceiling = max_aligned_seconds(fps, length_spec or {})
+    group_limit = min(_GROUP_CAP_SECONDS, max(1.0, ceiling - 0.5))
+    chunks = split_avatar_script(spoken, group_limit) or [spoken]
+
     tts_provider = pick_provider(db, "tts", params.get("tts_provider_id"))
     tts = build_tts_adapter(tts_provider)
     ctx.report(db, job, progress=0.05, step="tts")
-    ext = "mp3"
+    takes = await _speak_avatar_chunks(
+        db, job, ctx, tts_provider, tts, chunks, ceiling=ceiling
+    )
+    if ctx.cancelled() or not takes:
+        return []
+
+    provider = pick_provider(db, "video", job.provider_id)
+    adapter = ComfyUIVideo(provider.base_url)
+    image_keys = _input_keys(params["workflow"], "image")
+    audio_keys = _input_keys(params["workflow"], "audio")
+    started = time.monotonic()
+
+    async def generate(
+        inputs: dict[str, Any], on_progress: Callable[[float], None]
+    ) -> list[tuple[str, bytes]]:
+        videos, _texts = await adapter.generate(
+            pack=video_pack,
+            inputs=inputs,
+            on_progress=on_progress,
+            wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
+        )
+        return videos
+
+    final = await render_avatar_takes(
+        takes=takes,
+        first_image=str(params.get("image_path") or ""),
+        base_inputs=dict(params.get("inputs") or {}),
+        length_spec=length_spec,
+        fps=fps,
+        image_key=image_keys[0] if image_keys else "",
+        audio_key=audio_keys[0] if audio_keys else "",
+        custom_prompt=str(params.get("prompt") or ""),
+        generate=generate,
+        work=lambda name: job_path(job, name),
+        rel_of=lambda path: path.resolve().relative_to(resolve(".").resolve()).as_posix(),
+        report=lambda progress, step: ctx.report(db, job, progress=progress, step=step),
+        cancelled=ctx.cancelled,
+    )
+    if final is None or ctx.cancelled():
+        return []
+    rel_path = f"outputs/{job.id}/video_0.mp4"
+    asset = create_asset(
+        db,
+        kind="video",
+        rel_path=rel_path,
+        job_id=job.id,
+        owner_id=job.owner_id,
+        meta={
+            "provider": provider.name,
+            "workflow": params.get("workflow"),
+            "prompt": spoken,
+            "segments": len(takes),
+            "duration_s": round(time.monotonic() - started, 1),
+        },
+    )
+    return [{"type": "asset", "asset_id": asset.id, "kind": "video", "filename": "video_0.mp4"}]
+
+
+async def _speak_avatar_chunks(
+    db: Session,
+    job: Job,
+    ctx: JobContext,
+    tts_provider: Any,
+    tts: Any,
+    chunks: list[str],
+    *,
+    ceiling: float,
+) -> list[tuple[str, str, float]]:
+    """逐段合成语音。测得时长仍超过单段上限时，对半重做；切不开再按时间切音频。"""
+    takes: list[tuple[str, str, float]] = []
+    serial = 0
+
+    async def speak(text: str, depth: int) -> None:
+        nonlocal serial
+        if ctx.cancelled():
+            return
+        ext, data = await _synthesize_avatar_line(db, tts_provider, tts, text, job.params)
+        path = job_path(job, f"voiceover_{serial:02d}.{ext}")
+        serial += 1
+        path.write_bytes(data)
+        duration = await ffmpeg.probe_duration(path)
+        rel = f"outputs/{job.id}/{path.name}"
+        if duration <= ceiling + 0.05 or depth >= 6:
+            if duration > ceiling + 0.05:
+                await _slice_overlong_audio(job, text, path, duration, ceiling, takes)
+            else:
+                takes.append((text, rel, duration))
+            return
+        halves = split_text_half(text)
+        if len(halves) < 2:
+            await _slice_overlong_audio(job, text, path, duration, ceiling, takes)
+            return
+        for half in halves:
+            await speak(half, depth + 1)
+
+    for chunk in chunks:
+        await speak(chunk, 0)
+        if ctx.cancelled():
+            return []
+    return takes
+
+
+async def _synthesize_avatar_line(
+    db: Session, tts_provider: Any, tts: Any, text: str, params: dict[str, Any]
+) -> tuple[str, bytes]:
+    """合成一句口播，返回 (扩展名, 音频字节)。"""
     if tts_provider.type == "comfyui":
-        # comfy 语音工作流：文本按 manifest 注入
         if not params.get("tts_workflow"):
             raise ProviderError("配音 Provider 是 ComfyUI，但没有选择语音工作流包")
         pack = get_pack(params["tts_workflow"])
-        inputs = dict(params.get("tts_inputs", {}))
+        inputs = dict(params.get("tts_inputs") or {})
         if "text" in pack.inputs:
-            inputs["text"] = params["text"]
+            inputs["text"] = text
         if "voice" in pack.inputs and params.get("voice"):
             inputs["voice"] = params["voice"]
         filename, audio = await tts.synthesize_pack(
@@ -145,31 +482,31 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             inputs=inputs,
             wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
         )
-        if "." in filename:
-            ext = filename.rsplit(".", 1)[-1]
-    else:
-        audio = await tts.synthesize(text=params["text"], voice=params["voice"], fmt="mp3")
-    audio_path = job_path(job, f"voiceover.{ext}")
-    audio_path.write_bytes(audio)
-    if ctx.cancelled():
-        return []
+        ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp3"
+        return ext, audio
+    audio = await tts.synthesize(text=text, voice=params.get("voice"), fmt="mp3")
+    return "mp3", audio
 
-    audio_rel = f"outputs/{job.id}/voiceover.{ext}"
-    spoken_text = str(params.get("text") or "").strip()
-    custom_prompt = str(params.get("prompt") or "").strip()
-    prompt_text = (
-        custom_prompt
-        if custom_prompt
-        else f'正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。台词："{spoken_text}"'
-    )
-    inputs = {"prompt": prompt_text, **params.get("inputs", {})}
-    image_keys = _input_keys(params["workflow"], "image")
-    audio_keys = _input_keys(params["workflow"], "audio")
-    if image_keys:
-        inputs[image_keys[0]] = params["image_path"]
-    if audio_keys:
-        inputs[audio_keys[0]] = audio_rel
-    return await _run_video_pack(db, job, ctx, inputs)
+
+async def _slice_overlong_audio(
+    job: Job,
+    text: str,
+    audio: Path,
+    duration: float,
+    ceiling: float,
+    takes: list[tuple[str, str, float]],
+) -> None:
+    """文案已经切不开时，把音频按单段上限切开，避免一帧都超限。"""
+    start = 0.0
+    part = 0
+    while start < duration - 0.05:
+        piece = min(ceiling, duration - start)
+        out = job_path(job, f"{audio.stem}_p{part:02d}{audio.suffix}")
+        await ffmpeg.slice_audio(audio, start, piece, out)
+        probed = await ffmpeg.probe_duration(out)
+        takes.append((text, f"outputs/{job.id}/{out.name}", probed or piece))
+        start += piece
+        part += 1
 
 
 def _title_card_html(title: str, width: int, height: int) -> str:

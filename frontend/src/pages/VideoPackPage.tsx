@@ -15,6 +15,8 @@ import {
   PromptField,
   resolveEffectivePrompt,
 } from "@/components/PromptField";
+import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -142,6 +144,8 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           form.set("voice", ttsExtra.voice ?? "");
         } else if (isLibraryVoice && (voiceRecordId !== "" || character?.voice_record_id)) {
           form.set("voice_record_id", String(voiceRecordId !== "" ? voiceRecordId : character?.voice_record_id));
+        } else if (isLibraryVoice) {
+          form.set("voice", speechLanguage(voiceName || character?.voice_name || ""));
         } else {
           form.set("voice", voiceName || character?.voice_name || "");
         }
@@ -166,9 +170,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       (text &&
         (ttsIsComfy
           ? !!ttsPack
-          : isLibraryVoice
-            ? voiceRecordId !== "" || !!voiceName || !!character?.voice_record_id
-            : !!voiceName || !!character?.voice_name)));
+          : isLibraryVoice || !!voiceName || !!character?.voice_name)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -270,7 +272,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
           {kind === "avatar" ? (
             <>
-              <Field label={tx("口播文案")} hint={tx("先合成语音，再交给数字人工作流。")}>
+              <Field
+                label={tx("口播文案")}
+                hint={tx("画面时长跟着配音走。超过单段上限会按句子分段，用上一段尾帧接下一段，最后合成一条视频。")}
+              >
                 <textarea
                   className={`${areaClass} min-h-24`}
                   value={text}
@@ -317,13 +322,13 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 </>
               ) : isLibraryVoice ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则填写音色名。")}>
+                  <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
                     <select
                       className={selectClass}
                       value={voiceRecordId}
                       onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                     >
-                      <option value="">{tx("手动指定音色…")}</option>
+                      <option value="">{tx("使用默认声音…")}</option>
                       {voices?.map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.name}
@@ -332,9 +337,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     </select>
                   </Field>
                   {voiceRecordId === "" && (
-                    <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
-                      <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
-                    </Field>
+                    <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
                   )}
                 </div>
               ) : (
@@ -361,6 +364,9 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     />
                   )}
                 </Field>
+              )}
+              {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
+                <TtsPreview providerId={ttsProvider.id} voice={voiceName || character?.voice_name || ""} />
               )}
             </>
           ) : (
@@ -399,7 +405,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               inputs={pack.inputs}
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={["prompt", "image", "video", "audio"]}
+              exclude={
+                kind === "avatar"
+                  ? ["prompt", "image", "video", "audio", "length", "frames"]
+                  : ["prompt", "image", "video", "audio"]
+              }
               providerId={provider?.id}
               fps={pack.fps}
             />

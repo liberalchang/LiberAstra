@@ -9,6 +9,14 @@ from pydantic import BaseModel, Field
 TTS_FORMATS = ("mp3", "wav", "ogg_opus")
 
 
+class TTSPreviewRequest(BaseModel):
+    """本地 TTS / API TTS 的短句试听。不走任务队列，直接返回音频。"""
+
+    provider_id: int
+    voice: str = Field(min_length=1, max_length=200)
+    text: str = Field(min_length=1, max_length=200)
+
+
 class TTSRequest(BaseModel):
     provider_id: int | None = None
     voice_record_id: int | None = None  # 音色库条目；优先于 voice

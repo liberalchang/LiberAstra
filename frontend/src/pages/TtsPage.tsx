@@ -11,6 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
+import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
@@ -36,6 +38,7 @@ export function TtsPage() {
   const [providerId, setProviderId] = usePersistentState<number | "">("tts:provider", "");
   const provider = ttsProviders?.find((p) => p.id === providerId) ?? ttsProviders?.[0];
   const isComfy = provider?.type === "comfyui";
+  const isSpeech = provider?.type === "liber_speech";
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("tts:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("tts:voice-name", "");
   const [format, setFormat] = usePersistentState("tts:format", "mp3");
@@ -59,10 +62,16 @@ export function TtsPage() {
       api.submitTts({
         provider_id: provider?.id,
         voice_record_id: !isComfy && voiceRecordId !== "" ? voiceRecordId : undefined,
-        voice: isComfy ? (extra.voice ?? "") : voiceRecordId === "" ? voiceName : undefined,
+        voice: isComfy
+          ? (extra.voice ?? "")
+          : voiceRecordId !== ""
+            ? undefined
+            : isSpeech
+              ? speechLanguage(voiceName)
+              : voiceName,
         text,
         format,
-        options: language ? { language } : undefined,
+        options: !isSpeech && language ? { language } : isSpeech && voiceRecordId !== "" && language ? { language } : undefined,
         workflow: isComfy ? pack?.name : undefined,
         inputs: isComfy
           ? Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))
@@ -100,13 +109,20 @@ export function TtsPage() {
               </select>
             </Field>
             {!isComfy && (
-              <Field label={tx("音色记录")} hint={tx("选自音色库。不选则在下面手动填写音色名。")}>
+              <Field
+                label={tx("音色记录")}
+                hint={
+                  isSpeech
+                    ? tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")
+                    : tx("选自音色库。不选则在下面手动填写音色名。")
+                }
+              >
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">{tx("手动指定音色…")}</option>
+                  <option value="">{isSpeech ? tx("使用默认声音…") : tx("手动指定音色…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -116,7 +132,7 @@ export function TtsPage() {
                 </select>
               </Field>
             )}
-            {!isComfy && (
+            {!isComfy && !(isSpeech && voiceRecordId === "") && (
               <Field label={tx("朗读语言")} hint={tx("只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。")}>
                 <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
                   <option value="">{tx("自动")}</option>
@@ -170,10 +186,25 @@ export function TtsPage() {
               providerId={provider?.id}
             />
           )}
-          {!isComfy && voiceRecordId === "" && (
+          {!isComfy && isSpeech && voiceRecordId === "" && (
+            <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
+          )}
+          {!isComfy && !isSpeech && voiceRecordId === "" && (
             <Field label={tx("音色名")} hint={tx("需与所选服务匹配，例如 zh、alloy、af_heart。")}>
               <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
             </Field>
+          )}
+          {supportsTtsPreview(provider?.type) && provider && (
+            <TtsPreview
+              providerId={provider.id}
+              voice={
+                voiceRecordId === ""
+                  ? voiceName
+                  : (voices?.find((v) => v.id === voiceRecordId)?.voice_id ||
+                    voices?.find((v) => v.id === voiceRecordId)?.name ||
+                    "")
+              }
+            />
           )}
           <Field label={tx("合成文本")} hint={tx("这段文字会按所选音色朗读。")}>
             <textarea
@@ -189,7 +220,7 @@ export function TtsPage() {
               onClick={() => submit.mutate()}
               disabled={
                 !text ||
-                (!isComfy && voiceRecordId === "" && !voiceName) ||
+                (!isComfy && !isSpeech && voiceRecordId === "" && !voiceName) ||
                 (isComfy && !pack) ||
                 submit.isPending ||
                 !!running

@@ -25,6 +25,34 @@ def _wav(path: Path, seconds: float = 0.5, rate: int = 8000) -> None:
         w.writeframes(b"\x00\x00" * int(rate * seconds))
 
 
+def test_trim_last_frame_and_slice(tmp_path: Path) -> None:
+    async def run() -> None:
+        raw = tmp_path / "raw.mp4"
+        await ffmpeg._run(
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "color=c=blue:s=160x120:d=1",
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+            str(raw),
+        )
+        trimmed = tmp_path / "trim.mp4"
+        await ffmpeg.trim_video(raw, trimmed, 0.4, fps=24)
+        duration = await ffmpeg.probe_duration(trimmed)
+        assert 0.2 < duration < 0.7
+        frame = tmp_path / "last.png"
+        await ffmpeg.extract_last_frame(trimmed, frame)
+        assert frame.stat().st_size > 8
+
+        audio = tmp_path / "a.wav"
+        _wav(audio, 1.0)
+        piece = tmp_path / "piece.wav"
+        await ffmpeg.slice_audio(audio, 0.2, 0.3, piece)
+        sliced = await ffmpeg.probe_duration(piece)
+        assert 0.2 < sliced < 0.5
+
+    asyncio.run(run())
+
+
 def test_make_segment_and_concat(tmp_path: Path) -> None:
     async def run() -> None:
         image = tmp_path / "a.png"

@@ -17,6 +17,8 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
+import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
@@ -226,6 +228,7 @@ export function VideoAssetsPage() {
       form.set("aspect", aspect);
       if (!ttsIsComfy) {
         if (isLibraryVoice && voiceRecordId !== "") form.set("voice_record_id", String(voiceRecordId));
+        else if (isLibraryVoice) form.set("voice", speechLanguage(voiceName));
         else form.set("voice", voiceName);
       }
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
@@ -271,7 +274,7 @@ export function VideoAssetsPage() {
     files.length > 0 &&
     copyReady &&
     (mode === "script" || hasLlm) &&
-    (ttsIsComfy ? !!ttsPack : isLibraryVoice ? voiceRecordId !== "" || !!voiceName : !!voiceName) &&
+    (ttsIsComfy ? !!ttsPack : isLibraryVoice || !!voiceName) &&
     (!animate || !hasImage || !!videoPack);
 
   return (
@@ -635,13 +638,13 @@ export function VideoAssetsPage() {
             </>
           ) : isLibraryVoice ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={tx("音色")} hint={tx("选自音色库（参考音频克隆）。不选则填写音色名。")}>
+              <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
                 <select
                   className={selectClass}
                   value={voiceRecordId}
                   onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
                 >
-                  <option value="">{tx("手动指定音色…")}</option>
+                  <option value="">{tx("使用默认声音…")}</option>
                   {voices?.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
@@ -651,9 +654,7 @@ export function VideoAssetsPage() {
                 </select>
               </Field>
               {voiceRecordId === "" && (
-                <Field label={tx("音色名")} hint={tx("Liber Speech 用语言代码，例如 zh、en。")}>
-                  <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
-                </Field>
+                <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
               )}
             </div>
           ) : (
@@ -691,6 +692,9 @@ export function VideoAssetsPage() {
                 </Button>
               </div>
             </Field>
+          )}
+          {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
+            <TtsPreview providerId={ttsProvider.id} voice={voiceName} />
           )}
         </CardContent>
       </Card>

@@ -173,6 +173,63 @@ async def make_silence(path: Path, seconds: float) -> None:
     )
 
 
+async def trim_video(video: Path, out: Path, seconds: float, *, fps: float = 24) -> None:
+    """裁到指定秒数，并统一成相同的帧率与编码，方便多段直接拼接。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    await _run(
+        "ffmpeg", "-y", "-i", str(video),
+        "-t", f"{max(seconds, 0.05):.3f}",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-pix_fmt", "yuv420p", "-r", str(fps),
+        "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+        "-movflags", "+faststart",
+        str(out),
+    )
+
+
+async def extract_last_frame(video: Path, out: Path, *, fps: float = 24) -> None:
+    """抽出成片最后一帧，作为下一段数字人的首帧。
+
+    先探测时长，再从末尾往前约一帧精确取画面。输入侧 -sseof 在很短的片段上
+    会落到没有画面的位置，所以 -ss 放在 -i 之后。取不到时再往前退一点。
+    """
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    duration = await probe_duration(video)
+    step = 1.0 / fps if fps > 0 else 0.04
+    for start in (max(0.0, duration - step), max(0.0, duration - 0.2), 0.0):
+        if out.exists():
+            out.unlink()
+        await _run(
+            "ffmpeg", "-y", "-i", str(video),
+            "-ss", f"{start:.3f}",
+            "-frames:v", "1", "-update", "1",
+            str(out),
+        )
+        if out.exists() and out.stat().st_size > 0:
+            return
+    raise ProviderError("未能抽出视频尾帧")
+
+
+async def slice_audio(audio: Path, start: float, duration: float, out: Path) -> None:
+    """按时间切出一段音频。单句长到无法再切字时，用它把配音拆开。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    suffix = out.suffix.lower()
+    if suffix == ".wav":
+        audio_args = ["-c:a", "pcm_s16le"]
+    elif suffix in {".m4a", ".aac"}:
+        audio_args = ["-c:a", "aac", "-b:a", "192k"]
+    else:
+        audio_args = ["-c:a", "libmp3lame", "-q:a", "2"]
+    await _run(
+        "ffmpeg", "-y", "-i", str(audio),
+        "-ss", f"{max(start, 0.0):.3f}", "-t", f"{max(duration, 0.05):.3f}",
+        "-vn", *audio_args, str(out),
+    )
+
+
 async def add_bgm(
     *,
     video: Path,
