@@ -276,6 +276,8 @@ export function ImageEditPage({ capability, title, description }: Props) {
               providerId={provider?.id}
               value={accel}
               onChange={setAccel}
+              inputs={pack.inputs}
+              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
             />
           )}
           {isComfy && pack && (

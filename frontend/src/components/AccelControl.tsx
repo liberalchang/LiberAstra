@@ -40,6 +40,32 @@ export function buildInputsWithAccel(
   return base;
 }
 
+/**
+ * 开关切换时要写入的关联参数。
+ * 打开：用 accel.preset（如 8 步、euler）。
+ * 关闭：这些字段改回工作流 inputs 里的默认值（如 20 步、res_multistep）。
+ * 没有 preset 的开关（图像 Uncensored LoRA）返回空对象，不改其它参数。
+ */
+export function accelTogglePatch(
+  accel: WorkflowAccelSpec | null | undefined,
+  enabled: boolean,
+  inputs?: Record<string, { default?: unknown }>,
+): Record<string, string> {
+  const preset = accel?.preset;
+  if (!preset) return {};
+  const patch: Record<string, string> = {};
+  for (const [key, onValue] of Object.entries(preset)) {
+    if (enabled) {
+      patch[key] = String(onValue);
+      continue;
+    }
+    const off = inputs?.[key]?.default;
+    if (off == null) continue;
+    patch[key] = String(off);
+  }
+  return patch;
+}
+
 /** 从 accel 声明生成初始状态。 */
 export function defaultAccelState(accel?: WorkflowAccelSpec | null): AccelState {
   const strengthDefault = accel?.strength?.default ?? 1;
@@ -55,12 +81,14 @@ type Props = {
   providerId?: number;
   value: AccelState;
   onChange: (next: AccelState) => void;
-  /** 开启加速时，把 preset 填入尚未设置的工作流参数（用户已填的不动）。 */
-  onApplyPreset?: (preset: Record<string, string>) => void;
+  /** 用来在关闭时把 preset 字段写回各输入的默认值。 */
+  inputs?: Record<string, { default?: unknown }>;
+  /** 打开或关闭时覆盖关联参数；调用方直接合并，不要再跳过已填字段。 */
+  onApplyPreset?: (patch: Record<string, string>) => void;
 };
 
 /** LoRA 开关（Turbo / Uncensored 等）+ 文件下拉 + 强度；仅在包声明了 accel 时渲染。 */
-export function AccelControl({ accel, providerId, value, onChange, onApplyPreset }: Props) {
+export function AccelControl({ accel, providerId, value, onChange, inputs, onApplyPreset }: Props) {
   const tx = useTx();
   const folder = accel.lora?.options_from ?? "loras";
   const match = (accel.lora?.match ?? "").toLowerCase();
@@ -102,13 +130,10 @@ export function AccelControl({ accel, providerId, value, onChange, onApplyPreset
 
   const setEnabled = (on: boolean) => {
     onChange({ ...value, enabled: on });
-    if (on && accel.preset && onApplyPreset) {
-      const preset: Record<string, string> = {};
-      for (const [k, v] of Object.entries(accel.preset)) {
-        preset[k] = String(v);
-      }
-      onApplyPreset(preset);
-    }
+    if (!onApplyPreset) return;
+    const patch = accelTogglePatch(accel, on, inputs);
+    if (Object.keys(patch).length === 0) return;
+    onApplyPreset(patch);
   };
 
   const strengthMin = accel.strength?.min ?? 0;

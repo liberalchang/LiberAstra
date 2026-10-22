@@ -567,15 +567,8 @@ export function VideoAssetsPage() {
                     providerId={videoProvider?.id}
                     value={videoAccel}
                     onChange={setVideoAccel}
-                    onApplyPreset={(preset) =>
-                      setVideoExtra((prev) => {
-                        const next = { ...prev };
-                        for (const [k, v] of Object.entries(preset)) {
-                          if (next[k] == null || next[k] === "") next[k] = v;
-                        }
-                        return next;
-                      })
-                    }
+                    inputs={videoPack.inputs}
+                    onApplyPreset={(patch) => setVideoExtra((prev) => ({ ...prev, ...patch }))}
                   />
                 )}
                 {videoPack && (

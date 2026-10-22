@@ -231,6 +231,8 @@ export function ImageGenPage() {
               providerId={provider?.id}
               value={accel}
               onChange={setAccel}
+              inputs={pack.inputs}
+              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
             />
           )}
 

@@ -398,15 +398,8 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               providerId={provider?.id}
               value={accel}
               onChange={setAccel}
-              onApplyPreset={(preset) =>
-                setExtra((prev) => {
-                  const next = { ...prev };
-                  for (const [k, v] of Object.entries(preset)) {
-                    if (next[k] == null || next[k] === "") next[k] = v;
-                  }
-                  return next;
-                })
-              }
+              inputs={pack.inputs}
+              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
             />
           )}
 
