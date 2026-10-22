@@ -23,6 +23,8 @@ RUN apt-get update \
 WORKDIR /app
 COPY backend/ ./backend/
 RUN pip install --no-cache-dir ./backend \
+    && site=$(python -c "import liberastra, pathlib; print(pathlib.Path(liberastra.__file__).resolve().parents[1])") \
+    && cp -a backend/templates "$site/templates" \
     && rm -rf ./backend
 
 COPY --from=frontend /build/dist ./static
