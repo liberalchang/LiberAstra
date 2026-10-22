@@ -197,6 +197,7 @@ export function CharactersPage() {
   const [description, setDescription] = useState("");
   const [promptValue, setPromptValue] = useState<PromptFieldValue>(emptyPromptValue());
   const [turnaround, setTurnaround] = useState<File | null>(null);
+  const [refs, setRefs] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("character-generate");
   const appearance = resolveEffectivePrompt(promptValue);
@@ -226,10 +227,12 @@ export function CharactersPage() {
       form.set("name", name);
       form.set("description", appearance);
       form.set("prompt", appearance);
+      for (const file of refs.slice(0, 3)) form.append("ref_images", file);
       return api.generateCharacter(form);
     },
     onSuccess: (jobOut) => {
       setName("");
+      setRefs([]);
       setPromptValue(emptyPromptValue());
       setError(null);
       setJobId(jobOut.id);
@@ -259,7 +262,7 @@ export function CharactersPage() {
           <CardTitle>{tx("新建角色")}</CardTitle>
           <CardDescription>
             {mode === "generate"
-              ? tx("只写年龄、脸型、发型和服装。生成时会补上四段式构图，图像服务在系统设置里配置。")
+              ? tx("只写年龄、脸型、发型和服装。也可以上传 1 到 3 张参考图，生成时会补上四段式构图。")
               : tx("上传已经做好的横版设定图，从左到右是正面全身、侧面全身、背面全身、右侧面部特写。")}
           </CardDescription>
         </CardHeader>
@@ -277,6 +280,7 @@ export function CharactersPage() {
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           {mode === "generate" ? (
+            <>
             <PromptField
               label={tx("外观描述")}
               hint={tx("可先写年龄、脸型、发型、服装，再点优化补成四段式定妆照提示词。")}
@@ -289,6 +293,24 @@ export function CharactersPage() {
               placeholder={tx("例如：20岁左右，冷白皮，黑色长卷发，奶油白衬衫")}
               minRowsClass="min-h-28"
             />
+            <Field label={tx("参考图")} hint={tx("选填，最多 3 张。有参考图时外观描述可以留空。")}>
+              <FileDrop
+                accept="image/*"
+                multiple
+                clearAfterSelect
+                title={tx("点击或拖拽上传参考图")}
+                subtitle={tx("1 张走图生图，2 到 3 张走多图编辑")}
+                names={refs.map((file) => file.name)}
+                onSelect={(files) => {
+                  const picked = Array.from(files ?? []);
+                  setRefs((prev) => [...prev, ...picked].slice(0, 3));
+                }}
+              />
+              {refs.length > 0 && (
+                <Button variant="ghost" className="mt-2" onClick={() => setRefs([])}>{tx("清空参考图")}</Button>
+              )}
+            </Field>
+            </>
           ) : (
             <>
               <Field label={tx("四段式设定图")} hint={tx("从左到右：正面全身、侧面全身、背面全身、右侧面部特写。人物之间留出浅色空隙。")}>
@@ -307,7 +329,7 @@ export function CharactersPage() {
           {error && <p className="text-sm text-red-500">{error}</p>}
           {running && <p className="text-sm text-muted-foreground">{tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) })}</p>}
           {mode === "generate" ? (
-            <Button onClick={() => generate.mutate()} disabled={!name || !appearance || generate.isPending || !!running}>
+            <Button onClick={() => generate.mutate()} disabled={!name || (!appearance && refs.length === 0) || generate.isPending || !!running}>
               {tx("生成角色定妆照")}
             </Button>
           ) : (

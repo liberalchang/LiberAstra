@@ -22,7 +22,7 @@ from liberastra.services.characters import (
 )
 from liberastra.services.preferences import get_pref, get_str_pref
 from liberastra.services.providers import pick_provider
-from liberastra.storage import resolve
+from liberastra.storage import resolve, save_upload
 
 router = APIRouter(prefix="/characters", tags=["characters"])
 
@@ -109,16 +109,26 @@ async def generate_character(
     db: DbSession,
     request: Request,
     name: Annotated[str, Form(min_length=1, max_length=128)],
-    description: Annotated[str, Form(min_length=1)],
+    description: Annotated[str, Form()] = "",
     prompt: Annotated[str, Form()] = "",
     provider_id: Annotated[int | None, Form()] = None,
     t2i_workflow: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
+    ref_images: Annotated[list[UploadFile] | None, File()] = None,
 ) -> Job:
     saved_provider = provider_id or get_pref(db, "default_character_provider_id") or None
     provider = pick_provider(db, "image", saved_provider)
     saved_workflow = get_str_pref(db, "default_character_workflow").strip()
     workflow = t2i_workflow.strip() or saved_workflow or "qwen_image_21"
+    ref_paths: list[str] = []
+    for item in ref_images or []:
+        content = await item.read()
+        if content:
+            ref_paths.append(save_upload(item.filename or "ref.png", content))
+    if len(ref_paths) > 3:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="参考图最多 3 张")
+    if not description.strip() and not prompt.strip() and not ref_paths:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请填写外观描述或上传参考图")
     record = Character(
         name=name.strip(),
         description=description.strip(),
@@ -138,6 +148,7 @@ async def generate_character(
             "description": record.description,
             "prompt": prompt.strip() or record.description,
             "t2i_workflow": workflow,
+            "ref_image_paths": ref_paths,
         },
         provider_id=provider.id,
     )

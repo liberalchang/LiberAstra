@@ -28,6 +28,10 @@ STR_SPECS: dict[str, str] = {
     "default_llm_model": "",
     # 角色四段式定妆照使用的文生图工作流包
     "default_character_workflow": "qwen_image_21",
+    # 一张参考图时用的图生图工作流包
+    "default_character_i2i_workflow": "qwen_image_21_edit",
+    # 两到三张参考图时用的多图编辑工作流包
+    "default_character_i2i_multi_workflow": "qwen_image_21_edit_multi",
 }
 
 

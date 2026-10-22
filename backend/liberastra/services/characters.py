@@ -143,14 +143,45 @@ def clean_appearance(text: str) -> str:
     return "。".join(kept)
 
 
-def sheet_prompt(text: str) -> str:
-    """用户没写四段式构图时，补上固定的定妆照要求。"""
+def sheet_prompt(text: str, *, references: int = 0) -> str:
+    """用户没写四段式构图时，补上固定的定妆照要求。有参考图时先写明要保住的外观。"""
     body = text.strip()
+    if references == 1:
+        anchor = "保持参考图中的人物面部五官、发型与核心穿搭一致。"
+    elif references > 1:
+        anchor = "综合参考图中的正面、侧面、背面形象，保持同一人物与服装。"
+    else:
+        anchor = ""
+    if anchor:
+        body = f"{anchor}{body}" if body else anchor
     if "完整全身正面" in body or "16:9" in body:
         return body
     if body.endswith("。"):
         return body + SHEET_PROMPT
     return f"{body}。{SHEET_PROMPT}"
+
+
+def prepare_character_ref_images(ref_bytes_list: list[bytes]) -> list[bytes]:
+    """第一张贴进 16:9 浅灰画布，让图生图的输出画幅固定为横版定妆照。"""
+    prepared: list[bytes] = []
+    for index, raw in enumerate(ref_bytes_list[:3]):
+        image = Image.open(io.BytesIO(raw))
+        if index == 0:
+            canvas = Image.new("RGB", (1920, 1080), (230, 230, 230))
+            source = image.convert("RGB")
+            scale = min(1920 / source.width, 1080 / source.height)
+            fitted = source.resize(
+                (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+                Image.Resampling.LANCZOS,
+            )
+            canvas.paste(fitted, ((1920 - fitted.width) // 2, (1080 - fitted.height) // 2))
+            image = canvas
+        else:
+            image = image.convert("RGB")
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        prepared.append(buffer.getvalue())
+    return prepared
 
 
 def appearance_prefix(character: Character) -> str:
@@ -195,13 +226,36 @@ async def run_character_generate_job(db: Session, job: Job, ctx: JobContext) -> 
     description = str(
         params.get("prompt") or params.get("description") or character.description or character.name
     )
-    prompt = sheet_prompt(description)
+    ref_paths = [path for path in params.get("ref_image_paths") or [] if path][:3]
+    prompt = sheet_prompt(description, references=len(ref_paths))
+    inputs = {"prompt": prompt}
+    if ref_paths:
+        prepared = prepare_character_ref_images([resolve(path).read_bytes() for path in ref_paths])
+        saved: list[str] = []
+        for index, content in enumerate(prepared):
+            rel = f"outputs/{job.id}/ref_{index}.png"
+            save_bytes(content, rel)
+            saved.append(rel)
+        if len(saved) == 1:
+            workflow = get_str_pref(db, "default_character_i2i_workflow").strip() or "qwen_image_21_edit"
+        else:
+            workflow = (
+                get_str_pref(db, "default_character_i2i_multi_workflow").strip()
+                or "qwen_image_21_edit_multi"
+            )
+        pack = get_pack(workflow)
+        image_keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
+        inputs = {"prompt": prompt}
+        for key, path in zip(image_keys, saved, strict=False):
+            inputs[key] = path
+    else:
+        inputs = _sheet_inputs(workflow, prompt)
 
     ctx.report(db, job, progress=0.1, step="sheet")
     images = await produce_images(
         provider,
         workflow=workflow,
-        inputs=_sheet_inputs(workflow, prompt),
+        inputs=inputs,
         prompt=prompt,
         wait_timeout=timeout,
         on_progress=lambda progress: ctx.report(db, job, progress=0.1 + 0.8 * progress, step="sheet"),

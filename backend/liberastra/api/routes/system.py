@@ -35,6 +35,8 @@ class PreferencesUpdate(BaseModel):
     # 0=自动取第一个启用的 image Provider
     default_character_provider_id: int | None = Field(default=None, ge=0, le=2_147_483_647)
     default_character_workflow: str | None = Field(default=None, max_length=128)
+    default_character_i2i_workflow: str | None = Field(default=None, max_length=128)
+    default_character_i2i_multi_workflow: str | None = Field(default=None, max_length=128)
 
 
 @router.get("/preferences")

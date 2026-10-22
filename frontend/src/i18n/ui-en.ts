@@ -921,4 +921,35 @@ export const UI_EN: Record<string, string> = {
     "The talking-head image. A saved character uses the face close-up from the sheet.",
   "目标人物。选了角色时用正面、侧面、背面三张全身图。":
     "The target person. A saved character uses the full-body front, side, and back.",
+  "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过约 15 秒会自动分段衔接。":
+    "A reference clip, a target image, and a prompt. Length follows the clip; past about 15 seconds it is split and joined.",
+  "动作来源。画面时长跟随参考视频，超过约 15 秒会自动分段衔接。":
+    "The motion source. Length follows the clip and splits past about 15 seconds.",
+  "超过约 15 秒会自动分段": "Splits automatically past about 15 seconds",
+  "声音来源": "Audio source",
+  "模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。":
+    "Model audio is generated with the picture. Reference audio replaces it with the uploaded clip's soundtrack.",
+  "模型生成": "Model audio",
+  "参考视频原声": "Reference soundtrack",
+  "可选。从音乐库选择，叠在当前声音上面。": "Optional. Mix a library track over the current audio.",
+  "自定义配音按文案合成。模型原声保留文生视频自己生成的音轨。":
+    "Custom voice follows the script. Model audio keeps the soundtrack generated with the clip.",
+  "自定义配音": "Custom voice",
+  "模型原声": "Model audio",
+  "自定义配音按文案合成。模型原声保留素材或动画自己的音轨。":
+    "Custom voice follows the script. Model audio keeps the clip or animation soundtrack.",
+  "没有参考图时用文生图。上传 1 张参考图用图生图，2 到 3 张用多图编辑。":
+    "Text-to-image when there is no reference. One reference uses image edit; two or three use multi-image edit.",
+  "单张参考图工作流": "Single-reference workflow",
+  "上传 1 张参考图时使用的图生图包。": "Image-edit pack used for one reference image.",
+  "多张参考图工作流": "Multi-reference workflow",
+  "上传 2 到 3 张参考图时使用的多图编辑包。": "Multi-image edit pack used for two or three references.",
+  "只写年龄、脸型、发型和服装。也可以上传 1 到 3 张参考图，生成时会补上四段式构图。":
+    "Age, face, hair, and clothes are enough. One to three reference images are optional.",
+  "参考图": "Reference images",
+  "选填，最多 3 张。有参考图时外观描述可以留空。":
+    "Optional, up to 3. Description can be empty when a reference is attached.",
+  "点击或拖拽上传参考图": "Click or drop reference images",
+  "1 张走图生图，2 到 3 张走多图编辑": "One image uses image edit; two or three use multi-image edit",
+  "清空参考图": "Clear references",
 };

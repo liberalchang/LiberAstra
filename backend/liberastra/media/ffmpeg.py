@@ -57,6 +57,23 @@ async def probe_duration(path: Path) -> float:
     return await asyncio.to_thread(_probe_duration_sync, path)
 
 
+def _has_audio_stream_sync(path: Path) -> bool:
+    proc = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet", "-select_streams", "a",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path),
+        ],
+        capture_output=True,
+        check=False,
+    )
+    return bool(proc.stdout.decode().strip())
+
+
+async def has_audio_stream(path: Path) -> bool:
+    """文件里是否有音轨。没有音轨时混音和原声替换要走另一条命令。"""
+    return await asyncio.to_thread(_has_audio_stream_sync, path)
+
+
 def _escape_filter_path(path: Path) -> str:
     """ffmpeg filter 内的路径转义（libass subtitles），兼容 Windows 盘符。"""
     posix = path.resolve().as_posix()
@@ -237,15 +254,127 @@ async def add_bgm(
     out: Path,
     bgm_volume: float = 0.2,
 ) -> None:
-    """给视频混入 BGM（原声 + BGM 按比例混音）。"""
+    """给视频混入 BGM。有原声时按比例叠加；没有音轨时直接铺上音乐。"""
     _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
     volume = max(0.0, min(1.0, bgm_volume))
+    if await has_audio_stream(video):
+        filter_complex = (
+            f"[1:a]volume={volume}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]"
+        )
+        extra = []
+    else:
+        # 音乐比画面短时补静音，避免 -shortest 把画面裁掉
+        filter_complex = f"[1:a]volume={volume},apad[a]"
+        extra = ["-shortest"]
     await _run(
         "ffmpeg", "-y",
         "-i", str(video), "-i", str(bgm),
-        "-filter_complex",
-        f"[1:a]volume={volume}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[a]",
+        "-filter_complex", filter_complex,
         "-map", "0:v", "-map", "[a]",
         "-c:v", "copy", "-c:a", "aac",
+        *extra,
+        str(out),
+    )
+
+
+async def replace_audio(video: Path, audio_source: Path, out: Path) -> None:
+    """用另一条媒体的音轨替换成片声音，画面直接拷贝。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not await has_audio_stream(audio_source):
+        raise ProviderError("参考视频没有音轨")
+    await _run(
+        "ffmpeg", "-y",
+        "-i", str(video), "-i", str(audio_source),
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        str(out),
+    )
+
+
+async def slice_video(
+    video: Path,
+    start: float,
+    duration: float,
+    out: Path,
+    *,
+    fps: float = 24,
+    frames: int | None = None,
+) -> None:
+    """按时间切出一段视频并统一帧率。有音轨就保留，没有就只出画面。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    audio_args = (
+        ["-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2"]
+        if await has_audio_stream(video)
+        else ["-an"]
+    )
+    frame_args = ["-frames:v", str(frames)] if frames else []
+    await _run(
+        "ffmpeg", "-y", "-i", str(video),
+        "-ss", f"{max(start, 0.0):.3f}",
+        "-t", f"{max(duration, 0.05):.3f}",
+        "-r", str(fps),
+        *frame_args,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        *audio_args,
+        str(out),
+    )
+
+
+def _fit_frame_filter(
+    width: int,
+    height: int,
+    subtitle: Path | None,
+    subtitle_size: float,
+    subtitle_color: str,
+) -> str:
+    vf = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+    )
+    if subtitle is not None:
+        vf += f",subtitles='{_escape_filter_path(subtitle)}'{_force_style(subtitle_size, subtitle_color)}"
+    return vf
+
+
+async def make_native_clip_segment(
+    *,
+    clip: Path,
+    out: Path,
+    width: int,
+    height: int,
+    subtitle: Path | None = None,
+    subtitle_size: float = 0,
+    subtitle_color: str = "",
+    fps: int = DEFAULT_FPS,
+) -> None:
+    """保留片段自带音轨，只统一画幅和帧率。没有音轨时补一条静音，方便后面拼接。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    vf = _fit_frame_filter(width, height, subtitle, subtitle_size, subtitle_color)
+    if await has_audio_stream(clip):
+        await _run(
+            "ffmpeg", "-y", "-i", str(clip),
+            "-vf", vf,
+            "-map", "0:v:0", "-map", "0:a:0",
+            "-c:v", "libx264",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+            "-pix_fmt", "yuv420p", "-r", str(fps),
+            str(out),
+        )
+        return
+    await _run(
+        "ffmpeg", "-y", "-i", str(clip),
+        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+        "-vf", vf,
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "libx264",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p", "-r", str(fps),
+        "-shortest",
         str(out),
     )

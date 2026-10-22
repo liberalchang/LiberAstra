@@ -10,12 +10,26 @@ from liberastra.pipelines.simple import (
     avatar_segment_prompt,
     frames_for_duration,
     max_aligned_seconds,
+    max_reference_video_seconds,
+    motion_windows,
     render_avatar_takes,
     split_avatar_script,
     split_text_half,
 )
 
 H3 = {"align_base": 17, "align_offset": 5, "min": 73, "max": 362}
+
+
+def test_motion_windows_follow_aligned_frames() -> None:
+    assert max_reference_video_seconds(24, H3) == 362 / 24
+    short = motion_windows(5.0, 24, H3)
+    assert short
+    assert all(frames % 17 == 5 for _, frames in short)
+    assert sum(frames for _, frames in short) <= int(5 * 24)
+    long = motion_windows(20.0, 24, H3)
+    assert long[0] == (0.0, 362)
+    assert len(long) >= 2
+    assert motion_windows(0.1, 24, H3) == []
 
 
 def test_frames_snap_to_h3_grid() -> None:

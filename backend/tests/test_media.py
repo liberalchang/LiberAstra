@@ -50,6 +50,28 @@ def test_trim_last_frame_and_slice(tmp_path: Path) -> None:
         sliced = await ffmpeg.probe_duration(piece)
         assert 0.2 < sliced < 0.5
 
+        assert await ffmpeg.has_audio_stream(trimmed)
+        silent = tmp_path / "silent.mp4"
+        await ffmpeg._run(
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "color=c=red:s=160x120:d=0.5",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an",
+            str(silent),
+        )
+        assert not await ffmpeg.has_audio_stream(silent)
+        piece_video = tmp_path / "slice.mp4"
+        await ffmpeg.slice_video(raw, 0.1, 0.4, piece_video, fps=24, frames=8)
+        assert piece_video.stat().st_size > 0
+        swapped = tmp_path / "swapped.mp4"
+        await ffmpeg.replace_audio(silent, trimmed, swapped)
+        assert await ffmpeg.has_audio_stream(swapped)
+        native = tmp_path / "native.mp4"
+        await ffmpeg.make_native_clip_segment(clip=trimmed, out=native, width=160, height=120)
+        assert await ffmpeg.has_audio_stream(native)
+        with_bgm = tmp_path / "bgm.mp4"
+        await ffmpeg.add_bgm(video=silent, bgm=audio, out=with_bgm, bgm_volume=0.4)
+        assert await ffmpeg.has_audio_stream(with_bgm)
+
     asyncio.run(run())
 
 

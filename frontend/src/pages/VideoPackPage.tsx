@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
@@ -51,7 +52,7 @@ const CONFIG: Record<
   },
   motion: {
     title: "动作迁移",
-    description: "参考视频（≤30s）+ 目标图片 + 提示词 → motion 工作流。",
+    description: "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过约 15 秒会自动分段衔接。",
     packCaps: ["motion", "action", "action_transfer"],
     submit: api.submitVideoMotion,
   },
@@ -121,6 +122,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const ttsPack = ttsPacks?.find((p) => p.name === ttsWorkflow) ?? ttsPacks?.[0];
   const [ttsExtra, setTtsExtra] = usePersistentState<Record<string, string>>(`video-${kind}:tts-extra`, {});
   const [error, setError] = useState<string | null>(null);
+  const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
+  const [bgmName, setBgmName] = usePersistentState(`video-${kind}:bgm-name`, "");
+  const [bgmVolume, setBgmVolume] = usePersistentState(`video-${kind}:bgm-volume`, "0.2");
+  const [audioMode, setAudioMode] = usePersistentState<"model" | "reference">("video-motion:audio-mode", "model");
 
   const { job, setJobId } = useTrackedJob(`video-${kind}`);
 
@@ -151,6 +156,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
+      if (kind === "motion") form.set("audio_mode", audioMode);
+      if (bgmName) {
+        form.set("bgm_path", `bgm/${bgmName}`);
+        form.set("bgm_volume", bgmVolume || "0.2");
+      }
       form.set("inputs", JSON.stringify(buildInputsWithAccel(extra, pack?.accel, accel)));
       return cfg.submit(form);
     },
@@ -224,11 +234,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           )}
 
           {kind === "motion" && (
-            <Field label={tx("参考视频")} hint={tx("动作来源，建议不超过 30 秒。")}>
+            <Field label={tx("参考视频")} hint={tx("动作来源。画面时长跟随参考视频，超过约 15 秒会自动分段衔接。")}>
               <FileDrop
                 accept="video/*"
                 title={tx("点击或拖拽上传参考视频")}
-                subtitle={tx("建议不超过 30 秒")}
+                subtitle={tx("超过约 15 秒会自动分段")}
                 names={videoFile ? [videoFile.name] : []}
                 onSelect={(fs) => setVideoFile(fs?.[0] ?? null)}
               />
@@ -400,13 +410,40 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             />
           )}
 
+          {kind === "motion" && (
+            <Field label={tx("声音来源")} hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}>
+              <Segmented
+                ariaLabel={tx("声音来源")}
+                value={audioMode}
+                onChange={setAudioMode}
+                options={[
+                  { value: "model", label: tx("模型生成") },
+                  { value: "reference", label: tx("参考视频原声") },
+                ]}
+              />
+            </Field>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
+              <select className={selectClass} value={bgmName} onChange={(e) => setBgmName(e.target.value)}>
+                <option value="">{tx("无背景音乐")}</option>
+                {bgmList?.map((item) => (
+                  <option key={item.name} value={item.name}>{item.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
+              <Input type="number" min={0} max={1} step={0.05} value={bgmVolume} onChange={(e) => setBgmVolume(e.target.value)} />
+            </Field>
+          </div>
+
           {pack && (
             <WorkflowInputs
               inputs={pack.inputs}
               values={extra}
               onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
               exclude={
-                kind === "avatar"
+                kind === "avatar" || kind === "motion"
                   ? ["prompt", "image", "video", "audio", "length", "frames"]
                   : ["prompt", "image", "video", "audio"]
               }

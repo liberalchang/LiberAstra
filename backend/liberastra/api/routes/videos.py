@@ -79,13 +79,19 @@ async def quick(
     request: Request,
     wait: bool = False,
 ) -> Job:
-    voice = ""
-    if body.voice or body.voice_record_id:
-        voice = _resolve_voice(db, user, body.voice, body.voice_record_id)
-    # 提前校验 Provider 可用，错误立即反馈而不是等任务失败
-    tts_provider = pick_provider(db, "tts", body.tts_provider_id)
     # 模板类型决定哪些 Provider 必需：插图要 image，视频要 video，静态两者都不用
     tpl = resolve_quick_template(body.template, body.aspect)
+    native_audio = body.audio_mode == "auto" and tpl.type == "video"
+    voice = ""
+    if not native_audio:
+        if body.voice or body.voice_record_id:
+            voice = _resolve_voice(db, user, body.voice, body.voice_record_id)
+        tts_provider = pick_provider(db, "tts", body.tts_provider_id)
+        if tts_provider.type == "comfyui" and not body.tts_workflow:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="配音 Provider 是 ComfyUI，需要选择语音工作流包",
+            )
     # LLM：AI 写口播，或 image/video 模板下的画面提示词优化（用户开关；与包内 Guide 无关）
     need_script_llm = body.storyboard is None and not body.script
     need_visual_llm = (
@@ -100,10 +106,6 @@ async def quick(
         pick_provider(db, "image", body.image_provider_id)
     if tpl.type == "video":
         pick_provider(db, "video", body.video_provider_id)
-    if tts_provider.type == "comfyui" and not body.tts_workflow:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="配音 Provider 是 ComfyUI，需要选择语音工作流包"
-        )
 
     character = _character(db, user, body.character_id)
     style_prefix = f"{appearance_prefix(character)}{body.style_prefix}" if character else body.style_prefix
@@ -133,6 +135,7 @@ async def quick(
             "video_inputs": body.video_inputs,
             "bgm_path": body.bgm_path,
             "bgm_volume": body.bgm_volume,
+            "audio_mode": "auto" if native_audio else "custom",
             "show_title": body.show_title,
             "show_text": body.show_text,
             "show_subtitle": body.show_subtitle,
@@ -166,6 +169,8 @@ async def i2v(
     character_view: Annotated[str, Form()] = "front",
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
+    bgm_path: Annotated[str, Form()] = "",
+    bgm_volume: Annotated[float, Form()] = 0.2,
     wait: bool = False,
 ) -> Job:
     provider = pick_provider(db, "video", provider_id)
@@ -178,6 +183,8 @@ async def i2v(
             "prompt": prompt,
             "image_path": image_path,
             "inputs": _parse_inputs(inputs),
+            "bgm_path": bgm_path.strip() or None,
+            "bgm_volume": bgm_volume,
         },
         provider.id,
     )
@@ -202,6 +209,8 @@ async def avatar(
     tts_inputs: Annotated[str, Form()] = "{}",
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
+    bgm_path: Annotated[str, Form()] = "",
+    bgm_volume: Annotated[float, Form()] = 0.2,
     wait: bool = False,
 ) -> Job:
     provider = pick_provider(db, "video", provider_id)
@@ -223,6 +232,8 @@ async def avatar(
             "tts_inputs": _parse_inputs(tts_inputs),
             "image_path": image_path,
             "inputs": _parse_inputs(inputs),
+            "bgm_path": bgm_path.strip() or None,
+            "bgm_volume": bgm_volume,
         },
         provider.id,
     )
@@ -243,8 +254,16 @@ async def motion(
     character_id: Annotated[int | None, Form()] = None,
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
+    audio_mode: Annotated[str, Form()] = "model",
+    bgm_path: Annotated[str, Form()] = "",
+    bgm_volume: Annotated[float, Form()] = 0.2,
     wait: bool = False,
 ) -> Job:
+    if audio_mode not in {"model", "reference"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="声音来源只能是模型生成或参考视频原声",
+        )
     provider = pick_provider(db, "video", provider_id)
     video_content = await video.read()
     if len(video_content) > 500 * 1024 * 1024:
@@ -260,6 +279,9 @@ async def motion(
             "image_path": image_paths[0],
             "image_paths": image_paths,
             "inputs": _parse_inputs(inputs),
+            "audio_mode": audio_mode,
+            "bgm_path": bgm_path.strip() or None,
+            "bgm_volume": bgm_volume,
         },
         provider.id,
     )
@@ -293,12 +315,15 @@ async def custom_assets(
     analysis_provider_id: Annotated[int | None, Form()] = None,
     bgm_path: Annotated[str | None, Form()] = None,
     bgm_volume: Annotated[float, Form()] = 0.2,
+    audio_mode: Annotated[str, Form()] = "custom",
     tts_provider_id: Annotated[int | None, Form()] = None,
     llm_provider_id: Annotated[int | None, Form()] = None,
     llm_model: Annotated[str, Form()] = "",
     video_provider_id: Annotated[int | None, Form()] = None,
     wait: bool = False,
 ) -> Job:
+    if audio_mode not in {"custom", "auto"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="配音模式只能是自定义或模型原声")
     if not images:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传至少一个素材")
     if not script and not topic:
@@ -334,8 +359,9 @@ async def custom_assets(
             "analysis_image_workflow": analysis_image_workflow,
             "analysis_video_workflow": analysis_video_workflow,
             "analysis_inputs": _parse_inputs(analysis_inputs),
-            "bgm_path": bgm_path,
+            "bgm_path": (bgm_path or "").strip() or None,
             "bgm_volume": bgm_volume,
+            "audio_mode": audio_mode,
             "providers": {
                 "tts": tts_provider_id,
                 "llm": llm_provider_id,

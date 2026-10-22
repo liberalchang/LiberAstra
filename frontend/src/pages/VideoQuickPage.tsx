@@ -247,6 +247,7 @@ export function VideoQuickPage() {
     return true;
   });
 
+  const [audioMode, setAudioMode] = usePersistentState<"custom" | "auto">("video-quick:audio-mode", "custom");
   const [ttsProviderId, setTtsProviderId] = usePersistentState<number | "">("video-quick:tts-provider", "");
   const ttsProvider =
     ttsProviders?.find((p) => p.id === ttsProviderId) ??
@@ -354,6 +355,7 @@ export function VideoQuickPage() {
         ttsIsComfy
           ? Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))
           : undefined,
+      audio_mode: tpl?.type === "video" ? audioMode : "custom",
       video_workflow: tpl?.type === "video" ? videoPack?.name : undefined,
       video_inputs: tpl?.type === "video"
         ? buildInputsWithAccel(videoExtra, videoPack?.accel, videoAccel)
@@ -432,12 +434,13 @@ export function VideoQuickPage() {
     mode === "batch" ||
     ((tpl?.type === "image" || tpl?.type === "video") &&
       (mode === "script" ? scriptVisual.useOptimized && !scriptVisual.optimized.trim() : optimizeVisuals));
+  const nativeAudio = tpl?.type === "video" && audioMode === "auto";
   const submitDisabled =
     (mode === "topic" ? !effectiveTopic : !script.trim()) ||
     !tpl ||
     (needsLlm && !hasLlm) ||
-    (!ttsIsComfy && !isLibraryVoice && !voiceName) ||
-    (ttsIsComfy && !ttsPack) ||
+    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !voiceName) ||
+    (!nativeAudio && ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     submit.isPending ||
     !!running;
@@ -445,8 +448,8 @@ export function VideoQuickPage() {
     batchTopics.length === 0 ||
     !tpl ||
     !hasLlm ||
-    (!ttsIsComfy && !isLibraryVoice && !voiceName) ||
-    (ttsIsComfy && !ttsPack) ||
+    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !voiceName) ||
+    (!nativeAudio && ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     batchSubmit.isPending;
 
@@ -866,6 +869,21 @@ export function VideoQuickPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {tpl?.type === "video" && (
+            <Field label={tx("声音来源")} hint={tx("自定义配音按文案合成。模型原声保留文生视频自己生成的音轨。")}>
+              <Segmented
+                ariaLabel={tx("声音来源")}
+                value={audioMode}
+                onChange={setAudioMode}
+                options={[
+                  { value: "custom", label: tx("自定义配音") },
+                  { value: "auto", label: tx("模型原声") },
+                ]}
+              />
+            </Field>
+          )}
+          {!nativeAudio && (
+          <>
           <Field
             label={tx("配音服务")}
             hint={tx("已配置且具备 tts 能力的服务。「本地」为微软 Edge TTS。")}
@@ -973,6 +991,8 @@ export function VideoQuickPage() {
           )}
           {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
             <TtsPreview providerId={ttsProvider.id} voice={voiceName} />
+          )}
+          </>
           )}
         </CardContent>
       </Card>

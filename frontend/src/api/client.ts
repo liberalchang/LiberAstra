@@ -154,6 +154,10 @@ export interface SystemPreferences {
   default_character_provider_id: number;
   /** 角色四段式定妆照使用的文生图工作流包 */
   default_character_workflow: string;
+  /** 一张参考图时使用的图生图工作流包 */
+  default_character_i2i_workflow: string;
+  /** 两到三张参考图时使用的多图编辑工作流包 */
+  default_character_i2i_multi_workflow: string;
 }
 
 export interface PromptTaskOut {

@@ -119,6 +119,9 @@ def test_clean_appearance_drops_sheet_layout() -> None:
     expanded = sheet_prompt("20岁，黑长发")
     assert "完整全身正面" in expanded
     assert sheet_prompt(expanded) == expanded
+    anchored = sheet_prompt("", references=1)
+    assert anchored.startswith("保持参考图")
+    assert "完整全身正面" in anchored
 
 
 def test_create_character_splits_turnaround(client: TestClient, auth_header: dict[str, str]) -> None:

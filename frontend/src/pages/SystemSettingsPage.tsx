@@ -66,6 +66,8 @@ export function SystemSettingsPage() {
   const [llmModel, setLlmModel] = useState("");
   const [characterProviderId, setCharacterProviderId] = useState(0);
   const [characterWorkflow, setCharacterWorkflow] = useState("qwen_image_21");
+  const [characterI2i, setCharacterI2i] = useState("qwen_image_21_edit");
+  const [characterI2iMulti, setCharacterI2iMulti] = useState("qwen_image_21_edit_multi");
   const [prefSaved, setPrefSaved] = useState(false);
 
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -80,6 +82,10 @@ export function SystemSettingsPage() {
   const { data: workflows } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
   const t2iPacks = useMemo(
     () => (workflows ?? []).filter((pack) => pack.capability === "t2i"),
+    [workflows],
+  );
+  const i2iPacks = useMemo(
+    () => (workflows ?? []).filter((pack) => pack.capability === "i2i"),
     [workflows],
   );
   const selectedLlm = llmProviders.find((p) => p.id === llmProviderId) ?? null;
@@ -98,6 +104,8 @@ export function SystemSettingsPage() {
       setLlmModel(prefs.default_llm_model ?? "");
       setCharacterProviderId(prefs.default_character_provider_id ?? 0);
       setCharacterWorkflow(prefs.default_character_workflow || "qwen_image_21");
+      setCharacterI2i(prefs.default_character_i2i_workflow || "qwen_image_21_edit");
+      setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "qwen_image_21_edit_multi");
     }
   }, [prefs]);
 
@@ -112,6 +120,8 @@ export function SystemSettingsPage() {
         default_llm_model: llmModel,
         default_character_provider_id: characterProviderId,
         default_character_workflow: characterWorkflow,
+        default_character_i2i_workflow: characterI2i,
+        default_character_i2i_multi_workflow: characterI2iMulti,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -275,7 +285,7 @@ export function SystemSettingsPage() {
             <ImageIcon className="size-4" /> {tx("默认角色生图")}
           </CardTitle>
           <CardDescription>
-            {tx("角色库生成四段式定妆照时使用这里的图像服务和文生图工作流包，不用在角色页重复选择。")}
+            {tx("没有参考图时用文生图。上传 1 张参考图用图生图，2 到 3 张用多图编辑。")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -304,6 +314,22 @@ export function SystemSettingsPage() {
                 <option key={pack.name} value={pack.name}>
                   {pack.name}
                 </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={tx("单张参考图工作流")} hint={tx("上传 1 张参考图时使用的图生图包。")}>
+            <select className={selectClass} value={characterI2i} onChange={(e) => setCharacterI2i(e.target.value)}>
+              {i2iPacks.length === 0 && <option value={characterI2i}>{characterI2i}</option>}
+              {i2iPacks.map((pack) => (
+                <option key={pack.name} value={pack.name}>{pack.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label={tx("多张参考图工作流")} hint={tx("上传 2 到 3 张参考图时使用的多图编辑包。")}>
+            <select className={selectClass} value={characterI2iMulti} onChange={(e) => setCharacterI2iMulti(e.target.value)}>
+              {i2iPacks.length === 0 && <option value={characterI2iMulti}>{characterI2iMulti}</option>}
+              {i2iPacks.map((pack) => (
+                <option key={pack.name} value={pack.name}>{pack.name}</option>
               ))}
             </select>
           </Field>

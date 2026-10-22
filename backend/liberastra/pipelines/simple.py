@@ -68,6 +68,12 @@ async def _run_video_pack(
         from liberastra.storage import save_bytes
 
         save_bytes(content, rel_path)
+        saved = resolve(rel_path)
+        reference = None
+        if str(job.params.get("audio_mode") or "") == "reference" and job.params.get("video_path"):
+            reference = resolve(str(job.params["video_path"]))
+        final = await _apply_soundtrack(saved, job.params, reference=reference)
+        rel_path = _rel_of(final)
         asset = create_asset(
             db, kind="video", rel_path=rel_path, job_id=job.id, owner_id=job.owner_id,
             meta={**base_meta, "source_name": filename},
@@ -94,36 +100,189 @@ async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
     return await _run_video_pack(db, job, ctx, inputs)
 
 
-async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """动作迁移：参考视频（≤30s）+ 目标图片 + 提示词 → motion 工作流。"""
-    params = job.params
-    raw_prompt = str(params.get("prompt") or "").strip()
-    image_paths = [path for path in params.get("image_paths") or [] if path]
-    if not image_paths and params.get("image_path"):
-        image_paths = [params["image_path"]]
+def motion_prompt(raw_prompt: str, image_count: int) -> str:
+    """没写标签时补上「外观跟图片、动作跟视频」。已经写了标签就原样使用。"""
+    raw_prompt = raw_prompt.strip()
     if not raw_prompt:
-        if len(image_paths) >= 3:
-            prompt_text = (
+        if image_count >= 3:
+            return (
                 "参考 <Picture 1>（正面）、<Picture 2>（侧面）、<Picture 3>（背面）里的同一个角色，"
                 "让这个角色完整复刻 <Video 1> 的肢体动作、姿态变化与镜头运动，外观、五官和服装保持一致。"
             )
-        else:
-            prompt_text = (
-                "让 <Picture 1> 中的人物完整复刻 <Video 1> 中的肢体动作、姿态变化与镜头运动，"
-                "保持 <Picture 1> 的人物外观、五官与服装一致，动作自然流畅。"
-            )
-    elif "<Picture" not in raw_prompt and "<Video" not in raw_prompt:
-        prompt_text = f"参考 <Picture 1> 的人物外观，复刻 <Video 1> 的动作运动：{raw_prompt}"
-    else:
-        prompt_text = raw_prompt
-    inputs = {"prompt": prompt_text, **params.get("inputs", {})}
+        return (
+            "让 <Picture 1> 中的人物完整复刻 <Video 1> 中的肢体动作、姿态变化与镜头运动，"
+            "保持 <Picture 1> 的人物外观、五官与服装一致，动作自然流畅。"
+        )
+    if "<Picture" not in raw_prompt and "<Video" not in raw_prompt:
+        return f"参考 <Picture 1> 的人物外观，复刻 <Video 1> 的动作运动：{raw_prompt}"
+    return raw_prompt
+
+
+def max_reference_video_seconds(fps: float, spec: dict[str, Any]) -> float:
+    """参考视频单段能完整送进模型的最长秒数。
+
+    生成帧数和参考帧数都要落在 align_base * k + align_offset 上。
+    H3 的 max 362 正好是 17*21+5，窗口约 15.08 秒，不会再被节点砍掉尾巴。
+    """
+    return max_aligned_seconds(fps, spec)
+
+
+def motion_windows(total_seconds: float, fps: float, spec: dict[str, Any]) -> list[tuple[float, int]]:
+    """把参考视频切成 (起点秒, 帧数)。每段帧数不超过剩余内容，且满足对齐规则。"""
+    if fps <= 0:
+        fps = 24.0
+    if total_seconds <= 0:
+        return []
+    window = max_reference_video_seconds(fps, spec)
+    base = int(spec.get("align_base") or 0)
+    offset = int(spec.get("align_offset") or 0)
+    maximum = int(spec.get("max") or 0) or 10**9
+
+    def snap_down(seconds: float) -> int:
+        target = max(0, int(seconds * fps + 1e-6))
+        target = min(target, maximum)
+        if target < 5:
+            return 0
+        if base <= 0:
+            return target
+        frames = base * ((target - offset) // base) + offset
+        return frames if frames >= 5 else 0
+
+    windows: list[tuple[float, int]] = []
+    start = 0.0
+    for _ in range(200):
+        if start >= total_seconds - 0.02:
+            break
+        frames = snap_down(min(total_seconds - start, window))
+        if frames < 5:
+            break
+        windows.append((start, frames))
+        start += frames / fps
+    return windows
+
+
+def _rel_of(path: Path) -> str:
+    return path.resolve().relative_to(resolve(".").resolve()).as_posix()
+
+
+async def _apply_soundtrack(
+    video: Path,
+    params: dict[str, Any],
+    *,
+    reference: Path | None = None,
+) -> Path:
+    """按音频模式换成参考原声，再按需混入音乐库。没有改动时返回原文件。"""
+    current = video
+    if str(params.get("audio_mode") or "") == "reference" and reference is not None:
+        if await ffmpeg.has_audio_stream(reference):
+            swapped = current.with_name(f"{current.stem}_refaudio{current.suffix}")
+            await ffmpeg.replace_audio(current, reference, swapped)
+            current = swapped
+    bgm = str(params.get("bgm_path") or "").strip()
+    if bgm:
+        mixed = current.with_name(f"{current.stem}_bgm{current.suffix}")
+        await ffmpeg.add_bgm(
+            video=current,
+            bgm=resolve(bgm),
+            out=mixed,
+            bgm_volume=float(params.get("bgm_volume") or 0.2),
+        )
+        current = mixed
+    return current
+
+
+async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """动作迁移：参考视频按模型单段上限切开，尾帧接力，最后合成一条。"""
+    params = job.params
+    image_paths = [path for path in params.get("image_paths") or [] if path]
+    if not image_paths and params.get("image_path"):
+        image_paths = [params["image_path"]]
+    prompt_text = motion_prompt(str(params.get("prompt") or ""), len(image_paths))
+    source = resolve(str(params["video_path"]))
+    pack = get_pack(params["workflow"])
+    fps = float(pack.fps or 24)
+    length_spec = pack.inputs.get("length") if "length" in pack.inputs else {}
+    total = await ffmpeg.probe_duration(source)
+    windows = motion_windows(total, fps, length_spec or {})
+    if not windows:
+        raise ProviderError("参考视频太短，无法做动作迁移")
+
+    provider = pick_provider(db, "video", job.provider_id)
+    adapter = ComfyUIVideo(provider.base_url)
     video_keys = _input_keys(params["workflow"], "video")
     image_keys = _input_keys(params["workflow"], "image")
-    if video_keys:
-        inputs[video_keys[0]] = params["video_path"]
-    for key, path in zip(image_keys, image_paths, strict=False):
-        inputs[key] = path
-    return await _run_video_pack(db, job, ctx, inputs)
+    if not video_keys:
+        raise ProviderError("工作流包没有视频输入")
+    base_inputs = dict(params.get("inputs") or {})
+    side_back = image_paths[1:]
+    current_images = list(image_paths)
+    clips: list[Path] = []
+    started = time.monotonic()
+    count = len(windows)
+    timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
+
+    for index, (start, frames) in enumerate(windows):
+        if ctx.cancelled():
+            return []
+        seconds = frames / fps
+        ref = job_path(job, f"ref_{index:02d}.mp4")
+        await ffmpeg.slice_video(source, start, seconds, ref, fps=fps, frames=frames)
+        inputs: dict[str, Any] = {"prompt": prompt_text, **base_inputs, "length": frames}
+        inputs[video_keys[0]] = _rel_of(ref)
+        for key, path in zip(image_keys, current_images, strict=False):
+            inputs[key] = path
+        ctx.report(db, job, progress=0.05 + 0.85 * index / count, step=f"分段 {index + 1}/{count}")
+        videos, _texts = await adapter.generate(
+            pack=pack,
+            inputs=inputs,
+            on_progress=lambda progress, step_index=index: ctx.report(
+                db,
+                job,
+                progress=0.05 + 0.85 * (step_index + progress) / count,
+                step=f"分段 {step_index + 1}/{count}",
+            ),
+            wait_timeout=timeout,
+        )
+        if ctx.cancelled():
+            return []
+        if not videos:
+            raise ProviderError("动作迁移没有生成视频")
+        raw = job_path(job, f"take_{index:02d}.mp4")
+        raw.write_bytes(videos[0][1])
+        trimmed = job_path(job, f"trim_{index:02d}.mp4")
+        await ffmpeg.trim_video(raw, trimmed, seconds, fps=fps)
+        clips.append(trimmed)
+        if index < count - 1:
+            last = job_path(job, f"last_{index:02d}.png")
+            await ffmpeg.extract_last_frame(trimmed, last, fps=fps)
+            current_images = [_rel_of(last), *side_back]
+
+    final = job_path(job, "video_0.mp4")
+    if len(clips) == 1:
+        final.write_bytes(clips[0].read_bytes())
+    else:
+        ctx.report(db, job, progress=0.92, step="concat")
+        await ffmpeg.concat_segments(clips, final, list_file=job_path(job, "concat.txt"))
+    final = await _apply_soundtrack(final, params, reference=source)
+    rel_path = _rel_of(final)
+    asset = create_asset(
+        db,
+        kind="video",
+        rel_path=rel_path,
+        job_id=job.id,
+        owner_id=job.owner_id,
+        meta={
+            "provider": provider.name,
+            "workflow": params.get("workflow"),
+            "prompt": prompt_text,
+            "segments": count,
+            "audio_mode": params.get("audio_mode") or "model",
+            "bgm": Path(str(params["bgm_path"])).name if params.get("bgm_path") else None,
+            "duration_s": round(time.monotonic() - started, 1),
+        },
+    )
+    ctx.report(db, job, progress=1.0, step="done")
+    return [{"type": "asset", "asset_id": asset.id, "kind": "video", "filename": final.name}]
 
 
 # 中文口播约 4.25 字/秒，英文约 2.5 词/秒。估算只用来合并分句，真正的帧数看 TTS 时长。
@@ -402,7 +561,8 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     )
     if final is None or ctx.cancelled():
         return []
-    rel_path = f"outputs/{job.id}/video_0.mp4"
+    final = await _apply_soundtrack(final, params)
+    rel_path = _rel_of(final)
     asset = create_asset(
         db,
         kind="video",
@@ -414,10 +574,11 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             "workflow": params.get("workflow"),
             "prompt": spoken,
             "segments": len(takes),
+            "bgm": Path(str(params["bgm_path"])).name if params.get("bgm_path") else None,
             "duration_s": round(time.monotonic() - started, 1),
         },
     )
-    return [{"type": "asset", "asset_id": asset.id, "kind": "video", "filename": "video_0.mp4"}]
+    return [{"type": "asset", "asset_id": asset.id, "kind": "video", "filename": final.name}]
 
 
 async def _speak_avatar_chunks(
@@ -679,8 +840,14 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     media = media_of(params)
     if not media:
         raise ProviderError("没有素材，无法继续")
-    tts_provider = pick_provider(db, "tts", params.get("providers", {}).get("tts"))
-    tts = build_tts_adapter(tts_provider)
+    native_audio = str(params.get("audio_mode") or "custom") == "auto" and (
+        bool(params.get("animate")) or any(item["kind"] == "video" for item in media)
+    )
+    tts_provider = None
+    tts = None
+    if not native_audio:
+        tts_provider = pick_provider(db, "tts", params.get("providers", {}).get("tts"))
+        tts = build_tts_adapter(tts_provider)
     wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
 
     asset_desc = await _media_briefs(media)
@@ -740,6 +907,8 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
 
     async def _synth(text: str, i: int) -> Path:
         """逐素材配音：comfyui 走语音工作流包，其余走 Provider 的 synthesize。"""
+        if tts_provider is None or tts is None:
+            raise ProviderError("当前配音模式需要配音服务")
         if tts_provider.type == "comfyui":
             if not params.get("tts_workflow"):
                 raise ProviderError("配音 Provider 是 ComfyUI，但没有选择语音工作流包")
@@ -784,24 +953,24 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         if ctx.cancelled():
             return []
         text = texts[i % len(texts)]
-        audio_path = await _synth(text, i)
         segment_path = job_path(job, f"segment_{i:02d}.mp4")
         srt_path = job_path(job, f"frame_{i:02d}.srt")
-        duration = await ffmpeg.probe_duration(audio_path)
-        srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
-        if m["kind"] == "video":
-            # 视频素材：循环/截断对齐配音时长
-            await ffmpeg.make_clip_segment(
-                clip=resolve(m["path"]), audio=audio_path, out=segment_path,
-                width=width, height=height, subtitle=srt_path,
+        keep_model_audio = native_audio and (
+            m["kind"] == "video" or (animate and m["kind"] == "image" and video_adapter is not None)
+        )
+        if keep_model_audio and m["kind"] == "video":
+            clip_path = resolve(m["path"])
+            duration = await ffmpeg.probe_duration(clip_path)
+            srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
+            await ffmpeg.make_native_clip_segment(
+                clip=clip_path, out=segment_path, width=width, height=height, subtitle=srt_path,
             )
-        elif animate and video_adapter is not None and video_pack is not None:
-            # 素材动画：图片经 i2v 工作流动画化后再合成
+        elif keep_model_audio and video_adapter is not None and video_pack is not None:
             clips, _texts = await video_adapter.generate(
                 pack=video_pack,
                 inputs={
                     **params.get("video_inputs", {}),
-                    "image": m["path"],  # 相对路径，run_workflow_pack 负责上传
+                    "image": m["path"],
                     "prompt": params.get("animate_prompt")
                     or "subtle natural cinematic motion, slow camera push in. "
                     + (params.get("topic") or ""),
@@ -816,15 +985,57 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             )
             clip_path = job_path(job, f"anim_{i:02d}.mp4")
             clip_path.write_bytes(clips[0][1])
-            await ffmpeg.make_clip_segment(
-                clip=clip_path, audio=audio_path, out=segment_path,
+            duration = await ffmpeg.probe_duration(clip_path)
+            srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
+            await ffmpeg.make_native_clip_segment(
+                clip=clip_path, out=segment_path, width=width, height=height, subtitle=srt_path,
+            )
+        elif native_audio:
+            silence = job_path(job, f"silence_{i:02d}.mp3")
+            await ffmpeg.make_silence(silence, 3.0)
+            srt_path.write_text(_single_cue_srt(text, 3.0), encoding="utf-8")
+            await ffmpeg.make_segment(
+                image=resolve(m["path"]), audio=silence, out=segment_path,
                 width=width, height=height, subtitle=srt_path,
             )
         else:
-            await ffmpeg.make_segment(
-                image=resolve(m["path"]), audio=audio_path, out=segment_path,
-                width=width, height=height, subtitle=srt_path,
-            )
+            audio_path = await _synth(text, i)
+            duration = await ffmpeg.probe_duration(audio_path)
+            srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
+            if m["kind"] == "video":
+                await ffmpeg.make_clip_segment(
+                    clip=resolve(m["path"]), audio=audio_path, out=segment_path,
+                    width=width, height=height, subtitle=srt_path,
+                )
+            elif animate and video_adapter is not None and video_pack is not None:
+                clips, _texts = await video_adapter.generate(
+                    pack=video_pack,
+                    inputs={
+                        **params.get("video_inputs", {}),
+                        "image": m["path"],
+                        "prompt": params.get("animate_prompt")
+                        or "subtle natural cinematic motion, slow camera push in. "
+                        + (params.get("topic") or ""),
+                    },
+                    on_progress=lambda p, step_done=done: ctx.report(
+                        db,
+                        job,
+                        progress=0.1 + 0.8 * (step_done + p) / total,
+                        step=f"frame {step_done + 1}/{total} 动画",
+                    ),
+                    wait_timeout=wait_timeout,
+                )
+                clip_path = job_path(job, f"anim_{i:02d}.mp4")
+                clip_path.write_bytes(clips[0][1])
+                await ffmpeg.make_clip_segment(
+                    clip=clip_path, audio=audio_path, out=segment_path,
+                    width=width, height=height, subtitle=srt_path,
+                )
+            else:
+                await ffmpeg.make_segment(
+                    image=resolve(m["path"]), audio=audio_path, out=segment_path,
+                    width=width, height=height, subtitle=srt_path,
+                )
         segments_out.append(segment_path)
         done += 1
         ctx.report(db, job, progress=0.1 + 0.8 * done / total, step=f"frame {done}/{total}")

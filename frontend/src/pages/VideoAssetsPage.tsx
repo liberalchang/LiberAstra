@@ -123,6 +123,7 @@ export function VideoAssetsPage() {
 
   // ---- ③ 素材动画（静态图片 → i2v 动起来）----
   const [animate, setAnimate] = usePersistentState("video-assets:animate", false);
+  const [audioMode, setAudioMode] = usePersistentState<"custom" | "auto">("video-assets:audio-mode", "custom");
   const [animatePrompt, setAnimatePrompt] = usePersistentPromptValue("video-assets:animate-prompt");
   const [videoProviderId, setVideoProviderId] = usePersistentState<number | "">("video-assets:video-provider", "");
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
@@ -232,6 +233,7 @@ export function VideoAssetsPage() {
         else form.set("voice", voiceName);
       }
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
+      form.set("audio_mode", (animate && hasImage) || hasVideo ? audioMode : "custom");
       if (animate && hasImage) {
         form.set("animate", "true");
         const ap = resolveEffectivePrompt(animatePrompt);
@@ -270,11 +272,12 @@ export function VideoAssetsPage() {
     (!hasVideo || !!analysisVideoPack);
   const copyReady =
     mode === "script" ? script.trim() : mode === "topic" ? effectiveTopic : analysisScript.trim();
+  const nativeAudio = audioMode === "auto" && ((animate && hasImage) || hasVideo);
   const ready =
     files.length > 0 &&
     copyReady &&
     (mode === "script" || hasLlm) &&
-    (ttsIsComfy ? !!ttsPack : isLibraryVoice || !!voiceName) &&
+    (nativeAudio || (ttsIsComfy ? !!ttsPack : isLibraryVoice || !!voiceName)) &&
     (!animate || !hasImage || !!videoPack);
 
   return (
@@ -597,6 +600,21 @@ export function VideoAssetsPage() {
           <CardDescription>{tx("逐素材配音：ComfyUI 语音工作流、Liber Speech 或第三方 TTS API。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {((animate && hasImage) || hasVideo) && (
+            <Field label={tx("声音来源")} hint={tx("自定义配音按文案合成。模型原声保留素材或动画自己的音轨。")}>
+              <Segmented
+                ariaLabel={tx("声音来源")}
+                value={audioMode}
+                onChange={setAudioMode}
+                options={[
+                  { value: "custom", label: tx("自定义配音") },
+                  { value: "auto", label: tx("模型原声") },
+                ]}
+              />
+            </Field>
+          )}
+          {!nativeAudio && (
+          <>
           <Field label={tx("配音服务")} hint={tx("只列出已启用、且具备 tts 能力的 Provider。")}>
             <select
               className={selectClass}
@@ -695,6 +713,8 @@ export function VideoAssetsPage() {
           )}
           {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
             <TtsPreview providerId={ttsProvider.id} voice={voiceName} />
+          )}
+          </>
           )}
         </CardContent>
       </Card>

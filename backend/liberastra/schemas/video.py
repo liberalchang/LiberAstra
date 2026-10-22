@@ -40,6 +40,8 @@ class QuickVideoRequest(BaseModel):
     video_inputs: dict[str, Any] = Field(default_factory=dict)
     bgm_path: str | None = None
     bgm_volume: float = Field(default=0.2, ge=0.0, le=1.0)
+    # custom：逐镜配音。auto：仅文生视频模板保留模型音轨。
+    audio_mode: str = Field(default="custom", pattern="^(custom|auto)$")
     # 文字显隐与字号：模板标题/文案（倍率），视频烧录字幕（字号，0=默认）
     show_title: bool = True
     show_text: bool = True

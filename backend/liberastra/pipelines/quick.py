@@ -115,10 +115,14 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
     started = time.monotonic()
     params = job.params
     provider_ids = params.get("providers", {})
-    tts_provider = pick_provider(db, "tts", provider_ids.get("tts"))
-    tts = build_tts_adapter(tts_provider)
     aspect = params.get("aspect", "9:16")
     tpl = resolve_quick_template(params.get("template", ""), aspect)
+    use_native_audio = str(params.get("audio_mode") or "custom") == "auto" and tpl.type == "video"
+    tts_provider = None
+    tts = None
+    if not use_native_audio:
+        tts_provider = pick_provider(db, "tts", provider_ids.get("tts"))
+        tts = build_tts_adapter(tts_provider)
     need_script_llm, need_visual_llm = _quick_needs_llm(params, tpl)
     llm_provider = None
     llm = None
@@ -217,6 +221,8 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
 
     async def _synth_frame_audio(i: int, text: str) -> Path:
         """逐帧配音：comfyui 走语音工作流包，其余走 Provider 的 synthesize。"""
+        if tts_provider is None or tts is None:
+            raise ProviderError("当前配音模式需要配音服务")
         if tts_provider.type == "comfyui":
             if not params.get("tts_workflow"):
                 raise ProviderError("配音 Provider 是 ComfyUI，但没有选择语音工作流包")
@@ -259,17 +265,47 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             return []
         base = 0.15 + 0.75 * i / total
 
-        audio_path = await _synth_frame_audio(i, frame["text"])
         visual = f"{style_prefix}{frame.get('visual') or frame['text']}"
 
         segment_path = job_path(job, f"segment_{i:02d}.mp4")
         srt_path = job_path(job, f"frame_{i:02d}.srt")
-        duration = await ffmpeg.probe_duration(audio_path)
-        srt_path.write_text(_single_cue_srt(frame["text"], duration), encoding="utf-8")
         burn_subtitle = srt_path if show_subtitle else None
 
-        if tpl.type == "video":
-            # 逐镜 AI 视频片段，循环对齐配音时长
+        if use_native_audio:
+            # 保留文生视频自己生成的音轨，不再换成配音。
+            assert video_adapter is not None
+            if not params.get("video_workflow"):
+                raise ProviderError("视频模板需要选择视频工作流包")
+            pack = get_pack(params["video_workflow"])
+            clips, _texts = await video_adapter.generate(
+                pack=pack,
+                inputs={
+                    **params.get("video_inputs", {}),
+                    "prompt": visual,
+                    "width": tpl.media_width,
+                    "height": tpl.media_height,
+                },
+                on_progress=lambda p, frame_i=i: ctx.report(
+                    db,
+                    job,
+                    progress=0.15 + 0.75 * (frame_i + p) / total,
+                    step=f"frame {frame_i + 1}/{total} 视频",
+                ),
+                wait_timeout=wait_timeout,
+            )
+            clip_path = job_path(job, f"frame_{i:02d}.mp4")
+            clip_path.write_bytes(clips[0][1])
+            duration = await ffmpeg.probe_duration(clip_path)
+            srt_path.write_text(_single_cue_srt(frame["text"], duration), encoding="utf-8")
+            await ffmpeg.make_native_clip_segment(
+                clip=clip_path, out=segment_path,
+                width=width, height=height, subtitle=burn_subtitle,
+                subtitle_size=subtitle_size, subtitle_color=subtitle_color,
+            )
+        elif tpl.type == "video":
+            audio_path = await _synth_frame_audio(i, frame["text"])
+            duration = await ffmpeg.probe_duration(audio_path)
+            srt_path.write_text(_single_cue_srt(frame["text"], duration), encoding="utf-8")
             assert video_adapter is not None
             if not params.get("video_workflow"):
                 raise ProviderError("视频模板需要选择视频工作流包")
@@ -298,7 +334,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
                 subtitle_size=subtitle_size, subtitle_color=subtitle_color,
             )
         else:
-            # static / image：模板 HTML 渲染成帧图
+            audio_path = await _synth_frame_audio(i, frame["text"])
+            duration = await ffmpeg.probe_duration(audio_path)
+            srt_path.write_text(_single_cue_srt(frame["text"], duration), encoding="utf-8")
             values: dict[str, Any] = {
                 "text": frame["text"],
                 "title": title,
@@ -364,7 +402,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
         owner_id=job.owner_id,
         meta={
             "title": title,
-            "provider": (image_provider or video_provider or tts_provider).name,
+            "provider": (image_provider or video_provider or tts_provider).name
+            if (image_provider or video_provider or tts_provider)
+            else "",
             "aspect": aspect,
             "template": f"{tpl.name}（{tpl.type_label}）",
             # 本次实际使用的工作流与模型，供作品查看页展示
