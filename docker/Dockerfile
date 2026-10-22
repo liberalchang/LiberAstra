@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
-# LiberAstra 单镜像：前端构建 + Python 运行时（ffmpeg + 中文字体）。
-# full 变体（Playwright / HTML 模板帧）在 M4 提供。
+# LiberAstra 单镜像：前端构建 + Python 运行时（ffmpeg、中文字体、Playwright Chromium）。
 
 FROM node:22-alpine AS frontend
 WORKDIR /build
@@ -14,7 +13,8 @@ RUN npm run build
 FROM python:3.11-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     LIBERASTRA_DATA_DIR=/data \
-    LIBERASTRA_STATIC_DIR=/app/static
+    LIBERASTRA_STATIC_DIR=/app/static \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk \
@@ -25,7 +25,8 @@ COPY backend/ ./backend/
 RUN pip install --no-cache-dir ./backend \
     && site=$(python -c "import liberastra, pathlib; print(pathlib.Path(liberastra.__file__).resolve().parents[1])") \
     && cp -a backend/templates "$site/templates" \
-    && rm -rf ./backend
+    && playwright install --with-deps chromium \
+    && rm -rf ./backend /var/lib/apt/lists/*
 
 COPY --from=frontend /build/dist ./static
 

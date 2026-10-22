@@ -9,6 +9,7 @@ uvicorn 在 Windows 下可能使用 SelectorEventLoop（不支持创建子进程
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import threading
 
@@ -59,14 +60,18 @@ async def _ensure_browser():  # noqa: ANN202  运行在渲染线程的循环里
         from playwright.async_api import async_playwright
 
         _pw = await async_playwright().start()
+        # 容器里 /dev/shm 默认只有 64MB，Chromium 容易崩。以 root 跑时还必须关掉 sandbox。
+        launch_args = ["--disable-dev-shm-usage"]
+        if sys.platform != "win32" and os.geteuid() == 0:
+            launch_args.append("--no-sandbox")
         for channel in ("msedge", "chrome"):
             try:
-                _browser = await _pw.chromium.launch(channel=channel)
+                _browser = await _pw.chromium.launch(channel=channel, args=launch_args)
                 return _browser
             except Exception:  # noqa: BLE001 逐个尝试可用浏览器
                 continue
         try:
-            _browser = await _pw.chromium.launch()
+            _browser = await _pw.chromium.launch(args=launch_args)
             return _browser
         except Exception as exc:
             raise ProviderError(
