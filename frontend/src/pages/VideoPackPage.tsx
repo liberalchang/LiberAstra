@@ -15,7 +15,7 @@ import {
   PromptField,
   resolveEffectivePrompt,
 } from "@/components/PromptField";
-import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -116,6 +116,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [ttsProviderId, setTtsProviderId] = usePersistentState<number | "">(`video-${kind}:tts-provider`, "");
   const ttsProvider = ttsProviders?.find((p) => p.id === ttsProviderId) ?? ttsProviders?.[0];
   const ttsIsComfy = ttsProvider?.type === "comfyui";
+  const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
   const serviceVoices = isLibraryVoice || ttsIsComfy ? [] : (ttsProvider?.models ?? []);
   const [ttsWorkflow, setTtsWorkflow] = usePersistentState(`video-${kind}:tts-workflow`, "");
@@ -150,9 +151,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         } else if (isLibraryVoice && (voiceRecordId !== "" || character?.voice_record_id)) {
           form.set("voice_record_id", String(voiceRecordId !== "" ? voiceRecordId : character?.voice_record_id));
         } else if (isLibraryVoice) {
-          form.set("voice", speechLanguage(voiceName || character?.voice_name || ""));
+          form.set("voice", speechLanguage(voiceName || character?.voice_name || "", speechModel));
         } else {
           form.set("voice", voiceName || character?.voice_name || "");
+        }
+        if (isLibraryVoice && !ttsIsComfy) {
+          form.set("language", speechLanguage(voiceName || character?.voice_name || "", speechModel));
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
@@ -346,9 +350,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                       ))}
                     </select>
                   </Field>
-                  {voiceRecordId === "" && (
-                    <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
-                  )}
+                  <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} model={speechModel} />
                 </div>
               ) : (
                 <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；服务提供方页可拉取/刷新模型列表。")}>

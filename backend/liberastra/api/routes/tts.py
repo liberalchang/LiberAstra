@@ -31,7 +31,7 @@ async def preview(body: TTSPreviewRequest, user: CurrentUser, db: DbSession) -> 
     voice = body.voice.strip()
     if not text or not voice:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="试听需要音色和文本")
-    adapter = build_tts_adapter(provider)
+    adapter = build_tts_adapter(provider, db=db)
     try:
         audio = await adapter.synthesize(text=text, voice=voice, fmt="mp3")
     except ProviderError as exc:

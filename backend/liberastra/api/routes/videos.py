@@ -23,6 +23,22 @@ from liberastra.storage import save_upload
 router = APIRouter(prefix="/videos", tags=["videos"])
 
 
+def _form_bool(value: str, detail: str) -> bool:
+    """表单里的布尔值。空字符串视为未传。"""
+    text = value.strip().lower()
+    if text in {"", "1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+def _hex_color(value: str) -> bool:
+    if len(value) != 7 or not value.startswith("#"):
+        return False
+    return all(ch in "0123456789abcdefABCDEF" for ch in value[1:])
+
+
 def _resolve_voice(db: Session, user: User, voice: str, voice_record_id: int | None) -> str:
     if voice_record_id is not None:
         record = db.get(Voice, voice_record_id)
@@ -122,6 +138,7 @@ async def quick(
             "storyboard_count": body.storyboard_count,
             "aspect": body.aspect,
             "voice": voice,
+            "language": body.language,
             "style_prefix": style_prefix,
             "storyboard": body.storyboard,
             "storyboard_only": body.storyboard_only,
@@ -203,6 +220,7 @@ async def avatar(
     image: Annotated[UploadFile | None, File()] = None,
     voice: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
+    language: Annotated[str, Form()] = "",
     character_id: Annotated[int | None, Form()] = None,
     tts_provider_id: Annotated[int | None, Form()] = None,
     tts_workflow: Annotated[str | None, Form()] = None,
@@ -227,6 +245,7 @@ async def avatar(
             "workflow": workflow,
             "text": text,
             "voice": voice_name,
+            "language": language,
             "tts_provider_id": tts_provider_id,
             "tts_workflow": tts_workflow,
             "tts_inputs": _parse_inputs(tts_inputs),
@@ -303,6 +322,7 @@ async def custom_assets(
     aspect: Annotated[str, Form(pattern="^(9:16|1:1|16:9)$")] = "9:16",
     voice: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
+    language: Annotated[str, Form()] = "",
     animate: Annotated[bool, Form()] = False,
     animate_prompt: Annotated[str, Form()] = "",
     video_workflow: Annotated[str | None, Form()] = None,
@@ -316,6 +336,9 @@ async def custom_assets(
     bgm_path: Annotated[str | None, Form()] = None,
     bgm_volume: Annotated[float, Form()] = 0.2,
     audio_mode: Annotated[str, Form()] = "custom",
+    show_subtitle: Annotated[str, Form()] = "true",
+    subtitle_size: Annotated[float, Form()] = 0,
+    subtitle_color: Annotated[str, Form()] = "",
     tts_provider_id: Annotated[int | None, Form()] = None,
     llm_provider_id: Annotated[int | None, Form()] = None,
     llm_model: Annotated[str, Form()] = "",
@@ -324,6 +347,12 @@ async def custom_assets(
 ) -> Job:
     if audio_mode not in {"custom", "auto"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="配音模式只能是自定义或模型原声")
+    burn_subtitle = _form_bool(show_subtitle, "烧录字幕只能是 true 或 false")
+    if subtitle_size < 0 or subtitle_size > 128:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="字幕字号需在 0 到 128 之间")
+    subtitle_color = subtitle_color.strip()
+    if subtitle_color and not _hex_color(subtitle_color):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="字幕颜色需为 #RRGGBB")
     if not images:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传至少一个素材")
     if not script and not topic:
@@ -350,6 +379,7 @@ async def custom_assets(
             "duration": duration,
             "aspect": aspect,
             "voice": voice_name,
+            "language": language,
             "animate": animate,
             "animate_prompt": animate_prompt,
             "video_workflow": video_workflow,
@@ -362,6 +392,9 @@ async def custom_assets(
             "bgm_path": (bgm_path or "").strip() or None,
             "bgm_volume": bgm_volume,
             "audio_mode": audio_mode,
+            "show_subtitle": burn_subtitle,
+            "subtitle_size": subtitle_size,
+            "subtitle_color": subtitle_color,
             "providers": {
                 "tts": tts_provider_id,
                 "llm": llm_provider_id,

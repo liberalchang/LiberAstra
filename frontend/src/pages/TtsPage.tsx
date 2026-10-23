@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
-import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
@@ -54,6 +54,7 @@ export function TtsPage() {
     if (incomingText) setText(incomingText);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const speechModel = useDefaultSpeechModel();
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("tts");
 
@@ -67,11 +68,15 @@ export function TtsPage() {
           : voiceRecordId !== ""
             ? undefined
             : isSpeech
-              ? speechLanguage(voiceName)
+              ? speechLanguage(voiceName, speechModel)
               : voiceName,
         text,
         format,
-        options: !isSpeech && language ? { language } : isSpeech && voiceRecordId !== "" && language ? { language } : undefined,
+        options: isSpeech
+          ? { language: speechLanguage(voiceRecordId === "" ? voiceName : language, speechModel) }
+          : language
+            ? { language }
+            : undefined,
         workflow: isComfy ? pack?.name : undefined,
         inputs: isComfy
           ? Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))
@@ -132,7 +137,7 @@ export function TtsPage() {
                 </select>
               </Field>
             )}
-            {!isComfy && !(isSpeech && voiceRecordId === "") && (
+            {!isComfy && !isSpeech && (
               <Field label={tx("朗读语言")} hint={tx("只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。")}>
                 <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
                   <option value="">{tx("自动")}</option>
@@ -186,8 +191,12 @@ export function TtsPage() {
               providerId={provider?.id}
             />
           )}
-          {!isComfy && isSpeech && voiceRecordId === "" && (
-            <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
+          {!isComfy && isSpeech && (
+            <SpeechLanguageSelect
+              value={voiceRecordId === "" ? voiceName : language}
+              onChange={voiceRecordId === "" ? setVoiceName : setLanguage}
+              model={speechModel}
+            />
           )}
           {!isComfy && !isSpeech && voiceRecordId === "" && (
             <Field label={tx("音色名")} hint={tx("需与所选服务匹配，例如 zh、alloy、af_heart。")}>
@@ -248,7 +257,12 @@ export function TtsPage() {
                     ? voiceName
                     : (voices?.find((v) => v.id === voiceRecordId)?.name ?? ""),
               },
-              { label: tx("语言"), value: language || tx("自动") },
+              {
+                label: tx("语言"),
+                value: isSpeech
+                  ? speechLanguage(voiceRecordId === "" ? voiceName : language, speechModel)
+                  : language || tx("自动"),
+              },
               { label: tx("格式"), value: format },
             ]}
           />

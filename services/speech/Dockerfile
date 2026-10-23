@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LIBER_SPEECH_DEVICE=auto
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

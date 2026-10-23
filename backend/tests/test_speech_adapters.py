@@ -158,3 +158,46 @@ def test_liber_speech_tts_and_asr(tmp_path) -> None:  # noqa: ANN001
             assert result.segments[0].end == 1.2
 
     asyncio.run(run())
+
+
+def _form_field(content: bytes, name: str) -> str:
+    from urllib.parse import parse_qs
+
+    return parse_qs(content.decode())[name][0]
+
+
+def test_liber_speech_model_and_language() -> None:
+    """模型名和语言写入表单。单语言包锁定语言，未知模型名原样传出。"""
+    seen: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/tts/synthesize":
+            seen.append(
+                {
+                    "model": _form_field(request.content, "model"),
+                    "language": _form_field(request.content, "language"),
+                }
+            )
+            return httpx.Response(200, json={"audio_url": "/api/v1/results/a.wav", "meta": {}})
+        if request.url.path == "/api/v1/results/a.wav":
+            return httpx.Response(200, content=b"wav")
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            multi = LiberSpeech("http://speech:5555", client=client, default_model="multilingual_v3")
+            await multi.synthesize(text="你好", voice="en", fmt="wav")
+            pack = LiberSpeech("http://speech:5555", client=client, default_model="zh-cmn")
+            await pack.synthesize(text="你好", voice="en", fmt="wav", language="en")
+            alias = LiberSpeech("http://speech:5555", client=client, default_model="multilingual")
+            await alias.synthesize(text="hi", voice="zh", fmt="wav")
+            unknown = LiberSpeech("http://speech:5555", client=client, default_model="not-a-pack")
+            await unknown.synthesize(text="hi", voice="zh", fmt="wav", model="not-a-pack")
+
+    asyncio.run(run())
+    assert seen == [
+        {"model": "multilingual_v3", "language": "en"},
+        {"model": "zh-cmn", "language": "zh"},
+        {"model": "multilingual_v2", "language": "zh"},
+        {"model": "not-a-pack", "language": "zh"},
+    ]

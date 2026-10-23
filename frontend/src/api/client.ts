@@ -158,6 +158,8 @@ export interface SystemPreferences {
   default_character_i2i_workflow: string;
   /** 两到三张参考图时使用的多图编辑工作流包 */
   default_character_i2i_multi_workflow: string;
+  /** Liber Speech 默认模型包 */
+  default_speech_model: string;
 }
 
 export interface PromptTaskOut {

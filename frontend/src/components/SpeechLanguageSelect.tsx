@@ -1,3 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+
+import { api } from "@/api/client";
 import { Field, selectClass } from "@/components/ui/field";
 import { useTx } from "@/i18n/tx";
 
@@ -28,31 +32,87 @@ const SPEECH_LANGUAGES: { code: string; label: string }[] = [
   { code: "sw", label: "斯瓦希里文 sw" },
 ];
 
-/** 识别不了的值按中文处理，和后端 language_from_voice 一致。 */
-export function speechLanguage(value: string): string {
-  return SPEECH_LANGUAGES.some((item) => item.code === value) ? value : "zh";
+const ALL_CODES = SPEECH_LANGUAGES.map((item) => item.code);
+
+/** 11 个 Chatterbox 模型包。功能页不选模型，只按系统默认包过滤语言。 */
+export const SPEECH_MODELS: { id: string; label: string; group: string; languages: string[] }[] = [
+  { id: "multilingual_v3", label: "Chatterbox-Multilingual V3", group: "multilingual", languages: ALL_CODES },
+  { id: "multilingual_v2", label: "Chatterbox-Multilingual V2", group: "multilingual", languages: ALL_CODES },
+  { id: "zh-cmn", label: "Chinese (zh-CMN)", group: "pack", languages: ["zh"] },
+  { id: "es-mx", label: "Latam Spanish", group: "pack", languages: ["es"] },
+  { id: "pt-br", label: "Brazilian Portuguese", group: "pack", languages: ["pt"] },
+  { id: "es-es", label: "Spain Spanish", group: "pack", languages: ["es"] },
+  { id: "pt-pt", label: "Portugal Portuguese", group: "pack", languages: ["pt"] },
+  { id: "hi", label: "Hindi", group: "pack", languages: ["hi"] },
+  { id: "turbo", label: "Chatterbox-Turbo", group: "english", languages: ["en"] },
+  { id: "nano", label: "Chatterbox-Nano", group: "english", languages: ["en"] },
+  { id: "standard", label: "Chatterbox", group: "english", languages: ["en"] },
+];
+
+export const SPEECH_MODEL_GROUPS: { id: string; label: string }[] = [
+  { id: "multilingual", label: "多语言模型" },
+  { id: "pack", label: "单语言精调包" },
+  { id: "english", label: "英文模型" },
+];
+
+export function speechModelOf(model: string) {
+  return SPEECH_MODELS.find((item) => item.id === model) ?? SPEECH_MODELS[0];
 }
 
-/** Liber Speech 不克隆音色时选择发音语言。 */
+export function languagesForModel(model: string) {
+  const allowed = new Set(speechModelOf(model).languages);
+  return SPEECH_LANGUAGES.filter((item) => allowed.has(item.code));
+}
+
+/** 当前模型包不支持的语言会改成该包的第一项。 */
+export function speechLanguage(value: string, model = "multilingual_v3"): string {
+  const langs = languagesForModel(model);
+  return langs.some((item) => item.code === value) ? value : (langs[0]?.code ?? "zh");
+}
+
+export function speechModelHint(model: string): string {
+  const spec = speechModelOf(model);
+  if (spec.id === "turbo" || spec.id === "nano") {
+    return "只读英文。克隆参考音频需要长于 5 秒。Turbo 支持 [laugh] 这类副语言标记。";
+  }
+  if (spec.group === "english") return "只读英文。";
+  if (spec.group === "pack") return `只读 ${spec.languages[0]}。功能页的语言下拉只保留这一项。`;
+  return "支持 23 种语言。功能页的语言下拉会列出全部。";
+}
+
+/** 系统设置里的默认 Liber Speech 模型包。 */
+export function useDefaultSpeechModel(): string {
+  const { data } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  return data?.default_speech_model || "multilingual_v3";
+}
+
+/** Liber Speech 的发音语言。列表跟随系统默认模型包。 */
 export function SpeechLanguageSelect({
   value,
   onChange,
+  model = "multilingual_v3",
 }: {
   value: string;
   onChange: (code: string) => void;
+  model?: string;
 }) {
   const tx = useTx();
+  const langs = languagesForModel(model);
+  const selected = speechLanguage(value, model);
+  useEffect(() => {
+    if (selected !== value) onChange(selected);
+  }, [onChange, selected, value]);
   return (
     <Field
       label={tx("语言")}
-      hint={tx("不使用音色库时，模型用自带的默认声音，按这个语言发音。")}
+      hint={
+        langs.length === 1
+          ? tx("当前默认模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。")
+          : tx("按系统设置里的默认模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。")
+      }
     >
-      <select
-        className={selectClass}
-        value={speechLanguage(value)}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {SPEECH_LANGUAGES.map((item) => (
+      <select className={selectClass} value={selected} onChange={(e) => onChange(e.target.value)}>
+        {langs.map((item) => (
           <option key={item.code} value={item.code}>
             {tx(item.label)}
           </option>

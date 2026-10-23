@@ -121,8 +121,7 @@ def motion_prompt(raw_prompt: str, image_count: int) -> str:
 def max_reference_video_seconds(fps: float, spec: dict[str, Any]) -> float:
     """参考视频单段能完整送进模型的最长秒数。
 
-    生成帧数和参考帧数都要落在 align_base * k + align_offset 上。
-    H3 的 max 362 正好是 17*21+5，窗口约 15.08 秒，不会再被节点砍掉尾巴。
+    上限取工作流包 length 的 max，并落到 align_base * k + align_offset。
     """
     return max_aligned_seconds(fps, spec)
 
@@ -519,7 +518,7 @@ async def run_avatar_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     chunks = split_avatar_script(spoken, group_limit) or [spoken]
 
     tts_provider = pick_provider(db, "tts", params.get("tts_provider_id"))
-    tts = build_tts_adapter(tts_provider)
+    tts = build_tts_adapter(tts_provider, db=db)
     ctx.report(db, job, progress=0.05, step="tts")
     takes = await _speak_avatar_chunks(
         db, job, ctx, tts_provider, tts, chunks, ceiling=ceiling
@@ -645,7 +644,10 @@ async def _synthesize_avatar_line(
         )
         ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp3"
         return ext, audio
-    audio = await tts.synthesize(text=text, voice=params.get("voice"), fmt="mp3")
+    extra: dict[str, Any] = {}
+    if tts_provider.type == "liber_speech" and params.get("language"):
+        extra["language"] = str(params["language"])
+    audio = await tts.synthesize(text=text, voice=params.get("voice"), fmt="mp3", **extra)
     return "mp3", audio
 
 
@@ -843,11 +845,25 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     native_audio = str(params.get("audio_mode") or "custom") == "auto" and (
         bool(params.get("animate")) or any(item["kind"] == "video" for item in media)
     )
+    show_subtitle = bool(params.get("show_subtitle", True))
+    subtitle_size = float(params.get("subtitle_size") or 0)
+    subtitle_color = str(params.get("subtitle_color") or "")
+
+    def burn_subtitle(path: Path) -> dict[str, Any]:
+        """关闭烧录时不把字幕画进画面；打开时带上字号和颜色。"""
+        if not show_subtitle:
+            return {"subtitle": None}
+        return {
+            "subtitle": path,
+            "subtitle_size": subtitle_size,
+            "subtitle_color": subtitle_color,
+        }
+
     tts_provider = None
     tts = None
     if not native_audio:
         tts_provider = pick_provider(db, "tts", params.get("providers", {}).get("tts"))
-        tts = build_tts_adapter(tts_provider)
+        tts = build_tts_adapter(tts_provider, db=db)
     wait_timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
 
     asset_desc = await _media_briefs(media)
@@ -925,7 +941,10 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             )
             ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp3"
         else:
-            audio_bytes = await tts.synthesize(text=text, voice=voice, fmt="mp3")
+            extra: dict[str, Any] = {}
+            if tts_provider.type == "liber_speech" and params.get("language"):
+                extra["language"] = str(params["language"])
+            audio_bytes = await tts.synthesize(text=text, voice=voice, fmt="mp3", **extra)
             ext = "mp3"
         audio_path = job_path(job, f"frame_{i:02d}.{ext}")
         audio_path.write_bytes(audio_bytes)
@@ -963,7 +982,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             duration = await ffmpeg.probe_duration(clip_path)
             srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
             await ffmpeg.make_native_clip_segment(
-                clip=clip_path, out=segment_path, width=width, height=height, subtitle=srt_path,
+                clip=clip_path, out=segment_path, width=width, height=height, **burn_subtitle(srt_path),
             )
         elif keep_model_audio and video_adapter is not None and video_pack is not None:
             clips, _texts = await video_adapter.generate(
@@ -988,7 +1007,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             duration = await ffmpeg.probe_duration(clip_path)
             srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
             await ffmpeg.make_native_clip_segment(
-                clip=clip_path, out=segment_path, width=width, height=height, subtitle=srt_path,
+                clip=clip_path, out=segment_path, width=width, height=height, **burn_subtitle(srt_path),
             )
         elif native_audio:
             silence = job_path(job, f"silence_{i:02d}.mp3")
@@ -996,7 +1015,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             srt_path.write_text(_single_cue_srt(text, 3.0), encoding="utf-8")
             await ffmpeg.make_segment(
                 image=resolve(m["path"]), audio=silence, out=segment_path,
-                width=width, height=height, subtitle=srt_path,
+                width=width, height=height, **burn_subtitle(srt_path),
             )
         else:
             audio_path = await _synth(text, i)
@@ -1005,7 +1024,7 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             if m["kind"] == "video":
                 await ffmpeg.make_clip_segment(
                     clip=resolve(m["path"]), audio=audio_path, out=segment_path,
-                    width=width, height=height, subtitle=srt_path,
+                    width=width, height=height, **burn_subtitle(srt_path),
                 )
             elif animate and video_adapter is not None and video_pack is not None:
                 clips, _texts = await video_adapter.generate(
@@ -1029,12 +1048,12 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
                 clip_path.write_bytes(clips[0][1])
                 await ffmpeg.make_clip_segment(
                     clip=clip_path, audio=audio_path, out=segment_path,
-                    width=width, height=height, subtitle=srt_path,
+                    width=width, height=height, **burn_subtitle(srt_path),
                 )
             else:
                 await ffmpeg.make_segment(
                     image=resolve(m["path"]), audio=audio_path, out=segment_path,
-                    width=width, height=height, subtitle=srt_path,
+                    width=width, height=height, **burn_subtitle(srt_path),
                 )
         segments_out.append(segment_path)
         done += 1

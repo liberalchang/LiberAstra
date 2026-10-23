@@ -19,7 +19,7 @@ _EXT_BY_FORMAT = {"ogg_opus": "ogg", "opus": "ogg"}
 
 async def run_tts_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     provider = pick_provider(db, "tts", job.provider_id)
-    adapter = build_tts_adapter(provider)
+    adapter = build_tts_adapter(provider, db=db)
     params = job.params
     fmt = params.get("format", "mp3")
 

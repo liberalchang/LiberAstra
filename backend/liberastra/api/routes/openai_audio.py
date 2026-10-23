@@ -33,7 +33,7 @@ _MIME_BY_FORMAT = {
 @router.post("/audio/speech")
 async def speech(body: OpenAISpeechRequest, user: CurrentUser, db: DbSession) -> Response:
     provider = pick_provider(db, "tts")
-    adapter = build_tts_adapter(provider)
+    adapter = build_tts_adapter(provider, db=db)
     options = {"speed": body.speed} if body.speed else {}
     try:
         audio = await adapter.synthesize(

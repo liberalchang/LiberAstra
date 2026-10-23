@@ -3,4 +3,4 @@ uvicorn[standard]
 python-multipart
 numpy
 faster-whisper
-chatterbox-tts
+chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master

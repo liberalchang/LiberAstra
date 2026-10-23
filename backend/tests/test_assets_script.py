@@ -72,6 +72,8 @@ def test_motion_workflow_packs_registered(client: TestClient, auth_header: dict[
     assert {"minimax_h3_motion", "minimax_h3_motion_uncensored"} <= names
 
     pack = get_pack("minimax_h3_motion")
+    assert pack.inputs["length"]["max"] == 124
+    assert pack.workflow["115"]["inputs"]["frame_load_cap"] == 124
     wf = apply_inputs(
         pack,
         {

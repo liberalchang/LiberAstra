@@ -3,7 +3,7 @@
 # 由多模态 Qwen3-VL-32B 与 H3 联合 DiT 在无骨骼提取下直接将参考视频动作迁移到目标图片人物。
 name: minimax_h3_motion
 capability: motion
-description: MiniMax H3 动作迁移（MiniMaxH3ReferenceToVideo 多模态参考；<Picture 1> 锁定人物 + <Video 1> 迁移参考动作；官方 TE；可选 Turbo LoRA）
+description: MiniMax H3 动作迁移（MiniMaxH3ReferenceToVideo 多模态参考；<Picture 1> 锁定人物 + <Video 1> 迁移参考动作；官方 TE；可选 Turbo LoRA；单段最多 124 帧，约 5.2 秒）
 fps: 24
 inputs:
   video:
@@ -61,7 +61,7 @@ inputs:
     type: int
     default: 124
     min: 73
-    max: 362
+    max: 124
     align_base: 17
     align_offset: 5
     label: 帧数

@@ -18,7 +18,7 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
-import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button } from "@/components/ui/button";
@@ -255,6 +255,7 @@ export function VideoQuickPage() {
     ttsProviders?.[0];
   const ttsIsComfy = ttsProvider?.type === "comfyui";
   /** 克隆服务（Liber Speech）用音色库；edge_tts / 第三方用服务自己的音色列表 */
+  const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
   const serviceVoices = isLibraryVoice ? [] : (ttsProvider?.models ?? []);
   // 切到非克隆服务且还没拉过音色列表时自动拉一次
@@ -340,8 +341,9 @@ export function VideoQuickPage() {
         : isLibraryVoice && voiceRecordId !== ""
           ? ""
           : isLibraryVoice
-            ? speechLanguage(voiceName)
+            ? speechLanguage(voiceName, speechModel)
             : voiceName,
+      language: !ttsIsComfy && isLibraryVoice ? speechLanguage(voiceName, speechModel) : undefined,
       style_prefix: stylePrefix,
       character_id: characterId === "" ? undefined : characterId,
       storyboard: board,
@@ -944,9 +946,7 @@ export function VideoQuickPage() {
                   ))}
                 </select>
               </Field>
-              {voiceRecordId === "" && (
-                <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
-              )}
+              <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} model={speechModel} />
             </div>
           ) : (
             <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>

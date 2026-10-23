@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import zipfile
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -37,6 +37,7 @@ class PreferencesUpdate(BaseModel):
     default_character_workflow: str | None = Field(default=None, max_length=128)
     default_character_i2i_workflow: str | None = Field(default=None, max_length=128)
     default_character_i2i_multi_workflow: str | None = Field(default=None, max_length=128)
+    default_speech_model: str | None = Field(default=None, max_length=64)
 
 
 @router.get("/preferences")
@@ -51,7 +52,10 @@ def update_preferences(body: PreferencesUpdate, user: CurrentUser, db: DbSession
     data = body.model_dump(exclude_none=True)
     for key, value in data.items():
         if key in STR_SPECS:
-            set_str_pref(db, key, str(value))
+            try:
+                set_str_pref(db, key, str(value))
+            except ValueError as exc:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         elif key in SPECS:
             set_pref(db, key, int(value))
     return all_prefs(db)

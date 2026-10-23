@@ -372,6 +372,10 @@ export const UI_EN: Record<string, string> = {
     "Size of the bottom subtitle bar. 0 follows the frame height. Applies to every shot mode.",
   "字幕颜色": "Subtitle color",
   "底部字幕条文字颜色，默认白色。": "Color of the bottom subtitles. White by default.",
+  "烧录在画面底部的口播字幕。关闭后成片无字幕。标题卡不烧字幕。":
+    "Narration burned along the bottom. Off means no subtitles. The title card stays clean.",
+  "底部字幕条的字号。0 为自动（跟随画面高度）。":
+    "Size of the bottom subtitle bar. 0 follows the frame height.",
   "配音服务": "Voice service",
   "已配置且具备 tts 能力的服务。「本地」为微软 Edge TTS。":
     "Configured services with TTS. “Local” is Microsoft Edge TTS.",
@@ -952,4 +956,24 @@ export const UI_EN: Record<string, string> = {
   "点击或拖拽上传参考图": "Click or drop reference images",
   "1 张走图生图，2 到 3 张走多图编辑": "One image uses image edit; two or three use multi-image edit",
   "清空参考图": "Clear references",
+  "当前默认模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。":
+    "This model pack speaks only this language. A library voice still clones its reference audio.",
+  "按系统设置里的默认模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。":
+    "Speech follows the default model pack in System Settings. A library voice still clones its reference audio; this only sets the language.",
+  "默认语音合成（Liber Speech）": "Default speech model (Liber Speech)",
+  "文字转语音、快速创作、自定义素材和数字人口播都使用这个模型包。功能页只选音色和语言。":
+    "Text-to-speech, quick creation, custom assets, and avatar all use this pack. Those pages only choose a voice and a language.",
+  "模型包": "Model pack",
+  "多语言模型": "Multilingual",
+  "单语言精调包": "Single-language packs",
+  "英文模型": "English models",
+  "只读英文。克隆参考音频需要长于 5 秒。Turbo 支持 [laugh] 这类副语言标记。":
+    "English only. A clone reference must be longer than 5 seconds. Turbo accepts tags such as [laugh].",
+  "只读英文。": "English only.",
+  "支持 23 种语言。功能页的语言下拉会列出全部。":
+    "23 languages. Feature pages list all of them.",
+  "只读 zh。功能页的语言下拉只保留这一项。": "Chinese only. Feature pages show just this language.",
+  "只读 es。功能页的语言下拉只保留这一项。": "Spanish only. Feature pages show just this language.",
+  "只读 pt。功能页的语言下拉只保留这一项。": "Portuguese only. Feature pages show just this language.",
+  "只读 hi。功能页的语言下拉只保留这一项。": "Hindi only. Feature pages show just this language.",
 };

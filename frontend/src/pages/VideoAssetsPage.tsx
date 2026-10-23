@@ -17,7 +17,7 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
-import { SpeechLanguageSelect, speechLanguage } from "@/components/SpeechLanguageSelect";
+import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -167,6 +167,7 @@ export function VideoAssetsPage() {
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-assets:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("video-assets:voice-name", "");
   /** 克隆服务（Liber Speech）用音色库；其余服务（edge_tts / 第三方 TTS）用服务自己的音色列表 */
+  const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
   const serviceVoices = isLibraryVoice ? [] : (ttsProvider?.models ?? []);
   // 切到非克隆服务且还没拉过音色列表时自动拉一次
@@ -181,6 +182,9 @@ export function VideoAssetsPage() {
   const [aspect, setAspect] = usePersistentState("video-assets:aspect", "9:16");
   const [bgmName, setBgmName] = usePersistentState("video-assets:bgm-name", "");
   const [bgmVolume, setBgmVolume] = usePersistentState("video-assets:bgm-volume", "0.2");
+  const [showSubtitle, setShowSubtitle] = usePersistentState("video-assets:show-subtitle", true);
+  const [subtitleSize, setSubtitleSize] = usePersistentState("video-assets:subtitle-size", 0);
+  const [subtitleColor, setSubtitleColor] = usePersistentState("video-assets:subtitle-color", "#FFFFFF");
 
   const [error, setError] = useState<string | null>(null);
   const [scriptError, setScriptError] = useState<string | null>(null);
@@ -229,8 +233,9 @@ export function VideoAssetsPage() {
       form.set("aspect", aspect);
       if (!ttsIsComfy) {
         if (isLibraryVoice && voiceRecordId !== "") form.set("voice_record_id", String(voiceRecordId));
-        else if (isLibraryVoice) form.set("voice", speechLanguage(voiceName));
+        else if (isLibraryVoice) form.set("voice", speechLanguage(voiceName, speechModel));
         else form.set("voice", voiceName);
+        if (isLibraryVoice) form.set("language", speechLanguage(voiceName, speechModel));
       }
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
       form.set("audio_mode", (animate && hasImage) || hasVideo ? audioMode : "custom");
@@ -250,6 +255,9 @@ export function VideoAssetsPage() {
         form.set("bgm_path", `bgm/${bgmName}`);
         form.set("bgm_volume", bgmVolume || "0.2");
       }
+      form.set("show_subtitle", showSubtitle ? "true" : "false");
+      form.set("subtitle_size", String(subtitleSize));
+      form.set("subtitle_color", subtitleColor);
       return api.submitVideoAssets(form);
     },
     onSuccess: (j) => {
@@ -664,9 +672,7 @@ export function VideoAssetsPage() {
                   ))}
                 </select>
               </Field>
-              {voiceRecordId === "" && (
-                <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} />
-              )}
+              <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} model={speechModel} />
             </div>
           ) : (
             <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
@@ -742,6 +748,36 @@ export function VideoAssetsPage() {
                 step={0.05}
                 value={bgmVolume}
                 onChange={(e) => setBgmVolume(e.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={tx("视频字幕")} hint={tx("烧录在画面底部的口播字幕。关闭后成片无字幕。标题卡不烧字幕。")}>
+              <label className="flex h-11 items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showSubtitle}
+                  onChange={(e) => setShowSubtitle(e.target.checked)}
+                />
+                {tx("烧录字幕")}
+              </label>
+            </Field>
+            <Field label={tx("字幕字号")} hint={tx("底部字幕条的字号。0 为自动（跟随画面高度）。")}>
+              <NumberStepper
+                ariaLabel={tx("字幕字号")}
+                min={0}
+                max={64}
+                value={subtitleSize}
+                onChange={setSubtitleSize}
+              />
+            </Field>
+            <Field label={tx("字幕颜色")} hint={tx("底部字幕条文字颜色，默认白色。")}>
+              <input
+                type="color"
+                aria-label={tx("字幕颜色")}
+                value={subtitleColor}
+                onChange={(e) => setSubtitleColor(e.target.value.toUpperCase())}
+                className="h-11 w-full cursor-pointer rounded-[10px] border border-border bg-field p-1.5"
               />
             </Field>
           </div>

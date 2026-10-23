@@ -122,7 +122,7 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
     tts = None
     if not use_native_audio:
         tts_provider = pick_provider(db, "tts", provider_ids.get("tts"))
-        tts = build_tts_adapter(tts_provider)
+        tts = build_tts_adapter(tts_provider, db=db)
     need_script_llm, need_visual_llm = _quick_needs_llm(params, tpl)
     llm_provider = None
     llm = None
@@ -252,9 +252,10 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             audio_bytes = await tts.synthesize(text=text, voice=chosen, fmt="mp3", **opts)
             ext = "mp3"
         else:
-            audio_bytes = await tts.synthesize(
-                text=text, voice=voice, fmt="mp3", **params.get("tts_options", {})
-            )
+            extra = dict(params.get("tts_options") or {})
+            if tts_provider.type == "liber_speech" and params.get("language"):
+                extra["language"] = str(params["language"])
+            audio_bytes = await tts.synthesize(text=text, voice=voice, fmt="mp3", **extra)
             ext = "mp3"
         audio_path = job_path(job, f"frame_{i:02d}.{ext}")
         audio_path.write_bytes(audio_bytes)

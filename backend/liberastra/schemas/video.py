@@ -16,6 +16,7 @@ class QuickVideoRequest(BaseModel):
     aspect: str = Field(default="9:16", pattern="^(9:16|1:1|16:9)$")
     voice: str = ""
     voice_record_id: int | None = None
+    language: str = ""  # Liber Speech 的 language_id；空则按音色名猜测
     character_id: int | None = None
     style_prefix: str = ""
     storyboard: dict[str, Any] | None = None  # 提供则跳过 LLM（分镜编辑器回传）

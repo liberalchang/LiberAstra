@@ -32,6 +32,8 @@ STR_SPECS: dict[str, str] = {
     "default_character_i2i_workflow": "qwen_image_21_edit",
     # 两到三张参考图时用的多图编辑工作流包
     "default_character_i2i_multi_workflow": "qwen_image_21_edit_multi",
+    # Liber Speech 默认模型包。功能页不单独选模型。
+    "default_speech_model": "multilingual_v3",
 }
 
 
@@ -72,6 +74,10 @@ def set_str_pref(db: Session, key: str, value: str) -> str:
     if key not in STR_SPECS:
         raise KeyError(f"未知字符串偏好: {key}")
     text = value if value is not None else STR_SPECS[key]
+    if key == "default_speech_model":
+        from liberastra.providers.speech.liber_speech import canonical_speech_model
+
+        text = canonical_speech_model(text.strip() or STR_SPECS[key])
     row = db.get(AppSetting, key)
     if row is None:
         db.add(AppSetting(key=key, value=text))

@@ -224,3 +224,80 @@ def test_assets_video(client: TestClient, auth_header: dict[str, str], video_pro
     # 无 BGM 时最终文件名是 concat.mp4；有 BGM 才写成 final.mp4
     assert job["outputs"][0]["filename"] in ("concat.mp4", "final.mp4")
     assert job["outputs"][0]["kind"] == "video"
+
+
+def test_assets_subtitle_rejected(client: TestClient, auth_header: dict[str, str]) -> None:
+    files = [("images", ("a.png", PNG_1PX, "image/png"))]
+    bad_color = client.post(
+        "/api/v1/videos/assets",
+        files=files,
+        data={"script": "一句", "subtitle_color": "yellow"},
+        headers=auth_header,
+    )
+    assert bad_color.status_code == 400
+    bad_size = client.post(
+        "/api/v1/videos/assets",
+        files=files,
+        data={"script": "一句", "subtitle_size": "200"},
+        headers=auth_header,
+    )
+    assert bad_size.status_code == 400
+
+
+def test_assets_subtitle_style(
+    client: TestClient, auth_header: dict[str, str], video_providers: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict] = []
+    original = simple.ffmpeg.make_segment
+
+    async def spy(**kwargs):  # noqa: ANN003, ANN202
+        seen.append(kwargs)
+        await original(**kwargs)
+
+    monkeypatch.setattr(simple.ffmpeg, "make_segment", spy)
+    resp = client.post(
+        "/api/v1/videos/assets?wait=true",
+        files=[("images", ("a.png", PNG_1PX, "image/png"))],
+        data={
+            "script": "第一句",
+            "voice": "v1",
+            "aspect": "1:1",
+            "show_subtitle": "true",
+            "subtitle_size": "28",
+            "subtitle_color": "#FFCC00",
+        },
+        headers=auth_header,
+        timeout=120,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert job["params"]["show_subtitle"] is True
+    assert job["params"]["subtitle_size"] == 28
+    assert job["params"]["subtitle_color"] == "#FFCC00"
+    assert seen[0]["subtitle"] is not None
+    assert seen[0]["subtitle_size"] == 28
+    assert seen[0]["subtitle_color"] == "#FFCC00"
+
+
+def test_assets_subtitle_off(
+    client: TestClient, auth_header: dict[str, str], video_providers: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict] = []
+    original = simple.ffmpeg.make_segment
+
+    async def spy(**kwargs):  # noqa: ANN003, ANN202
+        seen.append(kwargs)
+        await original(**kwargs)
+
+    monkeypatch.setattr(simple.ffmpeg, "make_segment", spy)
+    resp = client.post(
+        "/api/v1/videos/assets?wait=true",
+        files=[("images", ("a.png", PNG_1PX, "image/png"))],
+        data={"script": "第一句", "voice": "v1", "aspect": "1:1", "show_subtitle": "false"},
+        headers=auth_header,
+        timeout=120,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert job["params"]["show_subtitle"] is False
+    assert seen and seen[0]["subtitle"] is None

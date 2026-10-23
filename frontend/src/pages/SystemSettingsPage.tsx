@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, ImageIcon, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
+import { AudioLines, Bot, ImageIcon, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
@@ -10,6 +10,11 @@ import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useAuthStore } from "@/stores/auth";
+import {
+  SPEECH_MODEL_GROUPS,
+  SPEECH_MODELS,
+  speechModelHint,
+} from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
 
 /** 系统设置：账户安全（改密码）+ 运行参数（各类等待超时）。 */
@@ -68,6 +73,7 @@ export function SystemSettingsPage() {
   const [characterWorkflow, setCharacterWorkflow] = useState("qwen_image_21");
   const [characterI2i, setCharacterI2i] = useState("qwen_image_21_edit");
   const [characterI2iMulti, setCharacterI2iMulti] = useState("qwen_image_21_edit_multi");
+  const [speechModel, setSpeechModel] = useState("multilingual_v3");
   const [prefSaved, setPrefSaved] = useState(false);
 
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
@@ -106,6 +112,7 @@ export function SystemSettingsPage() {
       setCharacterWorkflow(prefs.default_character_workflow || "qwen_image_21");
       setCharacterI2i(prefs.default_character_i2i_workflow || "qwen_image_21_edit");
       setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "qwen_image_21_edit_multi");
+      setSpeechModel(prefs.default_speech_model || "multilingual_v3");
     }
   }, [prefs]);
 
@@ -122,6 +129,7 @@ export function SystemSettingsPage() {
         default_character_workflow: characterWorkflow,
         default_character_i2i_workflow: characterI2i,
         default_character_i2i_multi_workflow: characterI2iMulti,
+        default_speech_model: speechModel,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -262,6 +270,51 @@ export function SystemSettingsPage() {
             </p>
           )}
           <div className="flex items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              disabled={savePrefs.isPending}
+              onClick={() => {
+                setPrefSaved(false);
+                savePrefs.mutate();
+              }}
+            >
+              {savePrefs.isPending ? tx("保存中…") : tx("保存")}
+            </Button>
+            {prefSaved && !savePrefs.isPending && (
+              <span className="text-sm text-green-600">{tx("已保存。")}</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AudioLines className="size-4" /> {tx("默认语音合成（Liber Speech）")}
+          </CardTitle>
+          <CardDescription>
+            {tx("文字转语音、快速创作、自定义素材和数字人口播都使用这个模型包。功能页只选音色和语言。")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <Field label={tx("模型包")} hint={tx(speechModelHint(speechModel))}>
+            <select
+              className={selectClass}
+              value={speechModel}
+              onChange={(e) => setSpeechModel(e.target.value)}
+            >
+              {SPEECH_MODEL_GROUPS.map((group) => (
+                <optgroup key={group.id} label={tx(group.label)}>
+                  {SPEECH_MODELS.filter((item) => item.group === group.id).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
+          <div className="flex items-center gap-3">
             <Button
               type="button"
               disabled={savePrefs.isPending}

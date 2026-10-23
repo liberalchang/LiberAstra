@@ -72,8 +72,12 @@ def _to_ogg(wav_path: Path, ogg_path: Path) -> None:
 
 @app.get("/api/v1/models")
 def models() -> dict[str, object]:
-    """当前配置的 ASR / TTS 模型名。语言代码不是模型。"""
-    return {"models": engine.configured_models()}
+    """当前 ASR / TTS，以及可选的 11 个 TTS 模型包。语言代码不是模型。"""
+    return {
+        "models": engine.configured_models(),
+        "tts_models": engine.tts_catalog(),
+        "default_tts_model": engine.default_tts_model(),
+    }
 
 
 @app.get("/api/v1/health")

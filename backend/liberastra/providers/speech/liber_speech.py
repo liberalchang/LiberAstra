@@ -23,6 +23,45 @@ _LANG_CODES = (
     "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko",
     "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh",
 )
+# 旧值 multilingual 等同 Multilingual V2。未知 id 不在这里改写。
+SPEECH_ALIASES = {"multilingual": "multilingual_v2"}
+# 单语言包和英文模型锁定 language_id；多语言模型为 None，走调用方选择的 23 种语言。
+SPEECH_MODEL_LANGS: dict[str, str | None] = {
+    "multilingual_v3": None,
+    "multilingual_v2": None,
+    "turbo": "en",
+    "nano": "en",
+    "standard": "en",
+    "zh-cmn": "zh",
+    "es-mx": "es",
+    "pt-br": "pt",
+    "es-es": "es",
+    "pt-pt": "pt",
+    "hi": "hi",
+}
+
+
+def canonical_speech_model(model: str) -> str:
+    """校验并展开别名。未知 id 抛出 ValueError。"""
+    key = SPEECH_ALIASES.get(model.strip(), model.strip())
+    if key not in SPEECH_MODEL_LANGS:
+        raise ValueError(f"未知语音模型 {model}")
+    return key
+
+
+def speech_form_model(model: str) -> str:
+    """写入合成表单的模型名。别名展开，未知 id 原样传出。"""
+    raw = (model or "").strip()
+    return SPEECH_ALIASES.get(raw, raw)
+
+
+def speech_language(model: str, voice: str, explicit: str | None = None) -> str:
+    """单语言包和英文模型用固定语言，多语言模型跟随音色或显式语言。"""
+    mid = SPEECH_ALIASES.get((model or "").strip(), (model or "").strip())
+    locked = SPEECH_MODEL_LANGS.get(mid)
+    if mid in SPEECH_MODEL_LANGS and locked:
+        return locked
+    return language_from_voice(voice, explicit)
 
 
 def _api_root(base_url: str) -> str:
@@ -61,14 +100,14 @@ class LiberSpeech:
         self,
         base_url: str,
         api_key: str | None = None,
-        default_model: str = "multilingual",
+        default_model: str = "multilingual_v3",
         *,
         client: httpx.AsyncClient | None = None,
         timeout: float = 300.0,
     ) -> None:
         self.api_root = _api_root(base_url or "http://127.0.0.1:5555")
         self.api_key = api_key
-        self.default_model = default_model or "multilingual"
+        self.default_model = default_model or "multilingual_v3"
         self._client = client
         self._timeout = timeout
 
@@ -137,10 +176,11 @@ class LiberSpeech:
         **params: Any,
     ) -> bytes:
         speech_fmt = _DIRECT_FORMATS.get(fmt, "wav")
-        language = language_from_voice(voice, params.get("language"))
+        chosen = speech_form_model(model or self.default_model)
+        language = speech_language(chosen, voice, params.get("language"))
         form = {
             "text": text,
-            "model": model or self.default_model,
+            "model": chosen,
             "language": language,
             "format": speech_fmt,
         }

@@ -80,10 +80,35 @@ def build_llm_adapter(
     return build_adapter(record, client=client, timeout=timeout)
 
 
-def build_tts_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
-    """TTS 适配器：comfyui 走语音工作流包，其余与通用构造一致。"""
+def _speech_default_model(db: Session | None, extra_model: str | None) -> str:
+    """系统设置优先，其次 Provider extra.model，最后 multilingual_v3。"""
+    if db is not None:
+        from liberastra.models import AppSetting
+
+        row = db.get(AppSetting, "default_speech_model")
+        if row is not None and str(row.value or "").strip():
+            return str(row.value).strip()
+    extra = str(extra_model or "").strip()
+    return extra or "multilingual_v3"
+
+
+def build_tts_adapter(
+    record: Provider,
+    *,
+    client: httpx.AsyncClient | None = None,
+    db: Session | None = None,
+) -> Any:
+    """TTS 适配器：comfyui 走语音工作流包；Liber Speech 使用系统默认模型包。"""
     if record.type == "comfyui":
         return ComfyUISpeech(record.base_url)
+    if record.type == "liber_speech":
+        extra_model = record.extra.get("model") if record.extra else None
+        return LiberSpeech(
+            record.base_url,
+            decrypt_api_key(record),
+            _speech_default_model(db, extra_model),
+            client=client,
+        )
     return build_adapter(record, client=client)
 
 
