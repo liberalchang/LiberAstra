@@ -30,8 +30,9 @@ frontend/src/**/*.js
 frontend/vite.config.js
 *.tsbuildinfo
 
-# 本机运维脚本与临时导出（主机、口令、绝对路径），不是产品代码
-scripts/
+# 本机运维脚本与临时导出（主机、口令、绝对路径），不是产品代码。
+# 只忽略仓库根目录，避免把 skills 里的客户端脚本一并排除。
+/scripts/
 backend/scripts/
 
 # Windows 安装包构建缓存与产物

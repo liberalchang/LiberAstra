@@ -110,13 +110,25 @@ def synthesize(
             raise HTTPException(status_code=400, detail="参考音频只支持 wav、mp3、ogg、flac")
         prompt_path = results_dir() / f"prompt-{uuid.uuid4().hex}{suffix}"
         prompt_path.write_bytes(prompt.file.read())
+    stem = uuid.uuid4().hex
+    wav_path = results_dir() / f"{stem}.wav"
+    out_name = wav_path.name
     try:
-        sample_rate, wav = engine.synthesize(
+        # synthesize 返回 (波形, 采样率)，不能写反。
+        wav, sample_rate = engine.synthesize(
             text,
             model=(model or os.getenv("LIBER_SPEECH_TTS_MODEL", "multilingual")),
             language=language,
             audio_prompt=str(prompt_path) if prompt_path else None,
         )
+        _save_wav(wav_path, sample_rate, wav)
+        if fmt == "ogg_opus":
+            ogg_path = results_dir() / f"{stem}.ogg"
+            _to_ogg(wav_path, ogg_path)
+            wav_path.unlink(missing_ok=True)
+            out_name = ogg_path.name
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ImportError as exc:
@@ -126,16 +138,6 @@ def synthesize(
     finally:
         if prompt_path is not None:
             prompt_path.unlink(missing_ok=True)
-
-    stem = uuid.uuid4().hex
-    wav_path = results_dir() / f"{stem}.wav"
-    _save_wav(wav_path, sample_rate, wav)
-    out_name = wav_path.name
-    if fmt == "ogg_opus":
-        ogg_path = results_dir() / f"{stem}.ogg"
-        _to_ogg(wav_path, ogg_path)
-        wav_path.unlink(missing_ok=True)
-        out_name = ogg_path.name
     return {
         "audio_url": f"/api/v1/results/{out_name}",
         "meta": {"format": fmt, "sample_rate": sample_rate},
@@ -154,14 +156,19 @@ def transcribe(
     tmp = results_dir() / f"in-{uuid.uuid4().hex}{suffix}"
     tmp.write_bytes(file.file.read())
     try:
-        text, chunks, meta = engine.transcribe(str(tmp), language=language or None, task=task or "transcribe")
+        # 引擎返回 dict。不能按键名拆包，否则 text 会变成字符串 "text"。
+        result = engine.transcribe(str(tmp), language=language or None, task=task or "transcribe")
     except ImportError as exc:
         raise HTTPException(status_code=503, detail=f"ASR 依赖未安装: {exc}") from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"ASR 转写失败: {exc}") from exc
     finally:
         tmp.unlink(missing_ok=True)
-    return {"text": text, "chunks": chunks, "meta": meta}
+    return {
+        "text": result["text"],
+        "chunks": result["chunks"],
+        "meta": {"language": result.get("language"), "task": task or "transcribe"},
+    }
 
 
 @app.get("/api/v1/results/{filename}", dependencies=[Depends(require_key)])
