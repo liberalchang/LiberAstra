@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Mic } from "lucide-react";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Mic, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
@@ -11,6 +11,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
+import { SPEECH_ASR_MODELS, asrModelHint } from "@/components/SpeechLanguageSelect";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
@@ -25,13 +26,6 @@ const FORMAT_OPTIONS = [
 ];
 
 const CUSTOM_LANG = "__custom";
-
-const ASR_MODEL_OPTIONS = [
-  { value: "", label: "系统设置" },
-  { value: "large-v3", label: "faster-whisper large-v3" },
-  { value: "large-v3-turbo", label: "faster-whisper large-v3-turbo" },
-  { value: "qwen3-asr-1.7b", label: "Qwen3-ASR-1.7B" },
-];
 
 const LANGUAGE_OPTIONS = [
   { value: "", label: "自动检测" },
@@ -49,12 +43,15 @@ const LANGUAGE_OPTIONS = [
 
 export function AsrPage() {
   const tx = useTx();
+  const queryClient = useQueryClient();
   const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const asrProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("asr"));
 
   const [providerId, setProviderId] = usePersistentState<number | "">("asr:provider", "");
   const provider = asrProviders?.find((p) => p.id === providerId) ?? asrProviders?.[0];
+  const isSpeech = provider?.type === "liber_speech";
+  const isOpenAi = provider?.type === "openai_stt";
   const [language, setLanguage] = usePersistentState("asr:language", "");
   const [customLanguage, setCustomLanguage] = usePersistentState("asr:language-custom", "");
   const [format, setFormat] = usePersistentState("asr:format", "");
@@ -63,6 +60,43 @@ export function AsrPage() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("asr");
+  const { data: speechCatalog } = useQuery({
+    queryKey: ["speech-catalog"],
+    queryFn: api.getSpeechCatalog,
+    enabled: isSpeech,
+    retry: false,
+  });
+  const refreshModels = useMutation({
+    mutationFn: (id: number) => api.fetchProviderModels(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+  });
+  const liberModels = speechCatalog?.asr_models?.length
+    ? speechCatalog.asr_models
+    : SPEECH_ASR_MODELS.filter((item) => item.id);
+  const openAiModels = isOpenAi ? (provider?.models ?? []) : [];
+  const prevType = useRef<string | undefined>(undefined);
+
+  // 换识别服务后，上一服务的模型名不能带到下一个
+  useEffect(() => {
+    if (!provider?.type) return;
+    if (prevType.current && prevType.current !== provider.type) setAsrModel("");
+    prevType.current = provider.type;
+  }, [provider?.type, setAsrModel]);
+
+  useEffect(() => {
+    if (!isOpenAi || !provider || provider.models.length > 0 || refreshModels.isPending) return;
+    refreshModels.mutate(provider.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider?.id, isOpenAi, provider?.models.length]);
+
+  const openAiModelKey = openAiModels.join("|");
+  // 列表回来后，丢掉不属于这个服务、且是 Liber Speech 内置 id 的旧模型
+  useEffect(() => {
+    if (!isOpenAi || !openAiModelKey) return;
+    const names = openAiModelKey.split("|");
+    const builtIn = SPEECH_ASR_MODELS.some((item) => item.id && item.id === asrModel);
+    if (builtIn && !names.includes(asrModel)) setAsrModel("");
+  }, [asrModel, isOpenAi, openAiModelKey, setAsrModel]);
 
   const submit = useMutation({
     mutationFn: () => {
@@ -71,7 +105,8 @@ export function AsrPage() {
       if (provider) form.set("provider_id", String(provider.id));
       if (effectiveLanguage) form.set("language", effectiveLanguage);
       if (format) form.set("formats", format);
-      const chosenModel = asrModel || prefs?.default_asr_model || "";
+      // 只有 Liber Speech 才回退系统设置。OpenAI 兼容留空则用该服务自己的默认模型。
+      const chosenModel = isSpeech ? (asrModel || prefs?.default_asr_model || "") : asrModel;
       if (chosenModel) form.set("model", chosenModel);
       return api.submitAsr(form);
     },
@@ -83,6 +118,9 @@ export function AsrPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const modelLabel = isSpeech
+    ? (asrModel || prefs?.default_asr_model || tx("系统设置"))
+    : (asrModel || "whisper-1");
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,7 +130,7 @@ export function AsrPage() {
         left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label={tx("识别服务")} hint={tx("只列出已启用、且具备 asr 能力的 Provider。本机不内置识别模型。")}>
               <select
                 className={selectClass}
@@ -106,22 +144,55 @@ export function AsrPage() {
                 ))}
               </select>
             </Field>
+            <Field
+              label={tx("识别模型")}
+              hint={
+                isSpeech
+                  ? tx(asrModelHint(asrModel || prefs?.default_asr_model || ""))
+                  : tx("不选则使用该服务的默认模型 whisper-1。")
+              }
+            >
+              {isOpenAi ? (
+                <div className="flex gap-2">
+                  {openAiModels.length > 0 ? (
+                    <select className={selectClass} value={asrModel} onChange={(e) => setAsrModel(e.target.value)}>
+                      <option value="">{tx("默认 (whisper-1)")}</option>
+                      {openAiModels.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder={refreshModels.isPending ? tx("正在从服务拉取模型…") : "whisper-1"}
+                      value={asrModel}
+                      onChange={(e) => setAsrModel(e.target.value)}
+                    />
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={tx("从服务拉取模型列表")}
+                    disabled={!provider || refreshModels.isPending}
+                    onClick={() => provider && refreshModels.mutate(provider.id)}
+                  >
+                    <RefreshCw />
+                  </Button>
+                </div>
+              ) : (
+                <select className={selectClass} value={asrModel} onChange={(e) => setAsrModel(e.target.value)}>
+                  <option value="">{tx("系统设置")}</option>
+                  {liberModels.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {tx(item.label)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
             <Field label={tx("语言")} hint={tx("自动检测或选常用语言；其他语种选自定义后手动填写代码。")}>
               <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
                 {LANGUAGE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {tx(o.label)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label={tx("识别模型")}
-              hint={tx("不选则使用系统设置里的语音转文字模型。系统设置也未指定时，使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。")}
-            >
-              <select className={selectClass} value={asrModel} onChange={(e) => setAsrModel(e.target.value)}>
-                {ASR_MODEL_OPTIONS.map((o) => (
-                  <option key={o.value || "default"} value={o.value}>
                     {tx(o.label)}
                   </option>
                 ))}
@@ -173,7 +244,7 @@ export function AsrPage() {
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },
               { label: tx("语言"), value: effectiveLanguage || tx("自动") },
-              { label: tx("模型"), value: asrModel || prefs?.default_asr_model || tx("系统设置") },
+              { label: tx("模型"), value: modelLabel },
               { label: tx("输出"), value: format || tx("自动") },
               { label: tx("文件"), value: file?.name ?? "" },
             ]}

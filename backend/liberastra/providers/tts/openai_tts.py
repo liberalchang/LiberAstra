@@ -16,6 +16,20 @@ from liberastra.providers.llm.openai_compatible import _json_request
 _FORMAT_ALIASES = {"ogg_opus": "opus"}
 
 
+def _openai_ids(data: Any) -> list[str]:
+    """从 /models 响应里取出 id。兼容 data 数组和直接列表。"""
+    rows = data.get("data", data if isinstance(data, list) else []) if isinstance(data, dict) else data
+    if not isinstance(rows, list):
+        return []
+    ids: list[str] = []
+    for item in rows:
+        if isinstance(item, dict) and item.get("id"):
+            ids.append(str(item["id"]))
+        elif isinstance(item, str) and item:
+            ids.append(item)
+    return ids
+
+
 class OpenAITTS:
     def __init__(
         self,
@@ -80,6 +94,19 @@ class OpenAITTS:
             return []
         voices = data.get("voices", data if isinstance(data, list) else [])
         return [str(v) for v in voices]
+
+    async def list_models(self) -> list[str]:
+        """服务提供方刷新时的列表。有音色端点就用音色，否则退回 /models 的模型 id。"""
+        voices = await self.list_voices()
+        if voices:
+            return voices
+        try:
+            data = await _json_request(
+                self._client, self._timeout, "GET", f"{self.base_url}/models", self._headers()
+            )
+        except ProviderError:
+            return []
+        return _openai_ids(data)
 
     async def test(self) -> str:
         try:

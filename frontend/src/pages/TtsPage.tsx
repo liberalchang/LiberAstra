@@ -1,9 +1,9 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { AudioLines } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AudioLines, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { api } from "@/api/client";
+import { api, type SpeechCatalogModel } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
-import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
+import {
+  SPEECH_MODEL_GROUPS,
+  SPEECH_MODELS,
+  SpeechLanguageSelect,
+  partitionServiceNames,
+  sanitizeServiceVoice,
+  speechLanguage,
+  useDefaultSpeechModel,
+} from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
@@ -21,6 +29,7 @@ import { useTx } from "@/i18n/tx";
 
 export function TtsPage() {
   const tx = useTx();
+  const queryClient = useQueryClient();
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
   const { data: ttsPacks } = useQuery({
@@ -37,12 +46,18 @@ export function TtsPage() {
 
   const [providerId, setProviderId] = usePersistentState<number | "">("tts:provider", "");
   const provider = ttsProviders?.find((p) => p.id === providerId) ?? ttsProviders?.[0];
-  const isComfy = provider?.type === "comfyui";
-  const isSpeech = provider?.type === "liber_speech";
+  const kind = provider?.type;
+  const isComfy = kind === "comfyui";
+  const isSpeech = kind === "liber_speech";
+  const isEdge = kind === "edge_tts";
+  const isOpenAi = kind === "openai_tts";
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("tts:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("tts:voice-name", "");
+  const [speechLang, setSpeechLang] = usePersistentState("tts:speech-lang", "zh");
   const [format, setFormat] = usePersistentState("tts:format", "mp3");
-  const [language, setLanguage] = usePersistentState("tts:language", "");
+  const [ttsModel, setTtsModel] = usePersistentState("tts:model", "");
+  const [openAiModel, setOpenAiModel] = usePersistentState("tts:openai-model", "");
+  const [openAiVoiceManual, setOpenAiVoiceManual] = usePersistentState("tts:openai-voice-manual", false);
   const [workflow, setWorkflow] = usePersistentState("tts:workflow", "");
   const pack = ttsPacks?.find((p) => p.name === workflow) ?? ttsPacks?.[0];
   const [extra, setExtra] = usePersistentState<Record<string, string>>("tts:extra", {});
@@ -55,28 +70,65 @@ export function TtsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const speechModel = useDefaultSpeechModel();
+  const chosenSpeechModel = ttsModel || speechModel;
+  const { data: speechCatalog } = useQuery({
+    queryKey: ["speech-catalog"],
+    queryFn: api.getSpeechCatalog,
+    enabled: isSpeech,
+    retry: false,
+  });
+  const ttsModelOptions = speechCatalog?.tts_models?.length
+    ? speechCatalog.tts_models
+    : SPEECH_MODELS;
+  const refreshModels = useMutation({
+    mutationFn: (id: number) => api.fetchProviderModels(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+  });
+  const serviceNames = provider?.models ?? [];
+  const openAiSplit = partitionServiceNames(isOpenAi ? serviceNames : []);
+  const edgeVoices = isEdge ? serviceNames : [];
+  const openAiVoices = openAiSplit.voices;
+  const openAiModels = openAiSplit.models;
+  const cloudVoices = voices?.filter((item) => item.voice_id) ?? [];
+
+  // 切到本地或 OpenAI 兼容时拉一次音色/模型，并清掉误写入的语言码
+  useEffect(() => {
+    if (!provider || isComfy || isSpeech) return;
+    if (serviceNames.length === 0 && !refreshModels.isPending) {
+      refreshModels.mutate(provider.id);
+    }
+    if (isEdge && format !== "mp3") setFormat("mp3");
+    const nextVoice = isEdge
+      ? sanitizeServiceVoice(voiceName, edgeVoices, "edge_tts")
+      : isOpenAi
+        ? sanitizeServiceVoice(voiceName, openAiVoices, "openai_tts")
+        : voiceName;
+    if (nextVoice !== voiceName) setVoiceName(nextVoice);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider?.id, provider?.type, serviceNames.join("|")]);
+
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("tts");
+  const spokenLanguage = speechLanguage(speechLang, chosenSpeechModel);
+  const selectedLibrary = voices?.find((item) => item.id === voiceRecordId);
 
   const submit = useMutation({
     mutationFn: () =>
       api.submitTts({
         provider_id: provider?.id,
-        voice_record_id: !isComfy && voiceRecordId !== "" ? voiceRecordId : undefined,
+        voice_record_id:
+          !isComfy && !isEdge && voiceRecordId !== "" ? voiceRecordId : undefined,
         voice: isComfy
           ? (extra.voice ?? "")
-          : voiceRecordId !== ""
+          : !isEdge && voiceRecordId !== ""
             ? undefined
             : isSpeech
-              ? speechLanguage(voiceName, speechModel)
+              ? spokenLanguage
               : voiceName,
         text,
-        format,
-        options: isSpeech
-          ? { language: speechLanguage(voiceRecordId === "" ? voiceName : language, speechModel) }
-          : language
-            ? { language }
-            : undefined,
+        format: isEdge ? "mp3" : format,
+        model: isSpeech && ttsModel ? ttsModel : isOpenAi && openAiModel ? openAiModel : undefined,
+        options: isSpeech ? { language: spokenLanguage } : undefined,
         workflow: isComfy ? pack?.name : undefined,
         inputs: isComfy
           ? Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))
@@ -90,6 +142,10 @@ export function TtsPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const previewVoice =
+    isOpenAi && voiceRecordId !== ""
+      ? (selectedLibrary?.voice_id || selectedLibrary?.name || "")
+      : voiceName;
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,45 +169,94 @@ export function TtsPage() {
                 ))}
               </select>
             </Field>
-            {!isComfy && (
+            {isSpeech && (
               <Field
-                label={tx("音色记录")}
-                hint={
-                  isSpeech
-                    ? tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")
-                    : tx("选自音色库。不选则在下面手动填写音色名。")
-                }
+                label={tx("文字转语音模型")}
+                hint={tx("不选则使用系统设置里的文字转语音模型。")}
               >
-                <select
-                  className={selectClass}
-                  value={voiceRecordId}
-                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">{isSpeech ? tx("使用默认声音…") : tx("手动指定音色…")}</option>
-                  {voices?.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                      {v.is_default ? tx("（默认）") : ""}
-                    </option>
+                <select className={selectClass} value={ttsModel} onChange={(e) => setTtsModel(e.target.value)}>
+                  <option value="">{tx("系统设置")}</option>
+                  {groupTtsModels(ttsModelOptions).map((group) => (
+                    <optgroup key={group.id || "other"} label={tx(speechGroupLabel(group.id))}>
+                      {group.items.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </Field>
             )}
-            {!isComfy && !isSpeech && (
-              <Field label={tx("朗读语言")} hint={tx("只决定发音方式，不会把文字翻译成另一种语言。自动时，音色名以 zh、en 开头就用该语言，否则用中文。")}>
-                <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="">{tx("自动")}</option>
-                  <option value="zh">{tx("中文 zh")}</option>
-                  <option value="en">{tx("英文 en")}</option>
-                  <option value="ja">{tx("日文 ja")}</option>
-                  <option value="ko">{tx("韩文 ko")}</option>
-                  <option value="fr">{tx("法文 fr")}</option>
-                  <option value="de">{tx("德文 de")}</option>
-                  <option value="es">{tx("西班牙文 es")}</option>
-                </select>
+            {isOpenAi && (
+              <Field label={tx("文字转语音模型")} hint={tx("不选则使用该服务的默认模型 tts-1。")}>
+                <div className="flex gap-2">
+                  {openAiModels.length > 0 ? (
+                    <select
+                      className={selectClass}
+                      value={openAiModel}
+                      onChange={(e) => setOpenAiModel(e.target.value)}
+                    >
+                      <option value="">{tx("默认 (tts-1)")}</option>
+                      {openAiModels.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder={refreshModels.isPending ? tx("正在从服务拉取模型…") : "tts-1"}
+                      value={openAiModel}
+                      onChange={(e) => setOpenAiModel(e.target.value)}
+                    />
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={tx("从服务拉取模型列表")}
+                    disabled={!provider || refreshModels.isPending}
+                    onClick={() => provider && refreshModels.mutate(provider.id)}
+                  >
+                    <RefreshCw />
+                  </Button>
+                </div>
               </Field>
             )}
-            {isComfy ? (
+            {isEdge && (
+              <Field
+                label={tx("音色")}
+                hint={tx("本地音色来自微软 Edge TTS。语言由音色名决定，不支持参考音频克隆。")}
+              >
+                <div className="flex gap-2">
+                  {edgeVoices.length > 0 ? (
+                    <select
+                      className={selectClass}
+                      value={voiceName}
+                      onChange={(e) => setVoiceName(e.target.value)}
+                    >
+                      {edgeVoices.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : "zh-CN-XiaoxiaoNeural"}
+                      value={voiceName}
+                      onChange={(e) => setVoiceName(e.target.value)}
+                    />
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={tx("从服务拉取音色列表")}
+                    disabled={!provider || refreshModels.isPending}
+                    onClick={() => provider && refreshModels.mutate(provider.id)}
+                  >
+                    <RefreshCw />
+                  </Button>
+                </div>
+              </Field>
+            )}
+            {isComfy && (
               <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，朗读文本会自动注入。")}>
                 <WorkflowPackControl name={pack?.name} description={pack?.description}>
                   <select
@@ -167,12 +272,45 @@ export function TtsPage() {
                   </select>
                 </WorkflowPackControl>
               </Field>
-            ) : (
-              <Field label={tx("输出格式")} hint={tx("wav / ogg 需要兼容服务支持。")}>
-                <select className={selectClass} value={format} onChange={(e) => setFormat(e.target.value)}>
+            )}
+            {(isSpeech || isOpenAi) && (
+              <Field
+                label={tx("音色记录")}
+                hint={
+                  isSpeech
+                    ? tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")
+                    : tx("选自音色库时使用其中的 voice_id。不选则在下面填写音色名。")
+                }
+              >
+                <select
+                  className={selectClass}
+                  value={voiceRecordId}
+                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">{isSpeech ? tx("使用默认声音…") : tx("手动指定音色…")}</option>
+                  {(isOpenAi ? cloudVoices : voices)?.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {v.is_default ? tx("（默认）") : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {!isComfy && (
+              <Field
+                label={tx("输出格式")}
+                hint={isEdge ? tx("仅 mp3。本地 Edge TTS 不输出 wav / ogg。") : tx("wav / ogg 需要兼容服务支持。")}
+              >
+                <select
+                  className={selectClass}
+                  value={isEdge ? "mp3" : format}
+                  onChange={(e) => setFormat(e.target.value)}
+                  disabled={isEdge}
+                >
                   <option value="mp3">mp3</option>
-                  <option value="wav">wav</option>
-                  <option value="ogg_opus">ogg_opus</option>
+                  {!isEdge && <option value="wav">wav</option>}
+                  {!isEdge && <option value="ogg_opus">ogg_opus</option>}
                 </select>
               </Field>
             )}
@@ -191,29 +329,60 @@ export function TtsPage() {
               providerId={provider?.id}
             />
           )}
-          {!isComfy && isSpeech && (
+          {isSpeech && (
             <SpeechLanguageSelect
-              value={voiceRecordId === "" ? voiceName : language}
-              onChange={voiceRecordId === "" ? setVoiceName : setLanguage}
-              model={speechModel}
+              value={speechLang}
+              onChange={setSpeechLang}
+              model={chosenSpeechModel}
             />
           )}
-          {!isComfy && !isSpeech && voiceRecordId === "" && (
-            <Field label={tx("音色名")} hint={tx("需与所选服务匹配，例如 zh、alloy、af_heart。")}>
-              <Input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} />
+          {isOpenAi && voiceRecordId === "" && (
+            <Field label={tx("音色名")} hint={tx("来自该服务的音色列表，也可手动输入，例如 alloy。")}>
+              <div className="flex gap-2">
+                {openAiVoices.length > 0 && !openAiVoiceManual ? (
+                  <select
+                    className={selectClass}
+                    value={openAiVoices.includes(voiceName) ? voiceName : ""}
+                    onChange={(e) => {
+                      if (e.target.value === "__manual") {
+                        setOpenAiVoiceManual(true);
+                        return;
+                      }
+                      setVoiceName(e.target.value);
+                    }}
+                  >
+                    <option value="">{tx("选择音色…")}</option>
+                    {openAiVoices.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                    <option value="__manual">{tx("手动输入音色…")}</option>
+                  </select>
+                ) : (
+                  <Input
+                    placeholder="alloy"
+                    value={voiceName}
+                    onChange={(e) => setVoiceName(e.target.value)}
+                  />
+                )}
+                {openAiVoices.length > 0 && openAiVoiceManual && (
+                  <Button variant="outline" onClick={() => setOpenAiVoiceManual(false)}>
+                    {tx("从列表选择")}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={tx("从服务拉取音色列表")}
+                  disabled={!provider || refreshModels.isPending}
+                  onClick={() => provider && refreshModels.mutate(provider.id)}
+                >
+                  <RefreshCw />
+                </Button>
+              </div>
             </Field>
           )}
           {supportsTtsPreview(provider?.type) && provider && (
-            <TtsPreview
-              providerId={provider.id}
-              voice={
-                voiceRecordId === ""
-                  ? voiceName
-                  : (voices?.find((v) => v.id === voiceRecordId)?.voice_id ||
-                    voices?.find((v) => v.id === voiceRecordId)?.name ||
-                    "")
-              }
-            />
+            <TtsPreview providerId={provider.id} voice={previewVoice} />
           )}
           <Field label={tx("合成文本")} hint={tx("这段文字会按所选音色朗读。")}>
             <textarea
@@ -229,7 +398,8 @@ export function TtsPage() {
               onClick={() => submit.mutate()}
               disabled={
                 !text ||
-                (!isComfy && !isSpeech && voiceRecordId === "" && !voiceName) ||
+                (isEdge && !voiceName) ||
+                (isOpenAi && voiceRecordId === "" && !voiceName) ||
                 (isComfy && !pack) ||
                 submit.isPending ||
                 !!running
@@ -249,25 +419,45 @@ export function TtsPage() {
             emptyHint={tx("输入文本，合成第一段语音")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },
+              ...(isSpeech
+                ? [{ label: tx("模型"), value: ttsModel || tx("系统设置") }]
+                : isOpenAi
+                  ? [{ label: tx("模型"), value: openAiModel || "tts-1" }]
+                  : []),
               {
                 label: tx("音色"),
                 value: isComfy
                   ? (pack?.name ?? "")
-                  : voiceRecordId === ""
-                    ? voiceName
-                    : (voices?.find((v) => v.id === voiceRecordId)?.name ?? ""),
+                  : !isEdge && voiceRecordId !== ""
+                    ? (selectedLibrary?.name ?? "")
+                    : isSpeech
+                      ? spokenLanguage
+                      : voiceName,
               },
-              {
-                label: tx("语言"),
-                value: isSpeech
-                  ? speechLanguage(voiceRecordId === "" ? voiceName : language, speechModel)
-                  : language || tx("自动"),
-              },
-              { label: tx("格式"), value: format },
+              ...(isSpeech ? [{ label: tx("语言"), value: spokenLanguage }] : []),
+              ...(!isComfy ? [{ label: tx("格式"), value: isEdge ? "mp3" : format }] : []),
             ]}
           />
         }
       />
     </div>
   );
+}
+
+function speechGroupLabel(group: string): string {
+  return SPEECH_MODEL_GROUPS.find((item) => item.id === group)?.label || group || "其他";
+}
+
+function groupTtsModels(models: SpeechCatalogModel[]) {
+  const order: string[] = [];
+  const grouped = new Map<string, SpeechCatalogModel[]>();
+  for (const item of models) {
+    const group = item.group || "";
+    if (!grouped.has(group)) {
+      order.push(group);
+      grouped.set(group, []);
+    }
+    grouped.get(group)?.push(item);
+  }
+  return order.map((id) => ({ id, items: grouped.get(id) ?? [] }));
 }

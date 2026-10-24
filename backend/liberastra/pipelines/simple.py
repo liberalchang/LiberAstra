@@ -647,6 +647,8 @@ async def _synthesize_avatar_line(
     extra: dict[str, Any] = {}
     if tts_provider.type == "liber_speech" and params.get("language"):
         extra["language"] = str(params["language"])
+    if tts_provider.type == "liber_speech" and params.get("ref_audio"):
+        extra["ref_audio"] = str(params["ref_audio"])
     audio = await tts.synthesize(text=text, voice=params.get("voice"), fmt="mp3", **extra)
     return "mp3", audio
 
@@ -944,6 +946,8 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             extra: dict[str, Any] = {}
             if tts_provider.type == "liber_speech" and params.get("language"):
                 extra["language"] = str(params["language"])
+            if tts_provider.type == "liber_speech" and params.get("ref_audio"):
+                extra["ref_audio"] = str(params["ref_audio"])
             audio_bytes = await tts.synthesize(text=text, voice=voice, fmt="mp3", **extra)
             ext = "mp3"
         audio_path = job_path(job, f"frame_{i:02d}.{ext}")

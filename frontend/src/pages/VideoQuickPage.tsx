@@ -18,7 +18,14 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
-import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
+import {
+  SpeechLanguageSelect,
+  isLanguageCodeVoice,
+  partitionServiceNames,
+  sanitizeServiceVoice,
+  speechLanguage,
+  useDefaultSpeechModel,
+} from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button } from "@/components/ui/button";
@@ -257,19 +264,34 @@ export function VideoQuickPage() {
   /** 克隆服务（Liber Speech）用音色库；edge_tts / 第三方用服务自己的音色列表 */
   const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
-  const serviceVoices = isLibraryVoice ? [] : (ttsProvider?.models ?? []);
+  const isOpenAiTts = ttsProvider?.type === "openai_tts";
+  const serviceVoices = isLibraryVoice
+    ? []
+    : isOpenAiTts
+      ? partitionServiceNames(ttsProvider?.models ?? []).voices
+      : (ttsProvider?.models ?? []);
   // 切到非克隆服务且还没拉过音色列表时自动拉一次
   useEffect(() => {
     if (ttsProvider && !ttsIsComfy && !isLibraryVoice && ttsProvider.models.length === 0 && !refreshModels.isPending) {
       refreshModels.mutate(ttsProvider.id);
     }
+    if (
+      ttsProvider &&
+      !ttsIsComfy &&
+      !isLibraryVoice &&
+      (ttsProvider.type === "edge_tts" || ttsProvider.type === "openai_tts")
+    ) {
+      const next = sanitizeServiceVoice(voiceName, serviceVoices, ttsProvider.type);
+      if (next !== voiceName) setVoiceName(next);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ttsProvider?.id, ttsIsComfy, isLibraryVoice]);
+  }, [ttsProvider?.id, ttsProvider?.type, ttsIsComfy, isLibraryVoice, serviceVoices.join("|")]);
   const [ttsWorkflow, setTtsWorkflow] = usePersistentState("video-quick:tts-workflow", "");
   const ttsPack = ttsPacks?.find((p) => p.name === ttsWorkflow) ?? ttsPacks?.[0];
   const [ttsExtra, setTtsExtra] = usePersistentState<Record<string, string>>("video-quick:tts-extra", {});
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-quick:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("video-quick:voice-name", "");
+  const [speechLang, setSpeechLang] = usePersistentState("video-quick:speech-lang", "zh");
 
   // ---- ④ 背景音乐 ----
   const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
@@ -335,15 +357,15 @@ export function VideoQuickPage() {
       aspect,
       template: tpl?.name,
       voice_record_id:
-        !ttsIsComfy && isLibraryVoice && voiceRecordId !== "" ? voiceRecordId : undefined,
+        !ttsIsComfy && (isLibraryVoice || isOpenAiTts) && voiceRecordId !== "" ? voiceRecordId : undefined,
       voice: ttsIsComfy
         ? (ttsExtra.voice ?? "")
-        : isLibraryVoice && voiceRecordId !== ""
+        : (isLibraryVoice || isOpenAiTts) && voiceRecordId !== ""
           ? ""
           : isLibraryVoice
-            ? speechLanguage(voiceName, speechModel)
+            ? speechLanguage(speechLang, speechModel)
             : voiceName,
-      language: !ttsIsComfy && isLibraryVoice ? speechLanguage(voiceName, speechModel) : undefined,
+      language: !ttsIsComfy && isLibraryVoice ? speechLanguage(speechLang, speechModel) : undefined,
       style_prefix: stylePrefix,
       character_id: characterId === "" ? undefined : characterId,
       storyboard: board,
@@ -441,7 +463,7 @@ export function VideoQuickPage() {
     (mode === "topic" ? !effectiveTopic : !script.trim()) ||
     !tpl ||
     (needsLlm && !hasLlm) ||
-    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !voiceName) ||
+    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !(isOpenAiTts && voiceRecordId !== "") && !voiceName) ||
     (!nativeAudio && ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     submit.isPending ||
@@ -450,7 +472,7 @@ export function VideoQuickPage() {
     batchTopics.length === 0 ||
     !tpl ||
     !hasLlm ||
-    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !voiceName) ||
+    (!nativeAudio && !ttsIsComfy && !isLibraryVoice && !(isOpenAiTts && voiceRecordId !== "") && !voiceName) ||
     (!nativeAudio && ttsIsComfy && !ttsPack) ||
     (tpl?.type === "video" && !videoPacks?.length) ||
     batchSubmit.isPending;
@@ -946,9 +968,28 @@ export function VideoQuickPage() {
                   ))}
                 </select>
               </Field>
-              <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} model={speechModel} />
+              <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
             </div>
           ) : (
+            <>
+            {isOpenAiTts && (
+              <Field label={tx("音色记录")} hint={tx("选自音色库时使用其中的 voice_id。不选则在下面填写音色名。")}>
+                <select
+                  className={selectClass}
+                  value={voiceRecordId}
+                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">{tx("手动指定音色…")}</option>
+                  {voices?.filter((item) => item.voice_id).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {v.is_default ? tx("（默认）") : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {(!isOpenAiTts || voiceRecordId === "") && (
             <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
               <div className="flex gap-2">
                 {serviceVoices.length > 0 ? (
@@ -958,8 +999,8 @@ export function VideoQuickPage() {
                     onChange={(e) => setVoiceName(e.target.value)}
                   >
                     <option value="">{tx("选择音色…")}</option>
-                    {voiceName && !serviceVoices.includes(voiceName) && (
-                      <option value={voiceName}>{voiceName}{tx("（不在列表中）")}</option>
+                    {voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName) && (
+                      <option value={voiceName}>{voiceName}</option>
                     )}
                     {serviceVoices.map((v) => (
                       <option key={v} value={v}>{v}</option>
@@ -983,9 +1024,18 @@ export function VideoQuickPage() {
                 </Button>
               </div>
             </Field>
+            )}
+            </>
           )}
           {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
-            <TtsPreview providerId={ttsProvider.id} voice={voiceName} />
+            <TtsPreview
+              providerId={ttsProvider.id}
+              voice={
+                isOpenAiTts && voiceRecordId !== ""
+                  ? (voices?.find((item) => item.id === voiceRecordId)?.voice_id || "")
+                  : voiceName
+              }
+            />
           )}
           </>
           )}

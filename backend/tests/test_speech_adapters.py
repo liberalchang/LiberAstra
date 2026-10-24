@@ -50,6 +50,7 @@ def test_openai_tts_adapter() -> None:
             audio = await adapter.synthesize(text="你好", voice="af_heart", fmt="mp3")
             assert audio == b"audio-bytes"
             assert await adapter.list_voices() == ["af_heart", "am_adam"]
+            assert await adapter.list_models() == ["af_heart", "am_adam"]
             assert "2 个" in await adapter.test()
 
     asyncio.run(run())
@@ -99,6 +100,36 @@ def test_openai_stt_adapter(tmp_path) -> None:  # noqa: ANN001
             assert len(result.segments) == 2
             assert result.segments[1].end == 2.0
             assert result.language == "zh"
+
+    asyncio.run(run())
+
+
+def test_openai_stt_list_models() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": [{"id": "whisper-1"}, {"id": "SenseVoiceSmall"}]})
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAISTT("http://mock/v1", client=client)
+            assert await adapter.list_models() == ["whisper-1", "SenseVoiceSmall"]
+            assert "2 个" in await adapter.test()
+
+    asyncio.run(run())
+
+
+def test_openai_tts_list_models_fallback() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": [{"id": "tts-1"}, {"id": "tts-1-hd"}]})
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAITTS("http://mock/v1", client=client)
+            assert await adapter.list_voices() == []
+            assert await adapter.list_models() == ["tts-1", "tts-1-hd"]
 
     asyncio.run(run())
 

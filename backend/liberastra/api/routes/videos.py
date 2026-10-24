@@ -39,17 +39,20 @@ def _hex_color(value: str) -> bool:
     return all(ch in "0123456789abcdefABCDEF" for ch in value[1:])
 
 
-def _resolve_voice(db: Session, user: User, voice: str, voice_record_id: int | None) -> str:
+def _resolve_voice(
+    db: Session, user: User, voice: str, voice_record_id: int | None
+) -> tuple[str, str]:
+    """返回 (音色名, 参考音频相对路径)。有参考音频时 Liber Speech 会按这条克隆。"""
     if voice_record_id is not None:
         record = db.get(Voice, voice_record_id)
         if record is None or record.owner_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音色不存在")
-        return record.voice_id or record.name
+        return record.voice_id or record.name, record.ref_audio_path or ""
     if not voice:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 voice 或 voice_record_id"
         )
-    return voice
+    return voice, ""
 
 
 def _character(db: Session, user: User, character_id: int | None) -> Character | None:
@@ -99,9 +102,10 @@ async def quick(
     tpl = resolve_quick_template(body.template, body.aspect)
     native_audio = body.audio_mode == "auto" and tpl.type == "video"
     voice = ""
+    ref_audio = ""
     if not native_audio:
         if body.voice or body.voice_record_id:
-            voice = _resolve_voice(db, user, body.voice, body.voice_record_id)
+            voice, ref_audio = _resolve_voice(db, user, body.voice, body.voice_record_id)
         tts_provider = pick_provider(db, "tts", body.tts_provider_id)
         if tts_provider.type == "comfyui" and not body.tts_workflow:
             raise HTTPException(
@@ -138,6 +142,7 @@ async def quick(
             "storyboard_count": body.storyboard_count,
             "aspect": body.aspect,
             "voice": voice,
+            "ref_audio": ref_audio,
             "language": body.language,
             "style_prefix": style_prefix,
             "storyboard": body.storyboard,
@@ -236,7 +241,9 @@ async def avatar(
     if character and not voice and voice_record_id is None:
         voice_record_id = character.voice_record_id
         voice = character.voice_name or ""
-    voice_name = _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ""
+    voice_name, ref_audio = (
+        _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ("", "")
+    )
     paths = await _image_or_character(image, character, "portrait", multi=False)
     image_path = paths[0]
     job = _submit(
@@ -245,6 +252,7 @@ async def avatar(
             "workflow": workflow,
             "text": text,
             "voice": voice_name,
+            "ref_audio": ref_audio,
             "language": language,
             "tts_provider_id": tts_provider_id,
             "tts_workflow": tts_workflow,
@@ -365,7 +373,9 @@ async def custom_assets(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="素材动画需要选择 i2v 工作流包"
             )
         pick_provider(db, "video", video_provider_id)
-    voice_name = _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ""
+    voice_name, ref_audio = (
+        _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ("", "")
+    )
     if analysis_image_workflow or analysis_video_workflow:
         pick_provider(db, "image", analysis_provider_id)
 
@@ -379,6 +389,7 @@ async def custom_assets(
             "duration": duration,
             "aspect": aspect,
             "voice": voice_name,
+            "ref_audio": ref_audio,
             "language": language,
             "animate": animate,
             "animate_prompt": animate_prompt,

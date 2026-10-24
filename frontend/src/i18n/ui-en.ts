@@ -474,6 +474,21 @@ export const UI_EN: Record<string, string> = {
   "作为视频首帧。": "Used as the first frame.",
   "目标人物或画面。": "The target person or scene.",
   "使用默认声音…": "Use the built-in voice…",
+  "不选则使用该服务的默认模型 tts-1。": "Leave empty to use this service's default model, tts-1.",
+  "默认 (tts-1)": "Default (tts-1)",
+  "正在从服务拉取模型…": "Loading models…",
+  "从服务拉取模型列表": "Refresh models from the service",
+  "本地音色来自微软 Edge TTS。语言由音色名决定，不支持参考音频克隆。":
+    "Local voices come from Microsoft Edge TTS. The voice name sets the language. Reference-audio cloning is not available.",
+  "仅 mp3。本地 Edge TTS 不输出 wav / ogg。": "MP3 only. Local Edge TTS does not output wav or ogg.",
+  "选自音色库时使用其中的 voice_id。不选则在下面填写音色名。":
+    "A saved voice uses its voice_id. Otherwise type a voice name below.",
+  "来自该服务的音色列表，也可手动输入，例如 alloy。":
+    "Voices from this service, or type one such as alloy.",
+  "手动输入音色…": "Type a voice name…",
+  "从列表选择": "Pick from the list",
+  "不选则使用该服务的默认模型 whisper-1。": "Leave empty to use this service's default model, whisper-1.",
+  "默认 (whisper-1)": "Default (whisper-1)",
   "选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。":
     "A library voice clones that reference clip. Otherwise the model uses its built-in voice.",
   "不使用音色库时，模型用自带的默认声音，按这个语言发音。":
@@ -964,8 +979,14 @@ export const UI_EN: Record<string, string> = {
   "清空参考图": "Clear references",
   "当前默认模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。":
     "This model pack speaks only this language. A library voice still clones its reference audio.",
+  "当前模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。":
+    "This model pack speaks only this language. A library voice still clones its reference audio.",
   "按系统设置里的默认模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。":
     "Speech follows the default model pack in System Settings. A library voice still clones its reference audio; this only sets the language.",
+  "按当前模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。":
+    "Speech follows the selected model pack. A library voice still clones its reference audio; this only sets the language.",
+  "不选则使用系统设置里的文字转语音模型。":
+    "Leave this unset to use the text-to-speech model from System Settings.",
   "默认语音合成（Liber Speech）": "Default speech model (Liber Speech)",
   "语音文字合成（Liber Speech）": "Speech synthesis and recognition (Liber Speech)",
   "文字转语音和语音转文字都走这台 Liber Speech。功能页不单独选模型时使用这里的配置。":
@@ -988,6 +1009,7 @@ export const UI_EN: Record<string, string> = {
   "文字转语音、快速创作、自定义素材和数字人口播都使用这个模型包。功能页只选音色和语言。":
     "Text-to-speech, quick creation, custom assets, and avatar all use this pack. Those pages only choose a voice and a language.",
   "模型包": "Model pack",
+  "其他": "Other",
   "多语言模型": "Multilingual",
   "单语言精调包": "Single-language packs",
   "英文模型": "English models",

@@ -356,6 +356,7 @@ export const api = {
     voice?: string;
     text: string;
     format: string;
+    model?: string;
     options?: { language?: string };
     workflow?: string;
     inputs?: Record<string, unknown>;

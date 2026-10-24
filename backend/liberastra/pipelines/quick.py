@@ -255,6 +255,8 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             extra = dict(params.get("tts_options") or {})
             if tts_provider.type == "liber_speech" and params.get("language"):
                 extra["language"] = str(params["language"])
+            if tts_provider.type == "liber_speech" and params.get("ref_audio"):
+                extra["ref_audio"] = str(params["ref_audio"])
             audio_bytes = await tts.synthesize(text=text, voice=voice, fmt="mp3", **extra)
             ext = "mp3"
         audio_path = job_path(job, f"frame_{i:02d}.{ext}")

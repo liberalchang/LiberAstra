@@ -1,7 +1,7 @@
-import { Film, PersonStanding, UserRound } from "lucide-react";
+import { Film, PersonStanding, RefreshCw, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { api, type JobOut } from "@/api/client";
 import {
@@ -15,7 +15,14 @@ import {
   PromptField,
   resolveEffectivePrompt,
 } from "@/components/PromptField";
-import { SpeechLanguageSelect, speechLanguage, useDefaultSpeechModel } from "@/components/SpeechLanguageSelect";
+import {
+  SpeechLanguageSelect,
+  isLanguageCodeVoice,
+  partitionServiceNames,
+  sanitizeServiceVoice,
+  speechLanguage,
+  useDefaultSpeechModel,
+} from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button } from "@/components/ui/button";
@@ -94,6 +101,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [text, setText] = usePersistentState(`video-${kind}:text`, "");
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
+  const [speechLang, setSpeechLang] = usePersistentState(`video-${kind}:speech-lang`, "zh");
   const [extra, setExtra] = usePersistentState<Record<string, string>>(
     `video-${kind}:extra:${pack?.name ?? "none"}`,
     () => modelDefaultsFromInputs(pack?.inputs, ["prompt", "image", "video", "audio", "mask"]),
@@ -118,7 +126,17 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const ttsIsComfy = ttsProvider?.type === "comfyui";
   const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
-  const serviceVoices = isLibraryVoice || ttsIsComfy ? [] : (ttsProvider?.models ?? []);
+  const isOpenAiTts = ttsProvider?.type === "openai_tts";
+  const serviceVoices = isLibraryVoice || ttsIsComfy
+    ? []
+    : isOpenAiTts
+      ? partitionServiceNames(ttsProvider?.models ?? []).voices
+      : (ttsProvider?.models ?? []);
+  const queryClient = useQueryClient();
+  const refreshModels = useMutation({
+    mutationFn: (id: number) => api.fetchProviderModels(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+  });
   const [ttsWorkflow, setTtsWorkflow] = usePersistentState(`video-${kind}:tts-workflow`, "");
   const ttsPack = ttsPacks?.find((p) => p.name === ttsWorkflow) ?? ttsPacks?.[0];
   const [ttsExtra, setTtsExtra] = usePersistentState<Record<string, string>>(`video-${kind}:tts-extra`, {});
@@ -127,6 +145,18 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [bgmName, setBgmName] = usePersistentState(`video-${kind}:bgm-name`, "");
   const [bgmVolume, setBgmVolume] = usePersistentState(`video-${kind}:bgm-volume`, "0.2");
   const [audioMode, setAudioMode] = usePersistentState<"model" | "reference">("video-motion:audio-mode", "model");
+
+  useEffect(() => {
+    if (kind !== "avatar" || !ttsProvider || ttsIsComfy || isLibraryVoice) return;
+    if (ttsProvider.models.length === 0 && !refreshModels.isPending) {
+      refreshModels.mutate(ttsProvider.id);
+    }
+    if (ttsProvider.type === "edge_tts" || ttsProvider.type === "openai_tts") {
+      const next = sanitizeServiceVoice(voiceName, serviceVoices, ttsProvider.type);
+      if (next !== voiceName) setVoiceName(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, ttsProvider?.id, ttsProvider?.type, ttsIsComfy, isLibraryVoice, serviceVoices.join("|")]);
 
   const { job, setJobId } = useTrackedJob(`video-${kind}`);
 
@@ -148,15 +178,18 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           if (ttsPack) form.set("tts_workflow", ttsPack.name);
           form.set("tts_inputs", JSON.stringify(Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))));
           form.set("voice", ttsExtra.voice ?? "");
+        } else if (isOpenAiTts && voiceRecordId !== "") {
+          form.set("voice_record_id", String(voiceRecordId));
         } else if (isLibraryVoice && (voiceRecordId !== "" || character?.voice_record_id)) {
           form.set("voice_record_id", String(voiceRecordId !== "" ? voiceRecordId : character?.voice_record_id));
         } else if (isLibraryVoice) {
-          form.set("voice", speechLanguage(voiceName || character?.voice_name || "", speechModel));
+          form.set("voice", speechLanguage(speechLang, speechModel));
         } else {
-          form.set("voice", voiceName || character?.voice_name || "");
+          const saved = character?.voice_name && !isLanguageCodeVoice(character.voice_name) ? character.voice_name : "";
+          form.set("voice", voiceName || saved);
         }
         if (isLibraryVoice && !ttsIsComfy) {
-          form.set("language", speechLanguage(voiceName || character?.voice_name || "", speechModel));
+          form.set("language", speechLanguage(speechLang, speechModel));
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
@@ -184,7 +217,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       (text &&
         (ttsIsComfy
           ? !!ttsPack
-          : isLibraryVoice || !!voiceName || !!character?.voice_name)));
+          : isLibraryVoice || (isOpenAiTts && voiceRecordId !== "") || !!voiceName || !!character?.voice_name)));
 
   return (
     <div className="flex flex-col gap-6">
@@ -350,10 +383,27 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                       ))}
                     </select>
                   </Field>
-                  <SpeechLanguageSelect value={voiceName} onChange={setVoiceName} model={speechModel} />
+                  <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
                 </div>
               ) : (
-                <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；服务提供方页可拉取/刷新模型列表。")}>
+                <>
+                {isOpenAiTts && (
+                  <Field label={tx("音色记录")} hint={tx("选自音色库时使用其中的 voice_id。不选则在下面填写音色名。")}>
+                    <select
+                      className={selectClass}
+                      value={voiceRecordId}
+                      onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                    >
+                      <option value="">{tx("手动指定音色…")}</option>
+                      {voices?.filter((item) => item.voice_id).map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+                {(!isOpenAiTts || voiceRecordId === "") && (
+                <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
+                  <div className="flex gap-2">
                   {serviceVoices.length > 0 ? (
                     <select
                       className={selectClass}
@@ -361,8 +411,8 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                       onChange={(e) => setVoiceName(e.target.value)}
                     >
                       <option value="">{tx("选择音色…")}</option>
-                      {voiceName && !serviceVoices.includes(voiceName) && (
-                        <option value={voiceName}>{voiceName}{tx("（不在列表中）")}</option>
+                      {voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName) && (
+                        <option value={voiceName}>{voiceName}</option>
                       )}
                       {serviceVoices.map((v) => (
                         <option key={v} value={v}>{v}</option>
@@ -370,12 +420,24 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     </select>
                   ) : (
                     <Input
-                      placeholder={tx("如 zh-CN-XiaoxiaoNeural（列表为空时可到服务提供方页拉取模型）")}
+                      placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural")}
                       value={voiceName}
                       onChange={(e) => setVoiceName(e.target.value)}
                     />
                   )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={tx("从服务拉取音色列表")}
+                    disabled={!ttsProvider || refreshModels.isPending}
+                    onClick={() => ttsProvider && refreshModels.mutate(ttsProvider.id)}
+                  >
+                    <RefreshCw />
+                  </Button>
+                  </div>
                 </Field>
+                )}
+                </>
               )}
               {supportsTtsPreview(ttsProvider?.type) && ttsProvider && (
                 <TtsPreview providerId={ttsProvider.id} voice={voiceName || character?.voice_name || ""} />

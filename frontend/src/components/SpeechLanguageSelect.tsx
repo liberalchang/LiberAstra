@@ -95,6 +95,44 @@ export function speechModelHint(model: string): string {
   return "支持 23 种语言。功能页的语言下拉会列出全部。";
 }
 
+export const EDGE_DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural";
+
+/** 两位语言码属于 Liber Speech，不是 Edge TTS 或 OpenAI 兼容 TTS 的音色名。 */
+export function isLanguageCodeVoice(value: string): boolean {
+  return /^[a-z]{2}$/i.test(value.trim());
+}
+
+/** 列表里已有就保留；语言码或空值改成中文默认音色，否则用列表第一项。 */
+export function edgeVoiceOrDefault(current: string, voices: string[]): string {
+  if (current && voices.includes(current)) return current;
+  if (current && !isLanguageCodeVoice(current) && voices.length === 0) return current;
+  if (voices.includes(EDGE_DEFAULT_VOICE)) return EDGE_DEFAULT_VOICE;
+  if (voices[0]) return voices[0];
+  if (current && !isLanguageCodeVoice(current)) return current;
+  return EDGE_DEFAULT_VOICE;
+}
+
+const SERVICE_MODEL_ID = /tts|whisper|gpt-|sensevoice|asr/i;
+
+/** 同一份拉取结果里，模型 id 和音色名分开。全是模型 id 时不再当成音色。 */
+export function partitionServiceNames(items: string[]): { voices: string[]; models: string[] } {
+  if (items.length === 0) return { voices: [], models: [] };
+  const models = items.filter((item) => SERVICE_MODEL_ID.test(item));
+  if (models.length === items.length) return { voices: [], models: items };
+  return { voices: items.filter((item) => !SERVICE_MODEL_ID.test(item)), models };
+}
+
+/** 清掉写进音色名里的语言码。Edge 回到默认音色，OpenAI 兼容回到列表或空。 */
+export function sanitizeServiceVoice(
+  current: string,
+  voices: string[],
+  kind: "edge_tts" | "openai_tts",
+): string {
+  if (kind === "edge_tts") return edgeVoiceOrDefault(current, voices);
+  if (isLanguageCodeVoice(current) && !voices.includes(current)) return voices[0] ?? "";
+  return current;
+}
+
 /** 系统设置里的默认 Liber Speech 模型包。 */
 export function useDefaultSpeechModel(): string {
   const { data } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
@@ -122,8 +160,8 @@ export function SpeechLanguageSelect({
       label={tx("语言")}
       hint={
         langs.length === 1
-          ? tx("当前默认模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。")
-          : tx("按系统设置里的默认模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。")
+          ? tx("当前模型包只使用这一种语言。选用音色库时，参考音频仍然用来克隆音色。")
+          : tx("按当前模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。")
       }
     >
       <select className={selectClass} value={selected} onChange={(e) => onChange(e.target.value)}>

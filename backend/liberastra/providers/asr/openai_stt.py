@@ -86,8 +86,16 @@ class OpenAISTT:
             language=payload.get("language"),
         )
 
-    async def test(self) -> str:
+    async def list_models(self) -> list[str]:
+        """拉取 /models，供识别页下拉。没有该端点时由调用方改成手填。"""
         data = await _json_request(
             self._client, self._timeout, "GET", f"{self.base_url}/models", self._headers()
         )
-        return f"连接成功，可用模型 {len(data.get('data', []))} 个"
+        rows = data.get("data", []) if isinstance(data, dict) else []
+        if not isinstance(rows, list):
+            return []
+        return [str(item["id"]) for item in rows if isinstance(item, dict) and item.get("id")]
+
+    async def test(self) -> str:
+        models = await self.list_models()
+        return f"连接成功，可用模型 {len(models)} 个"
