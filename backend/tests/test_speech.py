@@ -120,7 +120,7 @@ def test_asr_job_subtitle_export(
 ) -> None:
     from liberastra.services import asr as asr_service
 
-    monkeypatch.setattr(asr_service, "build_asr_adapter", lambda record: _FakeASR())
+    monkeypatch.setattr(asr_service, "build_asr_adapter", lambda record, **_kwargs: _FakeASR())
 
     resp = client.post(
         "/api/v1/asr?wait=true",
@@ -155,7 +155,7 @@ def test_asr_job_format_priority(
     """自动模式（默认 formats）按优先级 txt → json → srt → vtt 取第一个可用格式。"""
     from liberastra.services import asr as asr_service
 
-    monkeypatch.setattr(asr_service, "build_asr_adapter", lambda record: _FakeASR())
+    monkeypatch.setattr(asr_service, "build_asr_adapter", lambda record, **_kwargs: _FakeASR())
 
     resp = client.post(
         "/api/v1/asr?wait=true",
@@ -199,7 +199,7 @@ def test_openai_compat_transcriptions(
 ) -> None:
     from liberastra.api.routes import openai_audio
 
-    monkeypatch.setattr(openai_audio, "build_asr_adapter", lambda record: _FakeASR())
+    monkeypatch.setattr(openai_audio, "build_asr_adapter", lambda record, **_kwargs: _FakeASR())
 
     resp = client.post(
         "/v1/audio/transcriptions",
@@ -259,7 +259,11 @@ def test_tts_with_voice_record(
     assert job["params"]["voice"] == "cloud-voice-42"
 
 
-def test_system_speech_models(client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_system_speech_models(
+    client: TestClient,
+    auth_header: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """系统设置读取已启用 Liber Speech 的 tts_models 与 asr_models。"""
     created = client.post(
         "/api/v1/providers",

@@ -247,6 +247,11 @@ def test_liber_speech_catalog() -> None:
             assert catalog["default_tts_model"] == "multilingual_v3"
             assert catalog["tts_models"][0]["languages"] == ["zh", "en"]
             assert [item["id"] for item in catalog["asr_models"]] == ["large-v3", "qwen3-asr-1.7b"]
+            assert await adapter.list_models() == [
+                "multilingual_v3 · Chatterbox-Multilingual V3 · TTS",
+                "large-v3 · faster-whisper large-v3 · ASR",
+                "qwen3-asr-1.7b · Qwen3-ASR-1.7B · ASR",
+            ]
 
     asyncio.run(run())
 

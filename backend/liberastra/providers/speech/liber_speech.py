@@ -41,6 +41,15 @@ SPEECH_MODEL_LANGS: dict[str, str | None] = {
 }
 
 
+def _catalog_model_line(item: dict[str, Any], role: str) -> str:
+    """服务提供方保存的是纯字符串。带上 id，避免只看到当前默认的那一对。"""
+    model_id = str(item["id"])
+    label = str(item.get("label") or model_id)
+    if label == model_id:
+        return f"{model_id} · {role}"
+    return f"{model_id} · {label} · {role}"
+
+
 def _catalog_items(raw: object) -> list[dict[str, Any]]:
     """保留语音服务返回的 id、显示名、分组和语言。"""
     if not isinstance(raw, list):
@@ -189,11 +198,21 @@ class LiberSpeech:
         return f"Liber Speech API {data.get('status', 'ok')}，ASR {asr}，TTS {tts}"
 
     async def list_models(self) -> list[str]:
-        """向语音服务询问实际加载的 ASR / TTS 模型。地址错误时这里会失败。"""
+        """服务提供方刷新时保存的模型名。优先用 tts_models 和 asr_models。"""
         resp = await self._request("GET", f"{self.api_root}/models")
         payload = resp.json()
-        items = payload.get("models") if isinstance(payload, dict) else None
-        names: list[str] = []
+        if not isinstance(payload, dict):
+            raise ProviderError(f"Liber Speech API 模型响应无效 {self.api_root}/models")
+        names = [
+            _catalog_model_line(item, "TTS") for item in _catalog_items(payload.get("tts_models"))
+        ]
+        names.extend(
+            _catalog_model_line(item, "ASR") for item in _catalog_items(payload.get("asr_models"))
+        )
+        if names:
+            return names
+        # 旧语音服务只有当前默认的一对，放在 models 里。
+        items = payload.get("models")
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, str) and item.strip():
