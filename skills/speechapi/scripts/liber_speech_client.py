@@ -29,7 +29,7 @@ def _request(method: str, url: str, **kwargs) -> requests.Response:
 VALID_TTS_FORMATS = {"wav", "ogg", "ogg_opus"}
 VALID_ASR_OUTPUTS = {"json", "text"}
 # 只转发服务端声明的表单字段。温度、说话人分割等旧参数当前接口不接收。
-ASR_FIELDS = ("language", "task")
+ASR_FIELDS = ("language", "task", "model")
 TTS_FIELDS = ("model", "language", "format")
 
 
@@ -60,9 +60,10 @@ def load_config_json(config_path: Path) -> dict[str, Any]:
         "asr": {
             "language": "zh",
             "task": "transcribe",
+            "model": "default",
         },
         "tts": {
-            "model": "multilingual",
+            "model": "multilingual_v3",
             "language": "zh",
             "format": "wav",
             "audio_prompt_path": "default",
@@ -283,6 +284,7 @@ def transcribe_file(
     audio_path: str,
     language: str | None = None,
     task: str | None = None,
+    model: str | None = None,
     output: str | None = None,
 ) -> dict[str, Any] | str:
     config = load_env()
@@ -295,7 +297,7 @@ def transcribe_file(
     if output_mode not in VALID_ASR_OUTPUTS:
         raise ValueError(f"Invalid ASR output mode: {output_mode}")
 
-    data = build_asr_params(config, {"language": language, "task": task})
+    data = build_asr_params(config, {"language": language, "task": task, "model": model})
     url = f'{config["base_url"]}/asr/transcribe'
 
     with file_path.open("rb") as fh:
@@ -406,6 +408,7 @@ def main() -> None:
     asr_parser.add_argument("audio_path", help="Path to local audio file")
     asr_parser.add_argument("--language", default=None)
     asr_parser.add_argument("--task", default=None, choices=("transcribe", "translate"))
+    asr_parser.add_argument("--model", default=None, help="large-v3、large-v3-turbo 或 qwen3-asr-1.7b。不传则用配置；配置为 default 时跟随服务端环境变量")
     asr_parser.add_argument("--output", choices=sorted(VALID_ASR_OUTPUTS), default=None)
 
     tts_parser = subparsers.add_parser("tts", help="Synthesize text")
@@ -427,6 +430,7 @@ def main() -> None:
                 audio_path=args.audio_path,
                 language=args.language,
                 task=args.task,
+                model=args.model,
                 output=args.output,
             )
         elif args.command == "tts":

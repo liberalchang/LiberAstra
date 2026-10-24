@@ -30,7 +30,7 @@ def _pick_format(formats: list[str] | None) -> str:
 
 async def run_asr_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     provider = pick_provider(db, "asr", job.provider_id)
-    adapter = build_asr_adapter(provider)
+    adapter = build_asr_adapter(provider, db=db)
     params = job.params
 
     ctx.report(db, job, progress=0.1, step="transcribe")

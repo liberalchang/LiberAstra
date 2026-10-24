@@ -15,7 +15,8 @@ services:
       LIBER_SPEECH_DEVICE: ${LIBER_SPEECH_DEVICE:-auto}
       LIBER_SPEECH_API_KEY: ${LIBER_SPEECH_API_KEY:-}
       LIBER_SPEECH_ASR_MODEL: ${LIBER_SPEECH_ASR_MODEL:-large-v3}
-      LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual}
+      # 不传 model 时的默认合成包。multilingual 仍是 multilingual_v2 的别名
+      LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual_v3}
       HF_HOME: /models
       HUGGINGFACE_HUB_CACHE: /models
       # 1 时只读本地缓存，不再访问 Hugging Face

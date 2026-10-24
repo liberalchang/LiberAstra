@@ -203,6 +203,12 @@ export const UI_EN: Record<string, string> = {
   "识别服务": "Transcription service",
   "只列出已启用、且具备 asr 能力的 Provider。本机不内置识别模型。":
     "Enabled providers with speech-to-text only. This app does not ship a recognition model.",
+  "识别模型": "Recognition model",
+  "不选则使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。传入的是别名，例如 large-v3-turbo。":
+    "Leave this empty to use LIBER_SPEECH_ASR_MODEL. A selection is an alias such as large-v3-turbo.",
+  "不选则使用系统设置里的语音转文字模型。系统设置也未指定时，使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。":
+    "Leave this empty to use the speech-to-text model from System Settings. If that is also unset, the speech service uses LIBER_SPEECH_ASR_MODEL.",
+  "服务默认": "Server default",
   "自动检测或选常用语言；其他语种选自定义后手动填写代码。":
     "Auto-detect or pick a language. For others, choose Custom and type a code.",
   "输出类型": "Output type",
@@ -961,6 +967,24 @@ export const UI_EN: Record<string, string> = {
   "按系统设置里的默认模型包发音。选用音色库时，这里只决定语言，参考音频仍然用来克隆音色。":
     "Speech follows the default model pack in System Settings. A library voice still clones its reference audio; this only sets the language.",
   "默认语音合成（Liber Speech）": "Default speech model (Liber Speech)",
+  "语音文字合成（Liber Speech）": "Speech synthesis and recognition (Liber Speech)",
+  "文字转语音和语音转文字都走这台 Liber Speech。功能页不单独选模型时使用这里的配置。":
+    "Text-to-speech and speech-to-text both use this Liber Speech service. Feature pages use these defaults when they do not pick a model.",
+  "两个下拉框的选项来自已启用的 Liber Speech。功能页不单独选模型时使用这里保存的值。":
+    "Both dropdowns use the enabled Liber Speech service. Feature pages use the values saved here when they do not pick a model.",
+  "正在读取 Liber Speech 的模型列表…": "Loading Liber Speech models…",
+  "重新读取": "Reload",
+  "无法读取 Liber Speech 的模型列表": "Could not load the Liber Speech model list",
+  "文字转语音模型": "Text-to-speech model",
+  "语音转文字模型": "Speech-to-text model",
+  "跟随语音服务配置 (.env)": "Follow the speech service .env",
+  "不选具体模型时，使用语音服务 .env 里的 LIBER_SPEECH_ASR_MODEL。":
+    "Leave this unset to use LIBER_SPEECH_ASR_MODEL from the speech service.",
+  "带时间戳，服务会收成句子字幕。不支持译成英语。":
+    "Includes timestamps, grouped into sentence captions. It does not translate into English.",
+  "比 large-v3 更快。语音翻译请改用 large-v3。":
+    "Faster than large-v3. Use large-v3 for speech translation.",
+  "99 种语言，支持转写和译成英语。": "99 languages, including translation into English.",
   "文字转语音、快速创作、自定义素材和数字人口播都使用这个模型包。功能页只选音色和语言。":
     "Text-to-speech, quick creation, custom assets, and avatar all use this pack. Those pages only choose a voice and a language.",
   "模型包": "Model pack",

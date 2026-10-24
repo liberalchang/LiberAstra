@@ -41,6 +41,53 @@ SPEECH_MODEL_LANGS: dict[str, str | None] = {
 }
 
 
+def _catalog_items(raw: object) -> list[dict[str, Any]]:
+    """保留语音服务返回的 id、显示名、分组和语言。"""
+    if not isinstance(raw, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get("id") or "").strip()
+        if not model_id:
+            continue
+        entry: dict[str, Any] = {
+            "id": model_id,
+            "label": str(item.get("label") or model_id).strip() or model_id,
+        }
+        group = str(item.get("group") or "").strip()
+        if group:
+            entry["group"] = group
+        languages = item.get("languages")
+        if isinstance(languages, list):
+            entry["languages"] = [str(code).strip() for code in languages if str(code).strip()]
+        items.append(entry)
+    return items
+
+
+def canonical_asr_model(model: str) -> str:
+    """校验识别模型。空值表示跟随语音服务的 LIBER_SPEECH_ASR_MODEL。"""
+    raw = (model or "").strip()
+    if raw.lower() in {"", "default"}:
+        return ""
+    key = raw.lower()
+    aliases = {
+        "faster-whisper-large-v3": "large-v3",
+        "systran/faster-whisper-large-v3": "large-v3",
+        "turbo": "large-v3-turbo",
+        "faster-whisper-large-v3-turbo": "large-v3-turbo",
+        "systran/faster-whisper-large-v3-turbo": "large-v3-turbo",
+        "mobiuslabsgmbh/faster-whisper-large-v3-turbo": "large-v3-turbo",
+        "qwen3-asr": "qwen3-asr-1.7b",
+        "qwen/qwen3-asr-1.7b": "qwen3-asr-1.7b",
+    }
+    key = aliases.get(key, key)
+    if key not in {"large-v3", "large-v3-turbo", "qwen3-asr-1.7b"}:
+        raise ValueError(f"未知语音转文字模型 {model}")
+    return key
+
+
 def canonical_speech_model(model: str) -> str:
     """校验并展开别名。未知 id 抛出 ValueError。"""
     key = SPEECH_ALIASES.get(model.strip(), model.strip())
@@ -104,10 +151,12 @@ class LiberSpeech:
         *,
         client: httpx.AsyncClient | None = None,
         timeout: float = 300.0,
+        default_asr_model: str = "",
     ) -> None:
         self.api_root = _api_root(base_url or "http://127.0.0.1:5555")
         self.api_key = api_key
         self.default_model = default_model or "multilingual_v3"
+        self.default_asr_model = canonical_asr_model(default_asr_model)
         self._client = client
         self._timeout = timeout
 
@@ -162,6 +211,23 @@ class LiberSpeech:
             raise ProviderError(f"Liber Speech API 未返回模型 {self.api_root}/models")
         return names
 
+    async def list_catalog(self) -> dict[str, Any]:
+        """读取可选模型清单。tts_models 与 asr_models 来自语音服务，不是本地写死的列表。"""
+        resp = await self._request("GET", f"{self.api_root}/models")
+        payload = resp.json()
+        if not isinstance(payload, dict):
+            raise ProviderError(f"Liber Speech API 模型响应无效 {self.api_root}/models")
+        tts_models = _catalog_items(payload.get("tts_models"))
+        asr_models = _catalog_items(payload.get("asr_models"))
+        if not tts_models or not asr_models:
+            raise ProviderError(f"Liber Speech API 未返回 tts_models 或 asr_models {self.api_root}/models")
+        return {
+            "tts_models": tts_models,
+            "asr_models": asr_models,
+            "default_tts_model": str(payload.get("default_tts_model") or "").strip(),
+            "default_asr_model": str(payload.get("default_asr_model") or "").strip(),
+        }
+
     async def list_voices(self) -> list[str]:
         """合成时的语言代码，例如 zh、en。这不是模型列表。"""
         return list(_LANG_CODES)
@@ -215,13 +281,19 @@ class LiberSpeech:
         file_path: str,
         language: str | None = None,
         task: str = "transcribe",
-        model: str | None = None,  # noqa: ARG002 Liber Speech API 的模型在服务端配置
+        model: str | None = None,
         **params: Any,
     ) -> ASRResult:
         path = Path(file_path)
         data: dict[str, Any] = {"task": task, **params}
         if language:
             data["language"] = language
+        # 空值和 OpenAI 默认名 whisper-1 走系统设置，仍为空则由语音服务 .env 决定。
+        chosen = (model or "").strip()
+        if chosen.lower() in {"", "default", "whisper", "whisper-1"}:
+            chosen = self.default_asr_model
+        if chosen:
+            data["model"] = chosen
         with path.open("rb") as fh:
             resp = await self._request(
                 "POST",

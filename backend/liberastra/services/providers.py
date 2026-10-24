@@ -112,7 +112,33 @@ def build_tts_adapter(
     return build_adapter(record, client=client)
 
 
-def build_asr_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
+def _speech_default_asr_model(db: Session | None, extra_model: str | None) -> str:
+    """系统设置优先。空串表示跟随语音服务 .env。"""
+    if db is not None:
+        from liberastra.models import AppSetting
+
+        row = db.get(AppSetting, "default_asr_model")
+        if row is not None:
+            return str(row.value or "").strip()
+    return str(extra_model or "").strip()
+
+
+def build_asr_adapter(
+    record: Provider,
+    *,
+    client: httpx.AsyncClient | None = None,
+    db: Session | None = None,
+) -> Any:
+    if record.type == "liber_speech":
+        extra_model = record.extra.get("model") if record.extra else None
+        extra_asr = record.extra.get("asr_model") if record.extra else None
+        return LiberSpeech(
+            record.base_url,
+            decrypt_api_key(record),
+            _speech_default_model(db, extra_model),
+            client=client,
+            default_asr_model=_speech_default_asr_model(db, extra_asr),
+        )
     return build_adapter(record, client=client)
 
 
@@ -122,6 +148,26 @@ def build_image_adapter(record: Provider, *, client: httpx.AsyncClient | None = 
 
 async def test_connection(record: Provider) -> str:
     return await build_adapter(record).test()  # type: ignore[no-any-return]
+
+
+def enabled_liber_speech(db: Session) -> Provider:
+    """系统设置读取模型清单时用的 Liber Speech。取第一个启用的。"""
+    record = db.scalar(
+        select(Provider)
+        .where(Provider.enabled.is_(True), Provider.type == "liber_speech")
+        .order_by(Provider.id)
+    )
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="尚未配置启用的 Liber Speech")
+    return record
+
+
+async def fetch_speech_catalog(record: Provider) -> dict[str, Any]:
+    """向 Liber Speech 要 tts_models 和 asr_models。"""
+    if record.type != "liber_speech":
+        raise ProviderError("只有 Liber Speech 返回合成与识别模型清单")
+    adapter = LiberSpeech(record.base_url, decrypt_api_key(record))
+    return await adapter.list_catalog()
 
 
 async def fetch_models(record: Provider) -> list[str]:

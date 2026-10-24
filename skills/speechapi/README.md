@@ -4,8 +4,8 @@
 
 `liber-speechapi` 是一个集成了ASR（自动语音识别）和TTS（文本转语音）功能的语音处理工具。该技能提供了：
 
-- **ASR（语音转文字）**：faster-whisper。请求只传音频文件、`language` 和 `task`。模型由服务端 `LIBER_SPEECH_ASR_MODEL` 决定，默认 `large-v3`
-- **TTS（文字转语音）**：Chatterbox 的 11 个模型包。`multilingual` 等同 `multilingual_v2`。可用参考音频做音色克隆
+- **ASR（语音转文字）**：`large-v3`、`large-v3-turbo`、`qwen3-asr-1.7b`。不传 `model` 或传 `default` 时用服务端 `LIBER_SPEECH_ASR_MODEL`（默认 `large-v3`）。每次转写结束后服务会释放模型和显存
+- **TTS（文字转语音）**：Chatterbox 的 11 个模型包。默认 `multilingual_v3`。`multilingual` 仍等同 `multilingual_v2`。可用参考音频做音色克隆。每次合成结束后服务会释放模型和显存
 - **输出格式**：
   - ASR：JSON 或纯文本
   - TTS：`wav`、`ogg_opus`（`ogg` 与 `ogg_opus` 相同）。语音服务不直接生成 `mp3` 或 `mp4`
@@ -57,7 +57,7 @@ python scripts/liber_speech_client.py health
 ### TTS
 
 ```bash
-python scripts/liber_speech_client.py tts "你好世界" --language zh --model multilingual --format wav
+python scripts/liber_speech_client.py tts "你好世界" --language zh --model multilingual_v3 --format wav
 python scripts/liber_speech_client.py tts "你好世界" --format ogg_opus --output hello.ogg
 ```
 

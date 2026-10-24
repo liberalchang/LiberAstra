@@ -4,3 +4,10 @@ python-multipart
 numpy
 faster-whisper
 chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master
+# Qwen3-ASR 运行时依赖。qwen-asr 本体在镜像里用 --no-deps 安装，避免钉死旧版 transformers。
+qwen-omni-utils
+accelerate
+nagisa
+soynlp
+soundfile
+pytz

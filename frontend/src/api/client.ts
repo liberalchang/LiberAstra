@@ -158,8 +158,26 @@ export interface SystemPreferences {
   default_character_i2i_workflow: string;
   /** 两到三张参考图时使用的多图编辑工作流包 */
   default_character_i2i_multi_workflow: string;
-  /** Liber Speech 默认模型包 */
+  /** Liber Speech 默认文字转语音模型包 */
   default_speech_model: string;
+  /** Liber Speech 默认语音转文字模型；空表示跟随语音服务 .env */
+  default_asr_model: string;
+}
+
+/** 语音服务 GET /api/v1/models 里的一项可选模型。 */
+export interface SpeechCatalogModel {
+  id: string;
+  label: string;
+  group?: string;
+  languages?: string[];
+}
+
+/** 系统设置两个下拉框的数据来源。 */
+export interface SpeechModelCatalog {
+  tts_models: SpeechCatalogModel[];
+  asr_models: SpeechCatalogModel[];
+  default_tts_model: string;
+  default_asr_model: string;
 }
 
 export interface PromptTaskOut {
@@ -297,6 +315,7 @@ export const api = {
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
   getPreferences: () => request<SystemPreferences>("/api/v1/system/preferences"),
+  getSpeechCatalog: () => request<SpeechModelCatalog>("/api/v1/system/speech-models"),
   updatePreferences: (body: Partial<SystemPreferences>) =>
     request<SystemPreferences>("/api/v1/system/preferences", {
       method: "PATCH",

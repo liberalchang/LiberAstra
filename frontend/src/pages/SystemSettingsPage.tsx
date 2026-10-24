@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, Bot, ImageIcon, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "@/api/client";
+import { api, ApiError, type SpeechCatalogModel } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { useAuthStore } from "@/stores/auth";
 import {
   SPEECH_MODEL_GROUPS,
-  SPEECH_MODELS,
+  asrModelHint,
   speechModelHint,
 } from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
@@ -63,6 +63,11 @@ export function SystemSettingsPage() {
 
   // ---- 运行参数（超时） ----
   const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  const speechCatalog = useQuery({
+    queryKey: ["speech-catalog"],
+    queryFn: api.getSpeechCatalog,
+    retry: false,
+  });
   const [comfyTimeout, setComfyTimeout] = useState(600);
   const [apiTimeout, setApiTimeout] = useState(300);
   const [llmTimeout, setLlmTimeout] = useState(300);
@@ -74,7 +79,28 @@ export function SystemSettingsPage() {
   const [characterI2i, setCharacterI2i] = useState("qwen_image_21_edit");
   const [characterI2iMulti, setCharacterI2iMulti] = useState("qwen_image_21_edit_multi");
   const [speechModel, setSpeechModel] = useState("multilingual_v3");
+  const [speechAsrModel, setSpeechAsrModel] = useState("");
   const [prefSaved, setPrefSaved] = useState(false);
+  const ttsGroups = useMemo(
+    () => groupSpeechModels(speechCatalog.data?.tts_models ?? [], speechModel),
+    [speechCatalog.data, speechModel],
+  );
+  const asrOptions = useMemo(() => {
+    const options: SpeechCatalogModel[] = [
+      { id: "", label: "跟随语音服务配置 (.env)" },
+      ...(speechCatalog.data?.asr_models ?? []),
+    ];
+    if (speechAsrModel && !options.some((item) => item.id === speechAsrModel)) {
+      options.push({ id: speechAsrModel, label: speechAsrModel });
+    }
+    return options;
+  }, [speechCatalog.data, speechAsrModel]);
+  const catalogError =
+    speechCatalog.error instanceof ApiError
+      ? speechCatalog.error.message
+      : speechCatalog.error
+        ? "无法读取 Liber Speech 的模型列表"
+        : "";
 
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const llmProviders = useMemo(
@@ -113,6 +139,7 @@ export function SystemSettingsPage() {
       setCharacterI2i(prefs.default_character_i2i_workflow || "qwen_image_21_edit");
       setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "qwen_image_21_edit_multi");
       setSpeechModel(prefs.default_speech_model || "multilingual_v3");
+      setSpeechAsrModel(prefs.default_asr_model || "");
     }
   }, [prefs]);
 
@@ -130,6 +157,7 @@ export function SystemSettingsPage() {
         default_character_i2i_workflow: characterI2i,
         default_character_i2i_multi_workflow: characterI2iMulti,
         default_speech_model: speechModel,
+        default_asr_model: speechAsrModel,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -290,31 +318,69 @@ export function SystemSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AudioLines className="size-4" /> {tx("默认语音合成（Liber Speech）")}
+            <AudioLines className="size-4" /> {tx("语音文字合成（Liber Speech）")}
           </CardTitle>
           <CardDescription>
-            {tx("文字转语音、快速创作、自定义素材和数字人口播都使用这个模型包。功能页只选音色和语言。")}
+            {tx("两个下拉框的选项来自已启用的 Liber Speech。功能页不单独选模型时使用这里保存的值。")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <Field label={tx("模型包")} hint={tx(speechModelHint(speechModel))}>
+          {speechCatalog.isPending && (
+            <p className="text-sm text-muted-foreground">{tx("正在读取 Liber Speech 的模型列表…")}</p>
+          )}
+          {catalogError && <p className="text-sm text-red-500">{catalogError}</p>}
+          <Field label={tx("文字转语音模型")} hint={tx(speechModelHint(speechModel))}>
             <select
               className={selectClass}
               value={speechModel}
+              disabled={!speechCatalog.data}
               onChange={(e) => setSpeechModel(e.target.value)}
             >
-              {SPEECH_MODEL_GROUPS.map((group) => (
-                <optgroup key={group.id} label={tx(group.label)}>
-                  {SPEECH_MODELS.filter((item) => item.group === group.id).map((item) => (
+              {ttsGroups.map((group) =>
+                group.id ? (
+                  <optgroup key={group.id} label={tx(speechGroupLabel(group.id))}>
+                    {group.items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  group.items.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.label}
                     </option>
-                  ))}
-                </optgroup>
+                  ))
+                ),
+              )}
+            </select>
+          </Field>
+          <Field label={tx("语音转文字模型")} hint={tx(asrModelHint(speechAsrModel))}>
+            <select
+              className={selectClass}
+              value={speechAsrModel}
+              disabled={!speechCatalog.data}
+              onChange={(e) => setSpeechAsrModel(e.target.value)}
+            >
+              {asrOptions.map((item) => (
+                <option key={item.id || "env"} value={item.id}>
+                  {item.id ? item.label : tx(item.label)}
+                </option>
               ))}
             </select>
           </Field>
           <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={speechCatalog.isFetching}
+              onClick={() => {
+                void speechCatalog.refetch();
+              }}
+            >
+              <RefreshCw className={speechCatalog.isFetching ? "animate-spin" : undefined} />
+              {tx("重新读取")}
+            </Button>
             <Button
               type="button"
               disabled={savePrefs.isPending}
@@ -485,4 +551,26 @@ export function SystemSettingsPage() {
       </Card>
     </div>
   );
+}
+
+function speechGroupLabel(group: string): string {
+  return SPEECH_MODEL_GROUPS.find((item) => item.id === group)?.label || group;
+}
+
+function groupSpeechModels(models: SpeechCatalogModel[], selected: string) {
+  const source = [...models];
+  if (selected && !source.some((item) => item.id === selected)) {
+    source.push({ id: selected, label: selected });
+  }
+  const order: string[] = [];
+  const grouped = new Map<string, SpeechCatalogModel[]>();
+  for (const item of source) {
+    const group = item.group || "";
+    if (!grouped.has(group)) {
+      order.push(group);
+      grouped.set(group, []);
+    }
+    grouped.get(group)?.push(item);
+  }
+  return order.map((id) => ({ id, items: grouped.get(id) ?? [] }));
 }

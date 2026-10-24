@@ -65,7 +65,7 @@ async def transcriptions(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="空文件")
 
     provider = pick_provider(db, "asr")
-    adapter = build_asr_adapter(provider)
+    adapter = build_asr_adapter(provider, db=db)
     rel_path = save_upload(file.filename or "audio.bin", content)
     try:
         result = await adapter.transcribe(

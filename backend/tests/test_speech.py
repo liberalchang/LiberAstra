@@ -257,3 +257,29 @@ def test_tts_with_voice_record(
     assert job["status"] == "succeeded", job["error"]
     # 音色库的 voice_id 优先于名称传给 Provider
     assert job["params"]["voice"] == "cloud-voice-42"
+
+
+def test_system_speech_models(client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
+    """系统设置读取已启用 Liber Speech 的 tts_models 与 asr_models。"""
+    created = client.post(
+        "/api/v1/providers",
+        json={"name": "speech-catalog", "type": "liber_speech", "base_url": "http://speech:5555"},
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+
+    async def fake(record):  # noqa: ANN001
+        assert record.type == "liber_speech"
+        return {
+            "tts_models": [{"id": "multilingual_v3", "label": "V3", "group": "multilingual"}],
+            "asr_models": [{"id": "large-v3", "label": "faster-whisper large-v3"}],
+            "default_tts_model": "multilingual_v3",
+            "default_asr_model": "large-v3",
+        }
+
+    monkeypatch.setattr("liberastra.api.routes.system.fetch_speech_catalog", fake)
+    listed = client.get("/api/v1/system/speech-models", headers=auth_header)
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["tts_models"][0]["id"] == "multilingual_v3"
+    assert body["asr_models"][0]["id"] == "large-v3"

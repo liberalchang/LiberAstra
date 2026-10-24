@@ -7,7 +7,7 @@ import httpx
 from liberastra.media.subtitles import to_json, to_srt, to_txt, to_vtt
 from liberastra.providers.asr.openai_stt import OpenAISTT
 from liberastra.providers.base import ASRResult, ASRSegment, ProviderError
-from liberastra.providers.speech.liber_speech import LiberSpeech, language_from_voice
+from liberastra.providers.speech.liber_speech import LiberSpeech, canonical_asr_model, language_from_voice
 from liberastra.providers.tts.openai_tts import OpenAITTS
 
 RESULT = ASRResult(
@@ -156,6 +156,97 @@ def test_liber_speech_tts_and_asr(tmp_path) -> None:  # noqa: ANN001
             result = await adapter.transcribe(file_path=str(audio), language="zh")
             assert result.text == "你好世界"
             assert result.segments[0].end == 1.2
+
+    asyncio.run(run())
+
+
+def test_liber_speech_asr_model_passthrough(tmp_path) -> None:  # noqa: ANN001
+    """未传模型和 whisper-1 走服务端环境变量；显式别名才写入表单。"""
+    audio = tmp_path / "in.wav"
+    audio.write_bytes(b"RIFFfake")
+    seen: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.content)
+        return httpx.Response(
+            200,
+            json={"text": "你好", "chunks": [], "meta": {"language": "zh", "model": "large-v3"}},
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", "speech-key", client=client)
+            await adapter.transcribe(file_path=str(audio), language="zh")
+            await adapter.transcribe(file_path=str(audio), model="whisper-1")
+            await adapter.transcribe(file_path=str(audio), model="large-v3-turbo")
+
+    asyncio.run(run())
+    assert b'name="model"' not in seen[0]
+    assert b'name="model"' not in seen[1]
+    assert b"large-v3-turbo" in seen[2]
+
+
+def test_liber_speech_default_asr_model(tmp_path) -> None:  # noqa: ANN001
+    """系统设置里的识别模型会在请求未指定时写入表单。"""
+    audio = tmp_path / "in.wav"
+    audio.write_bytes(b"RIFFfake")
+    seen: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.content)
+        return httpx.Response(200, json={"text": "你好", "chunks": [], "meta": {}})
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech(
+                "http://speech:5555",
+                "speech-key",
+                client=client,
+                default_asr_model="qwen3-asr",
+            )
+            await adapter.transcribe(file_path=str(audio), model="whisper-1")
+            await adapter.transcribe(file_path=str(audio), model="large-v3")
+
+    asyncio.run(run())
+    assert b"qwen3-asr-1.7b" in seen[0]
+    assert b"large-v3" in seen[1]
+    assert canonical_asr_model("") == ""
+    assert canonical_asr_model("mobiuslabsgmbh/faster-whisper-large-v3-turbo") == "large-v3-turbo"
+
+
+def test_liber_speech_catalog() -> None:
+    """系统设置下拉框使用语音服务返回的 tts_models 和 asr_models。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/models"
+        return httpx.Response(
+            200,
+            json={
+                "tts_models": [
+                    {
+                        "id": "multilingual_v3",
+                        "label": "Chatterbox-Multilingual V3",
+                        "group": "multilingual",
+                        "languages": ["zh", "en"],
+                    }
+                ],
+                "asr_models": [
+                    {"id": "large-v3", "label": "faster-whisper large-v3"},
+                    {"id": "", "label": "无效"},
+                    {"id": "qwen3-asr-1.7b", "label": "Qwen3-ASR-1.7B"},
+                ],
+                "default_tts_model": "multilingual_v3",
+                "default_asr_model": "large-v3",
+            },
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", client=client)
+            catalog = await adapter.list_catalog()
+            assert catalog["default_tts_model"] == "multilingual_v3"
+            assert catalog["tts_models"][0]["languages"] == ["zh", "en"]
+            assert [item["id"] for item in catalog["asr_models"]] == ["large-v3", "qwen3-asr-1.7b"]
 
     asyncio.run(run())
 

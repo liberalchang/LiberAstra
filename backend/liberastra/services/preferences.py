@@ -34,6 +34,8 @@ STR_SPECS: dict[str, str] = {
     "default_character_i2i_multi_workflow": "qwen_image_21_edit_multi",
     # Liber Speech 默认模型包。功能页不单独选模型。
     "default_speech_model": "multilingual_v3",
+    # 空串表示跟随语音服务 .env 的 LIBER_SPEECH_ASR_MODEL。
+    "default_asr_model": "",
 }
 
 
@@ -78,6 +80,10 @@ def set_str_pref(db: Session, key: str, value: str) -> str:
         from liberastra.providers.speech.liber_speech import canonical_speech_model
 
         text = canonical_speech_model(text.strip() or STR_SPECS[key])
+    if key == "default_asr_model":
+        from liberastra.providers.speech.liber_speech import canonical_asr_model
+
+        text = canonical_asr_model(text.strip())
     row = db.get(AppSetting, key)
     if row is None:
         db.add(AppSetting(key=key, value=text))

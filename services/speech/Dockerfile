@@ -18,6 +18,8 @@ COPY requirements.txt .
 # 基础镜像自带的 torchvision 0.20 对不上这个 torch，transformers 导入 LlamaModel 会失败。
 # 语音合成不用 torchvision，直接卸掉。
 RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --no-deps qwen-asr \
+    && pip install --no-cache-dir "transformers==5.2.0" \
     && pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu124 \
     && pip uninstall -y torchvision
 

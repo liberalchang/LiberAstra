@@ -55,6 +55,21 @@ export const SPEECH_MODEL_GROUPS: { id: string; label: string }[] = [
   { id: "english", label: "英文模型" },
 ];
 
+/** 系统设置里的语音转文字模型。空值跟随语音服务 .env。 */
+export const SPEECH_ASR_MODELS: { id: string; label: string }[] = [
+  { id: "", label: "跟随语音服务配置 (.env)" },
+  { id: "large-v3", label: "faster-whisper large-v3" },
+  { id: "large-v3-turbo", label: "faster-whisper large-v3-turbo" },
+  { id: "qwen3-asr-1.7b", label: "Qwen3-ASR-1.7B" },
+];
+
+export function asrModelHint(model: string): string {
+  if (!model) return "不选具体模型时，使用语音服务 .env 里的 LIBER_SPEECH_ASR_MODEL。";
+  if (model === "qwen3-asr-1.7b") return "带时间戳，服务会收成句子字幕。不支持译成英语。";
+  if (model === "large-v3-turbo") return "比 large-v3 更快。语音翻译请改用 large-v3。";
+  return "99 种语言，支持转写和译成英语。";
+}
+
 export function speechModelOf(model: string) {
   return SPEECH_MODELS.find((item) => item.id === model) ?? SPEECH_MODELS[0];
 }

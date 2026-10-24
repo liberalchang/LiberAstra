@@ -48,13 +48,14 @@ POST /asr/transcribe
 
 ### Form fields
 
-The current service accepts only:
+The current service accepts:
 
 - `file`: local audio file upload. Required.
 - `language`: for example `zh` or `en`. Omit it to let faster-whisper detect the language.
 - `task`: `transcribe` or `translate`. Default is `transcribe`.
+- `model`: optional `large-v3`, `large-v3-turbo`, or `qwen3-asr-1.7b`. Omit it or send `default` to use `LIBER_SPEECH_ASR_MODEL` (default `large-v3`). This is an alias, not a directory under `/models`. `qwen3-asr-1.7b` returns sentence-level `chunks` and rejects `task=translate`. The service releases the model and GPU memory after each call.
 
-The ASR model comes from the server environment variable `LIBER_SPEECH_ASR_MODEL` (default `large-v3`). The request cannot select a model, word timestamps, a remote `url`, batch size, or speaker diarization.
+The request does not accept word timestamps, a remote `url`, batch size, or speaker diarization.
 
 ### Expected response fields
 
@@ -62,6 +63,7 @@ The ASR model comes from the server environment variable `LIBER_SPEECH_ASR_MODEL
 - `chunks`: list of `{start, end, text}`
 - `meta.language`: detected or requested language
 - `meta.task`: `transcribe` or `translate`
+- `meta.model`: the faster-whisper alias actually loaded
 
 ### Output modes in this skill
 
@@ -88,7 +90,7 @@ POST /tts/synthesize
 ### Form fields
 
 - `text`: text to synthesize. Required.
-- `model`: one of the 11 Chatterbox packs. `multilingual` is an alias of `multilingual_v2`.
+- `model`: one of the 11 Chatterbox packs. The service default is `multilingual_v3`. `multilingual` is still an alias of `multilingual_v2`. The service releases the model and GPU memory after each call.
 - `language`: language id, for example `zh` or `en`. A multilingual pack requires one of its 23 languages. A single-language pack rejects any other language.
 - `format`: `wav` or `ogg_opus`. `ogg` is rewritten to `ogg_opus`. Default is `wav`.
 - `prompt`: optional reference audio for voice cloning. Allowed suffixes are `.wav`, `.mp3`, `.ogg`, and `.flac`.

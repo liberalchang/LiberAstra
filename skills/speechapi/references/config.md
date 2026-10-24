@@ -40,10 +40,11 @@ LIBER_API_KEY=your_api_key_here
 {
     "asr": {
         "language": "zh",
-        "task": "transcribe"
+        "task": "transcribe",
+        "model": "default"
     },
     "tts": {
-        "model": "multilingual",
+        "model": "multilingual_v3",
         "language": "zh",
         "format": "wav",
         "audio_prompt_path": "default"
@@ -85,14 +86,15 @@ LIBER_API_KEY=your_api_key_here
 
 ---
 
-## 4. ASR 参数（faster-whisper）
+## 4. ASR 参数
 
 | 参数名 | 类型 | 默认值 | 描述 |
 |--------|------|--------|------|
 | `language` | string | `"zh"` | 输入音频语言。请求留空时由模型识别 |
-| `task` | string | `"transcribe"` | `transcribe` 或 `translate` |
+| `task` | string | `"transcribe"` | `transcribe` 或 `translate`。`qwen3-asr-1.7b` 不支持 `translate` |
+| `model` | string | `"default"` | `large-v3`、`large-v3-turbo` 或 `qwen3-asr-1.7b`。`default` 或不传时用服务端 `LIBER_SPEECH_ASR_MODEL` |
 
-模型名由服务端 `LIBER_SPEECH_ASR_MODEL` 决定，默认 `large-v3`。请求不传模型、时间戳或说话人分割。
+`model` 填模型别名，不填 `/models/...` 路径。`qwen3-asr-1.7b` 的字词时间戳会收成句子级 `chunks`。请求不传说话人分割。每次转写结束后服务释放模型和显存。
 
 ---
 
@@ -100,7 +102,7 @@ LIBER_API_KEY=your_api_key_here
 
 | 参数名 | 类型 | 默认值 | 描述 |
 |--------|------|--------|------|
-| `model` | string | `"multilingual"` | 11 个模型包之一。`multilingual` 等同 `multilingual_v2` |
+| `model` | string | `"multilingual_v3"` | 11 个模型包之一。`multilingual` 仍等同 `multilingual_v2` |
 | `language` | string | `"zh"` | 输出语言 |
 | `format` | string | `"wav"` | `wav` 或 `ogg_opus`。`ogg` 等同 `ogg_opus` |
 | `audio_prompt_path` | string | `"default"` | 本机参考音频路径。上传时的表单字段名是 `prompt` |

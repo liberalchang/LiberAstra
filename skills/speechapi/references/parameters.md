@@ -20,10 +20,11 @@ Liber SpeechAPI skill 提供三类能力：
 {
     "asr": {
         "language": "zh",
-        "task": "transcribe"
+        "task": "transcribe",
+        "model": "default"
     },
     "tts": {
-        "model": "multilingual",
+        "model": "multilingual_v3",
         "language": "zh",
         "format": "wav",
         "audio_prompt_path": "default"
@@ -48,15 +49,18 @@ Liber SpeechAPI skill 提供三类能力：
 
 ## ASR 参数（faster-whisper）
 
-服务端用 faster-whisper。模型名来自服务环境变量 `LIBER_SPEECH_ASR_MODEL`，默认 `large-v3`，请求里不能改。
+服务端支持三种识别模型。不传 `model` 或传 `default` 时用环境变量 `LIBER_SPEECH_ASR_MODEL`，默认 `large-v3`。每次转写结束后释放模型和显存。
+
+`qwen3-asr-1.7b` 会把字词时间戳收成句子级 `chunks`，字段仍是 `start`、`end`、`text`。它不支持 `task=translate`，译成英语请用 `large-v3`。
 
 | 参数名 | 类型 | 默认值 | 描述 |
 |--------|------|--------|------|
 | `file` | file | 必填 | 本地音频文件 |
 | `language` | string | `zh` | 留空时由模型自动识别 |
 | `task` | string | `transcribe` | `transcribe` 或 `translate` |
+| `model` | string | 不传 | `large-v3`、`large-v3-turbo` 或 `qwen3-asr-1.7b`。不是磁盘路径 |
 
-当前接口不接收 `url`、`timestamps`、`batch_size`、`flash`、说话人分割或 Hugging Face token。客户端也不再转发这些字段。
+当前接口不接收 `url`、`timestamps`、`batch_size`、`flash`、说话人分割或 Hugging Face token。客户端也不再转发这些字段。`model` 不传时由服务端环境变量决定。
 
 ### 输出模式
 
@@ -65,7 +69,7 @@ Liber SpeechAPI skill 提供三类能力：
 | `json` | 是 | 返回完整 ASR JSON：`text`、`chunks`、`meta` |
 | `text` | 否 | 仅返回识别文本 |
 
-`chunks` 的每一项是 `{start, end, text}`。`meta` 含 `language` 和 `task`。
+`chunks` 的每一项是 `{start, end, text}`。`meta` 含 `language`、`task` 和实际使用的 `model`。
 
 ---
 
@@ -76,7 +80,7 @@ Liber SpeechAPI skill 提供三类能力：
 | 参数名 | 类型 | 默认值 | 描述 |
 |--------|------|--------|------|
 | `text` | string | 必填 | 要合成的文本 |
-| `model` | string | `multilingual` | 11 个模型包之一。`multilingual` 等同 `multilingual_v2` |
+| `model` | string | `multilingual_v3` | 11 个模型包之一。`multilingual` 仍等同 `multilingual_v2` |
 | `language` | string | `zh` | 语言代码。多语言模型必须是它支持的 23 种之一 |
 | `format` | string | `wav` | `wav` 或 `ogg_opus`。`ogg` 会被改写成 `ogg_opus` |
 | `prompt` | file | 不传 | 音色克隆参考音频，后缀 `.wav`、`.mp3`、`.ogg`、`.flac` |

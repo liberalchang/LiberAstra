@@ -1,10 +1,11 @@
 {
     "asr": {
         "language": "zh",
-        "task": "transcribe"
+        "task": "transcribe",
+        "model": "default"
     },
     "tts": {
-        "model": "multilingual",
+        "model": "multilingual_v3",
         "language": "zh",
         "format": "wav",
         "audio_prompt_path": "default"

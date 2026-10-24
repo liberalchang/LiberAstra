@@ -15,8 +15,10 @@ from liberastra.api.deps import CurrentUser, DbSession, require_admin
 from liberastra.core.config import get_settings
 from liberastra.core.db import SessionLocal
 from liberastra.models import Asset, Job, Provider, User
+from liberastra.providers.base import ProviderError
 from liberastra.services.maintenance import cleanup_old_data
 from liberastra.services.preferences import SPECS, STR_SPECS, all_prefs, set_pref, set_str_pref
+from liberastra.services.providers import enabled_liber_speech, fetch_speech_catalog
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -38,6 +40,17 @@ class PreferencesUpdate(BaseModel):
     default_character_i2i_workflow: str | None = Field(default=None, max_length=128)
     default_character_i2i_multi_workflow: str | None = Field(default=None, max_length=128)
     default_speech_model: str | None = Field(default=None, max_length=64)
+    default_asr_model: str | None = Field(default=None, max_length=64)
+
+
+@router.get("/speech-models")
+async def speech_models(user: CurrentUser, db: DbSession) -> dict[str, object]:
+    """系统设置的两个下拉框：文字转语音用 tts_models，语音转文字用 asr_models。"""
+    record = enabled_liber_speech(db)
+    try:
+        return await fetch_speech_catalog(record)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 @router.get("/preferences")

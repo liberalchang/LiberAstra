@@ -26,6 +26,13 @@ const FORMAT_OPTIONS = [
 
 const CUSTOM_LANG = "__custom";
 
+const ASR_MODEL_OPTIONS = [
+  { value: "", label: "系统设置" },
+  { value: "large-v3", label: "faster-whisper large-v3" },
+  { value: "large-v3-turbo", label: "faster-whisper large-v3-turbo" },
+  { value: "qwen3-asr-1.7b", label: "Qwen3-ASR-1.7B" },
+];
+
 const LANGUAGE_OPTIONS = [
   { value: "", label: "自动检测" },
   { value: "zh", label: "中文 zh" },
@@ -42,6 +49,7 @@ const LANGUAGE_OPTIONS = [
 
 export function AsrPage() {
   const tx = useTx();
+  const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const asrProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("asr"));
 
@@ -50,6 +58,7 @@ export function AsrPage() {
   const [language, setLanguage] = usePersistentState("asr:language", "");
   const [customLanguage, setCustomLanguage] = usePersistentState("asr:language-custom", "");
   const [format, setFormat] = usePersistentState("asr:format", "");
+  const [asrModel, setAsrModel] = usePersistentState("asr:model", "");
   const effectiveLanguage = language === CUSTOM_LANG ? customLanguage.trim() : language;
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +71,8 @@ export function AsrPage() {
       if (provider) form.set("provider_id", String(provider.id));
       if (effectiveLanguage) form.set("language", effectiveLanguage);
       if (format) form.set("formats", format);
+      const chosenModel = asrModel || prefs?.default_asr_model || "";
+      if (chosenModel) form.set("model", chosenModel);
       return api.submitAsr(form);
     },
     onSuccess: (j) => {
@@ -81,7 +92,7 @@ export function AsrPage() {
         left={
       <Card>
         <CardContent className="flex flex-col gap-4 pt-5">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Field label={tx("识别服务")} hint={tx("只列出已启用、且具备 asr 能力的 Provider。本机不内置识别模型。")}>
               <select
                 className={selectClass}
@@ -99,6 +110,18 @@ export function AsrPage() {
               <select className={selectClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
                 {LANGUAGE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
+                    {tx(o.label)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label={tx("识别模型")}
+              hint={tx("不选则使用系统设置里的语音转文字模型。系统设置也未指定时，使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。")}
+            >
+              <select className={selectClass} value={asrModel} onChange={(e) => setAsrModel(e.target.value)}>
+                {ASR_MODEL_OPTIONS.map((o) => (
+                  <option key={o.value || "default"} value={o.value}>
                     {tx(o.label)}
                   </option>
                 ))}
@@ -150,6 +173,7 @@ export function AsrPage() {
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },
               { label: tx("语言"), value: effectiveLanguage || tx("自动") },
+              { label: tx("模型"), value: asrModel || prefs?.default_asr_model || tx("系统设置") },
               { label: tx("输出"), value: format || tx("自动") },
               { label: tx("文件"), value: file?.name ?? "" },
             ]}

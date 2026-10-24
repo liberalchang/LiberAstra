@@ -124,7 +124,7 @@ Ollama、ComfyUI、语音插件不在这个安装包里。
 
 - 安装包：<https://ollama.com/download>
 - 装好后默认 `http://<主机>:11434`
-- 模型从库里拉取，例如：
+- 在线拉取：从模型库下载，例如：
 
   ```bash
   ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M
@@ -132,6 +132,19 @@ Ollama、ComfyUI、语音插件不在这个安装包里。
   ```
 
   页面：<https://ollama.com/orcarouter/Qwen3.8-27B-Uncensored>、<https://ollama.com/huihui_ai/gemma-4-abliterated>
+- 本地加载：已有 GGUF 文件时不必联网。在该文件旁边写一个 `Modelfile`，内容一行：
+
+  ```text
+  FROM ./模型文件.gguf
+  ```
+
+  然后在这个目录执行：
+
+  ```bash
+  ollama create 本地模型名 -f Modelfile
+  ```
+
+  `ollama list` 里出现的名字，就是 LiberAstra 里要填的模型名。Windows 路径写在 `FROM` 里时用正斜杠，例如 `FROM C:/models/模型文件.gguf`。
 - 在 LiberAstra 添加类型为 Ollama 的服务提供方，Base URL 填上面的地址
 
 **ComfyUI（本机或其它主机，负责出图 / 出视频）**
@@ -260,7 +273,7 @@ The app does not run models. Prompt fields share one control: raw and optimized 
 
 Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
-Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from the [releases page](https://github.com/liberalchang/LiberAstra/releases). Ollama, ComfyUI, and the speech plugin install separately. Example Ollama pulls: `ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M` and `ollama pull huihui_ai/gemma-4-abliterated:12b`. Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
+Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from the [releases page](https://github.com/liberalchang/LiberAstra/releases). Ollama, ComfyUI, and the speech plugin install separately. Ollama models can be pulled (`ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M`) or created from a local GGUF via a `Modelfile` (`FROM ./model.gguf`, then `ollama create name -f Modelfile`). Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
 
 ### Reference projects
 

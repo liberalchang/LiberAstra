@@ -76,7 +76,9 @@ def models() -> dict[str, object]:
     return {
         "models": engine.configured_models(),
         "tts_models": engine.tts_catalog(),
+        "asr_models": engine.asr_catalog(),
         "default_tts_model": engine.default_tts_model(),
+        "default_asr_model": engine.default_asr_model(),
     }
 
 
@@ -117,7 +119,7 @@ def synthesize(
         # synthesize 返回 (波形, 采样率)，不能写反。
         wav, sample_rate = engine.synthesize(
             text,
-            model=(model or os.getenv("LIBER_SPEECH_TTS_MODEL", "multilingual")),
+            model=(model or engine.default_tts_model()),
             language=language,
             audio_prompt=str(prompt_path) if prompt_path else None,
         )
@@ -149,6 +151,7 @@ def transcribe(
     file: UploadFile | None = File(None),
     language: str | None = Form(None),
     task: str | None = Form(None),
+    model: str | None = Form(None),
 ) -> dict[str, object]:
     if file is None or not file.filename:
         raise HTTPException(status_code=400, detail="必须上传音频文件")
@@ -157,7 +160,15 @@ def transcribe(
     tmp.write_bytes(file.file.read())
     try:
         # 引擎返回 dict。不能按键名拆包，否则 text 会变成字符串 "text"。
-        result = engine.transcribe(str(tmp), language=language or None, task=task or "transcribe")
+        # model 为空时引擎使用 LIBER_SPEECH_ASR_MODEL。
+        result = engine.transcribe(
+            str(tmp),
+            language=language or None,
+            task=task or "transcribe",
+            model=model,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ImportError as exc:
         raise HTTPException(status_code=503, detail=f"ASR 依赖未安装: {exc}") from exc
     except Exception as exc:
@@ -167,7 +178,11 @@ def transcribe(
     return {
         "text": result["text"],
         "chunks": result["chunks"],
-        "meta": {"language": result.get("language"), "task": task or "transcribe"},
+        "meta": {
+            "language": result.get("language"),
+            "task": task or "transcribe",
+            "model": result.get("model"),
+        },
     }
 
 

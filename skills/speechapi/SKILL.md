@@ -73,6 +73,12 @@ When the user explicitly asks to convert audio to text:
 1. use `scripts/liber_speech_client.py asr`
 2. default to structured `json` output
 3. return plain text only when the caller explicitly wants transcript text only
+4. pass `--model` only when the caller names one of `large-v3`, `large-v3-turbo`, or `qwen3-asr-1.7b`. Otherwise leave it as `default` so the speech service uses `LIBER_SPEECH_ASR_MODEL`
+5. do not use `qwen3-asr-1.7b` when the caller asks to translate speech into English; use `large-v3`
+
+## Direct text-to-speech defaults
+
+`tts.model` defaults to `multilingual_v3`. The old value `multilingual` still means `multilingual_v2`. The speech service releases GPU memory after each synthesis or transcription.
 
 ## Telegram/openclaw workflow
 
