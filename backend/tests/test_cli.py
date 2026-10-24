@@ -87,7 +87,7 @@ def test_tts_end_to_end(live_server: str, monkeypatch: pytest.MonkeyPatch, tmp_p
         async def synthesize(self, *, text: str, voice: str, **kwargs) -> bytes:
             return f"AUDIO:{voice}".encode()
 
-    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record: _FakeTTS())
+    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record, **_kwargs: _FakeTTS())
 
     _login(live_server)
     add = runner.invoke(

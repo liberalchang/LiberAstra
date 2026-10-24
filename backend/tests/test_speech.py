@@ -54,7 +54,7 @@ def test_tts_job_and_asset(
 ) -> None:
     from liberastra.services import tts as tts_service
 
-    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record: _FakeTTS())
+    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record, **_kwargs: _FakeTTS())
 
     resp = client.post(
         "/api/v1/tts?wait=true",
@@ -83,7 +83,7 @@ def test_tts_preview_returns_mp3(
 ) -> None:
     from liberastra.api.routes import tts as tts_routes
 
-    monkeypatch.setattr(tts_routes, "build_tts_adapter", lambda record: _FakeTTS())
+    monkeypatch.setattr(tts_routes, "build_tts_adapter", lambda record, **_kwargs: _FakeTTS())
     resp = client.post(
         "/api/v1/tts/preview",
         json={"provider_id": tts_provider, "voice": "af_heart", "text": "你好"},
@@ -179,7 +179,7 @@ def test_openai_compat_speech(
 ) -> None:
     from liberastra.api.routes import openai_audio
 
-    monkeypatch.setattr(openai_audio, "build_tts_adapter", lambda record: _FakeTTS())
+    monkeypatch.setattr(openai_audio, "build_tts_adapter", lambda record, **_kwargs: _FakeTTS())
 
     resp = client.post(
         "/v1/audio/speech",
@@ -241,7 +241,7 @@ def test_tts_with_voice_record(
 ) -> None:
     from liberastra.services import tts as tts_service
 
-    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record: _FakeTTS())
+    monkeypatch.setattr(tts_service, "build_tts_adapter", lambda record, **_kwargs: _FakeTTS())
 
     voice = client.post(
         "/api/v1/voices",

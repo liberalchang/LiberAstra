@@ -120,9 +120,11 @@ _tts = None
 _tts_id = ""
 
 
-def resolve_device() -> str:
-    """LIBER_SPEECH_DEVICE=auto|cpu|cuda。auto 在有显卡时用 cuda。"""
-    choice = os.getenv("LIBER_SPEECH_DEVICE", "auto").strip().lower()
+def resolve_device(choice: str | None = None) -> str:
+    """显式传入 cpu 或 cuda 时直接使用。否则读 LIBER_SPEECH_DEVICE，auto 在有显卡时用 cuda。"""
+    if choice is None:
+        choice = os.getenv("LIBER_SPEECH_DEVICE", "auto")
+    choice = choice.strip().lower()
     if choice in {"cpu", "cuda"}:
         return choice
     import torch

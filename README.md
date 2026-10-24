@@ -108,7 +108,7 @@ docker compose --profile ollama --profile comfyui up -d
 
 **LiberAstra 主程序（本机安装包）**
 
-从 [v1.0.0 Release](https://github.com/liberalchang/LiberAstra/releases/tag/v1.0.0) 下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.0/LiberAstra-Setup.exe)。安装包自带 Python 运行时和已构建的页面，目标电脑不用另装 Python 或 Node。双击安装，按向导完成。完成后从开始菜单或桌面启动，浏览器打开 `http://127.0.0.1:8000`。数据在 `%LOCALAPPDATA%\LiberAstra\data`（账号、作品、密钥）。安装程序会放行本机防火墙的 TCP 8000，局域网里的浏览器可以用 `http://<这台电脑的 IP>:8000` 打开。
+从 [Releases](https://github.com/liberalchang/LiberAstra/releases) 下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe)。安装包自带 Python 运行时和已构建的页面，目标电脑不用另装 Python 或 Node。双击安装，按向导完成。完成后从开始菜单或桌面启动，浏览器打开 `http://127.0.0.1:8000`。数据在 `%LOCALAPPDATA%\LiberAstra\data`（账号、作品、密钥）。安装程序会放行本机防火墙的 TCP 8000，局域网里的浏览器可以用 `http://<这台电脑的 IP>:8000` 打开。
 
 仓库里不提交安装包本体。需要自行重新打包时，在本机执行：
 
@@ -156,7 +156,7 @@ Ollama、ComfyUI、语音插件不在这个安装包里。
 
 语音不打进主程序。只做在线朗读时可以不装，在 LiberAstra 里用 edge-tts。需要本地合成或识别时，把插件装到**这台 Windows**，或装到**另一台有 NVIDIA 显卡的主机**。两边都先装好 Docker。
 
-- Windows（本机或另一台 Windows）：从 [v1.0.0 Release](https://github.com/liberalchang/LiberAstra/releases/tag/v1.0.0) 下载 [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.0/LiberSpeech-Setup.exe)。向导结束时会执行 `docker compose up -d --build`，并放行 TCP 5555。
+- Windows（本机或另一台 Windows）：从 [Releases](https://github.com/liberalchang/LiberAstra/releases) 下载 [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe)。向导结束时会执行 `docker compose up -d --build`，并放行 TCP 5555。
 - Linux 显卡主机：把 `LiberSpeech-plugin.zip` 拷过去，解压后执行 `sh install.sh`。该压缩包由下面的构建脚本生成，不随 Release 发布。
 
 需要自行重新打包时：
@@ -260,7 +260,7 @@ The app does not run models. Prompt fields share one control: raw and optimized 
 
 Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
-Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.0/LiberAstra-Setup.exe) from the [v1.0.0 release](https://github.com/liberalchang/LiberAstra/releases/tag/v1.0.0). Ollama, ComfyUI, and the speech plugin install separately. Example Ollama pulls: `ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M` and `ollama pull huihui_ai/gemma-4-abliterated:12b`. Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.0/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
+Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from the [releases page](https://github.com/liberalchang/LiberAstra/releases). Ollama, ComfyUI, and the speech plugin install separately. Example Ollama pulls: `ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M` and `ollama pull huihui_ai/gemma-4-abliterated:12b`. Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
 
 ### Reference projects
 
