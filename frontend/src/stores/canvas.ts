@@ -106,6 +106,10 @@ let future: HistoryEntry[] = [];
 let batchDepth = 0;
 /** 拖拽期间只记一次（首帧） */
 let dragRecorded = false;
+/** 面板编辑防抖合并:同一节点同一组键 800ms 内只入栈一次 */
+let lastEditKey = "";
+let lastEditAt = 0;
+const EDIT_COALESCE_MS = 800;
 
 function mergeRun(base: NodeRunState, patch: Partial<NodeRunState>): NodeRunState {
   return { ...base, ...patch, assetIds: patch.assetIds ?? base.assetIds };
@@ -120,6 +124,21 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     if (past.length > HISTORY_LIMIT) past.shift();
     future = [];
     historySync();
+  };
+
+  /** 恢复快照,但 run 状态是服务端事实:保留每个节点当前的 run,并据此重算轮询开关。 */
+  const restore = (entry: HistoryEntry) => {
+    const currentRuns = new Map(get().nodes.map((n) => [n.id, n.data.run]));
+    const nodes = entry.nodes.map((n) => {
+      const run = currentRuns.get(n.id);
+      return run ? ({ ...n, data: { ...n.data, run } } as CanvasFlowNode) : n;
+    });
+    set({
+      nodes,
+      edges: entry.edges,
+      dirty: true,
+      runActive: nodes.some((n) => ["pending", "running"].includes(n.data.run.status)),
+    });
   };
 
   return {
@@ -300,13 +319,21 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     return node;
   },
 
-  updateNodeData: (id, patch) =>
+  updateNodeData: (id, patch) => {
+    // 面板编辑也入历史:同一节点同一组键 800ms 内合并(连续打字不刷屏),
+    // 离散操作(换组/绑定/排序)各自成步
+    const key = `${id}:${Object.keys(patch).sort().join(",")}`;
+    const now = Date.now();
+    if (key !== lastEditKey || now - lastEditAt > EDIT_COALESCE_MS) record();
+    lastEditKey = key;
+    lastEditAt = now;
     set({
       nodes: get().nodes.map((n) =>
         n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as CanvasFlowNode) : n,
       ),
       dirty: true,
-    }),
+    });
+  },
 
   applyRuns: (runs, plan) => {
     const runByNode = new Map(runs.map((r) => [r.node_id, r]));
@@ -360,7 +387,8 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     if (!prev) return;
     future.push({ nodes: get().nodes, edges: get().edges });
     dragRecorded = false;
-    set({ nodes: prev.nodes, edges: prev.edges, dirty: true });
+    lastEditKey = "";
+    restore(prev);
     historySync();
   },
 
@@ -369,7 +397,8 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     if (!next) return;
     past.push({ nodes: get().nodes, edges: get().edges });
     dragRecorded = false;
-    set({ nodes: next.nodes, edges: next.edges, dirty: true });
+    lastEditKey = "";
+    restore(next);
     historySync();
   },
 
