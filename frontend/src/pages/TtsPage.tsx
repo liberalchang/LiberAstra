@@ -392,7 +392,7 @@ export function TtsPage() {
               onChange={(e) => setText(e.target.value)}
             />
           </Field>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button
               onClick={() => submit.mutate()}

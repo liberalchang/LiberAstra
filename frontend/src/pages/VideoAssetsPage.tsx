@@ -352,7 +352,7 @@ export function VideoAssetsPage() {
                     type="button"
                     onClick={() => removeFile(i)}
                     title={tx("移除 {name}", { name: f.name })}
-                    className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                    className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-danger group-hover:opacity-100"
                   >
                     <X className="size-3" />
                   </button>
@@ -401,7 +401,7 @@ export function VideoAssetsPage() {
           ) : mode === "topic" ? (
             <>
               {!hasLlm && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
+                <p className="text-sm text-warning">
                   尚未配置 LLM。请到{" "}
                   <Link className="underline" to="/settings/system">
                     {tx('系统设置')}
@@ -429,7 +429,7 @@ export function VideoAssetsPage() {
                 {tx("先看每张图、每段视频里实际是什么，再写成口播。生成后可以改，出片时用这段文字。")}
               </p>
               {!hasLlm && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
+                <p className="text-sm text-warning">
                   尚未配置 LLM。请到{" "}
                   <Link className="underline" to="/settings/system">
                     {tx("系统设置")}
@@ -438,7 +438,7 @@ export function VideoAssetsPage() {
                 </p>
               )}
               {comfyProviders && comfyProviders.length === 0 && (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
+                <p className="text-sm text-warning">
                   {tx("还没有 ComfyUI 服务。请到「服务提供方」添加后再生成文案。")}
                 </p>
               )}
@@ -516,7 +516,7 @@ export function VideoAssetsPage() {
                 )}
               </div>
               {(scriptError || (scriptJob?.status === "failed" && scriptJob.error)) && (
-                <p className="text-sm text-red-600 dark:text-red-400">{scriptError || scriptJob?.error}</p>
+                <p className="text-sm text-danger">{scriptError || scriptJob?.error}</p>
               )}
               <Field label={tx("口播文案")} hint={tx("一行对应一段素材。生成后可以再改，出片用的就是这里的文字。")}>
                 <textarea
@@ -831,7 +831,7 @@ export function VideoAssetsPage() {
               />
             </Field>
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}

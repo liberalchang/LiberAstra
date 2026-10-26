@@ -236,7 +236,7 @@ export function PromptField({
               {tx("优化后提示词")}
               {stale && (
                 <span
-                  className="size-1.5 rounded-full bg-amber-500"
+                  className="size-1.5 rounded-full bg-warning"
                   title={tx("原始输入已变更，优化稿可能过期")}
                 />
               )}
@@ -297,7 +297,7 @@ export function PromptField({
               job?.status === "failed" ||
                 job?.status === "canceled" ||
                 /失败|错误|尚未|取消|fail|error|cancel/i.test(statusMsg)
-                ? "text-red-500"
+                ? "text-danger"
                 : "text-muted-foreground",
             )}
           >
@@ -308,7 +308,7 @@ export function PromptField({
           </p>
         )}
         {stale && !busy && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-xs text-warning">
             {tx("原始输入已变更，优化稿可能过期。点击 ✨ 重新生成覆盖，或关闭下方开关使用原始输入。")}
           </p>
         )}

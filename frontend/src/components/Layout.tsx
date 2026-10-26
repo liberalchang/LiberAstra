@@ -194,10 +194,17 @@ export function Layout() {
           size="icon"
           onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
           title={t("common.language")}
+          aria-label={t("common.language")}
         >
           <Languages />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => setDark((v) => !v)} title={t("common.theme")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDark((v) => !v)}
+          title={t("common.theme")}
+          aria-label={t("common.theme")}
+        >
           {dark ? <Sun /> : <Moon />}
         </Button>
         <Button
@@ -205,10 +212,17 @@ export function Layout() {
           size="icon"
           onClick={() => navigate("/settings/system")}
           title={t("common.settings")}
+          aria-label={t("common.settings")}
         >
           <Settings />
         </Button>
-        <Button variant="ghost" size="icon" onClick={signOut} title={t("common.logout")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={signOut}
+          title={t("common.logout")}
+          aria-label={t("common.logout")}
+        >
           <LogOut />
         </Button>
         <Button
@@ -217,6 +231,7 @@ export function Layout() {
           className={mini ? "" : "ml-auto"}
           onClick={() => setCollapsed((v) => !v)}
           title={mini ? t("common.expand") : t("common.collapse")}
+          aria-label={mini ? t("common.expand") : t("common.collapse")}
         >
           {mini ? <PanelLeftOpen /> : <PanelLeftClose />}
         </Button>
@@ -231,7 +246,7 @@ export function Layout() {
           <span>{t("shell.banner")}</span>
           <button
             type="button"
-            className="absolute right-3 grid size-6 place-items-center rounded-full text-white/80 hover:bg-white/15"
+            className="absolute right-3 grid size-8 place-items-center rounded-full text-white/80 hover:bg-white/15"
             aria-label={t("common.cancel")}
             onClick={() => {
               sessionStorage.setItem("liberastra-banner", "off");

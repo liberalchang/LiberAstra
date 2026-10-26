@@ -1,30 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { Layout } from "@/components/Layout";
 import { AuthPage } from "@/pages/AuthPage";
-import { AsrPage } from "@/pages/AsrPage";
-import { AssetsPage } from "@/pages/AssetsPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { CharactersPage } from "@/pages/CharactersPage";
-import { CliPage } from "@/pages/CliPage";
-import { GuidePage } from "@/pages/GuidePage";
-import { ImageEditPage } from "@/pages/ImageEditPage";
-import { ImageGenPage } from "@/pages/ImageGenPage";
-import { JobsPage } from "@/pages/JobsPage";
-import { MusicPage } from "@/pages/MusicPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { SystemSettingsPage } from "@/pages/SystemSettingsPage";
-import { TemplatesPage } from "@/pages/TemplatesPage";
-import { TtsPage } from "@/pages/TtsPage";
-import { VideoAssetsPage } from "@/pages/VideoAssetsPage";
-import { VideoPackPage } from "@/pages/VideoPackPage";
-import { VideoQuickPage } from "@/pages/VideoQuickPage";
-import { VoicesPage } from "@/pages/VoicesPage";
-import { WorkflowsPage } from "@/pages/WorkflowsPage";
 import { useTx } from "@/i18n/tx";
 import { useAuthStore } from "@/stores/auth";
+
+// 路由级代码分割：各页面（含 GuidePage/CliPage 内联的 markdown 文档）按需加载
+const AsrPage = lazy(() => import("@/pages/AsrPage").then((m) => ({ default: m.AsrPage })));
+const AssetsPage = lazy(() => import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
+const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const CharactersPage = lazy(() => import("@/pages/CharactersPage").then((m) => ({ default: m.CharactersPage })));
+const CliPage = lazy(() => import("@/pages/CliPage").then((m) => ({ default: m.CliPage })));
+const GuidePage = lazy(() => import("@/pages/GuidePage").then((m) => ({ default: m.GuidePage })));
+const ImageEditPage = lazy(() => import("@/pages/ImageEditPage").then((m) => ({ default: m.ImageEditPage })));
+const ImageGenPage = lazy(() => import("@/pages/ImageGenPage").then((m) => ({ default: m.ImageGenPage })));
+const JobsPage = lazy(() => import("@/pages/JobsPage").then((m) => ({ default: m.JobsPage })));
+const MusicPage = lazy(() => import("@/pages/MusicPage").then((m) => ({ default: m.MusicPage })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const SystemSettingsPage = lazy(() =>
+  import("@/pages/SystemSettingsPage").then((m) => ({ default: m.SystemSettingsPage })),
+);
+const TemplatesPage = lazy(() => import("@/pages/TemplatesPage").then((m) => ({ default: m.TemplatesPage })));
+const TtsPage = lazy(() => import("@/pages/TtsPage").then((m) => ({ default: m.TtsPage })));
+const VideoAssetsPage = lazy(() => import("@/pages/VideoAssetsPage").then((m) => ({ default: m.VideoAssetsPage })));
+const VideoPackPage = lazy(() => import("@/pages/VideoPackPage").then((m) => ({ default: m.VideoPackPage })));
+const VideoQuickPage = lazy(() => import("@/pages/VideoQuickPage").then((m) => ({ default: m.VideoQuickPage })));
+const VoicesPage = lazy(() => import("@/pages/VoicesPage").then((m) => ({ default: m.VoicesPage })));
+const WorkflowsPage = lazy(() => import("@/pages/WorkflowsPage").then((m) => ({ default: m.WorkflowsPage })));
 
 function HomeRedirect() {
   const token = useAuthStore((s) => s.token);
@@ -41,7 +46,8 @@ function HomeRedirect() {
 export default function App() {
   const tx = useTx();
   return (
-    <Routes>
+    <Suspense fallback={null}>
+      <Routes>
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<Layout />}>
@@ -86,7 +92,8 @@ export default function App() {
         <Route path="/video/motion" element={<VideoPackPage kind="motion" />} />
         <Route path="/video/characters" element={<CharactersPage />} />
       </Route>
-      <Route path="*" element={<HomeRedirect />} />
-    </Routes>
+        <Route path="*" element={<HomeRedirect />} />
+      </Routes>
+    </Suspense>
   );
 }

@@ -104,7 +104,7 @@ export function TemplatesPage() {
               {upload.isPending ? tx("上传中…") : tx("上传")}
             </Button>
             {feedback && (
-              <span className={`text-sm ${feedback.ok ? "text-green-600" : "text-red-500"}`}>
+              <span className={`text-sm ${feedback.ok ? "text-success" : "text-danger"}`}>
                 {feedback.message}
               </span>
             )}

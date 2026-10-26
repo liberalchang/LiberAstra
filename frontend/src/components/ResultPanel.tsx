@@ -43,7 +43,13 @@ function GeneratingState({ job }: { job: JobOut }) {
         </span>
       </div>
       <div className="text-3xl font-semibold tabular-nums tracking-tight">{pct}%</div>
-      <div className="relative h-2 w-full max-w-md overflow-hidden rounded-full bg-muted">
+      <div
+        className="relative h-2 w-full max-w-md overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${pct}%` }} />
         <div className="progress-shine absolute inset-0" />
       </div>
@@ -172,7 +178,7 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
           ) : running ? (
             <GeneratingState job={job} />
           ) : job.status === "failed" ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">
+            <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
               {job.error ?? tx("任务失败")}
             </div>
           ) : job.status === "canceled" ? (

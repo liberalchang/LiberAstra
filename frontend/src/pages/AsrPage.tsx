@@ -226,7 +226,7 @@ export function AsrPage() {
               onSelect={(fs) => setFile(fs?.[0] ?? null)}
             />
           </Field>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!file || submit.isPending || !!running}>
               {running ? tx("转写中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始转写")}

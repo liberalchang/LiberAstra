@@ -326,7 +326,7 @@ export function CharactersPage() {
               </Field>
             </>
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           {running && <p className="text-sm text-muted-foreground">{tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) })}</p>}
           {mode === "generate" ? (
             <Button onClick={() => generate.mutate()} disabled={!name || (!appearance && refs.length === 0) || generate.isPending || !!running}>

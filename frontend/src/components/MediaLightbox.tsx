@@ -1,5 +1,5 @@
 import { AudioLines, Download, FileText, ImageIcon, Loader2, Video, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -61,6 +61,33 @@ export async function downloadAssetById(assetId: number, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** 元素进入视口（含 200px 提前量）后返回 true，用于缩略图懒加载。 */
+function useInView() {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!el || visible) return;
+    if (!("IntersectionObserver" in window)) {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el, visible]);
+
+  return { ref: setEl, visible } as const;
+}
+
 /** 加载资产内容的 object URL；不可预览类型返回 null。 */
 function useAssetUrl(assetId: number | null, kind: string | null) {
   const [url, setUrl] = useState<string | null>(null);
@@ -120,22 +147,27 @@ function useAssetText(assetId: number | null, kind: string | null) {
  */
 export function MediaThumb({ assetId, kind, className }: { assetId: number; kind: string; className?: string }) {
   const tx = useTx();
-  const url = useAssetUrl(assetId, kind);
+  // 进入视口才拉取文件内容，避免资产网格一次性下载全部图片/视频
+  const { ref, visible } = useInView();
+  const url = useAssetUrl(visible ? assetId : null, visible ? kind : null);
   const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? FileText;
 
   if (!url) {
     return (
-      <div className={cn("grid place-items-center bg-muted/50", className)}>
+      <div ref={ref} className={cn("grid place-items-center bg-muted/50", className)}>
         <Icon className="size-10 text-muted-foreground/50" />
       </div>
     );
   }
-  if (kind === "image") return <img src={url} alt={tx("预览")} className={cn("object-cover", className)} />;
+  if (kind === "image")
+    return <img ref={ref} src={url} alt={tx("预览")} loading="lazy" className={cn("object-cover", className)} />;
   if (kind === "video") {
-    return <video src={url} muted playsInline preload="metadata" className={cn("object-cover", className)} />;
+    return (
+      <video ref={ref} src={url} muted playsInline preload="metadata" className={cn("object-cover", className)} />
+    );
   }
   return (
-    <div className={cn("grid place-items-center bg-muted/50", className)}>
+    <div ref={ref} className={cn("grid place-items-center bg-muted/50", className)}>
       <AudioLines className="size-10 text-primary/70" />
     </div>
   );
@@ -147,6 +179,8 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
   const url = useAssetUrl(target?.id ?? null, target?.kind ?? null);
   const text = useAssetText(target?.id ?? null, target?.kind ?? null);
   const targetId = target?.id ?? null;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   // 拉取资产详情：补齐 meta / path，用于参数展示与友好下载名
   const { data: detail } = useQuery({
@@ -155,11 +189,30 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
     enabled: targetId != null,
   });
 
-  // Esc 关闭 + 锁定背景滚动
+  // Esc 关闭 + Tab 焦点圈在弹窗内 + 锁定背景滚动 + 焦点进出管理
   useEffect(() => {
     if (targetId == null) return;
+    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusables = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input, select, textarea, video[controls], audio[controls], [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((el) => el.offsetParent !== null);
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -167,6 +220,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      prevFocus?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId]);
@@ -187,6 +241,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
       <div className="lightbox-backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
+        ref={dialogRef}
         className="lightbox-pop relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl md:flex-row"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -194,11 +249,13 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
         aria-label={name}
       >
         <Button
+          ref={closeRef}
           variant="outline"
           size="icon"
           className="absolute right-3 top-3 z-10 rounded-full bg-card/90 shadow-md"
           onClick={onClose}
           title={tx("关闭 (Esc)")}
+          aria-label={tx("关闭 (Esc)")}
         >
           <X />
         </Button>

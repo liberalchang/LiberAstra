@@ -170,7 +170,7 @@ export function SettingsPage() {
                 required={selectedType?.requires_api_key}
               />
             </Field>
-            {formError && <p className="text-sm text-red-500 sm:col-span-2">{formError}</p>}
+            {formError && <p className="text-sm text-danger sm:col-span-2">{formError}</p>}
             <Button type="submit" disabled={create.isPending} className="sm:w-fit">
               {create.isPending ? tx("添加中…") : tx("添加")}
             </Button>
@@ -180,7 +180,7 @@ export function SettingsPage() {
 
       <div className="flex flex-col gap-3">
         {providersFailed && (
-          <p className="text-sm text-red-500">
+          <p className="text-sm text-danger">
             {providersError instanceof Error ? providersError.message : String(providersError)}
           </p>
         )}
@@ -221,7 +221,7 @@ export function SettingsPage() {
                   {p.has_api_key ? <span>{tx("已配置密钥")}</span> : null}
                 </div>
                 {rowFeedback[p.id] && (
-                  <div className={`text-xs ${rowFeedback[p.id].ok ? "text-green-600" : "text-red-500"}`}>
+                  <div className={`text-xs ${rowFeedback[p.id].ok ? "text-success" : "text-danger"}`}>
                     {rowFeedback[p.id].message}
                   </div>
                 )}

@@ -422,8 +422,8 @@ export function WorkflowsPage() {
                 onChange={(e) => setAccelJson(e.target.value)}
               />
             </Field>
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            {notice && <p className="text-sm text-green-600">{notice}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
+            {notice && <p className="text-sm text-success">{notice}</p>}
             <div className="flex items-center gap-2">
               <Button
                 className="w-fit"

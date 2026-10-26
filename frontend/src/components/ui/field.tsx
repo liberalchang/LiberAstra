@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, useId, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** 表单字段：可见标签、控件、一行说明。 */
+/** 表单字段：可见标签、控件、一行说明。标签与控件程序化关联（屏幕阅读器可读）。 */
 export function Field({
   label,
   hint,
@@ -14,10 +14,19 @@ export function Field({
   className?: string;
   children: ReactNode;
 }) {
+  const autoId = useId();
+  // 控件是唯一子元素时注入 id，让 <label htmlFor> 真正指向它；组合控件保持原样
+  const control = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        id: (children.props as { id?: string }).id ?? autoId,
+      })
+    : children;
   return (
     <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      {children}
+      <label htmlFor={autoId} className="text-sm font-medium text-foreground">
+        {label}
+      </label>
+      {control}
       {hint ? <span className="text-xs leading-relaxed text-muted-foreground">{hint}</span> : null}
     </div>
   );

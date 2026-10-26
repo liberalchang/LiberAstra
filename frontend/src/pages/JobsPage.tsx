@@ -11,10 +11,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn, formatStepName } from "@/lib/utils";
 
 const STATUS_COLOR: Record<string, string> = {
-  succeeded: "text-green-600",
-  failed: "text-red-500",
+  succeeded: "text-success",
+  failed: "text-danger",
   canceled: "text-muted-foreground",
-  running: "text-blue-500",
+  running: "text-info",
   pending: "text-muted-foreground",
 };
 
@@ -51,11 +51,17 @@ export function JobsPage() {
       {jobs?.map((j: JobOut) => (
         <Card key={j.id}>
           <CardContent className="flex flex-col gap-2 p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <code className="text-xs text-muted-foreground">{j.id.slice(0, 8)}</code>
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{j.kind}</span>
               <span className={cn("text-sm", STATUS_COLOR[j.status])}>{t(`common.${j.status}`)}</span>
-              <div className="h-1.5 flex-1 overflow-hidden rounded bg-muted">
+              <div
+                className="h-1.5 min-w-24 flex-1 basis-32 overflow-hidden rounded bg-muted"
+                role="progressbar"
+                aria-valuenow={Math.round(j.progress * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
                 <div
                   className="h-full bg-primary transition-all"
                   style={{ width: `${Math.round(j.progress * 100)}%` }}
@@ -82,7 +88,7 @@ export function JobsPage() {
             </div>
             {expanded === j.id && (
               <div className="flex flex-col gap-2 border-t border-border pt-2">
-                {j.error && <p className="text-sm text-red-500">{j.error}</p>}
+                {j.error && <p className="text-sm text-danger">{j.error}</p>}
                 {j.steps.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {j.steps.map((s) => formatStepName(String(s.name))).join(" → ")}

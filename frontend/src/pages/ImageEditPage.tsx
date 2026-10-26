@@ -234,7 +234,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
                       type="button"
                       onClick={() => removeFile(i)}
                       title={tx("移除 {name}", { name: f.name })}
-                      className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-red-500 group-hover:opacity-100"
+                      className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-danger group-hover:opacity-100"
                     >
                       <X className="size-3" />
                     </button>
@@ -289,7 +289,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
               providerId={provider?.id}
             />
           )}
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button
               onClick={() => submit.mutate()}

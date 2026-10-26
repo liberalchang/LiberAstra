@@ -34,7 +34,7 @@ function BgmPlayer({ name }: { name: string }) {
       if (url) URL.revokeObjectURL(url);
     };
   }, [name]);
-  if (failed) return <span className="text-xs text-red-500">{tx("加载失败")}</span>;
+  if (failed) return <span className="text-xs text-danger">{tx("加载失败")}</span>;
   if (!src) return <span className="text-xs text-muted-foreground">{tx("加载中…")}</span>;
   return <audio controls preload="none" src={src} className="h-9 w-full" />;
 }
@@ -94,7 +94,7 @@ export function MusicPage() {
               {upload.isPending ? tx("上传中…") : tx("上传")}
             </Button>
             {feedback && (
-              <span className={`text-sm ${feedback.ok ? "text-green-600" : "text-red-500"}`}>
+              <span className={`text-sm ${feedback.ok ? "text-success" : "text-danger"}`}>
                 {feedback.message}
               </span>
             )}

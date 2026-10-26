@@ -126,7 +126,7 @@ export function TtsPreview({ providerId, voice }: { providerId: number; voice: s
         </Button>
       </div>
       {error ? (
-        <p className="text-xs text-red-500" role="alert">
+        <p className="text-xs text-danger" role="alert">
           {error}
         </p>
       ) : null}

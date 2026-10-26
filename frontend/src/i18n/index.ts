@@ -252,4 +252,11 @@ i18n
     },
   });
 
+// <html lang> 跟随界面语言，屏幕阅读器据此选择发音规则
+const syncHtmlLang = (lng: string) => {
+  document.documentElement.lang = lng.startsWith("zh") ? "zh-CN" : lng;
+};
+syncHtmlLang(i18n.language);
+i18n.on("languageChanged", syncHtmlLang);
+
 export default i18n;

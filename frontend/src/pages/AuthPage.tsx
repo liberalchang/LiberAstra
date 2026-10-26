@@ -80,7 +80,7 @@ export function AuthPage() {
               required
             />
           </Field>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={submit.isPending} className="mt-2">
             {submit.isPending ? t("auth.waiting") : isSetup ? t("auth.submitSetup") : t("auth.submitLogin")}
           </Button>

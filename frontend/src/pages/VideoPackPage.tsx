@@ -263,7 +263,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           </div>
 
           {missingModels.length > 0 && (
-            <p className="text-xs leading-relaxed text-amber-500">
+            <p className="text-xs leading-relaxed text-warning">
               {tx("该工作流声明需要但服务上没有找到：{list}。请改选已有模型或先把模型文件放进对应目录。", {
                 list: missingModels.join("、"),
               })}
@@ -509,7 +509,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             />
           )}
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}

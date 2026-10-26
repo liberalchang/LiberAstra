@@ -94,9 +94,9 @@ function BatchJobRow({ topic, jobId }: { topic: string; jobId: string }) {
             : tx("已取消");
   const cls =
     job?.status === "succeeded"
-      ? "text-green-600"
+      ? "text-success"
       : job?.status === "failed" || job?.status === "canceled"
-        ? "text-red-500"
+        ? "text-danger"
         : "text-muted-foreground";
   return (
     <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-3 py-2">
@@ -502,7 +502,7 @@ export function VideoQuickPage() {
             onChange={setMode}
           />
           {!hasLlm && (mode === "topic" || mode === "batch") && (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
+            <p className="text-sm text-warning">
               尚未配置 LLM。请到{" "}
               <Link className="underline" to="/settings/system">
                 {tx('系统设置')}
@@ -803,7 +803,7 @@ export function VideoQuickPage() {
                   fps={videoPack.fps}
                 />
               )}
-              <p className="text-xs leading-relaxed text-amber-500">
+              <p className="text-xs leading-relaxed text-warning">
                 {tx("注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。", { count })}
               </p>
             </>
@@ -1087,7 +1087,7 @@ export function VideoQuickPage() {
               }}
             />
           </Field>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             {mode === "batch" ? (
               <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>

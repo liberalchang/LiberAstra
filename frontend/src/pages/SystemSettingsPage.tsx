@@ -223,8 +223,8 @@ export function SystemSettingsPage() {
               <Button type="submit" disabled={changePwd.isPending}>
                 <KeyRound /> {changePwd.isPending ? tx("修改中…") : tx("修改密码")}
               </Button>
-              {pwdDone && <span className="text-sm text-green-600">{tx("密码已更新，下次登录请用新密码。")}</span>}
-              {pwdError && <span className="text-sm text-red-500">{pwdError}</span>}
+              {pwdDone && <span className="text-sm text-success">{tx("密码已更新，下次登录请用新密码。")}</span>}
+              {pwdError && <span className="text-sm text-danger">{pwdError}</span>}
             </div>
           </form>
         </CardContent>
@@ -293,7 +293,7 @@ export function SystemSettingsPage() {
             )}
           </Field>
           {llmProviders.length === 0 && (
-            <p className="text-sm text-amber-700 dark:text-amber-400 sm:col-span-2">
+            <p className="text-sm text-warning sm:col-span-2">
               {tx('尚未配置启用的 LLM 服务商。请先到「服务提供方」添加。')}
             </p>
           )}
@@ -309,7 +309,7 @@ export function SystemSettingsPage() {
               {savePrefs.isPending ? tx("保存中…") : tx("保存")}
             </Button>
             {prefSaved && !savePrefs.isPending && (
-              <span className="text-sm text-green-600">{tx("已保存。")}</span>
+              <span className="text-sm text-success">{tx("已保存。")}</span>
             )}
           </div>
         </CardContent>
@@ -328,7 +328,7 @@ export function SystemSettingsPage() {
           {speechCatalog.isPending && (
             <p className="text-sm text-muted-foreground">{tx("正在读取 Liber Speech 的模型列表…")}</p>
           )}
-          {catalogError && <p className="text-sm text-red-500">{catalogError}</p>}
+          {catalogError && <p className="text-sm text-danger">{catalogError}</p>}
           <Field label={tx("文字转语音模型")} hint={tx(speechModelHint(speechModel))}>
             <select
               className={selectClass}
@@ -392,7 +392,7 @@ export function SystemSettingsPage() {
               {savePrefs.isPending ? tx("保存中…") : tx("保存")}
             </Button>
             {prefSaved && !savePrefs.isPending && (
-              <span className="text-sm text-green-600">{tx("已保存。")}</span>
+              <span className="text-sm text-success">{tx("已保存。")}</span>
             )}
           </div>
         </CardContent>
@@ -463,7 +463,7 @@ export function SystemSettingsPage() {
             >
               {savePrefs.isPending ? tx("保存中…") : tx("保存")}
             </Button>
-            {prefSaved && !savePrefs.isPending && <span className="text-sm text-green-600">{tx("已保存。")}</span>}
+            {prefSaved && !savePrefs.isPending && <span className="text-sm text-success">{tx("已保存。")}</span>}
           </div>
         </CardContent>
       </Card>
@@ -542,9 +542,9 @@ export function SystemSettingsPage() {
                 {savePrefs.isPending ? tx("保存中…") : tx("保存")}
               </Button>
               {prefSaved && !savePrefs.isPending && (
-                <span className="text-sm text-green-600">{tx("已保存，下一个任务起生效。")}</span>
+                <span className="text-sm text-success">{tx("已保存，下一个任务起生效。")}</span>
               )}
-              {savePrefs.isError && <span className="text-sm text-red-500">{savePrefs.error.message}</span>}
+              {savePrefs.isError && <span className="text-sm text-danger">{savePrefs.error.message}</span>}
             </div>
           </form>
         </CardContent>
