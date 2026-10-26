@@ -151,7 +151,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       });
       // 关键：保存结果直接写回查询缓存,否则重进画布会先读到保存前的旧图
       queryClient.setQueryData(["canvas", canvasId], saved);
-      useCanvasStore.setState({ dirty: false });
+      // 记录干净基线:undo 回到此版本时不误报未保存
+      useCanvasStore.getState().markSaved();
       return true;
     } catch (err) {
       flash(err instanceof Error ? err.message : tx("保存失败"), { sticky: true });

@@ -65,6 +65,8 @@ interface CanvasState {
   load: (canvas: CanvasOut) => void;
   reset: () => void;
   setName: (name: string) => void;
+  /** 保存成功打点:undo 回到该版本时不再误报未保存 */
+  markSaved: () => void;
   serialize: () => CanvasGraph;
 
   onNodesChange: (changes: NodeChange<CanvasFlowNode>[]) => void;
@@ -98,10 +100,15 @@ export type ConnectRejectReason = string;
 interface HistoryEntry {
   nodes: CanvasFlowNode[];
   edges: Edge[];
+  /** 该快照所代表状态的版本号（dirty 基线比对用） */
+  rev: number;
 }
 const HISTORY_LIMIT = 50;
 let past: HistoryEntry[] = [];
 let future: HistoryEntry[] = [];
+/** 单调递增的版本号;markSaved 记下已保存版本,undo 回到该版本即不脏 */
+let rev = 0;
+let savedRev = 0;
 /** batch() 期间内部动作不再单独入栈 */
 let batchDepth = 0;
 /** 拖拽期间只记一次（首帧） */
@@ -120,9 +127,10 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   /** 变更前记录一步快照（batch 期间由 batch 自己记） */
   const record = () => {
     if (batchDepth > 0) return;
-    past.push({ nodes: get().nodes, edges: get().edges });
+    past.push({ nodes: get().nodes, edges: get().edges, rev });
     if (past.length > HISTORY_LIMIT) past.shift();
     future = [];
+    rev += 1;
     historySync();
   };
 
@@ -136,7 +144,6 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     set({
       nodes,
       edges: entry.edges,
-      dirty: true,
       runActive: nodes.some((n) => ["pending", "running"].includes(n.data.run.status)),
     });
   };
@@ -186,15 +193,19 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
       dirty: false,
       runActive: nodes.some((n) => ["pending", "running"].includes(n.data.run.status)),
     });
-    // 换画布即另起历史
+    // 换画布即另起历史与版本基线
     past = [];
     future = [];
+    rev = 0;
+    savedRev = 0;
     historySync();
   },
 
   reset: () => {
     past = [];
     future = [];
+    rev = 0;
+    savedRev = 0;
     set({
       canvasId: null,
       name: "",
@@ -208,7 +219,17 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     });
   },
 
-  setName: (name) => set({ name, dirty: true }),
+  setName: (name) => {
+    // 名称随 graph 一起保存;改动占一个新版本号,undo 不会回到它,dirty 不误清
+    rev += 1;
+    set({ name, dirty: true });
+  },
+
+  /** 保存成功打点:当前版本即干净基线 */
+  markSaved: () => {
+    savedRev = rev;
+    set({ dirty: false });
+  },
 
   serialize: () => {
     const { nodes, edges, viewport } = get();
@@ -385,20 +406,24 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   undo: () => {
     const prev = past.pop();
     if (!prev) return;
-    future.push({ nodes: get().nodes, edges: get().edges });
+    future.push({ nodes: get().nodes, edges: get().edges, rev });
     dragRecorded = false;
     lastEditKey = "";
+    rev = prev.rev;
     restore(prev);
+    set({ dirty: rev !== savedRev });
     historySync();
   },
 
   redo: () => {
     const next = future.pop();
     if (!next) return;
-    past.push({ nodes: get().nodes, edges: get().edges });
+    past.push({ nodes: get().nodes, edges: get().edges, rev });
     dragRecorded = false;
     lastEditKey = "";
+    rev = next.rev;
     restore(next);
+    set({ dirty: rev !== savedRev });
     historySync();
   },
 
@@ -406,9 +431,10 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     // 嵌套 batch 只在最外层记录,避免一个复合动作产生多条历史
     const outermost = batchDepth === 0;
     if (outermost) {
-      past.push({ nodes: get().nodes, edges: get().edges });
+      past.push({ nodes: get().nodes, edges: get().edges, rev });
       if (past.length > HISTORY_LIMIT) past.shift();
       future = [];
+      rev += 1;
     }
     batchDepth++;
     try {

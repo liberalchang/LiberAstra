@@ -12,7 +12,7 @@ import {
   Video,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import type { CanvasNodeKind, MediaKind, SpeechMode } from "@/canvas/types";
@@ -67,8 +67,32 @@ export function QuickAddMenu({
 }) {
   const tx = useTx();
   const [tab, setTab] = useState<"function" | "io">("function");
+  const menuRef = useRef<HTMLDivElement>(null);
   const { data: groups } = useQuery({ queryKey: ["canvas-groups"], queryFn: api.getCanvasGroups });
   const { data: packs } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
+
+  // 弹层键盘规范:打开即聚焦第一个可选项,Esc 关闭,↑↓ 遍历
+  useEffect(() => {
+    const first = menuRef.current?.querySelector<HTMLElement>("button");
+    first?.focus();
+  }, []);
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("button") ?? []);
+    if (items.length === 0) return;
+    e.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === "ArrowDown"
+        ? (current + 1 + items.length) % items.length
+        : (current - 1 + items.length) % items.length;
+    items[next]?.focus();
+  };
 
   /** 所属按「组内第一个包的能力」归入图片/视频桶;语音是固定两项。 */
   const sections = useMemo(() => {
@@ -100,8 +124,11 @@ export function QuickAddMenu({
         onClick={onClose}
       />
       <div
+        ref={menuRef}
         className="absolute z-40 w-60 rounded-xl border border-border bg-card p-1.5 shadow-lg"
         style={{ left: x, top: y }}
+        role="menu"
+        onKeyDown={onMenuKeyDown}
       >
         <Segmented
           ariaLabel={tx("节点类型")}

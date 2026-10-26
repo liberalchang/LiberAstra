@@ -113,7 +113,7 @@ function OutputVarCard({ node }: { node: CanvasFlowNode }) {
       {d.kind === "input" && d.mediaKind === "text" ? (
         <p className="text-xs text-muted-foreground">{tx("直接传出上方输入的文本内容")}</p>
       ) : (
-        <ResultPreview run={d.run} expectedKind={expectedKind} />
+        <ResultPreview run={d.run} expectedKind={expectedKind} nodeId={node.id} />
       )}
     </section>
   );
