@@ -379,9 +379,7 @@ export function PromptField({
                   }}
                 >
                   <span className="text-sm text-primary">{v.tag ?? `{{${v.name}}}`}</span>
-                  <span className="truncate text-[10px] text-muted-foreground">
-                    {v.name} · {v.preview}
-                  </span>
+                  <span className="truncate text-[10px] text-muted-foreground">{v.preview}</span>
                 </button>
               ))}
             </div>

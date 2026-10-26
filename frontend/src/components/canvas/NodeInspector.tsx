@@ -324,8 +324,12 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
                 <>
                   {!bound && options.length > 1 && <option value="">{tx("自动(按连线顺序)")}</option>}
                   {options.map((s) => (
-                    <option key={s.id} value={s.data.varName ?? ""}>
-                      {s.data.varName || s.id} · {nodeTitle(s, tx)}
+                    <option
+                      key={s.id}
+                      value={s.data.varName ?? ""}
+                      title={nodeTitle(s, tx)}
+                    >
+                      {s.data.varName || s.id}
                     </option>
                   ))}
                 </>
