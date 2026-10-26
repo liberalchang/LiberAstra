@@ -134,6 +134,7 @@ export interface AssetOut {
   size: number;
   job_id: string | null;
   meta: Record<string, unknown>;
+  hidden: boolean;
   created_at: string;
 }
 
@@ -294,6 +295,66 @@ export interface WorkflowPackBundle extends WorkflowPackOut {
   workflow: Record<string, unknown>;
 }
 
+/** 画布节点最近一次执行记录（服务端持久化）。 */
+export interface CanvasNodeRunOut {
+  node_id: string;
+  status: string;
+  job_id: string | null;
+  asset_ids: number[];
+  error: string | null;
+  published: boolean;
+}
+
+/** React Flow 可序列化的画布图（data 开放,由前端节点类型解释）。 */
+export interface CanvasGraph {
+  nodes: {
+    id: string;
+    type: "input" | "function" | "concat";
+    position: { x: number; y: number };
+    data: Record<string, unknown>;
+  }[];
+  edges: {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }[];
+  viewport: { x: number; y: number; zoom: number };
+}
+
+export interface CanvasOut {
+  id: string;
+  name: string;
+  graph: CanvasGraph;
+  created_at: string;
+  updated_at: string;
+  node_runs: CanvasNodeRunOut[];
+}
+
+export interface CanvasListOut {
+  id: string;
+  name: string;
+  node_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CanvasRunPlanItem {
+  node_id: string;
+  job_id: string | null;
+  status: string;
+  reused: boolean;
+}
+
+export interface CanvasRunOut {
+  run_id: string;
+  plan: CanvasRunPlanItem[];
+}
+
+/** 工作流包分组（所属）:组名 → 包名列表 */
+export type CanvasGroups = Record<string, string[]>;
+
 export const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"];
 
 export const api = {
@@ -377,8 +438,15 @@ export const api = {
   deleteCharacter: (id: number) => request<void>(`/api/v1/characters/${id}`, { method: "DELETE" }),
   characterImage: (id: number, slot: string) =>
     requestBlob(`/api/v1/characters/${id}/image/${slot}`),
-  listAssets: (kind?: string) =>
-    request<AssetOut[]>(`/api/v1/assets${kind ? `?kind=${kind}` : ""}`),
+  listAssets: (kind?: string, includeHidden?: boolean) => {
+    const qs = [kind && `kind=${kind}`, includeHidden && "include_hidden=true"]
+      .filter(Boolean)
+      .join("&");
+    return request<AssetOut[]>(`/api/v1/assets${qs ? `?${qs}` : ""}`);
+  },
+  /** 发布画布中间结果：取消隐藏,资源库可见 */
+  publishAsset: (id: number) =>
+    request<AssetOut>(`/api/v1/assets/${id}/publish`, { method: "POST" }),
 
   listWorkflows: (capability?: string) =>
     request<WorkflowPackOut[]>(`/api/v1/workflows${capability ? `?capability=${capability}` : ""}`),
@@ -459,6 +527,15 @@ export const api = {
       body: form,
     });
   },
+  /** 上传并同时建档为资产（画布输入节点引用 assetId） */
+  uploadFileAsAsset: (file: File, kind: string) => {
+    const form = new FormData();
+    form.set("file", file);
+    return request<{ path: string; size: number; asset_id: number }>(
+      `/api/v1/uploads?as_asset=true&kind=${kind}`,
+      { method: "POST", body: form },
+    );
+  },
   submitQuickVideo: (body: Record<string, unknown>) =>
     request<JobOut>("/api/v1/videos/quick", { method: "POST", body: JSON.stringify(body) }),
   submitVideoI2v: (form: FormData) =>
@@ -472,6 +549,34 @@ export const api = {
   /** 看素材写口播（202）。结果是文本，确认后再走 submitVideoAssets。 */
   submitVideoAssetsScript: (form: FormData) =>
     request<JobOut>("/api/v1/videos/assets/script", { method: "POST", body: form }),
+
+  // ---- 无限画布 ----
+  listCanvases: () => request<CanvasListOut[]>("/api/v1/canvases"),
+  createCanvas: (body: { name?: string; graph?: CanvasGraph }) =>
+    request<CanvasOut>("/api/v1/canvases", { method: "POST", body: JSON.stringify(body) }),
+  getCanvas: (id: string) => request<CanvasOut>(`/api/v1/canvases/${id}`),
+  updateCanvas: (id: string, body: { name?: string; graph?: CanvasGraph }) =>
+    request<CanvasOut>(`/api/v1/canvases/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  duplicateCanvas: (id: string) =>
+    request<CanvasOut>(`/api/v1/canvases/${id}/duplicate`, { method: "POST" }),
+  deleteCanvas: (id: string) =>
+    request<void>(`/api/v1/canvases/${id}`, { method: "DELETE" }),
+  /** 执行：node_ids 空 = 所有末端分支；force_node_ids 忽略指纹复用 */
+  runCanvas: (id: string, body: { node_ids?: string[]; force_node_ids?: string[] }) =>
+    request<CanvasRunOut>(`/api/v1/canvases/${id}/run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  /** 强制重跑单个节点及其上游 */
+  rerunCanvasNode: (id: string, nodeId: string) =>
+    request<CanvasRunOut>(`/api/v1/canvases/${id}/nodes/${nodeId}/run`, { method: "POST" }),
+  getCanvasRuns: (id: string) => request<CanvasRunOut>(`/api/v1/canvases/${id}/runs`),
+  getCanvasGroups: () => request<CanvasGroups>("/api/v1/canvases/groups"),
+  putCanvasGroups: (groups: CanvasGroups) =>
+    request<CanvasGroups>("/api/v1/canvases/groups", {
+      method: "PUT",
+      body: JSON.stringify(groups),
+    }),
 };
 
 /** 带鉴权下载资产内容为 Blob（audio 标签无法带 Authorization 头）。 */

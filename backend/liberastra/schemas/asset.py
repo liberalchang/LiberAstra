@@ -15,6 +15,7 @@ class AssetOut(BaseModel):
     size: int
     job_id: str | None
     meta: dict
+    hidden: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

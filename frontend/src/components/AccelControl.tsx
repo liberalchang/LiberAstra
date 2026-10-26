@@ -85,10 +85,12 @@ type Props = {
   inputs?: Record<string, { default?: unknown }>;
   /** 打开或关闭时覆盖关联参数；调用方直接合并，不要再跳过已填字段。 */
   onApplyPreset?: (patch: Record<string, string>) => void;
+  /** 窄容器（画布属性面板）强制单列 */
+  singleColumn?: boolean;
 };
 
 /** LoRA 开关（Turbo / Uncensored 等）+ 文件下拉 + 强度；仅在包声明了 accel 时渲染。 */
-export function AccelControl({ accel, providerId, value, onChange, inputs, onApplyPreset }: Props) {
+export function AccelControl({ accel, providerId, value, onChange, inputs, onApplyPreset, singleColumn }: Props) {
   const tx = useTx();
   const folder = accel.lora?.options_from ?? "loras";
   const match = (accel.lora?.match ?? "").toLowerCase();
@@ -169,7 +171,7 @@ export function AccelControl({ accel, providerId, value, onChange, inputs, onApp
       </div>
 
       {value.enabled && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={singleColumn ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
           <Field label={loraLabel} hint={match ? tx("仅显示含「{match}」的 LoRA", { match: accel.lora?.match ?? "" }) : undefined}>
             {providerId == null || isError ? (
               <input

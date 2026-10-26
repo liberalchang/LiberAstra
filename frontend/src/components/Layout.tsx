@@ -28,6 +28,7 @@ import {
   UserRound,
   UsersRound,
   WandSparkles,
+  Waypoints,
   Workflow,
   X,
 } from "lucide-react";
@@ -47,6 +48,7 @@ const NAV_GROUPS: {
     labelKey: "group.workbench",
     items: [
       { to: "/dashboard", icon: LayoutDashboard, key: "nav.dashboard" },
+      { to: "/canvas", icon: Waypoints, key: "nav.canvas" },
       { to: "/guide", icon: BookOpen, key: "nav.guide" },
     ],
   },
@@ -144,7 +146,7 @@ export function Layout() {
         </span>
         {!mini && <span className="text-[15px] font-semibold tracking-tight">LiberAstra</span>}
       </div>
-      <nav className={cn("nav-scroll flex flex-1 flex-col gap-4 overflow-y-auto pb-4", mini ? "px-2" : "px-3")}>
+      <nav className={cn("nav-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-4", mini ? "px-2" : "px-3")}>
         {NAV_GROUPS.map((group) => (
           <div key={group.labelKey}>
             {mini ? (

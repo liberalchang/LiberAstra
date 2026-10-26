@@ -40,13 +40,32 @@ def _download_name(record: Asset) -> str:
 
 @router.get("", response_model=list[AssetOut])
 def list_assets(
-    user: CurrentUser, db: DbSession, kind: str | None = None, limit: int = 50
+    user: CurrentUser,
+    db: DbSession,
+    kind: str | None = None,
+    limit: int = 50,
+    include_hidden: bool = False,
 ) -> list[Asset]:
     stmt = select(Asset).where(Asset.owner_id == user.id).order_by(Asset.created_at.desc())
+    if not include_hidden:
+        stmt = stmt.where(Asset.hidden.is_(False))
     if kind:
         kinds = [k.strip() for k in kind.split(",") if k.strip()]
         stmt = stmt.where(Asset.kind.in_(kinds))
     return list(db.scalars(stmt.limit(min(limit, 200))).all())
+
+
+@router.post("/{asset_id}/publish", response_model=AssetOut)
+def publish_asset(asset_id: int, user: CurrentUser, db: DbSession) -> Asset:
+    """发布画布中间结果：取消隐藏,摘掉 canvas_temp 标记(保留 canvas_id/node 溯源)。"""
+    record = _get_owned(db, asset_id, user)
+    record.hidden = False
+    meta = dict(record.meta or {})
+    meta.pop("canvas_temp", None)
+    record.meta = meta
+    db.commit()
+    db.refresh(record)
+    return record
 
 
 @router.get("/{asset_id}", response_model=AssetOut)

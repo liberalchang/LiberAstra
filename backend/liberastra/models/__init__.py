@@ -16,6 +16,7 @@ def utcnow() -> datetime:
 
 
 from liberastra.models.asset import Asset  # noqa: E402
+from liberastra.models.canvas import Canvas, CanvasNodeRun  # noqa: E402
 from liberastra.models.character import Character  # noqa: E402
 from liberastra.models.job import Job  # noqa: E402
 from liberastra.models.provider import Provider  # noqa: E402
@@ -29,6 +30,8 @@ __all__ = [
     "AppSetting",
     "Asset",
     "Base",
+    "Canvas",
+    "CanvasNodeRun",
     "Character",
     "Job",
     "Provider",

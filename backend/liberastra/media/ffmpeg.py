@@ -57,6 +57,27 @@ async def probe_duration(path: Path) -> float:
     return await asyncio.to_thread(_probe_duration_sync, path)
 
 
+def _probe_video_size_sync(path: Path) -> tuple[int, int]:
+    proc = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height", "-of", "csv=p=0", str(path),
+        ],
+        capture_output=True,
+        check=False,
+    )
+    try:
+        width, height = proc.stdout.decode().strip().split(",")[:2]
+        return int(width), int(height)
+    except (ValueError, IndexError) as exc:
+        raise ProviderError(f"无法读取视频分辨率: {path}") from exc
+
+
+async def probe_video_size(path: Path) -> tuple[int, int]:
+    """视频宽高（用于拼接前统一画幅）。"""
+    return await asyncio.to_thread(_probe_video_size_sync, path)
+
+
 def _has_audio_stream_sync(path: Path) -> bool:
     proc = subprocess.run(
         [
@@ -143,6 +164,35 @@ async def concat_segments(segments: list[Path], out: Path, *, list_file: Path) -
         "-f", "concat", "-safe", "0", "-i", str(list_file),
         "-c", "copy", str(out),
     )
+
+
+async def concat_media(inputs: list[Path], out: Path, *, kind: str, work_dir: Path) -> None:
+    """把多条异构音/视频拼成一整段：先逐段统一重编码，再无损拼接。
+
+    视频统一到首段的宽高与默认帧率（无音轨的补静音）；音频统一到 mp3/44.1k/立体声。
+    """
+    _require_ffmpeg()
+    if not inputs:
+        raise ProviderError("没有可合成的输入")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    segments: list[Path] = []
+    if kind == "video":
+        width, height = await probe_video_size(inputs[0])
+        for index, src in enumerate(inputs):
+            segment = work_dir / f"concat_{index:02d}.mp4"
+            await make_native_clip_segment(clip=src, out=segment, width=width, height=height)
+            segments.append(segment)
+    else:
+        for index, src in enumerate(inputs):
+            segment = work_dir / f"concat_{index:02d}.mp3"
+            await _run(
+                "ffmpeg", "-y", "-i", str(src),
+                "-vn", "-c:a", "libmp3lame", "-q:a", "2", "-ar", "44100", "-ac", "2",
+                str(segment),
+            )
+            segments.append(segment)
+    await concat_segments(segments, out, list_file=work_dir / "concat_list.txt")
 
 
 async def make_clip_segment(

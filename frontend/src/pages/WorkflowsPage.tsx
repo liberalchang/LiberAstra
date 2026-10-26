@@ -5,10 +5,12 @@ import { Download, FileUp, Pencil, Trash2, WandSparkles, X } from "lucide-react"
 import { useRef, useState } from "react";
 
 import { api, type WorkflowPackBundle, type WorkflowPackOut } from "@/api/client";
+import { GroupSettingsPanel } from "@/components/canvas/GroupSettingsPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { useTx } from "@/i18n/tx";
 
 const INPUTS_PLACEHOLDER = `{
@@ -52,6 +54,7 @@ export function WorkflowsPage() {
   const [accelJson, setAccelJson] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pageTab, setPageTab] = useState<"packs" | "groups">("packs");
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -249,6 +252,20 @@ export function WorkflowsPage() {
         description={tx("支持 LiberAstra 包、ComfyUI API Format，以及画布 JSON（自动转换）。")}
       />
 
+      <Segmented
+        ariaLabel={tx("工作流包")}
+        value={pageTab}
+        onChange={(v) => setPageTab(v as typeof pageTab)}
+        options={[
+          { value: "packs", label: tx("包列表") },
+          { value: "groups", label: tx("画布分组") },
+        ]}
+      />
+
+      {pageTab === "groups" ? (
+        <GroupSettingsPanel />
+      ) : (
+        <>
       <div className="flex flex-col gap-3">
         {packs?.map((p) => (
           <Card key={`${p.source}-${p.name}`}>
@@ -442,6 +459,8 @@ export function WorkflowsPage() {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from liberastra.models import Base, utcnow
@@ -28,6 +28,8 @@ class Asset(Base):
         ForeignKey("jobs.id", ondelete="SET NULL"), default=None, index=True
     )
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 画布中间结果打标隐藏：资源库默认不显示，发布后转正
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

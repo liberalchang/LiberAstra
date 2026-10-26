@@ -12,6 +12,10 @@ import { useAuthStore } from "@/stores/auth";
 const AsrPage = lazy(() => import("@/pages/AsrPage").then((m) => ({ default: m.AsrPage })));
 const AssetsPage = lazy(() => import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const CanvasListPage = lazy(() =>
+  import("@/pages/CanvasListPage").then((m) => ({ default: m.CanvasEntryPage })),
+);
+const CanvasPage = lazy(() => import("@/pages/CanvasPage").then((m) => ({ default: m.CanvasPage })));
 const CharactersPage = lazy(() => import("@/pages/CharactersPage").then((m) => ({ default: m.CharactersPage })));
 const CliPage = lazy(() => import("@/pages/CliPage").then((m) => ({ default: m.CliPage })));
 const GuidePage = lazy(() => import("@/pages/GuidePage").then((m) => ({ default: m.GuidePage })));
@@ -52,6 +56,8 @@ export default function App() {
       <Route path="/auth" element={<AuthPage />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/canvas" element={<CanvasListPage />} />
+        <Route path="/canvas/:id" element={<CanvasPage />} />
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/dev/cli" element={<CliPage />} />
         <Route path="/speech/tts" element={<TtsPage />} />

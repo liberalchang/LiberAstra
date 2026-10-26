@@ -245,3 +245,19 @@ input[type="file"]::file-selector-button {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent;
 }
+
+/* 画布节点外壳由节点卡组件接管,清掉 React Flow 默认节点主题(150px 定宽/边框/背景/居中) */
+.react-flow__node.react-flow__node-input,
+.react-flow__node.react-flow__node-function,
+.react-flow__node.react-flow__node-concat,
+.react-flow__node.react-flow__node-speech {
+  width: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  background-color: transparent;
+  font-size: inherit;
+  text-align: initial;
+  box-shadow: none;
+}

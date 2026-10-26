@@ -22,11 +22,12 @@ export function AssetsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<string>("");
+  const [showHidden, setShowHidden] = useState(false);
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   const { data: assets } = useQuery({
-    queryKey: ["assets", kind],
-    queryFn: () => api.listAssets(kind || undefined),
+    queryKey: ["assets", kind, showHidden],
+    queryFn: () => api.listAssets(kind || undefined, showHidden),
   });
 
   const remove = useMutation({
@@ -56,6 +57,14 @@ export function AssetsPage() {
               {t(`assets.${k}`)}
             </Button>
           ))}
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showHidden}
+              onChange={(e) => setShowHidden(e.target.checked)}
+            />
+            {t("assets.includeHidden")}
+          </label>
       </div>
       {assets?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

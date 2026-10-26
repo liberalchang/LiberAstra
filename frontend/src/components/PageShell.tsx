@@ -19,11 +19,13 @@ import {
   UsersRound,
   WandSparkles,
   Workflow,
+  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 
 export type MarkKind =
   | "image"
+  | "canvas"
   | "edit"
   | "upscale"
   | "video"
@@ -64,6 +66,7 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   jobs: ListTodo,
   settings: Settings,
   workflow: Workflow,
+  canvas: Waypoints,
   guide: BookOpen,
   cli: Terminal,
 };

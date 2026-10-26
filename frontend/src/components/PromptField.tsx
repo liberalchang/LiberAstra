@@ -18,6 +18,14 @@ import { useTx } from "@/i18n/tx";
 export type { PromptFieldValue };
 export { emptyPromptValue, coercePromptValue, resolveEffectivePrompt };
 
+/** 画布变量:`/` 补全列表项;媒体变量插入 <Picture 1> 风格标签,文本变量插入 {{名}} */
+export interface PromptVar {
+  name: string;
+  preview: string;
+  /** 媒体变量:插入 <Picture 1> 风格标签而不是 {{名}} */
+  tag?: string;
+}
+
 type Props = {
   label?: string;
   hint?: string;
@@ -35,6 +43,8 @@ type Props = {
   placeholder?: string;
   minRowsClass?: string;
   disabled?: boolean;
+  /** 画布已连接节点的变量:给了它,原始输入支持 / 唤起补全插入 */
+  variables?: PromptVar[];
 };
 
 /**
@@ -54,6 +64,7 @@ export function PromptField({
   placeholder,
   minRowsClass = "min-h-24",
   disabled,
+  variables,
 }: Props) {
   const tx = useTx();
   const [tab, setTab] = useState<"raw" | "optimized">(() =>
@@ -61,6 +72,10 @@ export function PromptField({
   );
   const [scene, setScene] = useState("auto");
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  // 画布变量补全:"/" 的光标位置与菜单高亮项(仅原始输入 Tab)
+  const [menuAt, setMenuAt] = useState<number | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
   /** 已把某次成功 Job 写入 value，避免轮询重复 onChange */
@@ -200,6 +215,15 @@ export function PromptField({
 
   const busy = running || optimize.isPending;
 
+  const insertVar = (v: PromptVar) => {
+    if (menuAt == null) return;
+    const snippet = v.tag ?? `{{${v.name}}}`;
+    const raw = valueRef.current.raw;
+    onChange({ ...valueRef.current, raw: `${raw.slice(0, menuAt)}${snippet}${raw.slice(menuAt + 1)}` });
+    setMenuAt(null);
+    areaRef.current?.focus();
+  };
+
   return (
     <Field
       label={tx(label)}
@@ -268,27 +292,83 @@ export function PromptField({
           </select>
         </div>
 
-        <textarea
-          className={cn(areaClass, minRowsClass)}
-          placeholder={
-            tab === "raw"
-              ? (placeholder ?? tx("输入简短描述…"))
-              : busy
-                ? tx("优化任务执行中…")
-                : tx("点击 ✨ 生成优化提示词，也可在此直接编辑")
-          }
-          value={displayText}
-          readOnly={busy && tab === "optimized"}
-          onChange={(e) => {
-            if (busy) return;
-            const text = e.target.value;
-            if (tab === "raw") {
-              onChange({ ...value, raw: text });
-            } else {
-              onChange({ ...value, optimized: text });
+        <div className="relative">
+          <textarea
+            ref={areaRef}
+            className={cn(areaClass, minRowsClass)}
+            placeholder={
+              tab === "raw"
+                ? (placeholder ??
+                  (variables?.length
+                    ? tx("输入简短描述…键入 / 可引用已连接节点的变量")
+                    : tx("输入简短描述…")))
+                : busy
+                  ? tx("优化任务执行中…")
+                  : tx("点击 ✨ 生成优化提示词，也可在此直接编辑")
             }
-          }}
-        />
+            value={displayText}
+            readOnly={busy && tab === "optimized"}
+            onChange={(e) => {
+              if (busy) return;
+              const text = e.target.value;
+              if (tab === "raw") {
+                onChange({ ...value, raw: text });
+                // 刚输入 "/" 且有可用变量时弹出补全
+                const pos = e.target.selectionStart ?? text.length;
+                if (variables?.length && text[pos - 1] === "/") {
+                  setMenuAt(pos - 1);
+                  setActiveIndex(0);
+                } else if (menuAt != null && pos <= menuAt) {
+                  setMenuAt(null);
+                }
+              } else {
+                onChange({ ...value, optimized: text });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (menuAt == null || !variables?.length) return;
+              if (e.key === "Escape") {
+                setMenuAt(null);
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setActiveIndex((i) => (i + 1) % variables.length);
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActiveIndex((i) => (i - 1 + variables.length) % variables.length);
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                const v = variables[activeIndex];
+                if (v) insertVar(v);
+              }
+            }}
+            onBlur={() => window.setTimeout(() => setMenuAt(null), 150)}
+          />
+          {menuAt != null && variables && variables.length > 0 && (
+            <div className="absolute left-0 top-full z-40 mt-1 w-56 rounded-xl border border-border bg-card p-1 shadow-lg">
+              <div className="px-2 py-1 text-[10px] text-muted-foreground">{tx("插入变量")}</div>
+              {variables.map((v, index) => (
+                <button
+                  key={v.name}
+                  type="button"
+                  className={cn(
+                    "flex w-full flex-col rounded-md px-2 py-1 text-left",
+                    index === activeIndex ? "bg-muted" : "hover:bg-muted",
+                  )}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    insertVar(v);
+                  }}
+                >
+                  <span className="text-sm text-primary">{v.tag ?? `{{${v.name}}}`}</span>
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {v.name} · {v.preview}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {statusMsg && (
           <p

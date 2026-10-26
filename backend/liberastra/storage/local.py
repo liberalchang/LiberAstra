@@ -70,6 +70,7 @@ def create_asset(
     job_id: str | None = None,
     owner_id: int,
     meta: dict | None = None,
+    hidden: bool = False,
 ) -> Asset:
     path = resolve(rel_path)
     asset = Asset(
@@ -79,6 +80,7 @@ def create_asset(
         size=path.stat().st_size if path.exists() else 0,
         job_id=job_id,
         meta=meta or {},
+        hidden=hidden,
         owner_id=owner_id,
     )
     db.add(asset)

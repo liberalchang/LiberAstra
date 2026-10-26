@@ -15,6 +15,7 @@ const zh = {
   },
   nav: {
     dashboard: "总览",
+    canvas: "画布",
     guide: "使用文档",
     tts: "文字转语音",
     asr: "语音转文字",
@@ -117,6 +118,7 @@ const zh = {
     subtitle: "字幕",
     text: "文本",
     hint: "图片、音频、视频和字幕都收在这里。",
+    includeHidden: "含画布中间结果",
   },
 };
 
@@ -133,6 +135,7 @@ const en: typeof zh = {
   },
   nav: {
     dashboard: "Overview",
+    canvas: "Canvas",
     guide: "Guide",
     tts: "Text to Speech",
     asr: "Speech to Text",
@@ -235,6 +238,7 @@ const en: typeof zh = {
     subtitle: "Subtitles",
     text: "Text",
     hint: "Images, audio, video and subtitles live here.",
+    includeHidden: "Include canvas drafts",
   },
 };
 
