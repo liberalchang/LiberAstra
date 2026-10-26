@@ -61,8 +61,8 @@ export function CanvasDock({
         disabled={running}
         title={
           selectedCount > 0
-            ? tx("执行选中节点及其上游")
-            : tx("执行所有末端分支（未选中节点时）")
+            ? tx("执行选中节点及其上游（上游能复用则复用，空值或失效才重跑）")
+            : tx("强制重跑整张画布（全部节点忽略缓存，需确认）")
         }
       >
         {running ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}

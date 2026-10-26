@@ -21,7 +21,7 @@ from liberastra.schemas.canvas import (
     CanvasUpdateIn,
 )
 from liberastra.services import canvas_run
-from liberastra.services.canvas_graph import detect_cycle
+from liberastra.services.canvas_graph import detect_cycle, resolve_scope
 from liberastra.services.workflows import list_packs
 
 router = APIRouter(prefix="/canvases", tags=["canvases"])
@@ -250,12 +250,11 @@ async def run_canvas(
 async def run_canvas_node(
     canvas_id: str, node_id: str, user: CurrentUser, db: DbSession, request: Request
 ) -> CanvasRunOut:
-    """强制重跑单个节点及其上游（忽略指纹复用）。"""
+    """强制重跑单个节点:目标 + 祖先链全部忽略指纹复用(前端「强制执行」)。"""
     record = _get_owned(db, canvas_id, user)
     try:
-        run_id, plan = canvas_run.start_run(
-            request.app, record, user.id, [node_id], [node_id]
-        )
+        scope = resolve_scope(record.graph or {}, [node_id])
+        run_id, plan = canvas_run.start_run(request.app, record, user.id, [node_id], scope)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return CanvasRunOut(run_id=run_id, plan=plan)

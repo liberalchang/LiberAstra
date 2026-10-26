@@ -24,6 +24,7 @@ import "@xyflow/react/dist/style.css";
 import { api, ApiError, type WorkflowPackOut } from "@/api/client";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { layeredLayout } from "@/canvas/layout";
+import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { CanvasBottomBar, type CanvasTool } from "@/components/canvas/CanvasBottomBar";
 import { CanvasDock } from "@/components/canvas/CanvasDock";
 import { canvasEdgeTypes } from "@/components/canvas/CanvasEdge";
@@ -85,6 +86,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const [notice, setNotice] = useState<{ text: string; sticky: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
+  const [confirmRunAll, setConfirmRunAll] = useState(false);
   const navigate = useNavigate();
   const preview = useCanvasUiStore((s) => s.preview);
   const setPreview = useCanvasUiStore((s) => s.setPreview);
@@ -233,9 +235,39 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     if (await save()) goToList();
   };
 
-  /** 保存并执行指定节点(空数组 = 当前选中,或缺省全部末端)。 */
+  /** 执行前预检:问题节点红框标记 + 选中第一个 + 常驻通知,返回是否有问题。 */
+  const preflight = (targetIds: string[]): boolean => {
+    const s = useCanvasStore.getState();
+    const packs = queryClient.getQueryData<WorkflowPackOut[]>(["workflows"]);
+    const scope = scopeOf(s.nodes, s.edges, targetIds);
+    const issues = validateCanvas(s.nodes, s.edges, packs, scope);
+    if (issues.length === 0) return true;
+    // 先选中第一个问题节点(视线引导),再挂红框——选择变更会触发节点刷新
+    s.onNodesChange([{ type: "select", id: issues[0].nodeId, selected: true }]);
+    useCanvasUiStore.getState().setInvalidNodes(new Set(issues.map((i) => i.nodeId)));
+    flash(
+      tx("{n} 个节点配置不完整，已用红框标出：{first}", {
+        n: issues.length,
+        first: issues[0].message,
+      }),
+      { sticky: true },
+    );
+    return false;
+  };
+
+  // 任何结构/数据编辑后,清掉红框标记(用户正在修)
+  useEffect(() => {
+    const unsub = useCanvasStore.subscribe((s, prev) => {
+      if (s.nodes === prev.nodes && s.edges === prev.edges) return;
+      const ui = useCanvasUiStore.getState();
+      if (ui.invalidNodes.size) ui.setInvalidNodes(new Set());
+    });
+    return unsub;
+  }, []);
+
+  /** 保存并执行指定节点(空数组 = 当前选中,或缺省全部末端)。forceAll 时全图强制重跑。 */
   const runNodes = useCallback(
-    async (nodeIds: string[]) => {
+    async (nodeIds: string[], opts?: { forceAll?: boolean }) => {
       const s = useCanvasStore.getState();
       if (s.nodes.length === 0) {
         flash(tx("画布为空，先双击画布添加节点"));
@@ -243,7 +275,10 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       }
       if (!(await save())) return;
       try {
-        const result = await api.runCanvas(canvasId, { node_ids: nodeIds });
+        const result = await api.runCanvas(canvasId, {
+          node_ids: nodeIds,
+          force_node_ids: opts?.forceAll ? s.nodes.map((n) => n.id) : [],
+        });
         useCanvasStore.getState().applyRuns(
           [],
           result.plan.map((p) => ({
@@ -265,7 +300,18 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const run = () => {
     const s = useCanvasStore.getState();
     const targets = s.nodes.filter((n) => n.selected).map((n) => n.id);
-    void runNodes(targets);
+    if (targets.length > 0) {
+      // 执行选中:增量复用语义,预检通过即跑
+      if (preflight(targets)) void runNodes(targets);
+      return;
+    }
+    // 执行(无选中):整图强制重跑是重操作,先确认
+    setConfirmRunAll(true);
+  };
+
+  const runAllForced = () => {
+    setConfirmRunAll(false);
+    if (preflight([])) void runNodes([], { forceAll: true });
   };
 
   // 节点卡上的「重试」:保存后单独重跑该节点
@@ -460,6 +506,31 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
         onRequestSave={save}
         onFlash={flash}
       />
+      {confirmRunAll && (
+        <LightboxShell
+          onClose={() => setConfirmRunAll(false)}
+          ariaLabel={tx("整图重跑确认")}
+          className="max-w-sm"
+        >
+          <div className="flex flex-col gap-3 p-4">
+            <p className="text-sm font-medium">{tx("重新执行整张画布？")}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tx(
+                "将强制重跑全部 {n} 个节点（忽略增量复用缓存），现有节点结果会被新结果覆盖；已保存到资源库的成品不受影响。",
+                { n: store.nodes.length },
+              )}
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" onClick={runAllForced}>
+                {tx("全部重跑")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirmRunAll(false)}>
+                {tx("取消")}
+              </Button>
+            </div>
+          </div>
+        </LightboxShell>
+      )}
       {exitAsk && (
         <LightboxShell onClose={() => setExitAsk(false)} ariaLabel={tx("退出确认")} className="max-w-xs">
           <div className="flex flex-col gap-3 p-4">

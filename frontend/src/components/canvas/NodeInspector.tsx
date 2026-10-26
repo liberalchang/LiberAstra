@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Mic,
   Play,
-  RotateCcw,
   Upload,
   Zap,
 } from "lucide-react";
@@ -21,6 +20,8 @@ import { useRef, useState } from "react";
 
 import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
 import { applyPackToNode } from "@/canvas/applyPack";
+import { scopeOf, validateCanvas } from "@/canvas/preflight";
+import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { createDefaultGroups } from "@/canvas/defaultGroups";
 import {
   nodeOutputKind,
@@ -120,7 +121,7 @@ function OutputVarCard({ node }: { node: CanvasFlowNode }) {
   );
 }
 
-/** 操作区：执行此节点(增量复用) + 强制重跑。 */
+/** 操作区：唯一的执行入口——强制执行(本节点+父链全部忽略复用重跑)。 */
 function RunActions({
   node,
   canvasId,
@@ -130,39 +131,51 @@ function RunActions({
   node: CanvasFlowNode;
   canvasId: string;
   onRequestSave: () => Promise<boolean>;
-  onFlash: (text: string) => void;
+  onFlash: (text: string, opts?: { sticky?: boolean }) => void;
 }) {
   const tx = useTx();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const runNode = async (force: boolean) => {
+  const runNode = async () => {
+    // 与其他执行入口同一套预检:问题链不完整就不点火
+    const s = useCanvasStore.getState();
+    const packs = queryClient.getQueryData<WorkflowPackOut[]>(["workflows"]);
+    const scope = scopeOf(s.nodes, s.edges, [node.id]);
+    const issues = validateCanvas(s.nodes, s.edges, packs, scope);
+    if (issues.length > 0) {
+      s.onNodesChange([{ type: "select", id: issues[0].nodeId, selected: true }]);
+      useCanvasUiStore.getState().setInvalidNodes(new Set(issues.map((i) => i.nodeId)));
+      onFlash(
+        tx("{n} 个节点配置不完整，已用红框标出：{first}", {
+          n: issues.length,
+          first: issues[0].message,
+        }),
+        { sticky: true },
+      );
+      return;
+    }
     if (!(await onRequestSave())) return;
     setBusy(true);
     try {
-      if (force) await api.rerunCanvasNode(canvasId, node.id);
-      else await api.runCanvas(canvasId, { node_ids: [node.id] });
+      // 后端强制本节点及整条父链(忽略指纹复用)
+      await api.rerunCanvasNode(canvasId, node.id);
       useCanvasStore.getState().setRunActive(true);
     } catch (err) {
-      onFlash(err instanceof Error ? err.message : tx("执行失败"));
+      onFlash(err instanceof Error ? err.message : tx("执行失败"), { sticky: true });
     } finally {
       setBusy(false);
     }
   };
   return (
     <section className="flex flex-col gap-1.5">
-      <Button className="h-9 w-full" disabled={busy} onClick={() => void runNode(false)}>
-        <Play className="size-4" />
-        {tx("执行到此节点")}
-      </Button>
       <Button
-        variant="ghost"
-        size="sm"
-        className="w-full text-xs text-muted-foreground"
+        className="h-9 w-full"
         disabled={busy}
-        onClick={() => void runNode(true)}
-        title={tx("忽略上游已成功的缓存结果,整条链重新生成")}
+        onClick={() => void runNode()}
+        title={tx("强制重跑此节点及其全部上游（忽略复用缓存）")}
       >
-        <RotateCcw className="size-3.5" />
-        {tx("强制重跑(忽略复用)")}
+        <Play className="size-4" />
+        {tx("强制执行")}
       </Button>
     </section>
   );

@@ -112,6 +112,26 @@ def test_fingerprint_stable_and_sensitive() -> None:
     assert a != c
 
 
+def test_force_rerun_node_forces_whole_chain(client: TestClient, auth_header: dict[str, str]) -> None:
+    """单节点强制重跑:目标 + 祖先链全部进 force 集合(指纹复用被忽略)。"""
+    text_node = _node("t1")
+    text_node["data"] = {"mediaKind": "text", "text": "一只猫", "varName": "animal"}
+    graph = _graph([text_node], [])
+    created = _create_canvas(client, auth_header, graph)
+
+    resp = client.post(
+        f"/api/v1/canvases/{created['id']}/nodes/t1/run", json={}, headers=auth_header
+    )
+    assert resp.status_code == 202, resp.text
+    assert [p["node_id"] for p in resp.json()["plan"]] == ["t1"]
+
+    # 不存在的节点:scope 解析为空目标 → 400
+    missing = client.post(
+        f"/api/v1/canvases/{created['id']}/nodes/nope/run", json={}, headers=auth_header
+    )
+    assert missing.status_code == 400
+
+
 # ---- API ----
 
 

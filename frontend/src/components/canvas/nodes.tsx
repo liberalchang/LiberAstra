@@ -80,6 +80,7 @@ function NodeShell({
   badge,
   status,
   selected,
+  invalid,
   children,
   footer,
 }: {
@@ -88,6 +89,8 @@ function NodeShell({
   badge?: string;
   status: NodeRunStatus;
   selected?: boolean;
+  /** 预检未通过:红色描边脉冲(修复后自动消失) */
+  invalid?: boolean;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
@@ -96,6 +99,7 @@ function NodeShell({
       className={cn(
         "w-[260px] rounded-xl border border-border bg-card text-card-foreground shadow-sm",
         selected && "border-primary ring-1 ring-primary/40",
+        invalid && "border-danger ring-2 ring-danger/50 animate-pulse",
       )}
     >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -290,6 +294,7 @@ function PlusHandle({ nodeId, id }: { nodeId: string; id: string }) {
 export function InputNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as InputNodeData;
+  const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const Icon = MEDIA_ICONS[d.mediaKind] ?? FileText;
   const setPreview = useCanvasUiStore((s) => s.setPreview);
   const titles: Record<string, string> = {
@@ -306,6 +311,7 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
         badge={d.mediaKind === "text" && d.varName ? `{{${d.varName}}}` : undefined}
         status={d.run.status}
         selected={selected}
+        invalid={invalid}
       >
         {d.mediaKind === "text" ? (
           <p className="line-clamp-3 min-h-10 text-xs text-muted-foreground">
@@ -333,6 +339,7 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
 export function FunctionNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as FunctionNodeData;
+  const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const { data: groups } = useQuery({
     queryKey: ["canvas-groups"],
@@ -349,6 +356,7 @@ export function FunctionNodeCard({ id, data, selected }: NodeProps) {
         badge={d.group || undefined}
         status={d.run.status}
         selected={selected}
+        invalid={invalid}
         footer={
           <select
             className="nodrag w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
@@ -395,6 +403,7 @@ export function FunctionNodeCard({ id, data, selected }: NodeProps) {
 export function ConcatNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as ConcatNodeData;
+  const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const nodes = useCanvasStore((s) => s.nodes);
   const title = d.mediaKind === "audio" ? tx("音频合成") : tx("视频合成");
   return (
@@ -406,6 +415,7 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
         badge={tx("合成")}
         status={d.run.status}
         selected={selected}
+        invalid={invalid}
       >
         <ResultPreview run={d.run} expectedKind={d.mediaKind} nodeId={id} />
         <div className="mt-1.5 flex flex-wrap gap-1">
@@ -440,6 +450,7 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
 export function SpeechNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as SpeechNodeData;
+  const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const title = d.mode === "tts" ? tx("文字转语音") : tx("语音转文字");
   return (
     <>
@@ -450,6 +461,7 @@ export function SpeechNodeCard({ id, data, selected }: NodeProps) {
         badge={tx("语音")}
         status={d.run.status}
         selected={selected}
+        invalid={invalid}
       >
         {d.mode === "tts" ? (
           <>

@@ -1209,4 +1209,18 @@ export const UI_EN: Record<string, string> = {
     "Canvas organizes workflow packs into groups. None exist yet — create them automatically by capability (image/video/speech), then fine-tune in Settings → Workflow Packs.",
   "还没有分组。可以按能力（图像/视频/语音）自动建好，或到「设置 → 工作流包 → 画布分组」手动添加。":
     "No groups yet — create them automatically by capability (image/video/speech), or add manually in Settings → Workflow Packs → Canvas Groups.",
+  "强制执行": "Force Run",
+  "强制重跑此节点及其全部上游（忽略复用缓存）":
+    "Force re-run this node and all its upstream (cache ignored)",
+  "整图重跑确认": "Confirm full re-run",
+  "重新执行整张画布？": "Re-run the entire canvas?",
+  "将强制重跑全部 {n} 个节点（忽略增量复用缓存），现有节点结果会被新结果覆盖；已保存到资源库的成品不受影响。":
+    "All {n} nodes will be force re-run (incremental cache ignored); current node results will be overwritten. Assets saved to the library are unaffected.",
+  "全部重跑": "Re-run all",
+  "{n} 个节点配置不完整，已用红框标出：{first}":
+    "{n} node(s) are incompletely configured — outlined in red: {first}",
+  "执行选中节点及其上游（上游能复用则复用，空值或失效才重跑）":
+    "Run selected node(s) and their upstream (reuse when possible; re-run only when empty or stale)",
+  "强制重跑整张画布（全部节点忽略缓存，需确认）":
+    "Force re-run the whole canvas (all nodes, cache ignored, confirmation required)",
 };

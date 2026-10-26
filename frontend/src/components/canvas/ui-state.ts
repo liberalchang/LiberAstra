@@ -17,6 +17,9 @@ interface CanvasUiState {
   /** 失败节点卡上的「重试」请求(CanvasPage 消费后清零,保存并重跑该节点) */
   retryNode: string | null;
   requestRetry: (nodeId: string | null) => void;
+  /** 预检未通过的节点(红框提示);任何编辑后清空 */
+  invalidNodes: ReadonlySet<string>;
+  setInvalidNodes: (ids: ReadonlySet<string>) => void;
 }
 
 export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
@@ -26,4 +29,6 @@ export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
   requestAddAfter: (addAfter) => set({ addAfter }),
   retryNode: null,
   requestRetry: (retryNode) => set({ retryNode }),
+  invalidNodes: new Set<string>(),
+  setInvalidNodes: (invalidNodes) => set({ invalidNodes }),
 }));
