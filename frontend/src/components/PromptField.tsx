@@ -24,6 +24,8 @@ export interface PromptVar {
   preview: string;
   /** 媒体变量:插入 <Picture 1> 风格标签而不是 {{名}} */
   tag?: string;
+  /** 文本变量的全文内容:提交优化前把 {{名}} 替换成真实文本,LLM 才看得到内容 */
+  text?: string;
 }
 
 type Props = {
@@ -186,7 +188,9 @@ export function PromptField({
   const optimize = useMutation({
     mutationFn: () =>
       api.optimizePrompt({
-        prompt: valueRef.current.raw,
+        // 画布变量:提交前把 {{名}} 替换成文本输入节点的真实内容,
+        // 否则 LLM 只能看到占位符,会脱离用户输入瞎编(实测编出英文示例提示词)
+        prompt: resolveVarText(valueRef.current.raw),
         task,
         scene: scene === "auto" ? undefined : scene,
         workflow,
@@ -214,6 +218,16 @@ export function PromptField({
   }, [scenes]);
 
   const busy = running || optimize.isPending;
+
+  /** 把 {{变量名}} 替换为文本变量的真实内容(媒体标签 <Picture N> 保留,LLM 可理解) */
+  const resolveVarText = (text: string): string => {
+    if (!variables?.length) return text;
+    let out = text;
+    for (const v of variables) {
+      if (v.text) out = out.split(`{{${v.name}}}`).join(v.text);
+    }
+    return out;
+  };
 
   const insertVar = (v: PromptVar) => {
     if (menuAt == null) return;

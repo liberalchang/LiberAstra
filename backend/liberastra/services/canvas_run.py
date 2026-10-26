@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from typing import Any
 
@@ -153,6 +154,21 @@ def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun) ->
     db.commit()
 
 
+_FAMILY_NOISE = re.compile(
+    r"^(fp\d+|bf16|int\d+|nvfp4|awq|scaled|pruned|convrot|e4m3fn|master|model|v\d+|\d+|"
+    r"image|video|audio|text|edit|upscale|checkpoint|lora|vae|unet|clip|safetensors)$"
+)
+
+
+def _family_tokens(filename: str) -> set[str]:
+    """从模型文件名提取家族词元(flux3、qwen_image 等),与前端 WorkflowInputs 的同款逻辑对应。"""
+    base = re.split(r"[/\\]", filename)[-1].lower()
+    base = re.sub(r"\.(safetensors|ckpt|pt|pth|bin|gguf)$", "", base)
+    return {
+        t for t in re.split(r"[^a-z0-9]+", base) if len(t) >= 2 and not _FAMILY_NOISE.match(t)
+    }
+
+
 def _resolve_function_inputs(
     db: Session,
     graph: dict[str, Any],
@@ -228,6 +244,22 @@ def _resolve_function_inputs(
     accel = data.get("accel")
     if accel:
         inputs["__accel"] = accel
+
+    # 旧画布节点可能残留上个包的模型文件名(前端换包已修,存量节点在此兜底):
+    # options_from 参数值与包默认值的模型家族无共同词元时,回落包默认并告警
+    for key, spec in pack.inputs.items():
+        if not isinstance(spec, dict) or not spec.get("options_from"):
+            continue
+        value = str(inputs.get(key) or "").strip()
+        default = str(spec.get("default") or "").strip()
+        if not value or not default or value == default:
+            continue
+        if _family_tokens(value) & _family_tokens(default):
+            continue
+        logger.warning(
+            f"画布节点参数 {key}={value} 与包 {pack.name} 的默认 {default} 家族不符,已回落默认"
+        )
+        inputs[key] = default
 
     fingerprint = canonical_fingerprint(
         {"pack": pack.name, "inputs": inputs, "media_asset_ids": sorted(media_asset_ids)}

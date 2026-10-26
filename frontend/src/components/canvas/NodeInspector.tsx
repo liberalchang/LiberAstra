@@ -408,7 +408,11 @@ function FunctionInspector({
       const varName = s.data.varName ?? "";
       if (!varName) continue;
       if (s.data.kind === "input" && s.data.mediaKind === "text") {
-        out.push({ name: varName, preview: (s.data.text ?? "").slice(0, 40) });
+        out.push({
+          name: varName,
+          preview: (s.data.text ?? "").slice(0, 40),
+          text: s.data.text ?? "",
+        });
         continue;
       }
       const kind = nodeOutputKind(s);

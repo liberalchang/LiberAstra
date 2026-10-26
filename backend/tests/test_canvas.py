@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from liberastra.providers.base import ProviderError
+from liberastra.services.canvas_run import _family_tokens
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
     detect_cycle,
@@ -89,6 +90,18 @@ def test_substitute_prompt() -> None:
     assert substitute_prompt("画一只{{animal}}", {"animal": "猫"}) == "画一只猫"
     with pytest.raises(ProviderError):
         substitute_prompt("{{missing}}", {})
+
+
+def test_family_tokens() -> None:
+    # 同家族不同量化/转换版本应共享词元
+    assert _family_tokens("qwen3vl_4b_int8_convrot.safetensors") & _family_tokens(
+        "qwen3vl_4b_int8.safetensors"
+    )
+    # 跨家族(flux3 vs qwen_image)无交集 → 触发回落
+    assert not (
+        _family_tokens("flux3-image-klein-int8-convrot.safetensors")
+        & _family_tokens("qwen_image_21.safetensors")
+    )
 
 
 def test_fingerprint_stable_and_sensitive() -> None:
