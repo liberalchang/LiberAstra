@@ -134,6 +134,7 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   background-color: var(--field);
   color: var(--foreground);
   border-color: var(--border);
+  caret-color: var(--primary);
 }
 
 select {
@@ -157,6 +158,15 @@ textarea {
 input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--primary);
+}
+
+/* 浏览器自动填充底色跟随主题，而不是默认的亮黄/亮蓝 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--primary);
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 input[type="file"] {
