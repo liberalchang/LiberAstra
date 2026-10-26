@@ -196,13 +196,14 @@ input[type="radio"] {
   accent-color: var(--primary);
 }
 
-/* 浏览器自动填充底色跟随主题，而不是默认的亮黄/亮蓝 */
+/* 浏览器自动填充:用 inset 阴影盖上系统底色(随主题变量即时更新),
+   不用 9999s transition hack——它会把主题切换的背景变化也冻结 */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--foreground);
+  box-shadow: inset 0 0 0 1000px var(--field);
   caret-color: var(--primary);
-  transition: background-color 9999s ease-in-out 0s;
 }
 
 input[type="file"] {
