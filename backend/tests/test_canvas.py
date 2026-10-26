@@ -10,7 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from liberastra.providers.base import ProviderError
-from liberastra.services.canvas_run import _family_tokens
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
     detect_cycle,
@@ -19,6 +18,7 @@ from liberastra.services.canvas_graph import (
     substitute_prompt,
     topo_order,
 )
+from liberastra.services.canvas_run import _family_tokens
 
 
 def _graph(nodes: list[dict], edges: list[dict]) -> dict:
