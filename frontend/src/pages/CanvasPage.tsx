@@ -221,12 +221,16 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     else navigate("/canvas?mode=list");
   };
   const exitDiscard = () => {
-    // 用户选择不保存：清掉内存态,下次进画布从服务端重新加载
+    // 用户选择不保存:清掉内存态与「最近画布」,下次从导航进来落在列表而不是自动回编辑器
+    localStorage.removeItem("liberastra-canvas-last");
     useCanvasStore.getState().reset();
     navigate("/canvas?mode=list");
   };
   const exitSave = async () => {
-    if (await save()) navigate("/canvas?mode=list");
+    if (await save()) {
+      localStorage.removeItem("liberastra-canvas-last");
+      navigate("/canvas?mode=list");
+    }
   };
 
   /** 保存并执行指定节点(空数组 = 当前选中,或缺省全部末端)。 */

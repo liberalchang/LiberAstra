@@ -82,6 +82,9 @@ export function PromptField({
   valueRef.current = value;
   /** 已把某次成功 Job 写入 value，避免轮询重复 onChange */
   const appliedJobRef = useRef<string | null>(null);
+  /** 提交瞬间的原始输入快照:过期判定以此为准——画布提交的是变量替换后的文本,
+   * 若拿 job.params.prompt 当基线,原始稿(含 {{var}} 占位符)会被误判"已变更" */
+  const submittedRawRef = useRef<string | null>(null);
   const lastPersistAt = useRef(0);
 
   const { job, setJobId } = useTrackedJob(jobScope);
@@ -124,7 +127,7 @@ export function PromptField({
   // 进行中：把 outputs 增量同步到本地缓存与状态文案
   useEffect(() => {
     if (!job) return;
-    const rawSnapshot = String(job.params?.prompt ?? valueRef.current.raw);
+    const rawSnapshot = submittedRawRef.current ?? valueRef.current.raw;
     const out = job.outputs?.[0];
     const content = typeof out?.content === "string" ? out.content : "";
     const providerLabel = [out?.provider_name, out?.model ?? job.model]
@@ -201,6 +204,7 @@ export function PromptField({
       setTab("optimized");
       setStatusMsg(tx("正在提交优化任务…"));
       appliedJobRef.current = null;
+      submittedRawRef.current = valueRef.current.raw;
       lastPersistAt.current = 0;
     },
     onSuccess: (j) => {
