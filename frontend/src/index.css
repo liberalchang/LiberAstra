@@ -27,25 +27,34 @@
 
 .dark {
   color-scheme: dark;
-  --background: #0c0c0e;
+  /* 中性色带极轻的紫 hue，与主色呼应，暗色不是纯灰 */
+  --background: #0d0c10;
   --foreground: #f4f4f5;
-  --card: #17171a;
+  --card: #18171d;
   --card-foreground: #f4f4f5;
   /* 比卡片更亮，避免控件和黑色底融在一起 */
-  --field: #2c2c33;
+  --field: #2d2b35;
   /* violet-600：配 #fafafa 前景约 5.2:1，过 WCAG AA */
   --primary: #7c3aed;
   --primary-foreground: #fafafa;
-  --muted: #2c2c33;
+  --muted: #2d2b35;
   --muted-foreground: #b4b4bc;
   --border: rgb(255 255 255 / 18%);
   --ring: #c4b5fd;
   --accent: #e11d48;
-  --sidebar: #121214;
+  --sidebar: #131117;
   --success: #4ade80;
   --danger: #f87171;
   --warning: #fbbf24;
   --info: #60a5fa;
+}
+
+@theme {
+  /* 展示级标题：仅首页 hero 等极少数位置使用 */
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.025em;
+  --text-display--font-weight: 600;
 }
 
 @theme inline {
@@ -113,6 +122,33 @@
 
 .lightbox-pop {
   animation: lightbox-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 结果就绪时的入场动画 */
+@keyframes result-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.result-in {
+  animation: result-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 标题平衡换行，正文避免末行孤词（渐进增强，不支持的浏览器保持默认） */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 html,
@@ -193,7 +229,8 @@ input[type="file"]::file-selector-button {
     animation: none;
   }
   .lightbox-backdrop,
-  .lightbox-pop {
+  .lightbox-pop,
+  .result-in {
     animation: none;
   }
   .animate-spin,

@@ -101,7 +101,8 @@ const NAV_GROUPS: {
 function navClass(isActive: boolean, collapsed: boolean) {
   return cn(
     "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/80 hover:bg-foreground/6",
-    isActive && "bg-muted font-medium text-foreground",
+    // 当前项用主色淡底 + 主色文字：颜色承担「你在哪里」的导航职责
+    isActive && "bg-primary/10 font-medium text-primary hover:bg-primary/12",
     collapsed && "justify-center px-0",
   );
 }

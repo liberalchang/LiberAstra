@@ -45,7 +45,7 @@ export function JobsPage() {
   };
 
   return (
-    <div className="flex max-w-5xl flex-col gap-4">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader kind="jobs" icon={ListChecks} title={t("jobs.title")} description={t("jobs.hint")} />
       {jobs?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
       {jobs?.map((j: JobOut) => (

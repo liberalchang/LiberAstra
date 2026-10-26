@@ -45,7 +45,7 @@ export function AssetsPage() {
     });
 
   return (
-    <div className="flex max-w-5xl flex-col gap-4">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader kind="library" icon={FolderOpen} title={t("assets.title")} description={t("assets.hint")} />
       <div className="flex flex-wrap gap-1">
           <Button variant={kind === "" ? "default" : "outline"} size="sm" onClick={() => setKind("")}>

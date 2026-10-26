@@ -50,7 +50,7 @@ export function DashboardPage() {
         <div className="mx-auto mb-4 hidden w-fit sm:block">
           <FeatureMark kind={mode === "speech" ? "tts" : mode === "video" ? "video" : "image"} />
         </div>
-        <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground md:text-[40px] md:leading-tight">
+        <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground md:text-display">
           {t("studio.title")}
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground md:text-base">

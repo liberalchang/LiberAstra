@@ -184,7 +184,7 @@ export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint 
           ) : job.status === "canceled" ? (
             <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{tx("任务已取消")}</div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="result-in flex flex-col gap-3">
               {primaryTarget && (
                 <ClickableThumb target={primaryTarget} onOpen={setPreview} className="max-h-72 w-full object-contain" />
               )}

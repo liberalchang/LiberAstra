@@ -36,8 +36,11 @@ export function AuthPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-[28px] border border-border bg-card px-8 py-10">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+      {/* 品牌光斑：与 PageHeader 同款的签名元素 */}
+      <div aria-hidden className="pointer-events-none absolute -top-32 left-1/2 size-96 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-40 right-1/4 size-80 rounded-full bg-accent/10 blur-3xl" />
+      <div className="relative w-full max-w-md rounded-[28px] border border-border bg-card px-8 py-10 shadow-2xl">
         <div className="mb-6 flex items-center gap-3">
           <span className="grid size-10 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
             L
