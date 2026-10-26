@@ -1207,4 +1207,6 @@ export const UI_EN: Record<string, string> = {
     "No workflow packs yet — import some in Settings → Workflow Packs first",
   "画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音）自动建好，稍后在「设置 → 工作流包」里调整。":
     "Canvas organizes workflow packs into groups. None exist yet — create them automatically by capability (image/video/speech), then fine-tune in Settings → Workflow Packs.",
+  "还没有分组。可以按能力（图像/视频/语音）自动建好，或到「设置 → 工作流包 → 画布分组」手动添加。":
+    "No groups yet — create them automatically by capability (image/video/speech), or add manually in Settings → Workflow Packs → Canvas Groups.",
 };

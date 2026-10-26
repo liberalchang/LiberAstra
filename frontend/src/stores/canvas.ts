@@ -141,7 +141,14 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     const currentRuns = new Map(get().nodes.map((n) => [n.id, n.data.run]));
     const nodes = entry.nodes.map((n) => {
       const run = currentRuns.get(n.id);
-      return run ? ({ ...n, data: { ...n.data, run } } as CanvasFlowNode) : n;
+      if (run) return { ...n, data: { ...n.data, run } } as CanvasFlowNode;
+      // 撤销复活的节点:本地早已删掉它,快照里的 running/pending 不可信
+      // (服务端是否还在跑无法确认),回到 idle——下次执行时画布运行流会重建 run 记录
+      const status = n.data.run.status;
+      if (status === "running" || status === "pending") {
+        return { ...n, data: { ...n.data, run: idleRun() } } as CanvasFlowNode;
+      }
+      return n;
     });
     set({
       nodes,
@@ -348,12 +355,16 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
 
   updateNodeData: (id, patch) => {
     // 面板编辑也入历史:同一节点同一组键 800ms 内合并(连续打字不刷屏),
-    // 离散操作(换组/绑定/排序)各自成步
-    const key = `${id}:${Object.keys(patch).sort().join(",")}`;
-    const now = Date.now();
-    if (key !== lastEditKey || now - lastEditAt > EDIT_COALESCE_MS) record();
-    lastEditKey = key;
-    lastEditAt = now;
+    // 离散操作(换组/绑定/排序)各自成步。
+    // 豁免:run 字段是服务端事实(发布标记等),不入历史——否则会产生视觉无操作的空 undo 步。
+    const keys = Object.keys(patch);
+    if (!(keys.length === 1 && keys[0] === "run") && batchDepth === 0) {
+      const key = `${id}:${keys.sort().join(",")}`;
+      const now = Date.now();
+      if (key !== lastEditKey || now - lastEditAt > EDIT_COALESCE_MS) record();
+      lastEditKey = key;
+      lastEditAt = now;
+    }
     set({
       nodes: get().nodes.map((n) =>
         n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as CanvasFlowNode) : n,

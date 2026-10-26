@@ -21,6 +21,7 @@ import { useRef, useState } from "react";
 
 import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
 import { applyPackToNode } from "@/canvas/applyPack";
+import { createDefaultGroups } from "@/canvas/defaultGroups";
 import {
   nodeOutputKind,
   type CanvasFlowNode,
@@ -363,24 +364,15 @@ function FunctionInspector({
   });
 
   /** 按包能力(图像/视频/语音)建默认分组,建完选中第一个组。 */
-  const createDefaultGroups = async () => {
+  const createGroups = async () => {
     if (!allPacks) return;
     setCreatingGroups(true);
     try {
-      const pick = (caps: string[]) =>
-        allPacks.filter((p) => caps.includes(p.capability)).map((p) => p.name);
-      const defaults: Record<string, string[]> = {};
-      const image = pick(["t2i", "i2i", "upscale"]);
-      const video = pick(["t2v", "i2v", "avatar", "motion"]);
-      const speech = pick(["tts", "asr"]);
-      if (image.length) defaults["图像"] = image;
-      if (video.length) defaults["视频"] = video;
-      if (speech.length) defaults["语音"] = speech;
-      if (Object.keys(defaults).length === 0) {
+      const defaults = await createDefaultGroups(allPacks);
+      if (!defaults) {
         onFlash(tx("还没有可用的工作流包，先到「设置 → 工作流包」导入"));
         return;
       }
-      await api.putCanvasGroups(defaults);
       queryClient.setQueryData(["canvas-groups"], defaults);
       store.updateNodeData(node.id, { group: Object.keys(defaults)[0] });
       onFlash(tx("已按能力建好默认分组"));
@@ -469,7 +461,7 @@ function FunctionInspector({
               size="sm"
               variant="outline"
               disabled={creatingGroups}
-              onClick={() => void createDefaultGroups()}
+              onClick={() => void createGroups()}
             >
               {creatingGroups ? tx("正在创建…") : tx("按能力建默认分组")}
             </Button>

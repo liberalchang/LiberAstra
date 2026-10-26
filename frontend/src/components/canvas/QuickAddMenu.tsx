@@ -2,7 +2,7 @@
  * - 功能：按包能力分类展示「所属」分组,点击直接把功能节点(带所属+组内第一个包)加进画布
  * - 输入输出:图片/视频/音频/文本输入 + 视频/音频合成
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AudioLines,
   Clapperboard,
@@ -15,7 +15,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@/api/client";
+import { createDefaultGroups } from "@/canvas/defaultGroups";
 import type { CanvasNodeKind, MediaKind, SpeechMode } from "@/canvas/types";
+import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { useTx } from "@/i18n/tx";
 
@@ -67,14 +69,19 @@ export function QuickAddMenu({
 }) {
   const tx = useTx();
   const [tab, setTab] = useState<"function" | "io">("function");
+  const [creatingGroups, setCreatingGroups] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   const { data: groups } = useQuery({ queryKey: ["canvas-groups"], queryFn: api.getCanvasGroups });
   const { data: packs } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
 
-  // 弹层键盘规范:打开即聚焦第一个菜单项(跳过 Segmented 的 tab),Esc 关闭,↑↓ 遍历
+  // 弹层键盘规范:打开即聚焦第一个菜单项(跳过 Segmented 的 tab),Esc 关闭,↑↓ 遍历,
+  // Tab 圈在菜单内,关闭后焦点归还到打开前的元素
   useEffect(() => {
+    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const first = menuRef.current?.querySelector<HTMLElement>('button:not([role="tab"])');
     first?.focus();
+    return () => prevFocus?.focus();
   }, []);
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -82,16 +89,28 @@ export function QuickAddMenu({
       onClose();
       return;
     }
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Tab") return;
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("button") ?? []);
     if (items.length === 0) return;
     e.preventDefault();
+    const backwards = e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey);
     const current = items.indexOf(document.activeElement as HTMLElement);
-    const next =
-      e.key === "ArrowDown"
-        ? (current + 1 + items.length) % items.length
-        : (current - 1 + items.length) % items.length;
+    const next = backwards
+      ? (current - 1 + items.length) % items.length
+      : (current + 1 + items.length) % items.length;
     items[next]?.focus();
+  };
+
+  /** 空态一键建组:与属性面板同一个入口能力 */
+  const createGroups = async () => {
+    if (!packs) return;
+    setCreatingGroups(true);
+    try {
+      const defaults = await createDefaultGroups(packs);
+      if (defaults) queryClient.setQueryData(["canvas-groups"], defaults);
+    } finally {
+      setCreatingGroups(false);
+    }
   };
 
   /** 所属按「组内第一个包的能力」归入图片/视频桶;语音是固定两项。 */
@@ -142,9 +161,19 @@ export function QuickAddMenu({
         <div className="mt-1 max-h-72 overflow-y-auto">
           {tab === "function" ? (
             sections.size === 0 ? (
-              <p className="px-2 py-3 text-xs text-muted-foreground">
-                {tx("暂无分组，先到「设置 → 工作流包 → 画布分组」添加")}
-              </p>
+              <div className="flex flex-col gap-2 px-2 py-3">
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {tx("还没有分组。可以按能力（图像/视频/语音）自动建好，或到「设置 → 工作流包 → 画布分组」手动添加。")}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={creatingGroups}
+                  onClick={() => void createGroups()}
+                >
+                  {creatingGroups ? tx("正在创建…") : tx("按能力建默认分组")}
+                </Button>
+              </div>
             ) : (
               <>
                 {(["image", "video"] as const).map((bucket) =>
