@@ -50,3 +50,6 @@ packaging/speech/output/
 *.swp
 .DS_Store
 Thumbs.db
+
+# impeccable 工具链的本地工作区(评审快照/live 配置/评审截图)
+.impeccable/
