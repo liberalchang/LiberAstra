@@ -214,7 +214,9 @@ export function nodeOutputKind(
   if (data.kind === "input") return data.mediaKind === "text" ? null : data.mediaKind;
   if (data.kind === "concat") return data.mediaKind;
   if (data.kind === "speech") return data.mode === "tts" ? "audio" : null;
-  return outputKindOfCapability(capabilityOf?.(data.pack));
+  // 功能节点:选包时写入的 outputKind 是权威;查表只是兜底。
+  // 此前只走 capabilityOf,不传回调的调用方(槽位绑定/连线校验)会把功能节点产物误判为 null。
+  return data.outputKind ?? outputKindOfCapability(capabilityOf?.(data.pack));
 }
 
 export type CanvasEdge = Edge;

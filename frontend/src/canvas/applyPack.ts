@@ -2,7 +2,7 @@
  * 快速建点菜单与右侧属性面板共用。
  */
 import type { WorkflowPackOut } from "@/api/client";
-import { outputKindOfCapability, type MediaKind } from "@/canvas/types";
+import { nodeOutputKind, outputKindOfCapability, type MediaKind } from "@/canvas/types";
 import { defaultAccelState, hasAccel } from "@/components/AccelControl";
 import { nextVarName, useCanvasStore } from "@/stores/canvas";
 
@@ -54,10 +54,12 @@ export function applyPackToNode(
       if (!MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]) || !spec.required) return;
       const mediaKind = spec.type as MediaKind;
       const current = useCanvasStore.getState();
+      // 上游已能提供该媒体类型即不补建——不止输入节点,功能节点的产物输出也算数
+      // (如从文生图拖线落空建图生图:连线先行,t2i 的输出就是图片输入)
       const hasIncoming = current.edges.some((e) => {
         if (e.target !== nodeId) return false;
         const source = current.nodes.find((n) => n.id === e.source);
-        return source?.data.kind === "input" && source.data.mediaKind === mediaKind;
+        return source ? nodeOutputKind(source) === mediaKind : false;
       });
       if (hasIncoming) return;
       const inputNode = useCanvasStore.getState().addNode("input", mediaKind, {

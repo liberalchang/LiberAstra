@@ -309,6 +309,16 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           varName: nextVarName(store.nodes, "output_text"),
         });
       }
+      // 连线先行:拖线落空建点时,先有边再选包——补建检查才能看到上游产物,
+      // 不会在「输出即输入」的场景里多补一个输入节点
+      if (quickAdd.pendingFrom) {
+        store.onConnect({
+          source: quickAdd.pendingFrom,
+          target: node.id,
+          sourceHandle: `out-${quickAdd.pendingFrom}`,
+          targetHandle: `in-${node.id}`,
+        });
+      }
       // 功能节点带所属:默认加载组内第一个包(并自动补建必填输入)
       if (pick.kind === "function" && pick.group) {
         store.updateNodeData(node.id, { group: pick.group });
@@ -320,14 +330,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           const created = applyPackToNode(node.id, pack, {});
           if (created > 0) flash(tx("已自动补建 {n} 个必填输入节点", { n: created }));
         }
-      }
-      if (quickAdd.pendingFrom) {
-        store.onConnect({
-          source: quickAdd.pendingFrom,
-          target: node.id,
-          sourceHandle: `out-${quickAdd.pendingFrom}`,
-          targetHandle: `in-${node.id}`,
-        });
       }
     });
     setQuickAdd(null);
