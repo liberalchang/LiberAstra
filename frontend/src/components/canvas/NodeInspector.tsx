@@ -4,7 +4,7 @@
  * 渲染为输入槽,下拉选择已连接节点的输出变量(bindings);提示词 / 补全支持
  * 文本变量({{名}})与媒体变量(<Picture N> 标签)。
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
@@ -352,6 +352,8 @@ function FunctionInspector({
   const d = node.data as FunctionNodeData;
   const store = useCanvasStore();
   const providerId = useComfyProviderId();
+  const queryClient = useQueryClient();
+  const [creatingGroups, setCreatingGroups] = useState(false);
 
   const { data: groups } = useQuery({ queryKey: ["canvas-groups"], queryFn: api.getCanvasGroups });
   const { data: allPacks } = useQuery({
@@ -359,6 +361,35 @@ function FunctionInspector({
     queryFn: () => api.listWorkflows(),
     staleTime: 60_000,
   });
+
+  /** 按包能力(图像/视频/语音)建默认分组,建完选中第一个组。 */
+  const createDefaultGroups = async () => {
+    if (!allPacks) return;
+    setCreatingGroups(true);
+    try {
+      const pick = (caps: string[]) =>
+        allPacks.filter((p) => caps.includes(p.capability)).map((p) => p.name);
+      const defaults: Record<string, string[]> = {};
+      const image = pick(["t2i", "i2i", "upscale"]);
+      const video = pick(["t2v", "i2v", "avatar", "motion"]);
+      const speech = pick(["tts", "asr"]);
+      if (image.length) defaults["图像"] = image;
+      if (video.length) defaults["视频"] = video;
+      if (speech.length) defaults["语音"] = speech;
+      if (Object.keys(defaults).length === 0) {
+        onFlash(tx("还没有可用的工作流包，先到「设置 → 工作流包」导入"));
+        return;
+      }
+      await api.putCanvasGroups(defaults);
+      queryClient.setQueryData(["canvas-groups"], defaults);
+      store.updateNodeData(node.id, { group: Object.keys(defaults)[0] });
+      onFlash(tx("已按能力建好默认分组"));
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : tx("创建分组失败"));
+    } finally {
+      setCreatingGroups(false);
+    }
+  };
 
   const groupNames = Object.keys(groups ?? {});
   const groupPacks = (groups?.[d.group] ?? [])
@@ -427,6 +458,23 @@ function FunctionInspector({
             ))}
           </select>
         </Field>
+
+        {/* 首用死胡同化解:一个分组都没有时,一键按能力建默认分组 */}
+        {groupNames.length === 0 && (
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-muted/40 p-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tx("画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音）自动建好，稍后在「设置 → 工作流包」里调整。")}
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={creatingGroups}
+              onClick={() => void createDefaultGroups()}
+            >
+              {creatingGroups ? tx("正在创建…") : tx("按能力建默认分组")}
+            </Button>
+          </div>
+        )}
 
         {d.group && (
           <Field label={tx("工作流包")} hint={tx("选择后自动补全该包需要的输入节点并连线")}>

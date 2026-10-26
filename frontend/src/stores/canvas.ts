@@ -58,6 +58,9 @@ interface CanvasState {
   dirty: boolean;
   /** 有节点处于 pending/running 时页面持续轮询 */
   runActive: boolean;
+  /** 撤销/重做可用性（历史在模块级，非响应式） */
+  canUndo: boolean;
+  canRedo: boolean;
 
   load: (canvas: CanvasOut) => void;
   reset: () => void;
@@ -82,22 +85,53 @@ interface CanvasState {
   ) => void;
   setRunActive: (active: boolean) => void;
   applyLayout: (positions: Map<string, { x: number; y: number }>) => void;
+
+  undo: () => void;
+  redo: () => void;
+  /** 把多次变更合并为一步撤销（如选包自动补建输入节点） */
+  batch: (fn: () => void) => void;
 }
 
 export type ConnectRejectReason = string;
+
+/** 撤销历史：结构快照 {nodes, edges}，模块级存放（不需响应式）。 */
+interface HistoryEntry {
+  nodes: CanvasFlowNode[];
+  edges: Edge[];
+}
+const HISTORY_LIMIT = 50;
+let past: HistoryEntry[] = [];
+let future: HistoryEntry[] = [];
+/** batch() 期间内部动作不再单独入栈 */
+let batchDepth = 0;
+/** 拖拽期间只记一次（首帧） */
+let dragRecorded = false;
 
 function mergeRun(base: NodeRunState, patch: Partial<NodeRunState>): NodeRunState {
   return { ...base, ...patch, assetIds: patch.assetIds ?? base.assetIds };
 }
 
-export const useCanvasStore = create<CanvasState>()((set, get) => ({
-  canvasId: null,
-  name: "",
-  nodes: [],
-  edges: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
-  dirty: false,
-  runActive: false,
+export const useCanvasStore = create<CanvasState>()((set, get) => {
+  const historySync = () => set({ canUndo: past.length > 0, canRedo: future.length > 0 });
+  /** 变更前记录一步快照（batch 期间由 batch 自己记） */
+  const record = () => {
+    if (batchDepth > 0) return;
+    past.push({ nodes: get().nodes, edges: get().edges });
+    if (past.length > HISTORY_LIMIT) past.shift();
+    future = [];
+    historySync();
+  };
+
+  return {
+    canvasId: null,
+    name: "",
+    nodes: [],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    dirty: false,
+    runActive: false,
+    canUndo: false,
+    canRedo: false,
 
   load: (canvas) => {
     const graph = canvas.graph;
@@ -133,9 +167,15 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
       dirty: false,
       runActive: nodes.some((n) => ["pending", "running"].includes(n.data.run.status)),
     });
+    // 换画布即另起历史
+    past = [];
+    future = [];
+    historySync();
   },
 
-  reset: () =>
+  reset: () => {
+    past = [];
+    future = [];
     set({
       canvasId: null,
       name: "",
@@ -144,7 +184,10 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
       viewport: { x: 0, y: 0, zoom: 1 },
       dirty: false,
       runActive: false,
-    }),
+      canUndo: false,
+      canRedo: false,
+    });
+  },
 
   setName: (name) => set({ name, dirty: true }),
 
@@ -169,6 +212,16 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   },
 
   onNodesChange: (changes) => {
+    // 撤销记录:删/增节点一步一记;拖拽只在首帧记一次
+    if (changes.some((c) => c.type === "remove" || c.type === "add")) record();
+    if (changes.some((c) => c.type === "position" && c.dragging)) {
+      if (!dragRecorded) {
+        record();
+        dragRecorded = true;
+      }
+    } else if (changes.some((c) => c.type === "position" && !c.dragging)) {
+      dragRecorded = false;
+    }
     const nodes = applyNodeChanges(changes, get().nodes);
     // 位置之外的变更（选择）不置脏；拖拽结束（dragging=false）才置脏
     const structural = changes.some(
@@ -179,6 +232,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
 
   onEdgesChange: (changes) => {
     const removed = changes.filter((c) => c.type === "remove").map((c) => c.id);
+    if (removed.length) record();
     let nodes = get().nodes;
     if (removed.length) {
       // 断线后同步 concat 节点的 order
@@ -206,6 +260,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
     const { nodes, edges } = get();
     const check = checkConnection(nodes, edges, conn);
     if (!check.ok) return check.reason;
+    record();
     const edge: Edge = {
       id: `${conn.source}-${conn.target}-${Date.now().toString(36)}`,
       source: conn.source,
@@ -227,6 +282,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
   setViewport: (viewport) => set({ viewport }),
 
   addNode: (kind, mediaKind, position) => {
+    record();
     const data = createDefaultNodeData(kind, mediaKind);
     const prefix = varPrefixFor(kind, mediaKind);
     if (prefix) data.varName = nextVarName(get().nodes, prefix);
@@ -288,14 +344,52 @@ export const useCanvasStore = create<CanvasState>()((set, get) => ({
 
   setRunActive: (active) => set({ runActive: active }),
 
-  applyLayout: (positions) =>
+  applyLayout: (positions) => {
+    record();
     set({
       nodes: get().nodes.map((n) => {
         const pos = positions.get(n.id);
         return pos ? { ...n, position: pos } : n;
       }),
       dirty: true,
-    }),
-}));
+    });
+  },
+
+  undo: () => {
+    const prev = past.pop();
+    if (!prev) return;
+    future.push({ nodes: get().nodes, edges: get().edges });
+    dragRecorded = false;
+    set({ nodes: prev.nodes, edges: prev.edges, dirty: true });
+    historySync();
+  },
+
+  redo: () => {
+    const next = future.pop();
+    if (!next) return;
+    past.push({ nodes: get().nodes, edges: get().edges });
+    dragRecorded = false;
+    set({ nodes: next.nodes, edges: next.edges, dirty: true });
+    historySync();
+  },
+
+  batch: (fn) => {
+    // 嵌套 batch 只在最外层记录,避免一个复合动作产生多条历史
+    const outermost = batchDepth === 0;
+    if (outermost) {
+      past.push({ nodes: get().nodes, edges: get().edges });
+      if (past.length > HISTORY_LIMIT) past.shift();
+      future = [];
+    }
+    batchDepth++;
+    try {
+      fn();
+    } finally {
+      batchDepth--;
+    }
+    if (outermost) historySync();
+  },
+  };
+});
 
 export { idleRun };

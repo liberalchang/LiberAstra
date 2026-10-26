@@ -5,6 +5,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import {
+  RotateCcw,
   AudioLines,
   Clapperboard,
   FileText,
@@ -17,6 +18,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 
 import { api } from "@/api/client";
@@ -43,10 +45,12 @@ export const MEDIA_ICONS = {
 const STATUS_COLOR: Record<NodeRunStatus, string> = {
   idle: "bg-muted-foreground/40",
   pending: "bg-warning",
-  running: "bg-primary",
+  // 信号灯规则:运行=信号蓝(紫只留给动作)
+  running: "bg-info",
   succeeded: "bg-success",
   failed: "bg-danger",
-  canceled: "bg-muted-foreground/40",
+  // 取消=空心圈,与待执行区分开
+  canceled: "bg-transparent ring-2 ring-muted-foreground/60",
 };
 
 const STATUS_LABEL: Record<NodeRunStatus, string> = {
@@ -62,8 +66,10 @@ function StatusDot({ status }: { status: NodeRunStatus }) {
   const tx = useTx();
   return (
     <span
+      role="img"
       className={cn("inline-block size-2 rounded-full", STATUS_COLOR[status])}
       title={tx(STATUS_LABEL[status])}
+      aria-label={tx(STATUS_LABEL[status])}
     />
   );
 }
@@ -114,6 +120,7 @@ function NodeShell({
 export function ResultPreview({
   run,
   expectedKind,
+  nodeId,
 }: {
   run: {
     status: NodeRunStatus;
@@ -123,10 +130,14 @@ export function ResultPreview({
     error?: string | null;
   };
   expectedKind: string;
+  /** 给了它,失败时出现重试按钮(CanvasPage 监听 requestRetry) */
+  nodeId?: string;
 }) {
   const tx = useTx();
   const setPreview = useCanvasUiStore((s) => s.setPreview);
+  const requestRetry = useCanvasUiStore((s) => s.requestRetry);
   const [publishing, setPublishing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const assetId = run.assetIds[0];
 
   if (run.status === "running" || run.status === "pending") {
@@ -137,9 +148,41 @@ export function ResultPreview({
     );
   }
   if (run.status === "failed") {
+    const errorText = run.error || tx("执行失败");
     return (
-      <div className="grid h-28 place-items-center rounded-lg bg-danger/10 px-2 text-center text-xs text-danger">
-        {run.error || tx("执行失败")}
+      <div className="flex h-28 flex-col rounded-lg bg-danger/10 px-2 py-1.5 text-xs text-danger">
+        <p
+          className={cn("min-h-0 flex-1 overflow-hidden", !expanded && "line-clamp-2")}
+          role="alert"
+        >
+          {errorText}
+        </p>
+        <div className="mt-1 flex shrink-0 items-center gap-1">
+          {nodeId && (
+            <button
+              type="button"
+              className="nodrag inline-flex h-6 items-center gap-1 rounded-md bg-danger/15 px-2 font-medium hover:bg-danger/25"
+              onClick={() => requestRetry(nodeId)}
+            >
+              <RotateCcw className="size-3" />
+              {tx("重试")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="nodrag inline-flex h-6 items-center rounded-md px-1.5 hover:bg-danger/15"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            {expanded ? tx("收起") : tx("详情")}
+          </button>
+          <Link
+            to="/jobs"
+            className="nodrag ml-auto inline-flex h-6 items-center px-1.5 text-danger/80 underline-offset-2 hover:underline"
+          >
+            {tx("任务中心")}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -200,7 +243,7 @@ export function ResultPreview({
 
 const handleClass = "!size-2.5 !border-2 !border-card !bg-primary";
 
-/** 右侧「+」连接钮:点击=向后快速建点(自动连线);拖动=连线(落空在末端建点)。 */
+/** 右侧「+」连接钮:点击/Enter=向后快速建点(自动连线);拖动=连线(落空在末端建点)。 */
 function PlusHandle({ nodeId, id }: { nodeId: string; id: string }) {
   const requestAddAfter = useCanvasUiStore((s) => s.requestAddAfter);
   const tx = useTx();
@@ -214,6 +257,17 @@ function PlusHandle({ nodeId, id }: { nodeId: string; id: string }) {
         requestAddAfter(nodeId);
       }}
       className="nodrag"
+      // 键盘可达:聚焦后 Enter/Space 等同点击(连线本身仍需拖拽,属性面板的槽位绑定是键盘路径)
+      tabIndex={0}
+      role="button"
+      aria-label={tx("向后添加节点")}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          requestAddAfter(nodeId);
+        }
+      }}
       style={{
         width: 20,
         height: 20,
@@ -300,7 +354,15 @@ export function FunctionNodeCard({ id, data, selected }: NodeProps) {
             className="nodrag w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
             value={d.group}
             onChange={(e) =>
-              updateNodeData(id, { group: e.target.value, pack: "", values: {}, outputKind: null })
+              // 与右侧属性面板同一行为:换组清空包与全部派生状态(两处此前不一致)
+              updateNodeData(id, {
+                group: e.target.value,
+                pack: "",
+                values: {},
+                outputKind: null,
+                accel: null,
+                bindings: {},
+              })
             }
             title={tx("所属（一批工作流包）；在右侧属性面板选择具体包")}
           >
@@ -313,7 +375,7 @@ export function FunctionNodeCard({ id, data, selected }: NodeProps) {
           </select>
         }
       >
-        <ResultPreview run={d.run} expectedKind={d.outputKind ?? "image"} />
+        <ResultPreview run={d.run} expectedKind={d.outputKind ?? "image"} nodeId={id} />
         {(() => {
           const useOpt = d.promptUseOptimized && Boolean(d.promptOptimized?.trim());
           const text = useOpt ? d.promptOptimized! : d.prompt;
@@ -345,7 +407,7 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
         status={d.run.status}
         selected={selected}
       >
-        <ResultPreview run={d.run} expectedKind={d.mediaKind} />
+        <ResultPreview run={d.run} expectedKind={d.mediaKind} nodeId={id} />
         <div className="mt-1.5 flex flex-wrap gap-1">
           {d.order.length === 0 ? (
             <span className="text-xs text-muted-foreground">{tx("连接多段输入后在此排序")}</span>
@@ -391,13 +453,13 @@ export function SpeechNodeCard({ id, data, selected }: NodeProps) {
       >
         {d.mode === "tts" ? (
           <>
-            <ResultPreview run={d.run} expectedKind="audio" />
+            <ResultPreview run={d.run} expectedKind="audio" nodeId={id} />
             <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
               {d.text || tx("在右侧属性面板输入要朗读的文本…")}
             </p>
           </>
         ) : (
-          <ResultPreview run={d.run} expectedKind="text" />
+          <ResultPreview run={d.run} expectedKind="text" nodeId={id} />
         )}
       </NodeShell>
       <PlusHandle nodeId={id} id={`out-${id}`} />

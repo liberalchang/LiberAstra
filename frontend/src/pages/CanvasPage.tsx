@@ -15,8 +15,8 @@ import {
   useReactFlow,
   type Connection,
 } from "@xyflow/react";
-import { ChevronLeft } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import "@xyflow/react/dist/style.css";
@@ -33,6 +33,7 @@ import { QuickAddMenu, type QuickAddPick } from "@/components/canvas/QuickAddMen
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { MediaLightbox } from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
+import { LightboxShell } from "@/components/ui/lightbox";
 import { useTx } from "@/i18n/tx";
 import { useCanvasStore, nextVarName } from "@/stores/canvas";
 
@@ -63,10 +64,26 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const queryClient = useQueryClient();
   const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
+  // 信号色从主题 token 读取,明暗主题切换时重算(小地图/状态点共用)
+  const signal = useMemo(() => {
+    const style = getComputedStyle(document.documentElement);
+    const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+    const idle = v("--muted-foreground", "#52525b");
+    return {
+      danger: v("--danger", "#dc2626"),
+      info: v("--info", "#2563eb"),
+      warning: v("--warning", "#b45309"),
+      success: v("--success", "#15803d"),
+      idle,
+      canceled: `color-mix(in srgb, ${idle} 55%, transparent)`,
+    };
+  }, [colorMode]);
   const [quickAdd, setQuickAdd] = useState<QuickAddState | null>(null);
   const [tool, setTool] = useState<CanvasTool>("hand");
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  // 通知:sticky 的错误不自动消失;计时器可清理,连续 flash 不互踩
+  const [notice, setNotice] = useState<{ text: string; sticky: boolean } | null>(null);
+  const flashTimer = useRef<number | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
   const navigate = useNavigate();
   const preview = useCanvasUiStore((s) => s.preview);
@@ -90,10 +107,39 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
 
   const selectedNode = store.nodes.find((n) => n.selected) ?? null;
 
-  const flash = (text: string) => {
-    setNotice(text);
-    window.setTimeout(() => setNotice(null), 3200);
+  const flash = (text: string, opts?: { sticky?: boolean }) => {
+    if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
+    const sticky = Boolean(opts?.sticky);
+    setNotice({ text, sticky });
+    if (!sticky) {
+      flashTimer.current = window.setTimeout(() => setNotice(null), 3200);
+    }
   };
+  useEffect(
+    () => () => {
+      if (flashTimer.current != null) window.clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+
+  // Ctrl+Z 撤销 / Ctrl+Shift+Z 或 Ctrl+Y 重做(输入控件内不拦截,留给文本自身)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        useCanvasStore.getState().undo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        useCanvasStore.getState().redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const save = useCallback(async (): Promise<boolean> => {
     const s = useCanvasStore.getState();
@@ -108,7 +154,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       useCanvasStore.setState({ dirty: false });
       return true;
     } catch (err) {
-      flash(err instanceof Error ? err.message : tx("保存失败"));
+      flash(err instanceof Error ? err.message : tx("保存失败"), { sticky: true });
       return false;
     } finally {
       setSaving(false);
@@ -143,27 +189,28 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     return () => window.removeEventListener("keydown", handler);
   }, [save]);
 
-  // 执行状态轮询：runActive 期间每 1.5s 拉一次详情 + 实时 plan
+  // 执行状态轮询：runActive 期间每 1.5s 拉一次详情 + 实时 plan。
+  // 递归 setTimeout + 在途标志:慢网时不会出现并发重叠与乱序覆盖。
   useEffect(() => {
     if (!store.runActive) return;
     let stopped = false;
+    let timer: number | undefined;
     const tick = async () => {
       try {
         const [detail, runs] = await Promise.all([
           api.getCanvas(canvasId),
           api.getCanvasRuns(canvasId),
         ]);
-        if (stopped) return;
-        useCanvasStore.getState().applyRuns(detail.node_runs, runs.plan);
+        if (!stopped) useCanvasStore.getState().applyRuns(detail.node_runs, runs.plan);
       } catch {
         /* 网络抖动下一拍再试 */
       }
+      if (!stopped) timer = window.setTimeout(tick, 1500);
     };
     void tick();
-    const timer = window.setInterval(tick, 1500);
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, [store.runActive, canvasId]);
 
@@ -181,30 +228,49 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     if (await save()) navigate("/canvas?mode=list");
   };
 
-  const run = async () => {
+  /** 保存并执行指定节点(空数组 = 当前选中,或缺省全部末端)。 */
+  const runNodes = useCallback(
+    async (nodeIds: string[]) => {
+      const s = useCanvasStore.getState();
+      if (s.nodes.length === 0) {
+        flash(tx("画布为空，先双击画布添加节点"));
+        return;
+      }
+      if (!(await save())) return;
+      try {
+        const result = await api.runCanvas(canvasId, { node_ids: nodeIds });
+        useCanvasStore.getState().applyRuns(
+          [],
+          result.plan.map((p) => ({
+            node_id: p.node_id,
+            status: p.status,
+            job_id: p.job_id,
+            reused: p.reused,
+          })),
+        );
+        useCanvasStore.getState().setRunActive(true);
+      } catch (err) {
+        flash(err instanceof Error ? err.message : tx("执行失败"), { sticky: true });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canvasId, save],
+  );
+
+  const run = () => {
     const s = useCanvasStore.getState();
-    if (s.nodes.length === 0) {
-      flash(tx("画布为空，先双击画布添加节点"));
-      return;
-    }
-    if (!(await save())) return;
     const targets = s.nodes.filter((n) => n.selected).map((n) => n.id);
-    try {
-      const result = await api.runCanvas(canvasId, { node_ids: targets });
-      useCanvasStore.getState().applyRuns(
-        [],
-        result.plan.map((p) => ({
-          node_id: p.node_id,
-          status: p.status,
-          job_id: p.job_id,
-          reused: p.reused,
-        })),
-      );
-      useCanvasStore.getState().setRunActive(true);
-    } catch (err) {
-      flash(err instanceof Error ? err.message : tx("执行失败"));
-    }
+    void runNodes(targets);
   };
+
+  // 节点卡上的「重试」:保存后单独重跑该节点
+  const retryNode = useCanvasUiStore((s) => s.retryNode);
+  useEffect(() => {
+    if (!retryNode) return;
+    useCanvasUiStore.getState().requestRetry(null);
+    void runNodes([retryNode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryNode]);
 
   const layout = () => {
     const s = useCanvasStore.getState();
@@ -228,34 +294,37 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       x: quickAdd.x + (rect?.left ?? 0),
       y: quickAdd.y + (rect?.top ?? 0),
     });
-    const node = store.addNode(pick.kind, pick.mediaKind, position);
-    // 语音节点:asr 模式在建点后写入,变量名同步改为 output_text_n
-    if (pick.kind === "speech" && pick.speechMode === "asr") {
-      store.updateNodeData(node.id, {
-        mode: "asr",
-        varName: nextVarName(store.nodes, "output_text"),
-      });
-    }
-    // 功能节点带所属:默认加载组内第一个包(并自动补建必填输入)
-    if (pick.kind === "function" && pick.group) {
-      store.updateNodeData(node.id, { group: pick.group });
-      const groups = queryClient.getQueryData<Record<string, string[]>>(["canvas-groups"]);
-      const packs = queryClient.getQueryData<WorkflowPackOut[]>(["workflows"]);
-      const firstName = groups?.[pick.group]?.[0];
-      const pack = firstName ? packs?.find((p) => p.name === firstName) : undefined;
-      if (pack) {
-        const created = applyPackToNode(node.id, pack, {});
-        if (created > 0) flash(tx("已自动补建 {n} 个必填输入节点", { n: created }));
+    // 快速建点 = 一步撤销:建点、语音模式修正、选包补建、自动连线合并为一个历史条目
+    store.batch(() => {
+      const node = store.addNode(pick.kind, pick.mediaKind, position);
+      // 语音节点:asr 模式在建点后写入,变量名同步改为 output_text_n
+      if (pick.kind === "speech" && pick.speechMode === "asr") {
+        store.updateNodeData(node.id, {
+          mode: "asr",
+          varName: nextVarName(store.nodes, "output_text"),
+        });
       }
-    }
-    if (quickAdd.pendingFrom) {
-      store.onConnect({
-        source: quickAdd.pendingFrom,
-        target: node.id,
-        sourceHandle: `out-${quickAdd.pendingFrom}`,
-        targetHandle: `in-${node.id}`,
-      });
-    }
+      // 功能节点带所属:默认加载组内第一个包(并自动补建必填输入)
+      if (pick.kind === "function" && pick.group) {
+        store.updateNodeData(node.id, { group: pick.group });
+        const groups = queryClient.getQueryData<Record<string, string[]>>(["canvas-groups"]);
+        const packs = queryClient.getQueryData<WorkflowPackOut[]>(["workflows"]);
+        const firstName = groups?.[pick.group]?.[0];
+        const pack = firstName ? packs?.find((p) => p.name === firstName) : undefined;
+        if (pack) {
+          const created = applyPackToNode(node.id, pack, {});
+          if (created > 0) flash(tx("已自动补建 {n} 个必填输入节点", { n: created }));
+        }
+      }
+      if (quickAdd.pendingFrom) {
+        store.onConnect({
+          source: quickAdd.pendingFrom,
+          target: node.id,
+          sourceHandle: `out-${quickAdd.pendingFrom}`,
+          targetHandle: `in-${node.id}`,
+        });
+      }
+    });
     setQuickAdd(null);
   };
 
@@ -301,13 +370,18 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           className="!bg-card"
           nodeColor={(n) => {
             const status = (n.data as { run?: { status?: string } } | undefined)?.run?.status;
+            // 信号灯规则:颜色读主题 token,运行=信号蓝(紫只留给动作),取消用空心感的中性调
             return status === "failed"
-              ? "#e11d48"
+              ? signal.danger
               : status === "running"
-                ? "#6d28d9"
-                : status === "succeeded"
-                  ? "#16a34a"
-                  : "#94a3b8";
+                ? signal.info
+                : status === "pending"
+                  ? signal.warning
+                  : status === "succeeded"
+                    ? signal.success
+                    : status === "canceled"
+                      ? signal.canceled
+                      : signal.idle;
           }}
         />
         <Controls showInteractive={false} />
@@ -346,8 +420,22 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           </div>
         )}
         {notice && (
-          <div className="absolute left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-lg">
-            {notice}
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-lg"
+          >
+            {notice.text}
+            {notice.sticky && (
+              <button
+                type="button"
+                className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={tx("关闭通知")}
+                onClick={() => setNotice(null)}
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
         )}
         {quickAdd && (
@@ -366,17 +454,19 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
         onFlash={flash}
       />
       {exitAsk && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50" onClick={() => setExitAsk(false)}>
-          <div
-            className="flex w-80 flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <LightboxShell onClose={() => setExitAsk(false)} ariaLabel={tx("退出确认")} className="max-w-xs">
+          <div className="flex flex-col gap-3 p-4">
             <p className="text-sm">{tx("画布有未保存的修改，退出前是否保存？")}</p>
             <div className="flex flex-col gap-1.5">
               <Button size="sm" onClick={() => void exitSave()} disabled={saving}>
                 {tx("保存并退出")}
               </Button>
-              <Button variant="outline" size="sm" onClick={exitDiscard}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-danger/40 text-danger hover:bg-danger/10"
+                onClick={exitDiscard}
+              >
                 {tx("不保存退出")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setExitAsk(false)}>
@@ -384,7 +474,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
               </Button>
             </div>
           </div>
-        </div>
+        </LightboxShell>
       )}
       <MediaLightbox target={preview} onClose={() => setPreview(null)} />
     </div>

@@ -14,6 +14,9 @@ interface CanvasUiState {
   /** 节点 + 钮点击:待接的源节点 id(CanvasPage 消费后清零) */
   addAfter: string | null;
   requestAddAfter: (nodeId: string | null) => void;
+  /** 失败节点卡上的「重试」请求(CanvasPage 消费后清零,保存并重跑该节点) */
+  retryNode: string | null;
+  requestRetry: (nodeId: string | null) => void;
 }
 
 export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
@@ -21,4 +24,6 @@ export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
   setPreview: (preview) => set({ preview }),
   addAfter: null,
   requestAddAfter: (addAfter) => set({ addAfter }),
+  retryNode: null,
+  requestRetry: (retryNode) => set({ retryNode }),
 }));

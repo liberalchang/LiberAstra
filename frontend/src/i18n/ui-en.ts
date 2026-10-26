@@ -1184,4 +1184,27 @@ export const UI_EN: Record<string, string> = {
   "点击向后添加节点，拖动连线": "Click to add a downstream node; drag to connect",
   "提示词；输入 / 引用变量,↑↓ 选择、Enter 填入":
     "Prompt; press / for variables, ↑↓ to move, Enter to insert",
+  "撤销": "Undo",
+  "撤销 (Ctrl+Z)": "Undo (Ctrl+Z)",
+  "重做": "Redo",
+  "重做 (Ctrl+Shift+Z)": "Redo (Ctrl+Shift+Z)",
+  "关闭通知": "Dismiss",
+  "重试": "Retry",
+  "详情": "Details",
+  "任务中心": "Jobs",
+  "向后添加节点": "Add a downstream node",
+  "按能力建默认分组": "Create default groups by capability",
+  "正在创建…": "Creating…",
+  "已按能力建好默认分组": "Default groups created",
+  "创建分组失败": "Failed to create groups",
+  "退出确认": "Exit confirmation",
+  "输入简短描述…键入 / 可引用已连接节点的变量":
+    "Describe briefly… press / to reference variables from connected nodes",
+  "整理画布": "Tidy up canvas",
+  "抓手模式": "Pan mode",
+  "选择模式": "Select mode",
+  "还没有可用的工作流包，先到「设置 → 工作流包」导入":
+    "No workflow packs yet — import some in Settings → Workflow Packs first",
+  "画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音）自动建好，稍后在「设置 → 工作流包」里调整。":
+    "Canvas organizes workflow packs into groups. None exist yet — create them automatically by capability (image/video/speech), then fine-tune in Settings → Workflow Packs.",
 };

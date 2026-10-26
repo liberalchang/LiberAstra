@@ -26,49 +26,52 @@ export function applyPackToNode(
           `output_${outKind}`,
         )
       : existingVar;
-  store.updateNodeData(nodeId, {
-    pack: pack.name,
-    outputKind: outKind,
-    ...(varName ? { varName } : {}),
-    // 换包后参数值保留同名键,其余回落 manifest 默认。
-    // 例外:模型文件/枚举类参数(options_from / options,如 unet/clip/vae)一律回落新包默认——
-    // 跨包保留会把上一套模型组合注入新工作流(如 flux3 三件套打进 qwen 包 → KSampler 维度不匹配)。
-    values: Object.fromEntries(
-      Object.entries(pack.inputs)
-        .filter(([, spec]) => !MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]))
-        .map(([key, spec]) => {
-          const fallback = spec.default != null ? String(spec.default) : "";
-          const carried = spec.options_from || spec.options ? undefined : currentValues[key];
-          return [key, carried ?? fallback];
-        }),
-    ),
-    accel: hasAccel(pack.accel) ? defaultAccelState(pack.accel) : null,
-  });
-
-  const node = useCanvasStore.getState().nodes.find((n) => n.id === nodeId);
-  if (!node) return 0;
+  // 选包 = 一步撤销:写配置 + 补建输入节点 + 连线合并为一个历史条目
   let created = 0;
-  Object.entries(pack.inputs).forEach(([, spec], index) => {
-    if (!MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]) || !spec.required) return;
-    const mediaKind = spec.type as MediaKind;
-    const current = useCanvasStore.getState();
-    const hasIncoming = current.edges.some((e) => {
-      if (e.target !== nodeId) return false;
-      const source = current.nodes.find((n) => n.id === e.source);
-      return source?.data.kind === "input" && source.data.mediaKind === mediaKind;
+  store.batch(() => {
+    store.updateNodeData(nodeId, {
+      pack: pack.name,
+      outputKind: outKind,
+      ...(varName ? { varName } : {}),
+      // 换包后参数值保留同名键,其余回落 manifest 默认。
+      // 例外:模型文件/枚举类参数(options_from / options,如 unet/clip/vae)一律回落新包默认——
+      // 跨包保留会把上一套模型组合注入新工作流(如 flux3 三件套打进 qwen 包 → KSampler 维度不匹配)。
+      values: Object.fromEntries(
+        Object.entries(pack.inputs)
+          .filter(([, spec]) => !MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]))
+          .map(([key, spec]) => {
+            const fallback = spec.default != null ? String(spec.default) : "";
+            const carried = spec.options_from || spec.options ? undefined : currentValues[key];
+            return [key, carried ?? fallback];
+          }),
+      ),
+      accel: hasAccel(pack.accel) ? defaultAccelState(pack.accel) : null,
     });
-    if (hasIncoming) return;
-    const inputNode = useCanvasStore.getState().addNode("input", mediaKind, {
-      x: node.position.x - 320,
-      y: node.position.y + created * 180 + index * 40,
+
+    const node = useCanvasStore.getState().nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    Object.entries(pack.inputs).forEach(([, spec], index) => {
+      if (!MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]) || !spec.required) return;
+      const mediaKind = spec.type as MediaKind;
+      const current = useCanvasStore.getState();
+      const hasIncoming = current.edges.some((e) => {
+        if (e.target !== nodeId) return false;
+        const source = current.nodes.find((n) => n.id === e.source);
+        return source?.data.kind === "input" && source.data.mediaKind === mediaKind;
+      });
+      if (hasIncoming) return;
+      const inputNode = useCanvasStore.getState().addNode("input", mediaKind, {
+        x: node.position.x - 320,
+        y: node.position.y + created * 180 + index * 40,
+      });
+      useCanvasStore.getState().onConnect({
+        source: inputNode.id,
+        target: nodeId,
+        sourceHandle: `out-${inputNode.id}`,
+        targetHandle: `in-${nodeId}`,
+      });
+      created += 1;
     });
-    useCanvasStore.getState().onConnect({
-      source: inputNode.id,
-      target: nodeId,
-      sourceHandle: `out-${inputNode.id}`,
-      targetHandle: `in-${nodeId}`,
-    });
-    created += 1;
   });
   return created;
 }
