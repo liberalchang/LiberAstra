@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AudioLines, Clapperboard, Image as ImageIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +8,7 @@ import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Starfield } from "@/components/ui/starfield";
 import { useAuthStore } from "@/stores/auth";
 
 export function AuthPage() {
@@ -36,24 +38,28 @@ export function AuthPage() {
   });
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
-      {/* 品牌光斑：与 PageHeader 同款的签名元素 */}
-      <div aria-hidden className="pointer-events-none absolute -top-32 left-1/2 size-96 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-40 right-1/4 size-80 rounded-full bg-accent/10 blur-3xl" />
-      <div className="relative w-full max-w-md rounded-[28px] border border-border bg-card px-8 py-10 shadow-2xl">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
+      {/* 聚星画布:星星聚拢成星座 = 聚合编排 */}
+      <div className="absolute inset-0">
+        <Starfield />
+      </div>
+
+      <div className="result-in relative w-full max-w-[26rem] rounded-[28px] border border-border/60 bg-card/75 px-8 py-10 shadow-2xl shadow-primary/10 backdrop-blur-xl">
+        {/* 品牌光斑:签名元素,落在磨砂卡上 */}
+        <div aria-hidden className="pointer-events-none absolute -top-10 right-6 size-28 rounded-full bg-primary/20 blur-3xl sm:-top-14 sm:size-40" />
+        <div className="relative mb-8 flex items-center gap-3.5">
+          <span className="grid size-11 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
             L
           </span>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">LiberAstra</h1>
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight">LiberAstra</h1>
             <p className="text-sm text-muted-foreground">
               {isSetup ? t("auth.subtitleSetup") : t("auth.subtitleLogin")}
             </p>
           </div>
         </div>
         <form
-          className="flex flex-col gap-3"
+          className="relative flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             setError(null);
@@ -83,11 +89,28 @@ export function AuthPage() {
               required
             />
           </Field>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <Button type="submit" disabled={submit.isPending} className="mt-2">
+          {error && (
+            <p role="alert" className="text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={submit.isPending} className="mt-1 h-12 text-[15px]">
             {submit.isPending ? t("auth.waiting") : isSetup ? t("auth.submitSetup") : t("auth.submitLogin")}
           </Button>
         </form>
+      </div>
+
+      {/* 能力注脚:图像 · 视频 · 语音,真实功能,非营销词 */}
+      <div className="relative mt-6 flex items-center gap-5 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <ImageIcon className="size-3.5" /> {t("group.image")}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Clapperboard className="size-3.5" /> {t("group.video")}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <AudioLines className="size-3.5" /> {t("group.speech")}
+        </span>
       </div>
     </div>
   );

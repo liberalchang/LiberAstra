@@ -50,6 +50,7 @@ rounded:
   lg: "12px"
   xl: "16px"
   hero: "24px"
+  auth: "28px"
 spacing:
   group: "8px"
   section: "16px"
@@ -132,14 +133,14 @@ LiberAstra 的界面是一间导播间：用户面对的不是营销页，而是
 
 ## Elevation & Depth
 
-以色调分层为主，阴影只在两处出现：弹窗/登录卡的 `shadow-2xl`(层级声明)与 hover 的 `shadow-md`(状态反馈)。品牌光斑(`bg-primary/15 blur-3xl` 大圆)是唯一的氛围元素，也是签名。
+以色调分层为主，阴影只在两处出现：弹窗/登录卡的 `shadow-2xl`(层级声明)与 hover 的 `shadow-md`(状态反馈)。品牌光斑(页头 `bg-primary/15`、磨砂浮卡上可到 `/20`,大圆 `blur-3xl`)是唯一的氛围元素，也是签名。
 
 ### Named Rules
 **The Flat-By-Default Rule.** 静止的表面是平的。阴影只响应状态(hover、弹层),不做装饰性深度。
 
 ## Shapes
 
-圆角梯度即层级：徽章/芯片 8px，输入框 10px，按钮与小卡 12px，卡片 16px，页头/hero 24px，头像与图标钮全圆。边框一律 1px `--border`;不允许彩色粗边条。
+圆角梯度即层级：徽章/芯片 8px，输入框 10px，按钮与小卡 12px，卡片 16px，页头/hero 24px，登录卡为登记的例外 28px(磨砂浮层独享),头像与图标钮全圆。边框一律 1px `--border`;不允许彩色粗边条。
 
 ## Components
 
