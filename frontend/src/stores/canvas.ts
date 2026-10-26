@@ -109,6 +109,8 @@ let future: HistoryEntry[] = [];
 /** 单调递增的版本号;markSaved 记下已保存版本,undo 回到该版本即不脏 */
 let rev = 0;
 let savedRev = 0;
+/** 名称改动不在结构历史里,单独记脏,防止 rev 比对漏报 */
+let nameDirty = false;
 /** batch() 期间内部动作不再单独入栈 */
 let batchDepth = 0;
 /** 拖拽期间只记一次（首帧） */
@@ -198,6 +200,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     future = [];
     rev = 0;
     savedRev = 0;
+    nameDirty = false;
     historySync();
   },
 
@@ -206,6 +209,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     future = [];
     rev = 0;
     savedRev = 0;
+    nameDirty = false;
     set({
       canvasId: null,
       name: "",
@@ -220,14 +224,16 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   },
 
   setName: (name) => {
-    // 名称随 graph 一起保存;改动占一个新版本号,undo 不会回到它,dirty 不误清
+    // 名称随 graph 一起保存但不入结构历史;单独记脏,undo 的 rev 比对不会漏报它
     rev += 1;
+    nameDirty = true;
     set({ name, dirty: true });
   },
 
   /** 保存成功打点:当前版本即干净基线 */
   markSaved: () => {
     savedRev = rev;
+    nameDirty = false;
     set({ dirty: false });
   },
 
@@ -411,7 +417,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     lastEditKey = "";
     rev = prev.rev;
     restore(prev);
-    set({ dirty: rev !== savedRev });
+    set({ dirty: rev !== savedRev || nameDirty });
     historySync();
   },
 
@@ -423,7 +429,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     lastEditKey = "";
     rev = next.rev;
     restore(next);
-    set({ dirty: rev !== savedRev });
+    set({ dirty: rev !== savedRev || nameDirty });
     historySync();
   },
 

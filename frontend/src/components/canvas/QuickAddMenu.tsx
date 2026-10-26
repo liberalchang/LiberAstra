@@ -71,9 +71,9 @@ export function QuickAddMenu({
   const { data: groups } = useQuery({ queryKey: ["canvas-groups"], queryFn: api.getCanvasGroups });
   const { data: packs } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
 
-  // 弹层键盘规范:打开即聚焦第一个可选项,Esc 关闭,↑↓ 遍历
+  // 弹层键盘规范:打开即聚焦第一个菜单项(跳过 Segmented 的 tab),Esc 关闭,↑↓ 遍历
   useEffect(() => {
-    const first = menuRef.current?.querySelector<HTMLElement>("button");
+    const first = menuRef.current?.querySelector<HTMLElement>('button:not([role="tab"])');
     first?.focus();
   }, []);
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
