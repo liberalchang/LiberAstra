@@ -1,10 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { AudioLines, Clapperboard, Image as ImageIcon, Mic } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
-import { api } from "@/api/client";
 import { FeatureMark, type MarkKind } from "@/components/PageShell";
 import { Field } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/segmented";
@@ -31,7 +29,6 @@ const MODE_ICON = {
 export function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: health } = useQuery({ queryKey: ["healthz"], queryFn: api.healthz });
   const [mode, setMode] = useState<Mode>("image");
   const [prompt, setPrompt] = useState("");
 
@@ -55,7 +52,6 @@ export function DashboardPage() {
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground md:text-base">
           {t("studio.subtitle")}
-          {health ? ` · v${health.version}` : ""}
         </p>
 
         <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-border bg-background p-4 md:p-5">

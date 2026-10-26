@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Clapperboard, Image as ImageIcon } from "lucide-react";
+import { AudioLines, Clapperboard, Image as ImageIcon, Languages, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -12,13 +12,22 @@ import { Starfield } from "@/components/ui/starfield";
 import { useAuthStore } from "@/stores/auth";
 
 export function AuthPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const signIn = useAuthStore((s) => s.signIn);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // 登录页在 Layout 之外,主题与语言切换自带一份(写入同一 localStorage 键,进系统后无缝)
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  const toggleTheme = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("liberastra-theme", next ? "dark" : "light");
+  };
 
   const { data: status } = useQuery({ queryKey: ["auth-status"], queryFn: api.authStatus });
   const isSetup = status != null && !status.initialized;
@@ -42,6 +51,30 @@ export function AuthPage() {
       {/* 聚星画布:星星聚拢成星座 = 聚合编排 */}
       <div className="absolute inset-0">
         <Starfield />
+      </div>
+
+      {/* 语言与主题:登录页在 Layout 之外,也需要这两个开关 */}
+      <div className="absolute right-4 top-4 flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-foreground/70 hover:bg-foreground/8"
+          onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
+          title={t("common.language")}
+          aria-label={t("common.language")}
+        >
+          <Languages />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-foreground/70 hover:bg-foreground/8"
+          onClick={toggleTheme}
+          title={t("common.theme")}
+          aria-label={t("common.theme")}
+        >
+          {dark ? <Sun /> : <Moon />}
+        </Button>
       </div>
 
       <div className="result-in relative w-full max-w-[26rem] rounded-[28px] border border-border/60 bg-card/75 px-8 py-10 shadow-2xl shadow-primary/10 backdrop-blur-xl">
