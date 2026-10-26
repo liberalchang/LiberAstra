@@ -8,7 +8,7 @@ import { useTx } from "@/i18n/tx";
 export function GuidePage() {
   const tx = useTx();
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader
         kind="guide"
         icon={BookOpen}

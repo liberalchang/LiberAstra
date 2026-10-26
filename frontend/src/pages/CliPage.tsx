@@ -10,7 +10,7 @@ export function CliPage() {
   const { t, i18n } = useTranslation();
   const english = i18n.language.startsWith("en");
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader
         kind="guide"
         icon={Terminal}

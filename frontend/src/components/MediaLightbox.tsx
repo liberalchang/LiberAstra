@@ -1,10 +1,10 @@
 import { AudioLines, Download, FileText, ImageIcon, Loader2, Video, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api, fetchAssetBlob } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { LightboxShell } from "@/components/ui/lightbox";
 import { assetDownloadName, assetSummary, assetTitle, cn, formatSize, formatTime } from "@/lib/utils";
 import { useTx } from "@/i18n/tx";
 
@@ -179,8 +179,6 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
   const url = useAssetUrl(target?.id ?? null, target?.kind ?? null);
   const text = useAssetText(target?.id ?? null, target?.kind ?? null);
   const targetId = target?.id ?? null;
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
 
   // 拉取资产详情：补齐 meta / path，用于参数展示与友好下载名
   const { data: detail } = useQuery({
@@ -188,42 +186,6 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
     queryFn: () => api.getAsset(targetId!),
     enabled: targetId != null,
   });
-
-  // Esc 关闭 + Tab 焦点圈在弹窗内 + 锁定背景滚动 + 焦点进出管理
-  useEffect(() => {
-    if (targetId == null) return;
-    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab" && dialogRef.current) {
-        const focusables = Array.from(
-          dialogRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input, select, textarea, video[controls], audio[controls], [tabindex]:not([tabindex="-1"])',
-          ),
-        ).filter((el) => el.offsetParent !== null);
-        if (focusables.length === 0) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-      prevFocus?.focus();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId]);
 
   if (!target) return null;
 
@@ -237,28 +199,18 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
   const previewable = ["image", "audio", "video"].includes(target.kind);
   const textual = TEXTUAL_KINDS.includes(target.kind);
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
-      <div className="lightbox-backdrop absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div
-        ref={dialogRef}
-        className="lightbox-pop relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl md:flex-row"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={name}
+  return (
+    <LightboxShell onClose={onClose} ariaLabel={name} className="md:flex-row">
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute right-3 top-3 z-10 rounded-full bg-card/90 shadow-md"
+        onClick={onClose}
+        title={tx("关闭 (Esc)")}
+        aria-label={tx("关闭 (Esc)")}
       >
-        <Button
-          ref={closeRef}
-          variant="outline"
-          size="icon"
-          className="absolute right-3 top-3 z-10 rounded-full bg-card/90 shadow-md"
-          onClick={onClose}
-          title={tx("关闭 (Esc)")}
-          aria-label={tx("关闭 (Esc)")}
-        >
-          <X />
-        </Button>
+        <X />
+      </Button>
 
         {/* 媒体区 */}
         <div className="grid min-h-56 flex-1 place-items-center overflow-hidden bg-black/90 md:max-h-[90vh]">
@@ -347,8 +299,6 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
             </Button>
           </div>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </LightboxShell>
   );
 }

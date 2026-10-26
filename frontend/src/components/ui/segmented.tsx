@@ -1,7 +1,9 @@
+import type { LucideIcon } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 interface SegmentedProps<T extends string> {
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: LucideIcon }[];
   value: T;
   onChange: (value: T) => void;
   ariaLabel?: string;
@@ -19,12 +21,13 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
           aria-selected={value === opt.value}
           onClick={() => onChange(opt.value)}
           className={cn(
-            "rounded-lg px-4 py-1.5 text-sm transition-colors",
+            "inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm transition-colors",
             value === opt.value
               ? "bg-background font-medium text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
+          {opt.icon ? <opt.icon className="size-4" /> : null}
           {opt.label}
         </button>
       ))}

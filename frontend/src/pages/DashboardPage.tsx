@@ -7,7 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { FeatureMark, type MarkKind } from "@/components/PageShell";
 import { Field } from "@/components/ui/field";
-import { cn } from "@/lib/utils";
+import { Segmented } from "@/components/ui/segmented";
 
 const TOOLS: { to: string; key: string; kind: MarkKind }[] = [
   { to: "/image/generate", key: "nav.imageGen", kind: "image" },
@@ -59,35 +59,17 @@ export function DashboardPage() {
         </p>
 
         <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-border bg-background p-4 md:p-5">
-          <div className="mb-3 flex gap-1" role="tablist" aria-label={t("studio.mode")}>
-            {(
-              [
-                ["image", t("group.image")],
-                ["video", t("group.video")],
-                ["speech", t("group.speech")],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={mode === id}
-                className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground hover:text-foreground",
-                  mode === id && "bg-field text-foreground",
-                )}
-                onClick={() => setMode(id)}
-              >
-                {id === "image" ? (
-                  <ImageIcon className="size-4" />
-                ) : id === "video" ? (
-                  <Clapperboard className="size-4" />
-                ) : (
-                  <AudioLines className="size-4" />
-                )}
-                {label}
-              </button>
-            ))}
+          <div className="mb-3">
+            <Segmented
+              value={mode}
+              onChange={setMode}
+              ariaLabel={t("studio.mode")}
+              options={[
+                { value: "image", label: t("group.image"), icon: ImageIcon },
+                { value: "video", label: t("group.video"), icon: Clapperboard },
+                { value: "speech", label: t("group.speech"), icon: AudioLines },
+              ]}
+            />
           </div>
           <Field label={t("studio.promptLabel")} hint={t("studio.promptHint")}>
             <textarea

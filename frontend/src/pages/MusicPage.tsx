@@ -66,7 +66,7 @@ export function MusicPage() {
   });
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader
         kind="music"
         icon={Music}

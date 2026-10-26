@@ -58,7 +58,7 @@ export function VoicesPage() {
   });
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader kind="voices" icon={Library} title={tx("音色库")} description={tx("保存参考音频，或登记云端复刻返回的音色。")} />
       <Card>
         <CardHeader>

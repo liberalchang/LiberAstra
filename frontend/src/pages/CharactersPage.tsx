@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Trash2, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { api, type CharacterOut } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
@@ -11,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, areaClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
+import { LightboxShell } from "@/components/ui/lightbox";
 import { Segmented } from "@/components/ui/segmented";
 import { useTrackedJob } from "@/hooks/useJob";
 import { useTx } from "@/i18n/tx";
@@ -68,40 +68,27 @@ function CharacterViewer({
   onClose: () => void;
 }) {
   const tx = useTx();
+  // 左右方向键切换槽位；Esc/滚动锁/焦点管理由 LightboxShell 负责
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
       const index = slots.findIndex((slot) => slot.key === current);
       if (event.key === "ArrowLeft" && index > 0) onChange(slots[index - 1].key);
       if (event.key === "ArrowRight" && index >= 0 && index < slots.length - 1) onChange(slots[index + 1].key);
     };
     window.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [current, onChange, onClose, slots]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [current, onChange, slots]);
 
   const label = slots.find((slot) => slot.key === current)?.label ?? "";
   const index = slots.findIndex((slot) => slot.key === current);
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={tx("{name} · {label}", { name, label })}
-      >
+  return (
+    <LightboxShell onClose={onClose} ariaLabel={tx("{name} · {label}", { name, label })}>
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{name}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
-          <Button variant="outline" size="icon" className="rounded-full" onClick={onClose} title={tx("关闭 (Esc)")}>
+          <Button variant="outline" size="icon" className="rounded-full" onClick={onClose} title={tx("关闭 (Esc)")} aria-label={tx("关闭 (Esc)")}>
             <X />
           </Button>
         </div>
@@ -134,9 +121,7 @@ function CharacterViewer({
             <ChevronRight />
           </Button>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </LightboxShell>
   );
 }
 
