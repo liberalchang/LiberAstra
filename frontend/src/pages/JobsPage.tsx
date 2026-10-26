@@ -1,4 +1,4 @@
-import { ListChecks } from "lucide-react";
+import { ListTodo } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RotateCcw, X } from "lucide-react";
@@ -46,7 +46,7 @@ export function JobsPage() {
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
-      <PageHeader kind="jobs" icon={ListChecks} title={t("jobs.title")} description={t("jobs.hint")} />
+      <PageHeader kind="jobs" icon={ListTodo} title={t("jobs.title")} description={t("jobs.hint")} />
       {jobs?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
       {jobs?.map((j: JobOut) => (
         <Card key={j.id}>

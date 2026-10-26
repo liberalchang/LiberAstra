@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Image as ImageIcon, Dices } from "lucide-react";
+import { Dices, ImagePlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -116,7 +116,7 @@ export function ImageGenPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         kind="image"
-        icon={ImageIcon}
+        icon={ImagePlus}
         title={tx("文生图")}
         description={tx("选择图像服务，用提示词生成图片。ComfyUI 工作流会带出额外参数。")}
       />

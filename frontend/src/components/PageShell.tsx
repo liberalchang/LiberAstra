@@ -2,17 +2,21 @@ import {
   AudioLines,
   Clapperboard,
   Film,
-  Image as ImageIcon,
+  FolderOpen,
+  ImagePlus,
   ImageUp,
   Images,
   BookOpen,
+  LayoutTemplate,
   Library,
   ListTodo,
   Mic,
   Music,
   PersonStanding,
   Settings,
+  Terminal,
   UserRound,
+  UsersRound,
   WandSparkles,
   Workflow,
   type LucideIcon,
@@ -25,6 +29,8 @@ export type MarkKind =
   | "video"
   | "clips"
   | "avatar"
+  | "characters"
+  | "templates"
   | "i2v"
   | "motion"
   | "tts"
@@ -35,27 +41,31 @@ export type MarkKind =
   | "jobs"
   | "settings"
   | "workflow"
-  | "guide";
+  | "guide"
+  | "cli";
 
-/** 功能图标来自 lucide-react，按主题色着色。 */
+/** 功能图标来自 lucide-react，按主题色着色；与侧栏导航同一套语义映射。 */
 const MARK_ICON: Record<MarkKind, LucideIcon> = {
-  image: ImageIcon,
+  image: ImagePlus,
   edit: WandSparkles,
   upscale: ImageUp,
   video: Clapperboard,
   clips: Images,
   avatar: UserRound,
+  characters: UsersRound,
+  templates: LayoutTemplate,
   i2v: Film,
   motion: PersonStanding,
   tts: AudioLines,
   asr: Mic,
   voices: Library,
   music: Music,
-  library: Images,
+  library: FolderOpen,
   jobs: ListTodo,
   settings: Settings,
   workflow: Workflow,
   guide: BookOpen,
+  cli: Terminal,
 };
 
 export function FeatureMark({ kind }: { kind: MarkKind }) {

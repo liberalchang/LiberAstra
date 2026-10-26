@@ -12,7 +12,7 @@ export function CliPage() {
   return (
     <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader
-        kind="guide"
+        kind="cli"
         icon={Terminal}
         title={t("nav.cliDocs")}
         description={

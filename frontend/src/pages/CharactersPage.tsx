@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Trash2, UserRound, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, UsersRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, type CharacterOut } from "@/api/client";
@@ -237,8 +237,8 @@ export function CharactersPage() {
   return (
     <div className="flex max-w-4xl flex-col gap-6">
       <PageHeader
-        kind="avatar"
-        icon={UserRound}
+        kind="characters"
+        icon={UsersRound}
         title={tx("角色库")}
         description={tx("保存角色外观和四段式定妆照。视频任务按镜头取一张单人图，不会把整张设定图当成画面。")}
       />

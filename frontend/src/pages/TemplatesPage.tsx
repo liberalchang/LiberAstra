@@ -66,7 +66,7 @@ export function TemplatesPage() {
   return (
     <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader
-        kind="video"
+        kind="templates"
         icon={LayoutTemplate}
         title={tx("模板管理")}
         description={tx("分镜模板决定快速创作的画面样式。模板是带 {{占位符}} 的 HTML 文件，文件名前缀标识类型。")}
