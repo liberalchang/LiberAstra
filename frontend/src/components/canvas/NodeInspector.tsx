@@ -4,11 +4,12 @@
  * 渲染为输入槽,下拉选择已连接节点的输出变量(bindings);提示词 / 补全支持
  * 文本变量({{名}})与媒体变量(<Picture N> 标签)。
  */
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
   Brush,
+  Trash2,
   Clapperboard,
   FolderOpen,
   Mic,
@@ -16,7 +17,7 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
 import { applyPackToNode } from "@/canvas/applyPack";
@@ -42,6 +43,7 @@ import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { SPEECH_LANGUAGES } from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
 import { useCanvasStore } from "@/stores/canvas";
 
@@ -259,13 +261,30 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
             variant="outline"
             size="sm"
             disabled={!d.assetId}
-            title={tx("画笔涂抹 / 裁剪")}
+            title={tx("标记涂抹 / 蒙版 / 裁剪")}
             onClick={() => setEditorOpen(true)}
           >
             <Brush className="size-4" />
           </Button>
         )}
       </div>
+      {kind === "image" && d.maskAssetId && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5">
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            {tx("已挂蒙版(局部重绘用,白区重绘黑区保留)")}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-danger"
+            title={tx("清除蒙版")}
+            aria-label={tx("清除蒙版")}
+            onClick={() => updateNodeData(node.id, { maskAssetId: null })}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -281,7 +300,9 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
       {editorOpen && d.assetId && (
         <ImagePaintEditor
           assetId={d.assetId}
+          maskAssetId={d.maskAssetId}
           onApply={(assetId, name) => updateNodeData(node.id, { assetId, assetName: name })}
+          onApplyMask={(assetId) => updateNodeData(node.id, { maskAssetId: assetId })}
           onClose={() => setEditorOpen(false)}
         />
       )}
@@ -653,7 +674,80 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
   const tx = useTx();
   const d = node.data as SpeechNodeData;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const queryClient = useQueryClient();
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices, staleTime: 60_000 });
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
+
+  const cap = d.mode === "tts" ? "tts" : "asr";
+  const candidates = (providers ?? []).filter(
+    (p) => p.enabled && p.capabilities.includes(cap),
+  );
+  // 未选 = 第一个可用服务(与后端 pick_provider 的默认一致)
+  const provider = candidates.find((p) => p.id === d.providerId) ?? candidates[0];
+  const ptype = provider?.type;
+
+  // 服务音色/模型列表为空时自动拉一次(与语音页同逻辑)
+  const refreshModels = useMutation({
+    mutationFn: (id: number) => api.fetchProviderModels(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
+  });
+  useEffect(() => {
+    if (!provider || ptype === "comfyui" || ptype === "liber_speech") return;
+    if ((provider.models ?? []).length === 0 && !refreshModels.isPending) {
+      refreshModels.mutate(provider.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider?.id, ptype]);
+
+  // Comfy 语音工作流包(tts)
+  const { data: ttsPacks } = useQuery({
+    queryKey: ["workflows", "tts"],
+    queryFn: () => api.listWorkflows("tts"),
+    enabled: d.mode === "tts" && ptype === "comfyui",
+  });
+
+  const serviceSelect = (
+    <Field label={tx("语音服务")} hint={tx("只列出已启用且具备该能力的服务;不选则用第一个可用服务。")}>
+      <select
+        className={selectClass}
+        value={provider?.id ?? ""}
+        onChange={(e) =>
+          updateNodeData(node.id, {
+            providerId: e.target.value === "" ? null : Number(e.target.value),
+            // 换服务清掉音色/模型残留,避免语言码被当成音色
+            voiceRecordId: null,
+            voice: "",
+            model: "",
+            workflow: "",
+          })
+        }
+      >
+        {candidates.length === 0 && <option value="">{tx("没有可用服务")}</option>}
+        {candidates.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+
+  const languageSelect = (
+    <Field label={tx("语言")} hint={tx("留空 = 自动识别")}>
+      <select
+        className={selectClass}
+        value={d.language ?? ""}
+        onChange={(e) => updateNodeData(node.id, { language: e.target.value })}
+      >
+        <option value="">{tx("自动")}</option>
+        {SPEECH_LANGUAGES.map((l) => (
+          <option key={l.code} value={l.code}>
+            {tx(l.label)}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
 
   if (d.mode === "asr") {
     return (
@@ -662,13 +756,24 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
         <p className="text-xs text-muted-foreground">
           {tx("从「输入输出」加一个音频输入节点,连到本节点左侧;执行时取第一个连接的音频,转写为文本/字幕资产")}
         </p>
-        <Field label={tx("语言")} hint={tx("留空 = 自动识别;可填 zh / en 等")}>
-          <Input
-            value={d.language ?? ""}
-            placeholder={tx("自动")}
-            onChange={(e) => updateNodeData(node.id, { language: e.target.value.trim() })}
-          />
-        </Field>
+        {serviceSelect}
+        {ptype === "openai_stt" && (
+          <Field label={tx("识别模型")} hint={tx("来自该服务的模型列表;不选则用默认。")}>
+            <select
+              className={selectClass}
+              value={d.model ?? ""}
+              onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+            >
+              <option value="">{refreshModels.isPending ? tx("正在从服务拉取模型…") : tx("默认模型")}</option>
+              {(provider?.models ?? []).map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {languageSelect}
       </section>
     );
   }
@@ -683,24 +788,73 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           onChange={(e) => updateNodeData(node.id, { text: e.target.value })}
         />
       </Field>
-      <Field label={tx("音色")} hint={tx("来自音色库;不选则用配音服务的默认音色")}>
-        <select
-          className={selectClass}
-          value={d.voiceRecordId ?? ""}
-          onChange={(e) =>
-            updateNodeData(node.id, {
-              voiceRecordId: e.target.value === "" ? null : Number(e.target.value),
-            })
-          }
+      {serviceSelect}
+      {ptype === "comfyui" && (
+        <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包,朗读文本会自动注入。")}>
+          <select
+            className={selectClass}
+            value={d.workflow ?? ""}
+            onChange={(e) => updateNodeData(node.id, { workflow: e.target.value })}
+          >
+            <option value="">{tx("选择语音工作流…")}</option>
+            {(ttsPacks ?? []).map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {(ptype === "edge_tts" || ptype === "openai_tts") && (
+        <Field
+          label={tx("音色")}
+          hint={tx("来自该服务的音色列表;为空时先点下方刷新或稍等自动拉取。")}
         >
-          <option value="">{tx("默认音色")}</option>
-          {(voices ?? []).map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
+          <select
+            className={selectClass}
+            value={d.voice ?? ""}
+            onChange={(e) => updateNodeData(node.id, { voice: e.target.value })}
+          >
+            <option value="">
+              {refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("默认音色")}
             </option>
-          ))}
-        </select>
-      </Field>
+            {(provider?.models ?? []).map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {ptype === "openai_tts" && (
+        <Field label={tx("模型")} hint={tx("不选则使用该服务的默认模型 tts-1。")}>
+          <Input
+            value={d.model ?? ""}
+            placeholder="tts-1"
+            onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+          />
+        </Field>
+      )}
+      {ptype !== "comfyui" && ptype !== "edge_tts" && ptype !== "openai_tts" && (
+        <Field label={tx("音色")} hint={tx("来自音色库;不选则用配音服务的默认音色")}>
+          <select
+            className={selectClass}
+            value={d.voiceRecordId ?? ""}
+            onChange={(e) =>
+              updateNodeData(node.id, {
+                voiceRecordId: e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+          >
+            <option value="">{tx("默认音色")}</option>
+            {(voices ?? []).map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
     </section>
   );
 }

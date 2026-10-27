@@ -147,6 +147,15 @@ def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun) ->
                 f"输入节点的文件类型（{asset.kind}）与节点类型（{media_kind}）不符"
             )
         row.asset_ids = [asset.id]
+        # 蒙版(局部重绘用):跟在主图后面进资产链,打标 canvas_mask 供下游分流
+        mask_id = data.get("maskAssetId")
+        if mask_id:
+            mask = db.get(Asset, int(mask_id))
+            if mask is None or mask.kind != "image":
+                raise ProviderError("蒙版资产不存在或不是图片")
+            mask.hidden = True
+            mask.meta = {**(mask.meta or {}), "canvas_mask": True, "canvas_node": node.get("id")}
+            row.asset_ids.append(mask.id)
     row.status = "succeeded"
     row.error = None
     row.job_id = None
@@ -200,15 +209,39 @@ def _resolve_function_inputs(
     upstream = _upstream_assets(db, graph, str(node["id"]), runs)
     media_paths: dict[str, list[str]] = {kind: [] for kind in MEDIA_KINDS}
     media_asset_ids: list[int] = []
+    mask_paths: list[str] = []
+    # 蒙版键:参数名是 mask,或 label/description 含「蒙版」——只有这些键吃蒙版资产,
+    # 其余 image 键照常分流,避免蒙版挤占多图编辑的 image_2 槽位
+    mask_keys = [
+        k
+        for k, s in pack.inputs.items()
+        if s.get("type") == "image"
+        and (
+            k == "mask"
+            or "蒙版" in str(s.get("label") or "")
+            or "蒙版" in str(s.get("description") or "")
+        )
+    ]
     for asset in upstream:
+        if (asset.meta or {}).get("canvas_mask"):
+            mask_paths.append(asset.path)
+            media_asset_ids.append(asset.id)
+            continue
         if asset.kind in media_paths:
             media_paths[asset.kind].append(asset.path)
             media_asset_ids.append(asset.id)
     for media_kind, paths in media_paths.items():
-        keys = [k for k, s in pack.inputs.items() if s.get("type") == media_kind]
+        keys = [
+            k
+            for k, s in pack.inputs.items()
+            if s.get("type") == media_kind and (media_kind != "image" or k not in mask_keys)
+        ]
         for key, path in zip(keys, paths, strict=False):
             if not inputs.get(key):
                 inputs[key] = path
+    for key, path in zip(mask_keys, mask_paths, strict=False):
+        if not inputs.get(key):
+            inputs[key] = path
 
     # 槽位绑定:bindings 里指定的变量覆盖自动映射
     bindings = data.get("bindings") or {}
@@ -471,6 +504,9 @@ async def _execute_speech(
             voice_name = record.voice_id or record.name
             if record.ref_audio_path:
                 options["ref_audio"] = record.ref_audio_path
+        # 非音色库服务(edge-tts/OpenAI/Comfy 包):音色名/模型/工作流直接取节点配置
+        if not voice_name:
+            voice_name = str(data.get("voice") or "")
         kind = "tts.synthesize"
         params: dict[str, Any] = {
             "text": text,
@@ -478,7 +514,14 @@ async def _execute_speech(
             "format": "mp3",
             "options": options,
         }
-        fingerprint = canonical_fingerprint({"mode": mode, **params})
+        workflow = str(data.get("workflow") or "")
+        if workflow:
+            params["workflow"] = workflow
+        provider_id = data.get("providerId")
+        model = str(data.get("model") or "") or None
+        fingerprint = canonical_fingerprint(
+            {"mode": mode, "provider": provider_id, "model": model, **params}
+        )
     elif mode == "asr":
         audio_assets = [
             a for a in _upstream_assets(db, graph, node_id, runs) if a.kind == "audio"
@@ -486,12 +529,16 @@ async def _execute_speech(
         if not audio_assets:
             raise ProviderError("语音转文字节点需要连接一个音频输入")
         kind = "asr.transcribe"
+        provider_id = data.get("providerId")
+        model = str(data.get("model") or "") or None
         params = {
             "file_path": audio_assets[0].path,
             "task": "transcribe",
             "language": str(data.get("language") or "") or None,
         }
-        fingerprint = canonical_fingerprint({"mode": mode, **params})
+        fingerprint = canonical_fingerprint(
+            {"mode": mode, "provider": provider_id, "model": model, **params}
+        )
     else:
         raise ProviderError(f"未知语音节点模式: {mode}")
 
@@ -509,7 +556,14 @@ async def _execute_speech(
         return
 
     manager: JobManager = app.state.jobs
-    job = manager.submit(db, owner_id=owner_id, kind=kind, params=params)
+    job = manager.submit(
+        db,
+        owner_id=owner_id,
+        kind=kind,
+        params=params,
+        provider_id=int(provider_id) if provider_id else None,
+        model=model,
+    )
     row.job_id = job.id
     row.status = "running"
     row.fingerprint = fingerprint

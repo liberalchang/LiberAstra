@@ -34,6 +34,8 @@ export interface InputNodeData extends Record<string, unknown> {
   /** 媒体输入引用的资产；文本输入为 null */
   assetId: number | null;
   assetName?: string;
+  /** 蒙版资产(局部重绘用,仅图片输入;白区重绘黑区保留) */
+  maskAssetId?: number | null;
   text?: string;
   /** 输出变量名(输入节点不做变换,变量即其资源引用);默认 input_{类型}_{n} */
   varName?: string;
@@ -81,8 +83,16 @@ export interface SpeechNodeData extends Record<string, unknown> {
   mode: SpeechMode;
   /** tts 的文本内容,支持 {{varName}} */
   text?: string;
-  /** 音色库记录 id(tts) */
+  /** 语音服务 Provider id;空 = 默认(第一个已启用且具该能力的服务) */
+  providerId?: number | null;
+  /** 音色库记录 id(Liber Speech 音色) */
   voiceRecordId?: number | null;
+  /** edge-tts / OpenAI 兼容服务的音色名(如 zh-CN-XiaoxiaoNeural / alloy) */
+  voice?: string;
+  /** 服务模型名(OpenAI 系的 tts/stt 模型) */
+  model?: string;
+  /** Comfy 语音工作流包名(tts) */
+  workflow?: string;
   /** asr 语言(空=自动) */
   language?: string;
   /** 输出变量名;tts → output_audio_n,asr → output_text_n */
@@ -144,6 +154,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       mediaKind: (data.mediaKind as MediaKind) ?? "image",
       assetId: data.assetId == null ? null : Number(data.assetId),
       assetName: typeof data.assetName === "string" ? data.assetName : undefined,
+      maskAssetId: data.maskAssetId == null ? null : Number(data.maskAssetId),
       text: typeof data.text === "string" ? data.text : "",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
@@ -163,7 +174,11 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       kind: "speech",
       mode: data.mode === "asr" ? "asr" : "tts",
       text: typeof data.text === "string" ? data.text : "",
+      providerId: data.providerId == null ? null : Number(data.providerId),
       voiceRecordId: data.voiceRecordId == null ? null : Number(data.voiceRecordId),
+      voice: typeof data.voice === "string" ? data.voice : "",
+      model: typeof data.model === "string" ? data.model : "",
+      workflow: typeof data.workflow === "string" ? data.workflow : "",
       language: typeof data.language === "string" ? data.language : "",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),

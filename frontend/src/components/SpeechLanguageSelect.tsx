@@ -6,7 +6,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { useTx } from "@/i18n/tx";
 
 /** 与 Liber Speech 的 language_id 一致。中文、英文放在前面。 */
-const SPEECH_LANGUAGES: { code: string; label: string }[] = [
+export const SPEECH_LANGUAGES: { code: string; label: string }[] = [
   { code: "zh", label: "中文 zh" },
   { code: "en", label: "英文 en" },
   { code: "ja", label: "日文 ja" },

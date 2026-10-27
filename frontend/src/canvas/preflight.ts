@@ -77,6 +77,22 @@ export function validateCanvas(
       for (const [key, spec] of Object.entries(pack.inputs)) {
         if (!["image", "video", "audio"].includes(spec.type) || !spec.required) continue;
         const bound = Boolean(f.bindings?.[key]);
+        // 蒙版键:名字是 mask 或说明含「蒙版」——要看上游图片输入节点是否挂了蒙版资产
+        const isMask =
+          spec.type === "image" &&
+          (key === "mask" || /蒙版/.test(String(spec.label ?? "") + String(spec.description ?? "")));
+        if (isMask) {
+          const fedMask = incoming(node.id).some(
+            (s) => s.data.kind === "input" && Boolean((s.data as InputNodeData).maskAssetId),
+          );
+          if (!bound && !fedMask) {
+            issues.push({
+              nodeId: node.id,
+              message: "缺少蒙版（在图片输入节点上点「编辑图片」→ 蒙版模式涂抹导出）",
+            });
+          }
+          continue;
+        }
         const fed = incoming(node.id).some((s) => nodeOutputKind(s) === spec.type);
         if (!bound && !fed) {
           issues.push({

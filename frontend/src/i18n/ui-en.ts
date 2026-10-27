@@ -1262,4 +1262,28 @@ export const UI_EN: Record<string, string> = {
     "Technical details for the prompt optimizer (model constraints, duration limits, reference rules); users only see the description above. Empty falls back to the description.",
   "例:输出带同步音效,提示词需包含环境音/对白描写;单段最长约 5 秒。":
     "e.g. Output includes synced audio — prompts should describe ambient sound/dialogue; max ~5s per segment.",
+  "只列出已启用且具备该能力的服务;不选则用第一个可用服务。":
+    "Only enabled services with this capability are listed; empty uses the first available.",
+  "没有可用服务": "No available service",
+  "来自该服务的模型列表;不选则用默认。": "Model list from this service; empty uses the default.",
+  "tts 能力的工作流包,朗读文本会自动注入。": "A tts-capable workflow pack; the text is injected automatically.",
+  "选择语音工作流…": "Choose a speech workflow…",
+  "来自该服务的音色列表;为空时先点下方刷新或稍等自动拉取。":
+    "Voice list from this service; if empty, refresh below or wait for auto-fetch.",
+  "标记涂抹": "Markup brush",
+  "颜色": "Color",
+  "清除": "Clear",
+  "涂抹要重绘的区域(玫红显示,导出为白区黑底蒙版)":
+    "Paint the area to redraw (shown in rose; exported as a white-on-black mask)",
+  "；节点上已挂一张蒙版,导出会替换它": "; a mask is already attached — exporting replaces it",
+  "比例": "Ratio",
+  "自由": "Free",
+  "比例宽": "Ratio width",
+  "比例高": "Ratio height",
+  "裁剪比例": "Crop ratio",
+  "导出蒙版": "Export mask",
+  "已挂蒙版(局部重绘用,白区重绘黑区保留)":
+    "Mask attached (for inpaint: white repaints, black keeps)",
+  "清除蒙版": "Remove mask",
+  "标记涂抹 / 蒙版 / 裁剪": "Markup / mask / crop",
 };
