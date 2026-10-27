@@ -23,6 +23,7 @@ import {
   PanelLeftOpen,
   PersonStanding,
   PlugZap,
+  ScrollText,
   Settings,
   Sun,
   UserRound,
@@ -89,6 +90,7 @@ const NAV_GROUPS: {
       // end：只在正好是 /settings 时高亮，避免 /settings/system 等子页把它一起点亮
       { to: "/settings", icon: PlugZap, key: "nav.providers", end: true },
       { to: "/settings/workflows", icon: Workflow, key: "nav.workflows" },
+      { to: "/settings/prompts", icon: ScrollText, key: "nav.prompts" },
       { to: "/settings/system", icon: Settings, key: "nav.system" },
     ],
   },

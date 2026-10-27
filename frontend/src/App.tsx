@@ -24,6 +24,7 @@ const ImageGenPage = lazy(() => import("@/pages/ImageGenPage").then((m) => ({ de
 const JobsPage = lazy(() => import("@/pages/JobsPage").then((m) => ({ default: m.JobsPage })));
 const MusicPage = lazy(() => import("@/pages/MusicPage").then((m) => ({ default: m.MusicPage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const PromptsPage = lazy(() => import("@/pages/PromptsPage").then((m) => ({ default: m.PromptsPage })));
 const SystemSettingsPage = lazy(() =>
   import("@/pages/SystemSettingsPage").then((m) => ({ default: m.SystemSettingsPage })),
 );
@@ -86,6 +87,7 @@ export default function App() {
           }
         />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/prompts" element={<PromptsPage />} />
         <Route path="/settings/system" element={<SystemSettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
         <Route path="/jobs" element={<JobsPage />} />

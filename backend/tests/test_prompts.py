@@ -57,6 +57,44 @@ def test_list_prompts_api(client: TestClient, auth_header: dict[str, str]) -> No
     assert any(t["id"] == "t2i" for t in body["tasks"])
 
 
+def test_prompt_template_override_roundtrip(client: TestClient, auth_header: dict[str, str]) -> None:
+    """覆盖 → custom 标记 → 删除覆盖恢复默认;内置未覆盖条目删除报 400。"""
+    put = client.put(
+        "/api/v1/prompts/tasks/t2i",
+        json={"name": "文生图", "system": "自定义系统提示词"},
+        headers=auth_header,
+    )
+    assert put.status_code == 200, put.text
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    t2i = next(t for t in body["tasks"] if t["id"] == "t2i")
+    assert t2i["custom"] is True
+    assert t2i["system"] == "自定义系统提示词"
+
+    # 删除覆盖 = 恢复默认
+    delete = client.delete("/api/v1/prompts/tasks/t2i", headers=auth_header)
+    assert delete.status_code == 204
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    t2i = next(t for t in body["tasks"] if t["id"] == "t2i")
+    assert t2i["custom"] is False
+    assert "自定义系统提示词" not in t2i["system"]
+
+    # 未自定义的内置条目不可删
+    again = client.delete("/api/v1/prompts/tasks/t2i", headers=auth_header)
+    assert again.status_code == 400
+
+    # 场景预设同款
+    client.put(
+        "/api/v1/prompts/scenes/photo",
+        json={"name": "摄影", "append": "自定义叠加"},
+        headers=auth_header,
+    )
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    assert next(s for s in body["scenes"] if s["id"] == "photo")["custom"] is True
+    assert client.delete("/api/v1/prompts/scenes/photo", headers=auth_header).status_code == 204
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    assert next(s for s in body["scenes"] if s["id"] == "photo")["custom"] is False
+
+
 def test_preferences_default_llm(client: TestClient, auth_header: dict[str, str]) -> None:
     before = client.get("/api/v1/system/preferences", headers=auth_header).json()
     assert "default_llm_provider_id" in before

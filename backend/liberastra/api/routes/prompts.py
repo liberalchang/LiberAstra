@@ -77,6 +77,23 @@ def put_scene(scene_id: str, body: SceneUpsert, user: CurrentUser) -> dict[str, 
     return {"status": "ok", "id": scene_id}
 
 
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: str, user: CurrentUser) -> None:
+    """删除用户覆盖(= 恢复默认);内置模板本身不可删。"""
+    try:
+        prompt_service.delete_task_override(task_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.delete("/scenes/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_scene(scene_id: str, user: CurrentUser) -> None:
+    try:
+        prompt_service.delete_scene_override(scene_id)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @router.post("/import")
 def import_prompts(body: PromptImportBody, user: CurrentUser) -> dict[str, int]:
     return prompt_service.import_prompts(body.model_dump(exclude_none=True))

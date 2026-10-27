@@ -186,12 +186,15 @@ export interface PromptTaskOut {
   name: string;
   capabilities: string[];
   system: string;
+  /** 是否有用户覆盖(true=已自定义,可恢复默认) */
+  custom?: boolean;
 }
 
 export interface PromptSceneOut {
   id: string;
   name: string;
   append: string;
+  custom?: boolean;
 }
 
 export interface PromptOptimizeInput {
@@ -511,6 +514,26 @@ export const api = {
     request<JobOut>("/api/v1/images/edit", { method: "POST", body: form }),
   listPrompts: () =>
     request<{ tasks: PromptTaskOut[]; scenes: PromptSceneOut[] }>("/api/v1/prompts"),
+  /** 覆盖/新建功能模板;删除 = 恢复默认(删用户覆盖层) */
+  putPromptTask: (id: string, body: { name: string; system: string; capabilities?: string[] }) =>
+    request<{ status: string }>(`/api/v1/prompts/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deletePromptTask: (id: string) =>
+    request<void>(`/api/v1/prompts/tasks/${id}`, { method: "DELETE" }),
+  putPromptScene: (id: string, body: { name: string; append: string }) =>
+    request<{ status: string }>(`/api/v1/prompts/scenes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deletePromptScene: (id: string) =>
+    request<void>(`/api/v1/prompts/scenes/${id}`, { method: "DELETE" }),
+  importPrompts: (body: Record<string, unknown>) =>
+    request<{ tasks: number; scenes: number }>("/api/v1/prompts/import", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** 提交 prompt.optimize Job（202）；刷新后凭 jobId 继续轮询 */
   optimizePrompt: (body: PromptOptimizeInput | string, provider_id?: number) => {
     const payload: PromptOptimizeInput =

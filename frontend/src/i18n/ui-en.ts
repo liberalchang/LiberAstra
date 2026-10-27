@@ -1229,4 +1229,37 @@ export const UI_EN: Record<string, string> = {
   "强制执行含上游": "Force run with upstream",
   "重跑选中节点（上游能复用则复用）":
     "Re-run selected node(s) (upstream reused when possible)",
+  "提示词模板": "Prompt Templates",
+  "管理 ✨ 提示词优化的功能模板与场景预设；改动即保存，立即对下次优化生效。":
+    "Manage the task templates and scene presets behind ✨ prompt optimization; changes take effect on the next optimization.",
+  "功能模板": "Task templates",
+  "场景预设": "Scene presets",
+  "模板类型": "Template type",
+  "已自定义": "Customized",
+  "已恢复默认": "Restored to default",
+  "模板 ID": "Template ID",
+  "预设 ID": "Preset ID",
+  "新建后不可改;覆盖内置同名 ID 即自定义它。":
+    "Fixed after creation; using a builtin ID customizes that template.",
+  "适用功能": "Applies to",
+  "逗号分隔的 capability;留空表示不参与页面匹配。当前可选:":
+    "Comma-separated capabilities; empty means no page matching. Available: ",
+  "使用它的页面:": "Used by: ",
+  "系统提示词": "System prompt",
+  "优化器按此模板扩写用户输入;保存后对下次优化立即生效。":
+    "The optimizer expands user input per this template; saving applies to the next optimization immediately.",
+  "叠加文本": "Appended text",
+  "叠加在功能模板之上的风格倾向;「自动」预设留空表示不强制场景。":
+    "Style tendency layered over the task template; the Auto preset stays empty to not force a scene.",
+  "恢复默认": "Restore default",
+  "导入提示词模板": "Import prompt templates",
+  "粘贴 { \"tasks\": {...} } 或 { \"scenes\": {...} } 结构的 JSON;同名条目覆盖为自定义。":
+    "Paste JSON of { \"tasks\": {...} } or { \"scenes\": {...} }; same-name entries become custom overrides.",
+  "导入中…": "Importing…",
+  "已导入 {t} 个功能模板、{s} 个场景预设": "Imported {t} task template(s) and {s} scene preset(s)",
+  "优化器说明": "Optimizer note",
+  "给提示词优化器读的技术细节（模型约束、时长上限、指代规则等）；用户提示只显示上面的描述。留空则优化器读描述。":
+    "Technical details for the prompt optimizer (model constraints, duration limits, reference rules); users only see the description above. Empty falls back to the description.",
+  "例:输出带同步音效,提示词需包含环境音/对白描写;单段最长约 5 秒。":
+    "e.g. Output includes synced audio — prompts should describe ambient sound/dialogue; max ~5s per segment.",
 };

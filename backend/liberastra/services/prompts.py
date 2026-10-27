@@ -61,7 +61,16 @@ def _merged_section(filename: str, section_key: str) -> dict[str, Any]:
     return base
 
 
+def _user_section_keys(filename: str, section_key: str) -> set[str]:
+    """用户覆盖文件里实际存在的条目 id(用于「已自定义」标记)。"""
+    ensure_prompt_store()
+    user = _load_yaml(_user_dir() / filename)
+    section = user.get(section_key) or {}
+    return set(section) if isinstance(section, dict) else set()
+
+
 def list_tasks() -> list[dict[str, Any]]:
+    custom = _user_section_keys("tasks.yaml", "tasks")
     tasks = _merged_section("tasks.yaml", "tasks")
     out: list[dict[str, Any]] = []
     for tid, spec in tasks.items():
@@ -73,12 +82,14 @@ def list_tasks() -> list[dict[str, Any]]:
                 "name": spec.get("name", tid),
                 "capabilities": list(spec.get("capabilities") or []),
                 "system": str(spec.get("system") or ""),
+                "custom": tid in custom,
             }
         )
     return out
 
 
 def list_scenes() -> list[dict[str, Any]]:
+    custom = _user_section_keys("scenes.yaml", "scenes")
     scenes = _merged_section("scenes.yaml", "scenes")
     out: list[dict[str, Any]] = []
     for sid, spec in scenes.items():
@@ -89,6 +100,7 @@ def list_scenes() -> list[dict[str, Any]]:
                 "id": sid,
                 "name": spec.get("name", sid),
                 "append": str(spec.get("append") or ""),
+                "custom": sid in custom,
             }
         )
     return out
@@ -140,6 +152,27 @@ def upsert_scene(scene_id: str, *, name: str, append: str) -> None:
     data["version"] = data.get("version", 1)
     data["scenes"] = scenes
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
+def _delete_override(filename: str, section_key: str, entry_id: str, kind_label: str) -> None:
+    """删除用户覆盖条目(= 恢复默认)。内置条目本身不可删:未被自定义时报错。"""
+    ensure_prompt_store()
+    path = _user_dir() / filename
+    data = _load_yaml(path)
+    section = dict(data.get(section_key) or {})
+    if entry_id not in section:
+        raise ProviderError(f"{kind_label} {entry_id} 未被自定义，内置模板不可删除")
+    del section[entry_id]
+    data[section_key] = section
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
+def delete_task_override(task_id: str) -> None:
+    _delete_override("tasks.yaml", "tasks", task_id, "功能模板")
+
+
+def delete_scene_override(scene_id: str) -> None:
+    _delete_override("scenes.yaml", "scenes", scene_id, "场景预设")
 
 
 def import_prompts(payload: dict[str, Any]) -> dict[str, int]:

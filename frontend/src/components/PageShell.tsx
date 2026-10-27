@@ -13,6 +13,7 @@ import {
   Mic,
   Music,
   PersonStanding,
+  ScrollText,
   Settings,
   Terminal,
   UserRound,
@@ -44,7 +45,8 @@ export type MarkKind =
   | "settings"
   | "workflow"
   | "guide"
-  | "cli";
+  | "cli"
+  | "prompts";
 
 /** 功能图标来自 lucide-react，按主题色着色；与侧栏导航同一套语义映射。 */
 const MARK_ICON: Record<MarkKind, LucideIcon> = {
@@ -69,6 +71,7 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   canvas: Waypoints,
   guide: BookOpen,
   cli: Terminal,
+  prompts: ScrollText,
 };
 
 export function FeatureMark({ kind }: { kind: MarkKind }) {
