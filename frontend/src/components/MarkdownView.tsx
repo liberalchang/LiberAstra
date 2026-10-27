@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 
-/** 只覆盖使用文档里用到的 Markdown：标题、段落、列表、表格、代码。 */
+import canvasShot from "../../../docs/images/canvas.png";
+
+/** 使用文档里的相对图片。键与 docs/使用文档.md 中的路径一致，值是 Vite 打包后的地址。 */
+const GUIDE_IMAGES: Record<string, string> = {
+  "images/canvas.png": canvasShot,
+};
+
+/** 只覆盖使用文档里用到的 Markdown：标题、段落、列表、表格、代码、图片、链接。 */
 export function MarkdownView({ source }: { source: string }) {
   return <article className="guide-doc flex flex-col gap-3 text-sm leading-6 text-foreground">{renderBlocks(source)}</article>;
 }
@@ -78,6 +85,16 @@ function renderBlocks(source: string): ReactNode[] {
       i += 1;
       continue;
     }
+    const imageLine = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(line.trim());
+    if (imageLine) {
+      blocks.push(
+        <figure key={key++}>
+          <GuideImage alt={imageLine[1]} src={imageLine[2]} />
+        </figure>,
+      );
+      i += 1;
+      continue;
+    }
     if (/^[-*] /.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^[-*] /.test(lines[i])) {
@@ -123,7 +140,7 @@ function renderBlocks(source: string): ReactNode[] {
               : "mt-1 text-sm font-semibold text-foreground/90";
       const Tag = level <= 2 ? (level === 1 ? "h2" : "h3") : level === 3 ? "h4" : "h5";
       blocks.push(
-        <Tag key={key++} className={className}>
+        <Tag key={key++} id={headingDomId(text)} className={className}>
           {inline(text, "hx")}
         </Tag>,
       );
@@ -158,16 +175,67 @@ function renderBlocks(source: string): ReactNode[] {
   return blocks;
 }
 
+/** 标题锚点：去掉行内代码记号，与文内 `#文字转语音` 这类链接对齐。 */
+function headingDomId(text: string): string {
+  return text.replace(/`/g, "").trim();
+}
+
+function guideImageSrc(src: string): string | null {
+  const key = src.trim().replace(/^\.\//, "");
+  return GUIDE_IMAGES[key] ?? null;
+}
+
+/** 站内锚点保持原样；仓库内另一篇 Markdown 指到 GitHub 上的同路径，页面里才能点开。 */
+function resolveHref(href: string): string | null {
+  const trimmed = href.trim();
+  if (trimmed.startsWith("#") && !trimmed.toLowerCase().startsWith("#javascript")) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const relative = trimmed.replace(/^\.\//, "");
+  if (relative.endsWith(".md") && !relative.includes("..") && !relative.includes("\\")) {
+    return `https://github.com/liberalchang/LiberAstra/blob/main/docs/${encodeURIComponent(relative)}`;
+  }
+  return null;
+}
+
+function GuideImage({ alt, src }: { alt: string; src: string }) {
+  const url = guideImageSrc(src);
+  if (!url) return <span>{alt || src}</span>;
+  return <img src={url} alt={alt || "截图"} className="w-full rounded-xl border border-border" />;
+}
+
+function GuideLink({ href, children }: { href: string; children: string }) {
+  const resolved = resolveHref(href);
+  if (!resolved) return <>{children}</>;
+  const external = /^https?:\/\//i.test(resolved);
+  return (
+    <a
+      href={resolved}
+      className="text-primary underline underline-offset-2"
+      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+    >
+      {children}
+    </a>
+  );
+}
+
 function inline(text: string, prefix: string): ReactNode[] {
   const parts: ReactNode[] = [];
-  const re = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+  const re = /(!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|`[^`]+`|\*\*[^*]+\*\*)/g;
   let last = 0;
   let match: RegExpExecArray | null;
   let index = 0;
   while ((match = re.exec(text))) {
     if (match.index > last) parts.push(text.slice(last, match.index));
     const token = match[0];
-    if (token.startsWith("`")) {
+    if (token.startsWith("![")) {
+      parts.push(<GuideImage key={`${prefix}-${index++}`} alt={match[2]} src={match[3]} />);
+    } else if (token.startsWith("[")) {
+      parts.push(
+        <GuideLink key={`${prefix}-${index++}`} href={match[5]}>
+          {match[4]}
+        </GuideLink>,
+      );
+    } else if (token.startsWith("`")) {
       parts.push(
         <code key={`${prefix}-${index++}`} className="rounded bg-muted px-1 py-0.5 text-[13px]">
           {token.slice(1, -1)}

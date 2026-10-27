@@ -6,13 +6,23 @@
 
 ## 功能
 
-平台本身不做模型推理。界面按侧栏分组；出图、出声、出视频都交给已配置的外部服务。各页提示词共用 **PromptField**（原始稿 / 优化稿、场景模板、✨ 提交优化任务，刷新后仍可接着看）。
+平台本身不做模型推理。界面按侧栏分组；出图、出声、出视频都交给已配置的外部服务。各页和画布功能节点的提示词共用 **PromptField**（原始稿 / 优化稿、场景预设、✨ 提交优化任务，刷新后仍可接着看）。功能模板与场景预设在「设置 → 提示词模板」里改，保存后下一次优化即生效。
 
 ### 首页
 
 工作台：按图像 / 视频 / 语音切换，写一句提示词即可进入对应功能。下方是常用入口。
 
 ![首页](docs/images/home.png)
+
+### 画布
+
+侧栏「工作台 → 画布」。在无限画布上把输入、工作流包、语音和合成连成流程图，按节点执行。
+
+- **节点**：图片 / 视频 / 音频 / 文本输入，功能节点（按「所属」选一组工作流包），文字转语音 / 语音转文字，视频或音频合成。
+- **分组**：功能节点的「所属」在「设置 → 工作流包 → 画布分组」里维护，也可按图像 / 视频 / 语音一键建默认组。选包后会按必填媒体自动补建输入节点。
+- **执行**：选中节点则重跑选中项、上游未变则复用；未选中时确认后整张画布强制重跑。右侧可强制重跑当前节点及其上游。
+- **结果**：功能、语音、合成节点的产物默认是中间结果，在预览上保存后进入资源库。资产页可勾选「含画布中间结果」查看未发布文件。输入节点上传的文件会直接进入资产库。
+- **变量**：文本用 `{{变量名}}` 引用，`/` 可插入已连接节点；媒体标签如 `<Picture 1>` 原样交给工作流。图片输入可标记、涂蒙版、裁剪，并保留版本。
 
 ### 图像生成
 
@@ -51,7 +61,7 @@
 ### 平台与接入
 
 - **作品**、**任务**：生成结果与任务进度（SSE、取消 / 重试）。
-- **设置**：服务提供方（地址与密钥）、工作流包导入、默认 LLM 与运行参数。
+- **设置**：服务提供方（地址与密钥）、工作流包导入与画布分组、提示词模板（功能模板 / 场景预设，可导入导出）、默认 LLM 与运行参数。
 - **接入**：Web UI（中英文、明暗主题）、`astra` CLI、MCP Server、OpenAI 兼容 `/v1`（chat / audio / images）。单用户，API Token；Provider 密钥加密保存。
 
 模型怎么配对、内置包名单见 [docs/使用文档.md](docs/使用文档.md)。
@@ -245,11 +255,19 @@ LiberAstra is a self-hosted, single-user AIGC orchestration hub (MIT). It orches
 
 ### 功能
 
-The app does not run models. Prompt fields share one control: raw and optimized drafts, scene presets, and a sparkle action that keeps running if you refresh.
+The app does not run models. Prompt fields on each page and on canvas function nodes share one control: raw and optimized drafts, scene presets, and a sparkle action that keeps running if you refresh. Task templates and scene presets are edited under Settings → Prompt Templates and apply on the next optimize.
 
 **Home.** Pick image, video, or speech and jump in with one line.
 
 ![Home](docs/images/home.png)
+
+**Canvas.** An infinite canvas under Workspace → Canvas. Connect inputs, workflow packs, speech, and concat nodes, then run them as a graph.
+
+- Nodes: image, video, audio, or text inputs; a function node that picks a workflow pack from a named group; text-to-speech or speech-to-text; video or audio concat.
+- Groups live under Settings → Workflow Packs → Canvas groups. You can also create default Image / Video / Speech groups in one step. Choosing a pack adds the required media inputs and wires them up.
+- Run the selection (upstream nodes are reused when their inputs are unchanged), or confirm a full forced rerun when nothing is selected. The side panel can force the current node and its whole upstream chain.
+- Save a function, speech, or concat preview into the asset library. Those outputs stay hidden until then; the asset page can include canvas drafts. Files uploaded on input nodes are stored as normal assets.
+- Reference text with `{{variable}}` (type `/` to insert a connected node). Media tags such as `<Picture 1>` are passed through to the workflow. Image inputs can be marked up, masked, or cropped, and each export is kept as a version.
 
 **Images.** Text-to-image (Qwen-Image 2.1 official or uncensored packs, or a classic checkpoint; uncensored packs can toggle an Uncensored LoRA). Image edit: full-frame, up to four references, or inpaint with a mask. Upscale uses an upscale model, not a new generation. Online image APIs are supported.
 
@@ -269,7 +287,7 @@ The app does not run models. Prompt fields share one control: raw and optimized 
 
 ![Text to speech](docs/images/speech-tts.png)
 
-**Platform.** Asset library, job queue (SSE, cancel/retry), providers, workflow-pack import, default LLM. Clients: Web UI (zh/en, light/dark), `astra` CLI, MCP server, OpenAI-compatible `/v1`.
+**Platform.** Asset library (canvas intermediates stay hidden until published), job queue (SSE, cancel/retry), providers, workflow-pack import and canvas groups, prompt templates (task templates and scene presets, import/export), default LLM. Clients: Web UI (zh/en, light/dark), `astra` CLI, MCP server, OpenAI-compatible `/v1`.
 
 Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
