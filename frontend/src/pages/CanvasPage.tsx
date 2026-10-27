@@ -265,7 +265,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     return unsub;
   }, []);
 
-  /** 保存并执行指定节点(空数组 = 当前选中,或缺省全部末端)。forceAll 时全图强制重跑。 */
+  /** 保存并执行指定节点(空数组 = 缺省全部末端)。选中的目标必真跑(force),祖先能复用则复用;forceAll 时全图强制。 */
   const runNodes = useCallback(
     async (nodeIds: string[], opts?: { forceAll?: boolean }) => {
       const s = useCanvasStore.getState();
@@ -277,7 +277,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       try {
         const result = await api.runCanvas(canvasId, {
           node_ids: nodeIds,
-          force_node_ids: opts?.forceAll ? s.nodes.map((n) => n.id) : [],
+          force_node_ids: opts?.forceAll ? s.nodes.map((n) => n.id) : nodeIds,
         });
         useCanvasStore.getState().applyRuns(
           [],

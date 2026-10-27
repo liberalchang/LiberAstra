@@ -1223,4 +1223,10 @@ export const UI_EN: Record<string, string> = {
     "Run selected node(s) and their upstream (reuse when possible; re-run only when empty or stale)",
   "强制重跑整张画布（全部节点忽略缓存，需确认）":
     "Force re-run the whole canvas (all nodes, cache ignored, confirmation required)",
+  "仅重跑此节点": "Re-run this node only",
+  "只强制重跑本节点，上游未变的部分自动复用":
+    "Force re-run only this node; unchanged upstream results are reused",
+  "强制执行含上游": "Force run with upstream",
+  "重跑选中节点（上游能复用则复用）":
+    "Re-run selected node(s) (upstream reused when possible)",
 };
