@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTx } from "@/i18n/tx";
 import { useCanvasStore } from "@/stores/canvas";
 
@@ -496,21 +497,23 @@ function FunctionInspector({
 
         {d.group && (
           <Field label={tx("工作流包")} hint={tx("选择后自动补全该包需要的输入节点并连线")}>
-            <select
-              className={selectClass}
-              value={d.pack}
-              onChange={(e) => {
-                const next = groupPacks.find((p) => p.name === e.target.value);
-                if (next) applyPack(next);
-              }}
-            >
-              <option value="">{tx("选择工作流包…")}</option>
-              {groupPacks.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <WorkflowPackControl name={pack?.name} description={pack?.description}>
+              <select
+                className={selectClass}
+                value={d.pack}
+                onChange={(e) => {
+                  const next = groupPacks.find((p) => p.name === e.target.value);
+                  if (next) applyPack(next);
+                }}
+              >
+                <option value="">{tx("选择工作流包…")}</option>
+                {groupPacks.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </WorkflowPackControl>
             {groupPacks.length === 0 && (
               <p className="text-xs text-warning">
                 {tx("这个分组还没有工作流包，先到「设置 → 工作流包 → 画布分组」里添加")}

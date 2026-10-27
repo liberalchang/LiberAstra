@@ -35,6 +35,9 @@ class WorkflowPack:
     requirements: dict[str, Any] = field(default_factory=dict)
     fps: int | None = None  # 视频包的帧率（manifest 顶层 fps）；有它前端可按秒设置时长
     accel: dict[str, Any] = field(default_factory=dict)  # manifest 顶层 accel：加速 LoRA 声明，空=无加速能力
+    # manifest 顶层 llm_note：给提示词优化器的技术上下文(事实密度优先);
+    # 缺省时 _workflow_context 回落 description
+    llm_note: str = ""
 
 
 def _builtin_dir() -> Path:
@@ -67,6 +70,7 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
+        llm_note=str(manifest.get("llm_note") or ""),
     )
     validate_pack(pack)
     return pack
@@ -166,6 +170,7 @@ def import_pack(
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
+        llm_note=str(manifest.get("llm_note") or ""),
     )
     validate_pack(pack)
     pack_dir.mkdir(parents=True, exist_ok=True)

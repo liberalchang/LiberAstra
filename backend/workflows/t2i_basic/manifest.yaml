@@ -1,9 +1,11 @@
 name: t2i_basic
 capability: t2i
-description: 通用文生图（KSampler + Checkpoint），适用于 SD1.5/SDXL/Flux 类单模型工作流
+description: '通用文生图（单模型 Checkpoint）
+
+  适用于 SD1.5 / SDXL / Flux 类单模型工作流：选一个 Checkpoint，输入画面描述，生成图片。'
 inputs:
   ckpt_name:
-    node: "4"
+    node: '4'
     field: inputs.ckpt_name
     type: str
     required: true
@@ -11,50 +13,50 @@ inputs:
     options_from: checkpoints
     description: ComfyUI 中的 checkpoint 文件名
   prompt:
-    node: "6"
+    node: '6'
     field: inputs.text
     type: str
     required: true
   negative_prompt:
-    node: "7"
+    node: '7'
     field: inputs.text
     type: str
-    default: ""
+    default: ''
     label: 负面提示词
     description: 不希望出现的内容，可以留空
   width:
-    node: "5"
+    node: '5'
     field: inputs.width
     type: int
     default: 1024
     min: 256
     max: 4096
   height:
-    node: "5"
+    node: '5'
     field: inputs.height
     type: int
     default: 1024
     min: 256
     max: 4096
   steps:
-    node: "3"
+    node: '3'
     field: inputs.steps
     type: int
     default: 20
     min: 1
     max: 150
   cfg:
-    node: "3"
+    node: '3'
     field: inputs.cfg
     type: float
     default: 7.0
   seed:
-    node: "3"
+    node: '3'
     field: inputs.seed
     type: int
     default: -1
   batch_size:
-    node: "5"
+    node: '5'
     field: inputs.batch_size
     type: int
     default: 1
@@ -62,7 +64,14 @@ inputs:
     max: 8
     description: 同一次采样出的张数，种子按张递增
 outputs:
-  node: "9"
+  node: '9'
   key: images
 requirements:
-  nodes: [KSampler, CheckpointLoaderSimple, CLIPTextEncode, VAEDecode, SaveImage, EmptyLatentImage]
+  nodes:
+  - KSampler
+  - CheckpointLoaderSimple
+  - CLIPTextEncode
+  - VAEDecode
+  - SaveImage
+  - EmptyLatentImage
+llm_note: 通用文生图（KSampler + Checkpoint），适用于 SD1.5/SDXL/Flux 类单模型工作流

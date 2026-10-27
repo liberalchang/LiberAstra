@@ -211,8 +211,10 @@ def _workflow_context(workflow: str | None, aspect: str | None) -> str:
         return "\n".join(parts)
 
     parts.append(f"工作流包：{pack.name}（capability={pack.capability}）")
-    if pack.description:
-        parts.append(f"包说明：{pack.description}")
+    # llm_note 是给优化器的技术上下文(事实密度优先);缺省回落用户向 description
+    note = (pack.llm_note or "").strip() or pack.description
+    if note:
+        parts.append(f"包说明：{note}")
     # 收集默认模型/checkpoint 名，便于家族识别与展示
     model_hints: list[str] = []
     for key, spec in (pack.inputs or {}).items():

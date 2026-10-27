@@ -1,16 +1,18 @@
 name: analysis_video_qwenvl
 capability: analysis
-description: 视频素材分析（VHS 抽帧 + AILab QwenVL → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）
+description: 'QwenVL 视频素材分析
+
+  上传一段视频，抽帧分析后得到内容描述文字——供「快速创作」「自定义素材」写分镜文案用。'
 inputs:
   video:
-    node: "14"
+    node: '14'
     field: inputs.video
     type: video
     required: true
     label: 素材视频
     description: 由任务自动注入，无需手填
   select_every_nth:
-    node: "14"
+    node: '14'
     field: inputs.select_every_nth
     type: int
     default: 2
@@ -19,14 +21,14 @@ inputs:
     label: 抽帧间隔
     description: 每 N 帧取一帧送分析，越大越快越粗
   custom_prompt:
-    node: "19"
+    node: '19'
     field: inputs.custom_prompt
     type: str
-    default: ""
+    default: ''
     label: 自定义提示词
     description: 填写后覆盖预设，例如：用中文概括这条视频的内容
   max_tokens:
-    node: "19"
+    node: '19'
     field: inputs.max_tokens
     type: int
     default: 1024
@@ -34,7 +36,11 @@ inputs:
     max: 4096
     label: 最大长度
 outputs:
-  node: "18"
+  node: '18'
 requirements:
-  nodes: [VHS_LoadVideo, ImageResize+, AILab_QwenVL]
+  nodes:
+  - VHS_LoadVideo
+  - ImageResize+
+  - AILab_QwenVL
   note: 需要 VideoHelperSuite、ComfyUI-AILab 插件与 Qwen-VL 视觉模型
+llm_note: 视频素材分析（VHS 抽帧 + AILab QwenVL → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）

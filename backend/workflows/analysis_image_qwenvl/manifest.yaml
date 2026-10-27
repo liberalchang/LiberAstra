@@ -1,30 +1,32 @@
 name: analysis_image_qwenvl
 capability: analysis
-description: 图片素材分析（AILab QwenVL 视觉节点 → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）
+description: 'QwenVL 图片素材分析
+
+  上传一张图片，得到一段画面内容描述文字——主要供「快速创作」「自定义素材」里写分镜文案用。'
 inputs:
   image:
-    node: "5"
+    node: '5'
     field: inputs.image
     type: image
     required: true
     label: 素材图片
     description: 由任务自动注入，无需手填
   preset_prompt:
-    node: "7"
+    node: '7'
     field: inputs.preset_prompt
     type: str
-    default: "🖼️ Detailed Description"
+    default: 🖼️ Detailed Description
     label: 预设提示词
     description: AILab_QwenVL 的预设分析角度
   custom_prompt:
-    node: "7"
+    node: '7'
     field: inputs.custom_prompt
     type: str
-    default: ""
+    default: ''
     label: 自定义提示词
     description: 填写后覆盖预设，例如：用中文描述画面主体和场景
   max_tokens:
-    node: "7"
+    node: '7'
     field: inputs.max_tokens
     type: int
     default: 512
@@ -32,7 +34,11 @@ inputs:
     max: 4096
     label: 最大长度
 outputs:
-  node: "6"
+  node: '6'
 requirements:
-  nodes: [LoadImage, ImageResize+, AILab_QwenVL]
+  nodes:
+  - LoadImage
+  - ImageResize+
+  - AILab_QwenVL
   note: 需要 ComfyUI-AILab 插件与 Qwen-VL 视觉模型（默认 Qwen3-VL-8B-Instruct）
+llm_note: 图片素材分析（AILab QwenVL 视觉节点 → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）

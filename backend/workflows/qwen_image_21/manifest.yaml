@@ -1,21 +1,22 @@
 name: qwen_image_21
 capability: t2i
-description: >
-  Qwen-Image 2.1 文生图。默认官方 INT8 ConvRot；可在参数区切换主模型 / TE / VAE
-  （如越狱 UC-int8）。请选 .safetensors（UNETLoader），勿选 GGUF。
+description: 'Qwen-Image 2.1 文生图（官方版，INT8）
+
+  输入画面描述，生成一张图片。参数区可换主模型/文本编码器/VAE（如越狱 UC 版）；模型请选 .safetensors 格式，勿选 GGUF。'
 inputs:
   unet_name:
-    node: "1"
+    node: '1'
     field: inputs.unet_name
     type: str
     default: qwen_image_2.1_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（UNET）
-    description: >
-      默认官方 int8_convrot。可换 bf16，或越狱版如 qwen-image-2.1-UC-int8_convrot.safetensors。
+    description: '默认官方 int8_convrot。可换 bf16，或越狱版如 qwen-image-2.1-UC-int8_convrot.safetensors。
       须为 safetensors；GGUF 需 UnetLoaderGGUF，本包不支持。
+
+      '
   clip_name:
-    node: "2"
+    node: '2'
     field: inputs.clip_name
     type: str
     default: qwen3vl_8b_int8_convrot.safetensors
@@ -23,52 +24,52 @@ inputs:
     label: 文本编码器
     description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
   vae_name:
-    node: "3"
+    node: '3'
     field: inputs.vae_name
     type: str
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
   prompt:
-    node: "5"
+    node: '5'
     field: inputs.prompt
     type: str
     required: true
   negative_prompt:
-    node: "5"
+    node: '5'
     field: inputs.negative_prompt
     type: str
-    default: ""
+    default: ''
     label: 负面提示词
     description: 不希望出现的内容，可以留空
   width:
-    node: "6"
+    node: '6'
     field: inputs.width
     type: int
     default: 1024
     min: 256
     max: 2560
   height:
-    node: "6"
+    node: '6'
     field: inputs.height
     type: int
     default: 1024
     min: 256
     max: 2560
   steps:
-    node: "7"
+    node: '7'
     field: inputs.steps
     type: int
     default: 25
     min: 1
     max: 50
   seed:
-    node: "7"
+    node: '7'
     field: inputs.seed
     type: int
     default: -1
   batch_size:
-    node: "6"
+    node: '6'
     field: inputs.batch_size
     type: int
     default: 1
@@ -76,20 +77,22 @@ inputs:
     max: 8
     description: 同一次采样出的张数，种子按张递增
 outputs:
-  node: "9"
+  node: '9'
   key: images
 requirements:
   nodes:
-    - UNETLoader
-    - CLIPLoader
-    - VAELoader
-    - QwenImage21Cache
-    - TextEncodeQwenImage21
-    - EmptyLatentImage
-    - KSampler
-    - VAEDecode
-    - SaveImage
+  - UNETLoader
+  - CLIPLoader
+  - VAELoader
+  - QwenImage21Cache
+  - TextEncodeQwenImage21
+  - EmptyLatentImage
+  - KSampler
+  - VAEDecode
+  - SaveImage
   models:
-    - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
-    - text_encoders/qwen3vl_8b_int8_convrot.safetensors
-    - vae/qwen_image_2.1_vae_bf16.safetensors
+  - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
+  - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+  - vae/qwen_image_2.1_vae_bf16.safetensors
+llm_note: Qwen-Image 2.1 文生图。默认官方 INT8 ConvRot；可在参数区切换主模型 / TE / VAE （如越狱 UC-int8）。请选
+  .safetensors（UNETLoader），勿选 GGUF。
