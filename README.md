@@ -24,6 +24,8 @@
 - **结果**：功能、语音、合成节点的产物默认是中间结果，在预览上保存后进入资源库。资产页可勾选「含画布中间结果」查看未发布文件。输入节点上传的文件会直接进入资产库。
 - **变量**：文本用 `{{变量名}}` 引用，`/` 可插入已连接节点；媒体标签如 `<Picture 1>` 原样交给工作流。图片输入可标记、涂蒙版、裁剪，并保留版本。
 
+![画布](docs/images/canvas.png)
+
 ### 图像生成
 
 - **文生图**：选图像服务与 `t2i` 工作流包。内置 Qwen-Image 2.1（官方 / 越狱）与传统 checkpoint 包。参数区可换 UNET、文本编码器、VAE；越狱包可开关 Uncensored LoRA。也支持在线图像 API。
@@ -70,7 +72,7 @@
 
 两种方式都只安装 **LiberAstra 编排程序**。Ollama、ComfyUI、语音插件是独立组件，装在本机或另一台主机均可。装好后打开页面，首次创建管理员，再到「设置 → 服务提供方」填各服务的地址。
 
-更细的变量说明见 [docs/deployment.md](docs/deployment.md)，分置示例见 [docs/分置部署教程.md](docs/分置部署教程.md)。
+更细的变量说明见 [docs/deployment.md](docs/deployment.md)，分置示例见 [docs/分置部署教程.md](docs/分置部署教程.md)。安装包、Ollama、ComfyUI 和各工作流模型的下载地址见 [部署相关资源下载](docs/Liberastra部署相关资源下载.md)。
 
 ### 方式 1：容器部署
 
@@ -269,6 +271,8 @@ The app does not run models. Prompt fields on each page and on canvas function n
 - Save a function, speech, or concat preview into the asset library. Those outputs stay hidden until then; the asset page can include canvas drafts. Files uploaded on input nodes are stored as normal assets.
 - Reference text with `{{variable}}` (type `/` to insert a connected node). Media tags such as `<Picture 1>` are passed through to the workflow. Image inputs can be marked up, masked, or cropped, and each export is kept as a version.
 
+![Canvas](docs/images/canvas.png)
+
 **Images.** Text-to-image (Qwen-Image 2.1 official or uncensored packs, or a classic checkpoint; uncensored packs can toggle an Uncensored LoRA). Image edit: full-frame, up to four references, or inpaint with a mask. Upscale uses an upscale model, not a new generation. Online image APIs are supported.
 
 ![Text to image](docs/images/image-generate.png)
@@ -291,7 +295,7 @@ The app does not run models. Prompt fields on each page and on canvas function n
 
 Model pairing is in [docs/使用文档.md](docs/使用文档.md).
 
-Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from the [releases page](https://github.com/liberalchang/LiberAstra/releases). Ollama, ComfyUI, and the speech plugin install separately. Ollama models can be pulled (`ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M`) or created from a local GGUF via a `Modelfile` (`FROM ./model.gguf`, then `ollama create name -f Modelfile`). Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
+Install: Docker (`docker compose up -d --build` → http://localhost:8000; see the Chinese「安装部署」section for env and profiles), or download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from the [releases page](https://github.com/liberalchang/LiberAstra/releases). Installer, Ollama, ComfyUI, and model downloads are listed in [部署相关资源下载](docs/Liberastra部署相关资源下载.md). Ollama, ComfyUI, and the speech plugin install separately. Ollama models can be pulled (`ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M`) or created from a local GGUF via a `Modelfile` (`FROM ./model.gguf`, then `ollama create name -f Modelfile`). Windows speech plugin: [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe). Linux speech hosts use `LiberSpeech-plugin.zip` from `packaging/speech/build.ps1` (`install.sh`). See [docs/](docs/).
 
 ### Reference projects
 

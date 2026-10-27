@@ -1,13 +1,6 @@
 import type { ReactNode } from "react";
 
-import canvasShot from "../../../docs/images/canvas.png";
-
-/** 使用文档里的相对图片。键与 docs/使用文档.md 中的路径一致，值是 Vite 打包后的地址。 */
-const GUIDE_IMAGES: Record<string, string> = {
-  "images/canvas.png": canvasShot,
-};
-
-/** 只覆盖使用文档里用到的 Markdown：标题、段落、列表、表格、代码、图片、链接。 */
+/** 只覆盖使用文档里用到的 Markdown：标题、段落、列表、表格、代码、链接。 */
 export function MarkdownView({ source }: { source: string }) {
   return <article className="guide-doc flex flex-col gap-3 text-sm leading-6 text-foreground">{renderBlocks(source)}</article>;
 }
@@ -82,16 +75,6 @@ function renderBlocks(source: string): ReactNode[] {
     }
     // 水平分割线（文档里的 ---），跳过即可
     if (/^---+$/.test(line.trim())) {
-      i += 1;
-      continue;
-    }
-    const imageLine = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(line.trim());
-    if (imageLine) {
-      blocks.push(
-        <figure key={key++}>
-          <GuideImage alt={imageLine[1]} src={imageLine[2]} />
-        </figure>,
-      );
       i += 1;
       continue;
     }
@@ -180,11 +163,6 @@ function headingDomId(text: string): string {
   return text.replace(/`/g, "").trim();
 }
 
-function guideImageSrc(src: string): string | null {
-  const key = src.trim().replace(/^\.\//, "");
-  return GUIDE_IMAGES[key] ?? null;
-}
-
 /** 站内锚点保持原样；仓库内另一篇 Markdown 指到 GitHub 上的同路径，页面里才能点开。 */
 function resolveHref(href: string): string | null {
   const trimmed = href.trim();
@@ -195,12 +173,6 @@ function resolveHref(href: string): string | null {
     return `https://github.com/liberalchang/LiberAstra/blob/main/docs/${encodeURIComponent(relative)}`;
   }
   return null;
-}
-
-function GuideImage({ alt, src }: { alt: string; src: string }) {
-  const url = guideImageSrc(src);
-  if (!url) return <span>{alt || src}</span>;
-  return <img src={url} alt={alt || "截图"} className="w-full rounded-xl border border-border" />;
 }
 
 function GuideLink({ href, children }: { href: string; children: string }) {
@@ -220,19 +192,17 @@ function GuideLink({ href, children }: { href: string; children: string }) {
 
 function inline(text: string, prefix: string): ReactNode[] {
   const parts: ReactNode[] = [];
-  const re = /(!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|`[^`]+`|\*\*[^*]+\*\*)/g;
+  const re = /(\[([^\]]+)\]\(([^)\s]+)\)|`[^`]+`|\*\*[^*]+\*\*)/g;
   let last = 0;
   let match: RegExpExecArray | null;
   let index = 0;
   while ((match = re.exec(text))) {
     if (match.index > last) parts.push(text.slice(last, match.index));
     const token = match[0];
-    if (token.startsWith("![")) {
-      parts.push(<GuideImage key={`${prefix}-${index++}`} alt={match[2]} src={match[3]} />);
-    } else if (token.startsWith("[")) {
+    if (token.startsWith("[")) {
       parts.push(
-        <GuideLink key={`${prefix}-${index++}`} href={match[5]}>
-          {match[4]}
+        <GuideLink key={`${prefix}-${index++}`} href={match[3]}>
+          {match[2]}
         </GuideLink>,
       );
     } else if (token.startsWith("`")) {
