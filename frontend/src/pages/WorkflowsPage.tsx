@@ -47,6 +47,7 @@ export function WorkflowsPage() {
   const [name, setName] = useState("");
   const [capability, setCapability] = useState("t2i");
   const [description, setDescription] = useState("");
+  const [llmNote, setLlmNote] = useState("");
   const [workflowJson, setWorkflowJson] = useState("");
   const [inputsJson, setInputsJson] = useState("");
   const [outputsJson, setOutputsJson] = useState(DEFAULT_OUTPUTS);
@@ -65,6 +66,7 @@ export function WorkflowsPage() {
     setName("");
     setCapability("t2i");
     setDescription("");
+    setLlmNote("");
     setWorkflowJson("");
     setInputsJson("");
     setOutputsJson(DEFAULT_OUTPUTS);
@@ -129,6 +131,7 @@ export function WorkflowsPage() {
         name,
         capability,
         description,
+        llm_note: llmNote,
         workflow,
         inputs,
         outputs,
@@ -181,6 +184,7 @@ export function WorkflowsPage() {
       setName(bundle.name);
       setCapability(bundle.capability);
       setDescription(bundle.description);
+      setLlmNote(typeof bundle.llm_note === "string" ? bundle.llm_note : "");
       setWorkflowJson(JSON.stringify(bundle.workflow, null, 2));
       setInputsJson(JSON.stringify(bundle.inputs, null, 2));
       setOutputsJson(JSON.stringify(bundle.outputs, null, 2));
@@ -376,8 +380,19 @@ export function WorkflowsPage() {
                 </select>
               </Field>
             </div>
-            <Field label={tx("描述")} hint={tx("一句话说明这个包做什么，会显示在包列表里。")}>
+            <Field label={tx("描述")} hint={tx("一句话说明这个包做什么，会显示在包列表与提示里。")}>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+            </Field>
+            <Field
+              label={tx("优化器说明")}
+              hint={tx("给提示词优化器读的技术细节（模型约束、时长上限、指代规则等）；用户提示只显示上面的描述。留空则优化器读描述。")}
+            >
+              <textarea
+                className={`${areaClass} min-h-20`}
+                value={llmNote}
+                onChange={(e) => setLlmNote(e.target.value)}
+                placeholder={tx("例:输出带同步音效,提示词需包含环境音/对白描写;单段最长约 5 秒。")}
+              />
             </Field>
             <Field
               label="workflow.json"

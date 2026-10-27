@@ -46,6 +46,7 @@ def _manifest_from_body(
     *,
     name: str | None = None,
     existing_accel: dict[str, Any] | None = None,
+    existing_llm_note: str | None = None,
 ) -> dict[str, Any]:
     data: dict[str, Any] = {
         "name": name or body.name,
@@ -61,6 +62,10 @@ def _manifest_from_body(
         data["accel"] = body.accel
     elif existing_accel:
         data["accel"] = existing_accel
+    if body.llm_note is not None:
+        data["llm_note"] = body.llm_note
+    elif existing_llm_note:
+        data["llm_note"] = existing_llm_note
     return data
 
 
@@ -122,7 +127,12 @@ def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -
         pack = update_pack(
             name,
             body.workflow,
-            _manifest_from_body(body, name=name, existing_accel=existing.accel or None),
+            _manifest_from_body(
+                body,
+                name=name,
+                existing_accel=existing.accel or None,
+                existing_llm_note=existing.llm_note or None,
+            ),
         )
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

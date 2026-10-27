@@ -293,6 +293,8 @@ export interface BgmOut {
 /** 导出的完整工作流包（含 workflow JSON），可用于编辑与再导入。 */
 export interface WorkflowPackBundle extends WorkflowPackOut {
   workflow: Record<string, unknown>;
+  /** 优化器技术说明(后端 export 时透传,空=未设置) */
+  llm_note?: string;
 }
 
 /** 画布节点最近一次执行记录（服务端持久化）。 */

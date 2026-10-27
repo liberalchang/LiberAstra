@@ -30,6 +30,8 @@ class WorkflowImportRequest(BaseModel):
     fps: int | None = None
     # None=未传（更新时保留原值）；{}=显式清空；有内容=写入
     accel: dict[str, Any] | None = None
+    # 给提示词优化器的技术上下文;None=未传(更新时保留原值)
+    llm_note: str | None = None
     overwrite: bool = False
 
 

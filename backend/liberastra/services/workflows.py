@@ -207,6 +207,8 @@ def export_pack(name: str) -> dict[str, Any]:
         data["fps"] = pack.fps
     if pack.accel:
         data["accel"] = pack.accel
+    if pack.llm_note:
+        data["llm_note"] = pack.llm_note
     return data
 
 
