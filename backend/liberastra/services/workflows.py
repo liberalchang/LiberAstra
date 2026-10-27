@@ -78,6 +78,7 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
 
 def list_packs(capability: str | None = None) -> list[WorkflowPack]:
     packs: dict[str, WorkflowPack] = {}
+    builtin_notes: dict[str, str] = {}
     for directory, source in ((_builtin_dir(), "builtin"), (_user_dir(), "user")):
         if not directory.exists():
             continue
@@ -85,8 +86,17 @@ def list_packs(capability: str | None = None) -> list[WorkflowPack]:
             if not pack_dir.is_dir():
                 continue
             pack = _load_pack(pack_dir, source)
-            if pack is not None:
-                packs[pack.name] = pack  # 用户包覆盖同名内置包
+            if pack is None:
+                continue
+            if source == "builtin":
+                if pack.llm_note:
+                    builtin_notes[pack.name] = pack.llm_note
+            else:
+                # 用户包覆盖同名内置包,但没写 llm_note 时继承内置的
+                # (同名即同源:用户包多由内置包导入改造而来;回落链:用户 llm_note → 内置 llm_note → description)
+                if not pack.llm_note and pack.name in builtin_notes:
+                    pack.llm_note = builtin_notes[pack.name]
+            packs[pack.name] = pack
     result = list(packs.values())
     if capability:
         result = [p for p in result if p.capability == capability]

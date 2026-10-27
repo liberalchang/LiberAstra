@@ -320,6 +320,35 @@ def test_import_and_delete_pack() -> None:
         get_pack("test_pack")
 
 
+def test_user_pack_inherits_builtin_llm_note() -> None:
+    """用户包覆盖同名内置包时,未写 llm_note 则继承内置的(写了则用自己的)。"""
+    builtin_note = get_pack("t2i_basic").llm_note
+    assert builtin_note  # 内置包已带 llm_note
+    try:
+        import_pack(
+            "t2i_basic",
+            MINI_WORKFLOW,
+            {"capability": "t2i", "inputs": MINI_MANIFEST_INPUTS, "outputs": {"node": "1"}},
+        )
+        # 未写 llm_note:继承内置
+        assert get_pack("t2i_basic").llm_note == builtin_note
+        # 写了自己的:用自己的
+        import_pack(
+            "t2i_basic",
+            MINI_WORKFLOW,
+            {
+                "capability": "t2i",
+                "inputs": MINI_MANIFEST_INPUTS,
+                "outputs": {"node": "1"},
+                "llm_note": "自定义说明",
+            },
+            overwrite=True,
+        )
+        assert get_pack("t2i_basic").llm_note == "自定义说明"
+    finally:
+        delete_pack("t2i_basic")
+
+
 def test_import_rejects_bad_node_mapping() -> None:
     with pytest.raises(ProviderError, match="不存在的节点"):
         import_pack(
