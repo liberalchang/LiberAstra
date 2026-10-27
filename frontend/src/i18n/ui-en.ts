@@ -1286,4 +1286,10 @@ export const UI_EN: Record<string, string> = {
     "Mask attached (for inpaint: white repaints, black keeps)",
   "清除蒙版": "Remove mask",
   "标记涂抹 / 蒙版 / 裁剪": "Markup / mask / crop",
+  "原始": "Original",
+  "涂抹": "Paint",
+  "版本(点击切换当前)": "Versions (click to switch)",
+  "当前": "Current",
+  "不选则使用系统设置里的语音识别模型。":
+    "Empty uses the recognition model from System Settings.",
 };

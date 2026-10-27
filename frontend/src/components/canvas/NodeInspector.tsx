@@ -23,6 +23,7 @@ import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
+import { cn } from "@/lib/utils";
 import { createDefaultGroups } from "@/canvas/defaultGroups";
 import {
   nodeOutputKind,
@@ -30,6 +31,7 @@ import {
   type ConcatNodeData,
   type FunctionNodeData,
   type InputNodeData,
+  type InputVersion,
   type MediaKind,
   type SpeechNodeData,
 } from "@/canvas/types";
@@ -219,7 +221,13 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
     setUploading(true);
     try {
       const uploaded = await api.uploadFileAsAsset(file, kind);
-      updateNodeData(node.id, { assetId: uploaded.asset_id, assetName: file.name });
+      updateNodeData(node.id, {
+        assetId: uploaded.asset_id,
+        assetName: file.name,
+        maskAssetId: null,
+        // 换图即重开版本史:新图为唯一原始版
+        versions: [{ assetId: uploaded.asset_id, label: tx("原始"), maskAssetId: null }],
+      });
     } finally {
       setUploading(false);
     }
@@ -229,9 +237,18 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
     updateNodeData(node.id, {
       assetId: asset.id,
       assetName: String(asset.meta?.source_name ?? asset.path),
+      maskAssetId: null,
+      versions: [{ assetId: asset.id, label: tx("原始"), maskAssetId: null }],
     });
     setPickerOpen(false);
   };
+
+  /** 回滚到某个版本:节点镜像(assetId/maskAssetId)跟随该版本 */
+  const applyVersion = (v: InputVersion) =>
+    updateNodeData(node.id, {
+      assetId: v.assetId,
+      maskAssetId: v.maskAssetId ?? null,
+    });
 
   return (
     <section className="flex flex-col gap-2">
@@ -279,10 +296,45 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
             className="size-7 text-danger"
             title={tx("清除蒙版")}
             aria-label={tx("清除蒙版")}
-            onClick={() => updateNodeData(node.id, { maskAssetId: null })}
+            onClick={() => {
+              // 摘掉当前版本的蒙版(版本史同步)
+              const versions = (d.versions ?? []).map((v) =>
+                v.assetId === d.assetId ? { ...v, maskAssetId: null } : v,
+              );
+              updateNodeData(node.id, { maskAssetId: null, versions });
+            }}
           >
             <Trash2 className="size-3.5" />
           </Button>
+        </div>
+      )}
+      {/* 版本史:原始 + 每次修改;点击回滚为当前版本(蒙版跟随其所属版本) */}
+      {kind === "image" && (d.versions?.length ?? 0) > 1 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-muted-foreground">{tx("版本(点击切换当前)")}</span>
+          {(d.versions ?? []).map((v, i) => (
+            <button
+              key={`${v.assetId}-${i}`}
+              type="button"
+              onClick={() => applyVersion(v)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-2 py-1 text-left text-xs",
+                v.assetId === d.assetId
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border hover:bg-muted",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate">{v.label}</span>
+              {v.maskAssetId != null && (
+                <span className="shrink-0 rounded bg-accent/15 px-1 py-0.5 text-[10px] text-accent">
+                  {tx("蒙版")}
+                </span>
+              )}
+              {v.assetId === d.assetId && (
+                <span className="shrink-0 text-[10px]">{tx("当前")}</span>
+              )}
+            </button>
+          ))}
         </div>
       )}
       <input
@@ -301,8 +353,26 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
         <ImagePaintEditor
           assetId={d.assetId}
           maskAssetId={d.maskAssetId}
-          onApply={(assetId, name) => updateNodeData(node.id, { assetId, assetName: name })}
-          onApplyMask={(assetId) => updateNodeData(node.id, { maskAssetId: assetId })}
+          onApply={(assetId, name, op) => {
+            // 修改产生新版本:原图版本保留可回滚;新版无蒙版(坐标系已变)
+            const base = d.versions?.length
+              ? d.versions
+              : [{ assetId: d.assetId!, label: tx("原始"), maskAssetId: d.maskAssetId ?? null }];
+            const label = `${op === "crop" ? tx("裁剪") : tx("涂抹")} ${base.length}`;
+            updateNodeData(node.id, {
+              assetId,
+              assetName: name,
+              maskAssetId: null,
+              versions: [...base, { assetId, label, maskAssetId: null }],
+            });
+          }}
+          onApplyMask={(assetId) => {
+            // 蒙版挂到当前版本(像素对齐),节点镜像同步
+            const versions = (d.versions ?? []).map((v) =>
+              v.assetId === d.assetId ? { ...v, maskAssetId: assetId } : v,
+            );
+            updateNodeData(node.id, { maskAssetId: assetId, versions });
+          }}
           onClose={() => setEditorOpen(false)}
         />
       )}
@@ -679,12 +749,27 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
 
   const cap = d.mode === "tts" ? "tts" : "asr";
-  const candidates = (providers ?? []).filter(
-    (p) => p.enabled && p.capabilities.includes(cap),
-  );
+  // 与语音页同一规则:comfy 是工作流驱动的,没有对应能力的包就不列出
+  const { data: capPacks } = useQuery({
+    queryKey: ["workflows", cap],
+    queryFn: () => api.listWorkflows(cap),
+  });
+  const candidates = (providers ?? []).filter((p) => {
+    if (!p.enabled || !p.capabilities.includes(cap)) return false;
+    if (p.type === "comfyui") return (capPacks?.length ?? 0) > 0;
+    return true;
+  });
   // 未选 = 第一个可用服务(与后端 pick_provider 的默认一致)
   const provider = candidates.find((p) => p.id === d.providerId) ?? candidates[0];
   const ptype = provider?.type;
+
+  // Liber Speech 的合成包/识别模型目录(默认项 = 系统设置)
+  const { data: speechCatalog } = useQuery({
+    queryKey: ["speech-catalog"],
+    queryFn: api.getSpeechCatalog,
+    enabled: ptype === "liber_speech",
+    retry: false,
+  });
 
   // 服务音色/模型列表为空时自动拉一次(与语音页同逻辑)
   const refreshModels = useMutation({
@@ -698,13 +783,6 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider?.id, ptype]);
-
-  // Comfy 语音工作流包(tts)
-  const { data: ttsPacks } = useQuery({
-    queryKey: ["workflows", "tts"],
-    queryFn: () => api.listWorkflows("tts"),
-    enabled: d.mode === "tts" && ptype === "comfyui",
-  });
 
   const serviceSelect = (
     <Field label={tx("语音服务")} hint={tx("只列出已启用且具备该能力的服务;不选则用第一个可用服务。")}>
@@ -757,6 +835,22 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           {tx("从「输入输出」加一个音频输入节点,连到本节点左侧;执行时取第一个连接的音频,转写为文本/字幕资产")}
         </p>
         {serviceSelect}
+        {ptype === "liber_speech" && (
+          <Field label={tx("识别模型")} hint={tx("不选则使用系统设置里的语音识别模型。")}>
+            <select
+              className={selectClass}
+              value={d.model ?? ""}
+              onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+            >
+              <option value="">{tx("系统设置")}</option>
+              {(speechCatalog?.asr_models ?? []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         {ptype === "openai_stt" && (
           <Field label={tx("识别模型")} hint={tx("来自该服务的模型列表;不选则用默认。")}>
             <select
@@ -789,6 +883,22 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
         />
       </Field>
       {serviceSelect}
+      {ptype === "liber_speech" && (
+        <Field label={tx("文字转语音模型")} hint={tx("不选则使用系统设置里的文字转语音模型。")}>
+          <select
+            className={selectClass}
+            value={d.model ?? ""}
+            onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+          >
+            <option value="">{tx("系统设置")}</option>
+            {(speechCatalog?.tts_models ?? []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       {ptype === "comfyui" && (
         <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包,朗读文本会自动注入。")}>
           <select
@@ -797,7 +907,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             onChange={(e) => updateNodeData(node.id, { workflow: e.target.value })}
           >
             <option value="">{tx("选择语音工作流…")}</option>
-            {(ttsPacks ?? []).map((p) => (
+            {(capPacks ?? []).map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
               </option>

@@ -320,10 +320,23 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
         ) : d.assetId ? (
           <button
             type="button"
-            className="nodrag block h-24 w-full overflow-hidden rounded-lg"
+            className="nodrag relative block h-24 w-full overflow-hidden rounded-lg"
             onClick={() => setPreview({ id: d.assetId!, kind: d.mediaKind })}
           >
             <MediaThumb assetId={d.assetId} kind={d.mediaKind} className="h-24 w-full" />
+            {/* 有蒙版:叠加高亮重绘区(白区 screen 混合提亮),所见即 inpaint 效果 */}
+            {d.mediaKind === "image" && d.maskAssetId != null && (
+              <>
+                <MediaThumb
+                  assetId={d.maskAssetId}
+                  kind="image"
+                  className="pointer-events-none absolute inset-0 h-24 w-full opacity-70 mix-blend-screen"
+                />
+                <span className="absolute left-1.5 top-1.5 rounded bg-accent/90 px-1.5 py-0.5 text-[10px] text-white shadow">
+                  {tx("蒙版")}
+                </span>
+              </>
+            )}
           </button>
         ) : (
           <div className="grid h-24 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">

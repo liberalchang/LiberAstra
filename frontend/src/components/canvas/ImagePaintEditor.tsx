@@ -72,8 +72,8 @@ export function ImagePaintEditor({
   assetId: number;
   /** 已有蒙版(节点上挂着的),用于提示而非载入编辑 */
   maskAssetId?: number | null;
-  /** 导出新图并上传建档后回调（新 assetId） */
-  onApply: (assetId: number, name: string) => void;
+  /** 导出新图并上传建档后回调（新 assetId;op= 标记 | 裁剪,供版本命名） */
+  onApply: (assetId: number, name: string, op: "markup" | "crop") => void;
   /** 导出蒙版建档后回调;无此 prop 时隐藏蒙版模式 */
   onApplyMask?: (assetId: number, name: string) => void;
   onClose: () => void;
@@ -249,11 +249,11 @@ export function ImagePaintEditor({
     if (mode === "mask") setHasMaskStroke(false);
   };
 
-  const upload = async (canvas: HTMLCanvasElement, name: string) => {
+  const upload = async (canvas: HTMLCanvasElement, name: string, hidden = false) => {
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) return null;
     const file = new File([blob], name, { type: "image/png" });
-    const uploaded = await api.uploadFileAsAsset(file, "image");
+    const uploaded = await api.uploadFileAsAsset(file, "image", hidden);
     return { id: uploaded.asset_id, name: file.name };
   };
 
@@ -275,7 +275,7 @@ export function ImagePaintEditor({
       if (!cropOnly) ctx.drawImage(overlay, sx, sy, out.width, out.height, 0, 0, out.width, out.height);
       const uploaded = await upload(out, `canvas-edit-${Date.now()}.png`);
       if (!uploaded) return;
-      onApply(uploaded.id, uploaded.name);
+      onApply(uploaded.id, uploaded.name, cropOnly ? "crop" : "markup");
       onClose();
     } finally {
       setSaving(false);
@@ -304,7 +304,8 @@ export function ImagePaintEditor({
       tctx.fillStyle = "#ffffff";
       tctx.fillRect(0, 0, tint.width, tint.height);
       ctx.drawImage(tint, 0, 0);
-      const uploaded = await upload(out, `canvas-mask-${Date.now()}.png`);
+      // 蒙版是中间产物:建档即隐藏,不进资源库视野
+      const uploaded = await upload(out, `canvas-mask-${Date.now()}.png`, true);
       if (!uploaded) return;
       onApplyMask(uploaded.id, uploaded.name);
       onClose();

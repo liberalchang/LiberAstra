@@ -552,12 +552,12 @@ export const api = {
       body: form,
     });
   },
-  /** 上传并同时建档为资产（画布输入节点引用 assetId） */
-  uploadFileAsAsset: (file: File, kind: string) => {
+  /** 上传并同时建档为资产（画布输入节点引用 assetId）;hidden=true 建档即隐藏(蒙版等中间产物) */
+  uploadFileAsAsset: (file: File, kind: string, hidden = false) => {
     const form = new FormData();
     form.set("file", file);
     return request<{ path: string; size: number; asset_id: number }>(
-      `/api/v1/uploads?as_asset=true&kind=${kind}`,
+      `/api/v1/uploads?as_asset=true&kind=${kind}${hidden ? "&hidden=true" : ""}`,
       { method: "POST", body: form },
     );
   },

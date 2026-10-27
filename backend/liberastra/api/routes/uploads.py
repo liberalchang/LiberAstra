@@ -29,6 +29,7 @@ async def upload(
     file: Annotated[UploadFile, File()],
     as_asset: bool = False,
     kind: str = "image",
+    hidden: bool = False,
 ) -> UploadOut:
     content = await file.read()
     if not content:
@@ -45,6 +46,7 @@ async def upload(
             kind=kind,
             rel_path=path,
             owner_id=user.id,
+            hidden=hidden,
             meta={"source": "canvas-upload", "source_name": file.filename or ""},
         )
         asset_id = asset.id

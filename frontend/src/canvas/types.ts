@@ -28,14 +28,24 @@ export interface NodeRunState {
   reused?: boolean;
 }
 
+/** 输入节点的版本:原始/涂抹/裁剪各为一版;蒙版挂在所属版本上(像素对齐,不独立流通)。 */
+export interface InputVersion {
+  assetId: number;
+  /** 版本标签:原始 / 涂抹 N / 裁剪 N */
+  label: string;
+  maskAssetId?: number | null;
+}
+
 export interface InputNodeData extends Record<string, unknown> {
   kind: "input";
   mediaKind: MediaKind;
-  /** 媒体输入引用的资产；文本输入为 null */
+  /** 媒体输入引用的资产；文本输入为 null。= 当前版本的 assetId(镜像) */
   assetId: number | null;
   assetName?: string;
-  /** 蒙版资产(局部重绘用,仅图片输入;白区重绘黑区保留) */
+  /** 蒙版资产(局部重绘用,仅图片输入;白区重绘黑区保留)。= 当前版本的蒙版(镜像) */
   maskAssetId?: number | null;
+  /** 版本历史(仅图片输入):首项为原始图;涂抹/裁剪产生新版本 */
+  versions?: InputVersion[];
   text?: string;
   /** 输出变量名(输入节点不做变换,变量即其资源引用);默认 input_{类型}_{n} */
   varName?: string;
@@ -149,12 +159,27 @@ function normalizeRun(raw: unknown): NodeRunState {
 export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNodeData {
   const data = (raw ?? {}) as Record<string, unknown>;
   if (kind === "input") {
+    const assetId = data.assetId == null ? null : Number(data.assetId);
+    const maskAssetId = data.maskAssetId == null ? null : Number(data.maskAssetId);
+    const versions = Array.isArray(data.versions)
+      ? (data.versions as Record<string, unknown>[])
+          .filter((v) => v && v.assetId != null)
+          .map((v) => ({
+            assetId: Number(v.assetId),
+            label: typeof v.label === "string" ? v.label : "版本",
+            maskAssetId: v.maskAssetId == null ? null : Number(v.maskAssetId),
+          }))
+      : // 旧画布没有版本列表:由当前资产合成(原始一版,蒙版挂当前)
+        assetId != null
+        ? [{ assetId, label: "原始", maskAssetId }]
+        : [];
     return {
       kind: "input",
       mediaKind: (data.mediaKind as MediaKind) ?? "image",
-      assetId: data.assetId == null ? null : Number(data.assetId),
+      assetId,
       assetName: typeof data.assetName === "string" ? data.assetName : undefined,
-      maskAssetId: data.maskAssetId == null ? null : Number(data.maskAssetId),
+      maskAssetId,
+      versions,
       text: typeof data.text === "string" ? data.text : "",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
