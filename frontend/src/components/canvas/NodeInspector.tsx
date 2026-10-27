@@ -13,7 +13,6 @@ import {
   FolderOpen,
   Mic,
   Play,
-  RotateCcw,
   Upload,
   Zap,
 } from "lucide-react";
@@ -122,7 +121,8 @@ function OutputVarCard({ node }: { node: CanvasFlowNode }) {
   );
 }
 
-/** 操作区:仅重跑此节点(祖先复用) + 强制执行含上游(整链忽略复用)。 */
+/** 操作区:唯一的执行入口——强制执行(本节点+父链全部忽略复用重跑)。
+ * 「只重跑本节点」由画布的「执行选中」承担(选中节点必真跑,上游复用)。 */
 function RunActions({
   node,
   canvasId,
@@ -157,18 +157,13 @@ function RunActions({
     return false;
   };
 
-  const runNode = async (chain: boolean) => {
+  const runNode = async () => {
     if (!preflight()) return;
     if (!(await onRequestSave())) return;
     setBusy(true);
     try {
-      if (chain) {
-        // 后端强制本节点及整条父链(忽略指纹复用)
-        await api.rerunCanvasNode(canvasId, node.id);
-      } else {
-        // 只强制本节点,祖先走指纹复用
-        await api.runCanvas(canvasId, { node_ids: [node.id], force_node_ids: [node.id] });
-      }
+      // 后端强制本节点及整条父链(忽略指纹复用)
+      await api.rerunCanvasNode(canvasId, node.id);
       useCanvasStore.getState().setRunActive(true);
     } catch (err) {
       onFlash(err instanceof Error ? err.message : tx("执行失败"), { sticky: true });
@@ -179,23 +174,13 @@ function RunActions({
   return (
     <section className="flex flex-col gap-1.5">
       <Button
-        variant="outline"
         className="h-9 w-full"
         disabled={busy}
-        onClick={() => void runNode(false)}
-        title={tx("只强制重跑本节点，上游未变的部分自动复用")}
-      >
-        <RotateCcw className="size-4" />
-        {tx("仅重跑此节点")}
-      </Button>
-      <Button
-        className="h-9 w-full"
-        disabled={busy}
-        onClick={() => void runNode(true)}
+        onClick={() => void runNode()}
         title={tx("强制重跑此节点及其全部上游（忽略复用缓存）")}
       >
         <Play className="size-4" />
-        {tx("强制执行含上游")}
+        {tx("强制执行")}
       </Button>
     </section>
   );
