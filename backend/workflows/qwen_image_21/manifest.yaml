@@ -94,5 +94,6 @@ requirements:
   - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
   - text_encoders/qwen3vl_8b_int8_convrot.safetensors
   - vae/qwen_image_2.1_vae_bf16.safetensors
-llm_note: Qwen-Image 2.1 文生图。默认官方 INT8 ConvRot；可在参数区切换主模型 / TE / VAE （如越狱 UC-int8）。请选
-  .safetensors（UNETLoader），勿选 GGUF。
+llm_note: '事实:Qwen-Image 2.1 文生图,官方 INT8 ConvRot。
+
+  写作指导:自然语言长句,主体/光线/构图/材质写实细节;图内出现的文字必须用引号逐字给出;中文用户可直接用中文。'

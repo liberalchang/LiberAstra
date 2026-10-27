@@ -128,4 +128,7 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: MiniMax H3 文生视频 + 提示词增强（默认越狱 TE；无首帧；可选 Turbo；需 Guide 与同族 generation tail）
+llm_note: '事实:MiniMax H3 文生视频 + 内置提示词增强(默认越狱 TE);无首帧;带音效;可选 Turbo;需 Guide 节点包与同族 generation
+  tail。
+
+  写作指导:增强器会再加工——精炼为上,只写核心主体/运动/音效。'

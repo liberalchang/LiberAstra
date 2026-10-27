@@ -86,6 +86,6 @@ requirements:
   - text_encoders/qwen3vl_4b_int8_convrot.safetensors
   - text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
   - vae/flux2-vae.safetensors
-llm_note: FLUX.3 Image Klein 蒸馏单图编辑。上传 1 张图，提示词写要改什么。 输出尺寸跟原图，参考图按约 1MP 缩放后编码。提示词扩展器默认开。
-  采样固定 CFG 1、euler、simple、16 步。权重与文生图同一套 INT8。 需要 ComfyUI ≥ 0.41。没有画框控件；要框选重绘请用 Qwen
-  inpaint 包。
+llm_note: '事实:FLUX.3 Klein 单图编辑;参考图按约 1MP 缩放后编码,输出尺寸跟随原图;提示词扩展器默认开。
+
+  写作指导:指令式写清「改什么」与「必须保持什么(人脸/构图/风格)」,简洁优于冗长。'

@@ -41,4 +41,6 @@ requirements:
   - ImageResize+
   - AILab_QwenVL
   note: 需要 ComfyUI-AILab 插件与 Qwen-VL 视觉模型（默认 Qwen3-VL-8B-Instruct）
-llm_note: 图片素材分析（AILab QwenVL 视觉节点 → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）
+llm_note: '事实:AILab QwenVL 视觉节点把输入图片转成文字描述,产物供下游 LLM 写分镜文案。
+
+  写作指导:提示词只需交代分析重点(如主体外观/场景氛围),输出是客观详尽的画面描述。'

@@ -115,5 +115,7 @@ requirements:
   - text_encoders/qwen3vl_8b_int8_convrot.safetensors
   - vae/qwen_image_2.1_vae_bf16.safetensors
   - loras/qwen-image-2.1-uncensored-lora.safetensors
-llm_note: Qwen-Image 2.1 文生图（越狱）。默认 UC INT8 主模型；可用「Uncensored LoRA」开关挂 qwen-image-2.1-uncensored-lora（与视频
-  Turbo 同一套 accel 控件）。TE/VAE 与官方共用。
+llm_note: '事实:Qwen-Image 2.1 文生图,越狱 UC INT8 主模型(无内容审查层);Uncensored LoRA 可开关;TE/VAE
+  与官方共用。
+
+  写作指导:自然语言长句;图内文字引号逐字给出;允许成人/敏感题材的直接描写。'

@@ -134,6 +134,7 @@ requirements:
   - text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
   - vae/qwen_image_vae.safetensors
   - loras/QIE-2511-Color-Grade-Transfer-LoRA.safetensors
-llm_note: 跟一张参考图给摄影原图调色。Qwen-Image-Edit-2511 加 Color Grade Transfer LoRA 只生成约 1MP
-  的调色参考，再由 KJNodes ColorMatch 把颜色贴回全尺寸原图，不重绘像素。 第 1 张是原图，第 2 张是调色参考。提示词留空则使用 LoRA
-  触发词。 需要 ComfyUI-KJNodes，以及 pip install color-matcher。不要和 Qwen-Image 2.1 的权重混用。
+llm_note: '事实:Qwen-Image-Edit-2511 + Color Grade Transfer LoRA 只生成约 1MP 调色参考,再由 KJNodes
+  ColorMatch 把颜色贴回全尺寸原图,不重绘像素;第 1 张是原图,第 2 张是调色参考;提示词留空则用 LoRA 触发词。
+
+  写作指导:只写目标色调与氛围(如「冷青电影感」「暖金黄昏」),不要写任何内容改动——像素不会被重绘。'

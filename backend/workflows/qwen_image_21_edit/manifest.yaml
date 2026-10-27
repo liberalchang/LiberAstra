@@ -81,5 +81,7 @@ requirements:
   - KSampler
   - VAEDecode
   - SaveImage
-llm_note: Qwen-Image 2.1 图生图。原图进入 TextEncodeQwenImage21 的 image_1，采样用该节点返回的 latent。
-  默认官方 INT8；可在参数区切换 UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
+llm_note: '事实:Qwen-Image 2.1 整图编辑;原图进入 TextEncodeQwenImage21 的 image_1,采样用该节点返回的 latent;官方
+  INT8。
+
+  写作指导:写清「要改成什么」与「必须保持不变什么(人脸、姿势、构图主体、风格)」。'

@@ -43,4 +43,6 @@ requirements:
   - ImageResize+
   - AILab_QwenVL
   note: 需要 VideoHelperSuite、ComfyUI-AILab 插件与 Qwen-VL 视觉模型
-llm_note: 视频素材分析（VHS 抽帧 + AILab QwenVL → 文字描述，供 LLM 写分镜文案）。移植自 Pixelle-Video（Apache-2.0）
+llm_note: '事实:VHS 抽帧 + AILab QwenVL,把视频内容转成文字描述,供下游 LLM 写分镜文案。
+
+  写作指导:提示词只需交代分析重点;时序动作与镜头变化会被纳入描述。'

@@ -106,4 +106,6 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: MiniMax H3 文生视频（越狱 NVFP4 TE；无增强器；可选 EMA Turbo LoRA；输出带同步音效）
+llm_note: '事实:MiniMax H3 文生视频,越狱 NVFP4 TE(无内容审查层);无首帧;带同步音效;可选 EMA Turbo LoRA。
+
+  写作指导:主体/环境/镜头/动作/音效写全;允许成人/敏感题材。'

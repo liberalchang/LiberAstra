@@ -74,4 +74,6 @@ requirements:
   - VAEDecode
   - SaveImage
   - EmptyLatentImage
-llm_note: 通用文生图（KSampler + Checkpoint），适用于 SD1.5/SDXL/Flux 类单模型工作流
+llm_note: '事实:通用文生图,KSampler + Checkpoint 单模型,适用于 SD1.5/SDXL/Flux 类工作流。
+
+  写作指导:按所选 Checkpoint 家族写——SD 系可用英文逗号分隔视觉标签与画质词,Flux 类用自然语言长句。'

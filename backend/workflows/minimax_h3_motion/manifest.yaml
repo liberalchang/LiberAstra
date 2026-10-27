@@ -135,5 +135,7 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: MiniMax H3 动作迁移（MiniMaxH3ReferenceToVideo 多模态参考；<Picture 1> 锁定人物 + <Video
-  1> 迁移参考动作；官方 TE；可选 Turbo LoRA；单段最多 124 帧，约 5.2 秒）
+llm_note: '事实:MiniMax H3 动作迁移;MiniMaxH3ReferenceToVideo 多模态参考,<Picture 1> 锁定人物身份、<Video
+  1> 迁移其动作;官方 TE;单段上限 124 帧(24fps ≈ 5.2 秒);可选 Turbo LoRA。
+
+  写作指导:动作幅度与时序必须在约 5 秒内合理;写清「人物保持图中形象,动作来自参考视频」,不要写与参考视频矛盾的剧情。'

@@ -109,6 +109,6 @@ requirements:
   - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
   - text_encoders/qwen3vl_8b_int8_convrot.safetensors
   - vae/qwen_image_2.1_vae_bf16.safetensors
-llm_note: Qwen-Image 2.1 多参考图编辑（最多 4 张）。 image_1 为画布/主图，image_2～4 为参考；提示词里用 image
-  1 / image 2 … 指代各图。 默认官方 INT8；可在参数区切换 UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
-  依据 ComfyUI 官方：TextEncodeQwenImage21 支持 images.image_1 … image_16。
+llm_note: '事实:Qwen-Image 2.1 多参考编辑,最多 4 张:image_1 为主图/画布,image_2~4 为参考。
+
+  写作指导:提示词里用 image 1 / image 2 … 显式指代每张图的角色与合成关系。'

@@ -116,5 +116,6 @@ requirements:
   - text_encoders/qwen3vl_4b_int8_convrot.safetensors
   - text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
   - vae/flux2-vae.safetensors
-llm_note: FLUX.3 Image Klein 蒸馏多图编辑，2 到 4 张参考。 提示词按上传顺序指代（第一张、第二张）。没传的第 3、4 张会从扩展器和采样里断开，不会加载占位图。
-  第一张会先缩到约 2MP，再按约 1MP 编码；输出尺寸跟第一张。 采样固定 CFG 1、euler、simple、16 步。需要 ComfyUI ≥ 0.41。
+llm_note: '事实:FLUX.3 Klein 多图编辑,2~4 张参考按上传顺序指代;未传的槽位自动断开;第一张先缩约 2MP 再按约 1MP 编码,输出尺寸跟随第一张。
+
+  写作指导:用「第一张/第二张」显式指代各图角色,写清合成关系与最终主体。'

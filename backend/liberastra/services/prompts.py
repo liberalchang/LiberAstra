@@ -248,7 +248,8 @@ def _workflow_context(workflow: str | None, aspect: str | None) -> str:
 
 
 def _detect_family(pack: Any, model_hints: list[str] | None = None) -> str:  # noqa: ANN401
-    blob = f"{pack.name} {pack.description} ".lower()
+    # llm_note 技术事实也参与家族识别(description 改为通俗版后信号变弱,这里补强)
+    blob = f"{pack.name} {pack.description} {getattr(pack, 'llm_note', '')} ".lower()
     for hint in model_hints or []:
         blob += f" {hint.lower()}"
     for key, default in (pack.inputs or {}).items():

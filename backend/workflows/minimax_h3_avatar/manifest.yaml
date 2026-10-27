@@ -121,4 +121,6 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: MiniMax H3 数字人口播（首帧人物 + MiniMaxH3AddGuide 语音锚定驱动口型；官方 TE；可选 Turbo LoRA）
+llm_note: '事实:MiniMax H3 数字人口播;MiniMaxH3AddGuide 语音锚定驱动口型;官方 TE;可选 Turbo LoRA 加速。
+
+  写作指导:只写人物外观、场景、光线与情绪氛围;口型与对白由语音文件决定,不要在提示词里写台词内容。'

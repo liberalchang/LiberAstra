@@ -112,4 +112,6 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: MiniMax H3 图生视频（官方 TE；可选 Turbo LoRA 加速；输出带同步音效）
+llm_note: '事实:MiniMax H3 图生视频,首帧图驱动;官方 TE;输出带同步音效;可选 Turbo LoRA。
+
+  写作指导:结构为「画面主体与环境 + 镜头运动 + 时序动作 + 同步环境音/音效/对白」——音视频联合生成,声音描写不可省略。'

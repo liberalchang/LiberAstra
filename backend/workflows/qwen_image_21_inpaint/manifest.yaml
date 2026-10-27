@@ -103,5 +103,6 @@ requirements:
   - KSampler
   - VAEDecode
   - SaveImage
-llm_note: Qwen-Image 2.1 局部重绘。蒙版白色区域重画，黑色区域保持原图像素。采样仍用 CFG 1、denoise 1。 默认官方 INT8；可在参数区切换
-  UNET / TE / VAE（如 UC 越狱版）。请选 .safetensors。
+llm_note: '事实:Qwen-Image 2.1 局部重绘;蒙版白色区域重画、黑色区域保持原图像素;采样 CFG 1、denoise 1;官方 INT8。
+
+  写作指导:只描述白区应出现的内容,以及它与周围的光线/透视/材质如何融合;黑区内容不要提。'

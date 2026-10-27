@@ -123,5 +123,7 @@ requirements:
   - text_encoders/qwen3vl_8b_int8_convrot.safetensors
   - vae/qwen_image_2.1_vae_bf16.safetensors
   - loras/qwen-image-2.1-uncensored-lora.safetensors
-llm_note: Qwen-Image 2.1 多参考编辑（越狱）。默认 UC INT8；「Uncensored LoRA」可开关。 image_1 为主图，image_2～4
-  为参考。TE/VAE 与官方共用。
+llm_note: '事实:Qwen-Image 2.1 多参考编辑,越狱 UC INT8(无内容审查层);image_1 主图,image_2~4 参考;Uncensored
+  LoRA 可开关;TE/VAE 与官方共用。
+
+  写作指导:用 image 1 / image 2 … 指代;允许成人/敏感题材。'
