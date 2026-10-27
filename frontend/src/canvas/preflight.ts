@@ -101,10 +101,12 @@ export function validateCanvas(
           });
         }
       }
-      const hasPromptInput = Boolean(pack.inputs["prompt"]);
+      // 只拦 manifest 标了 required 的提示词。调色等包留空会用 default（LoRA 触发词），
+      // 与后端 apply_inputs 一致：空串不写入，节点保留包内默认句。
+      const promptSpec = pack.inputs["prompt"];
       const effectiveEmpty =
         !f.prompt.trim() && !(f.promptUseOptimized && (f.promptOptimized ?? "").trim());
-      if (hasPromptInput && effectiveEmpty) {
+      if (promptSpec?.required && effectiveEmpty) {
         issues.push({ nodeId: node.id, message: "提示词为空" });
       }
       continue;
