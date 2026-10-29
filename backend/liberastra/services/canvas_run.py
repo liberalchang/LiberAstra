@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from liberastra.core.db import SessionLocal
 from liberastra.jobs.manager import JobManager
-from liberastra.models import Asset, Canvas, CanvasNodeRun, Job, Voice, utcnow
+from liberastra.models import Asset, Canvas, CanvasNodeRun, Character, Job, Voice, utcnow
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.providers.base import ProviderError
 from liberastra.services.canvas_graph import (
@@ -29,7 +29,9 @@ from liberastra.services.canvas_graph import (
     substitute_prompt,
     topo_order,
 )
-from liberastra.services.workflows import get_pack
+from liberastra.services.characters import ensure_character_asset, expand_reference_paths, slot_path
+from liberastra.services.workflows import WorkflowPack, get_pack
+from liberastra.storage import resolve
 
 MEDIA_KINDS = ("image", "video", "audio")
 
@@ -130,13 +132,67 @@ def _upstream_assets(
     return assets
 
 
-def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun) -> None:
+def _ordered_upstream(
+    db: Session, graph: dict[str, Any], node_id: str, runs: dict[str, CanvasNodeRun]
+) -> list[dict[str, Any]]:
+    """按连线顺序收集上游。角色节点收成一条，避免四张视角图直接占满图片槽。"""
+    nodes = node_map(graph)
+    items: list[dict[str, Any]] = []
+    for source in _incoming_sources(graph, node_id):
+        run = runs.get(source)
+        if run is None or run.status != "succeeded":
+            raise ProviderError("上游节点尚未成功执行")
+        data = (nodes.get(source) or {}).get("data") or {}
+        if str(data.get("mediaKind") or "") == "character":
+            by_slot: dict[str, Asset] = {}
+            for asset_id in run.asset_ids or []:
+                asset = db.get(Asset, int(asset_id))
+                if asset is None:
+                    continue
+                slot = str((asset.meta or {}).get("character_slot") or "")
+                if slot:
+                    by_slot[slot] = asset
+            items.append(
+                {
+                    "type": "character",
+                    "primary": str(data.get("characterSlot") or "front"),
+                    "paths": {slot: asset.path for slot, asset in by_slot.items()},
+                    "assets": list(by_slot.values()),
+                }
+            )
+            continue
+        for asset_id in run.asset_ids or []:
+            asset = db.get(Asset, int(asset_id))
+            if asset is None:
+                continue
+            if (asset.meta or {}).get("canvas_mask"):
+                items.append({"type": "mask", "asset": asset})
+            else:
+                items.append({"type": "file", "asset": asset})
+    return items
+
+
+def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun, owner_id: int) -> None:
     data = node.get("data") or {}
     media_kind = str(data.get("mediaKind") or "text")
     if media_kind == "text":
         if not str(data.get("text") or "").strip():
             raise ProviderError("文本输入节点内容为空")
         row.asset_ids = []
+    elif media_kind == "character":
+        # 一个角色节点登记全部已有单人图，具体送哪几张由下游工作流槽位决定。
+        character_id = data.get("characterId")
+        character = db.get(Character, int(character_id)) if character_id else None
+        if character is None or character.owner_id != owner_id:
+            raise ProviderError("角色输入还没有选择角色")
+        asset_ids: list[int] = []
+        for slot in ("turnaround", "portrait", "front", "side", "back"):
+            if not slot_path(character, slot):
+                continue
+            asset_ids.append(ensure_character_asset(db, character, slot).id)
+        if not asset_ids:
+            raise ProviderError("这个角色还没有可用的单人图")
+        row.asset_ids = asset_ids
     else:
         asset_id = data.get("assetId")
         asset = db.get(Asset, int(asset_id)) if asset_id else None
@@ -169,6 +225,20 @@ _FAMILY_NOISE = re.compile(
 )
 
 
+def _image_keys_to_fill(pack: WorkflowPack, image_keys: list[str], upstream_count: int) -> list[str]:
+    """决定这次要填哪些图片槽。
+
+    带 fallback 的可选槽（360° 环绕的结束画面）不参与角色多视角展开。
+    上游只有一张图或一个角色时留空，执行器会把首帧复制过去。
+    用户另外接了第二张图时，才把这个槽算进去。
+    """
+    primary = [key for key in image_keys if not (pack.inputs.get(key) or {}).get("fallback")]
+    fallback = [key for key in image_keys if (pack.inputs.get(key) or {}).get("fallback")]
+    extra = max(upstream_count - len(primary), 0)
+    count = len(primary) + min(len(fallback), extra)
+    return (primary + fallback)[:count]
+
+
 def _family_tokens(filename: str) -> set[str]:
     """从模型文件名提取家族词元(flux3、qwen_image 等),与前端 WorkflowInputs 的同款逻辑对应。"""
     base = re.split(r"[/\\]", filename)[-1].lower()
@@ -178,6 +248,99 @@ def _family_tokens(filename: str) -> set[str]:
     }
 
 
+def _canvas_soundtrack(pack: WorkflowPack, data: dict[str, Any], inputs: dict[str, Any]) -> dict[str, Any]:
+    """数字人、动作迁移不采用用户填的时长。声音来源和背景音乐单独进指纹。"""
+    if pack.capability not in ("avatar", "motion"):
+        return {}
+    inputs.pop("length", None)
+    inputs.pop("frames", None)
+    mode = str(data.get("audioMode") or "model")
+    if pack.capability != "motion" or mode != "reference":
+        mode = "model"
+    raw_volume = data.get("bgmVolume")
+    try:
+        volume = float(0.2 if raw_volume in (None, "") else raw_volume)
+    except (TypeError, ValueError):
+        volume = 0.2
+    return {
+        "audio_mode": mode,
+        "bgm_path": str(data.get("bgmPath") or "").strip(),
+        "bgm_volume": volume,
+    }
+
+
+def _plain_text_from_job(db: Session, job_id: str | None) -> str:
+    """任务输出里的纯文本。转写和画面分析都把正文放在 type=text。"""
+    if not job_id:
+        return ""
+    job = db.get(Job, job_id)
+    if job is None:
+        return ""
+    for block in job.outputs or []:
+        if isinstance(block, dict) and block.get("type") == "text":
+            content = str(block.get("content") or "").strip()
+            if content:
+                return content
+    return ""
+
+
+def _publish_node_text(variables: dict[str, str], node: dict[str, Any], text: str) -> None:
+    """把节点产出的正文写进 {{变量名}}，供后续节点替换。"""
+    name = str((node.get("data") or {}).get("varName") or "").strip()
+    cleaned = text.strip()
+    if name and cleaned:
+        variables[name] = cleaned
+
+
+def _output_text(db: Session, job_id: str | None, asset_ids: list[int] | None) -> str:
+    """优先用任务里的纯文本；没有时再读文本或字幕资产。"""
+    text = _plain_text_from_job(db, job_id)
+    if text:
+        return text
+    parts: list[str] = []
+    for asset_id in asset_ids or []:
+        asset = db.get(Asset, int(asset_id))
+        if asset is None or asset.kind not in ("text", "subtitle"):
+            continue
+        try:
+            parts.append(resolve(asset.path).read_text(encoding="utf-8").strip())
+        except OSError:
+            continue
+    return "\n".join(part for part in parts if part)
+
+
+def _model_target(data: dict[str, Any]) -> Any:
+    """云端模型节点用槽位声明冒充工作流包，后面的连线映射可以原样复用。"""
+    from liberastra.providers.catalog import SUB_CAPABILITIES, media_slots
+    from liberastra.services.model_media import VIDEO_SUBS
+
+    sub = str(data.get("subCapability") or "t2i")
+    if sub not in SUB_CAPABILITIES:
+        raise ProviderError(f"未知细分能力: {sub}")
+    target_id = str(data.get("targetId") or "").strip()
+    if not target_id:
+        raise ProviderError("功能节点还没有选择模型")
+    inputs = {
+        slot["key"]: {
+            "type": slot["type"],
+            "label": slot["label"],
+            "required": slot["required"],
+        }
+        for slot in media_slots(sub)
+    }
+    inputs["prompt"] = {"type": "str", "required": False}
+
+    class _Target:
+        target_type = "model"
+        name = target_id
+        capability = "t2v" if sub in VIDEO_SUBS else "t2i"
+        sub_capability = sub
+
+    target = _Target()
+    target.inputs = inputs
+    return target
+
+
 def _resolve_function_inputs(
     db: Session,
     graph: dict[str, Any],
@@ -185,15 +348,18 @@ def _resolve_function_inputs(
     runs: dict[str, CanvasNodeRun],
     variables: dict[str, str],
 ) -> tuple[Any, dict[str, Any], str]:
-    """解析功能节点的最终 inputs 与指纹。返回 (pack, inputs, fingerprint)。
+    """解析功能节点的最终 inputs 与指纹。返回 (pack, inputs, fingerprint, soundtrack)。
 
     媒体输入优先级:槽位绑定(bindings: 参数名 → 上游变量名)> 按类型+连线顺序自动映射。
     """
     data = node.get("data") or {}
-    pack_name = str(data.get("pack") or "")
-    if not pack_name:
-        raise ProviderError("功能节点还没有选择工作流包")
-    pack = get_pack(pack_name)
+    if str(data.get("targetType") or "") == "model":
+        pack = _model_target(data)
+    else:
+        pack_name = str(data.get("pack") or data.get("targetId") or "")
+        if not pack_name:
+            raise ProviderError("功能节点还没有选择工作流包")
+        pack = get_pack(pack_name)
     inputs: dict[str, Any] = dict(data.get("values") or {})
 
     # PromptField 三件套:启用优化稿且有内容时,用优化稿做变量替换
@@ -203,13 +369,15 @@ def _resolve_function_inputs(
         if optimized.strip():
             raw_prompt = optimized
     prompt = substitute_prompt(raw_prompt, variables)
-    if prompt.strip():
+    # 画面分析的说明写在包参数 custom_prompt，不占用功能节点的提示词框
+    if prompt.strip() and pack.capability != "analysis":
         inputs["prompt"] = prompt
 
-    upstream = _upstream_assets(db, graph, str(node["id"]), runs)
+    ordered = _ordered_upstream(db, graph, str(node["id"]), runs)
     media_paths: dict[str, list[str]] = {kind: [] for kind in MEDIA_KINDS}
     media_asset_ids: list[int] = []
     mask_paths: list[str] = []
+    expand_items: list[dict[str, Any]] = []
     # 蒙版键:参数名是 mask,或 label/description 含「蒙版」——只有这些键吃蒙版资产,
     # 其余 image 键照常分流,避免蒙版挤占多图编辑的 image_2 槽位
     mask_keys = [
@@ -222,20 +390,42 @@ def _resolve_function_inputs(
             or "蒙版" in str(s.get("description") or "")
         )
     ]
-    for asset in upstream:
-        if (asset.meta or {}).get("canvas_mask"):
+    for item in ordered:
+        if item["type"] == "mask":
+            asset = item["asset"]
             mask_paths.append(asset.path)
             media_asset_ids.append(asset.id)
             continue
-        if asset.kind in media_paths:
+        if item["type"] == "character":
+            for asset in item["assets"]:
+                media_asset_ids.append(asset.id)
+            expand_items.append(
+                {"type": "character", "primary": item["primary"], "paths": item["paths"]}
+            )
+            continue
+        asset = item["asset"]
+        media_asset_ids.append(asset.id)
+        if asset.kind == "image":
+            expand_items.append({"type": "path", "path": asset.path})
+        elif asset.kind in media_paths:
             media_paths[asset.kind].append(asset.path)
-            media_asset_ids.append(asset.id)
+    image_keys = [
+        k
+        for k, s in pack.inputs.items()
+        if s.get("type") == "image" and k not in mask_keys
+    ]
+    assign_keys = _image_keys_to_fill(pack, image_keys, len(expand_items))
+    for key, path in zip(
+        assign_keys,
+        expand_reference_paths(str(pack.capability or ""), len(assign_keys), expand_items),
+        strict=False,
+    ):
+        if not inputs.get(key):
+            inputs[key] = path
     for media_kind, paths in media_paths.items():
-        keys = [
-            k
-            for k, s in pack.inputs.items()
-            if s.get("type") == media_kind and (media_kind != "image" or k not in mask_keys)
-        ]
+        if media_kind == "image":
+            continue
+        keys = [k for k, s in pack.inputs.items() if s.get("type") == media_kind]
         for key, path in zip(keys, paths, strict=False):
             if not inputs.get(key):
                 inputs[key] = path
@@ -255,13 +445,19 @@ def _resolve_function_inputs(
                 continue
             assets = [db.get(Asset, int(a)) for a in (run.asset_ids or [])]
             by_var[var] = [a for a in assets if a is not None]
+            primary = str((source_node.get("data") or {}).get("characterSlot") or "")
+            if primary:
+                by_var[f"{var}::__primary"] = [
+                    a for a in by_var[var] if (a.meta or {}).get("character_slot") == primary
+                ]
         for key, spec in pack.inputs.items():
             if spec.get("type") not in MEDIA_KINDS:
                 continue
             bound_var = str(bindings.get(key) or "").strip()
             if not bound_var:
                 continue
-            candidates = [a for a in by_var.get(bound_var, []) if a.kind == spec["type"]]
+            preferred = by_var.get(f"{bound_var}::__primary") or []
+            candidates = preferred or [a for a in by_var.get(bound_var, []) if a.kind == spec["type"]]
             if not candidates:
                 label = spec.get("label") or key
                 raise ProviderError(
@@ -294,10 +490,16 @@ def _resolve_function_inputs(
         )
         inputs[key] = default
 
+    soundtrack = _canvas_soundtrack(pack, data, inputs)
     fingerprint = canonical_fingerprint(
-        {"pack": pack.name, "inputs": inputs, "media_asset_ids": sorted(media_asset_ids)}
+        {
+            "pack": pack.name,
+            "inputs": inputs,
+            "media_asset_ids": sorted(media_asset_ids),
+            **({"soundtrack": soundtrack} if soundtrack else {}),
+        }
     )
-    return pack, inputs, fingerprint
+    return pack, inputs, fingerprint, soundtrack
 
 
 def _assets_alive(db: Session, asset_ids: list[int]) -> bool:
@@ -336,7 +538,9 @@ async def _execute_function(
     item: dict[str, Any],
 ) -> None:
     node_id = str(node["id"])
-    pack, inputs, fingerprint = _resolve_function_inputs(db, graph, node, runs, variables)
+    pack, inputs, fingerprint, soundtrack = _resolve_function_inputs(
+        db, graph, node, runs, variables
+    )
     reusable = (
         node_id not in force
         and row.status == "succeeded"
@@ -344,6 +548,8 @@ async def _execute_function(
         and _assets_alive(db, list(row.asset_ids or []))
     )
     if reusable:
+        if pack.capability == "analysis":
+            _publish_node_text(variables, node, _output_text(db, row.job_id, list(row.asset_ids or [])))
         row.updated_at = utcnow()
         db.commit()
         item["status"] = "succeeded"
@@ -351,16 +557,31 @@ async def _execute_function(
         return
 
     manager: JobManager = app.state.jobs
-    job = manager.submit(
-        db,
-        owner_id=owner_id,
-        kind="canvas.node",
-        params={
+    provider_id = (node.get("data") or {}).get("providerId")
+    if getattr(pack, "target_type", "") == "model":
+        params = {
+            "canvas_id": canvas_id,
+            "node_id": node_id,
+            "target_type": "model",
+            "model": pack.name,
+            "sub_capability": pack.sub_capability,
+            "prompt": str(inputs.get("prompt") or ""),
+            "inputs": inputs,
+        }
+    else:
+        params = {
             "canvas_id": canvas_id,
             "node_id": node_id,
             "workflow": pack.name,
             "inputs": inputs,
-        },
+            **soundtrack,
+        }
+    job = manager.submit(
+        db,
+        owner_id=owner_id,
+        kind="canvas.node",
+        params=params,
+        provider_id=int(provider_id) if provider_id else None,
     )
     row.job_id = job.id
     row.status = "running"
@@ -376,6 +597,8 @@ async def _execute_function(
         row.asset_ids = [
             int(o["asset_id"]) for o in final.outputs if o.get("type") == "asset" and o.get("asset_id")
         ]
+        if pack.capability == "analysis":
+            _publish_node_text(variables, node, _output_text(db, job.id, list(row.asset_ids or [])))
         row.status = "succeeded"
         row.error = None
     else:
@@ -485,7 +708,7 @@ async def _execute_speech(
     force: set[str],
     item: dict[str, Any],
 ) -> None:
-    """语音节点：tts=文字转语音（文本 + 音色）;asr=语音转文字（连入音频输入）。"""
+    """语音节点：tts=文字转语音（文本 + 音色）;asr=语音转文字（连入音频或视频）。"""
     node_id = str(node["id"])
     data = node.get("data") or {}
     mode = str(data.get("mode") or "tts")
@@ -507,11 +730,17 @@ async def _execute_speech(
         # 非音色库服务(edge-tts/OpenAI/Comfy 包):音色名/模型/工作流直接取节点配置
         if not voice_name:
             voice_name = str(data.get("voice") or "")
+        language = str(data.get("language") or "").strip()
+        if language:
+            options["language"] = language
+        fmt = str(data.get("format") or "mp3").strip() or "mp3"
+        if fmt not in {"mp3", "wav", "ogg_opus"}:
+            fmt = "mp3"
         kind = "tts.synthesize"
         params: dict[str, Any] = {
             "text": text,
             "voice": voice_name,
-            "format": "mp3",
+            "format": fmt,
             "options": options,
         }
         workflow = str(data.get("workflow") or "")
@@ -523,18 +752,22 @@ async def _execute_speech(
             {"mode": mode, "provider": provider_id, "model": model, **params}
         )
     elif mode == "asr":
-        audio_assets = [
-            a for a in _upstream_assets(db, graph, node_id, runs) if a.kind == "audio"
+        media_assets = [
+            a
+            for a in _upstream_assets(db, graph, node_id, runs)
+            if a.kind in ("audio", "video")
         ]
-        if not audio_assets:
-            raise ProviderError("语音转文字节点需要连接一个音频输入")
+        if not media_assets:
+            raise ProviderError("语音转文字节点需要连接一个音频或视频输入")
         kind = "asr.transcribe"
         provider_id = data.get("providerId")
         model = str(data.get("model") or "") or None
+        asr_format = str(data.get("format") or "").strip()
         params = {
-            "file_path": audio_assets[0].path,
+            "file_path": media_assets[0].path,
             "task": "transcribe",
             "language": str(data.get("language") or "") or None,
+            "formats": [asr_format] if asr_format else None,
         }
         fingerprint = canonical_fingerprint(
             {"mode": mode, "provider": provider_id, "model": model, **params}
@@ -549,6 +782,8 @@ async def _execute_speech(
         and _assets_alive(db, list(row.asset_ids or []))
     )
     if reusable:
+        if mode == "asr":
+            _publish_node_text(variables, node, _output_text(db, row.job_id, list(row.asset_ids or [])))
         row.updated_at = utcnow()
         db.commit()
         item["status"] = "succeeded"
@@ -586,6 +821,8 @@ async def _execute_speech(
                 "canvas_node": node_id,
             }
         row.asset_ids = [a.id for a in assets]
+        if mode == "asr":
+            _publish_node_text(variables, node, _output_text(db, job.id, list(row.asset_ids or [])))
         row.status = "succeeded"
         row.error = None
     else:
@@ -622,7 +859,7 @@ async def _orchestrate(
             try:
                 node_type = node.get("type")
                 if node_type == "input":
-                    _materialize_input(db, node, row)
+                    _materialize_input(db, node, row, owner_id)
                 elif node_type == "function":
                     await _execute_function(
                         app, db, canvas_id, owner_id, graph, node, row, runs, variables,

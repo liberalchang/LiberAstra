@@ -1,7 +1,7 @@
 ﻿; Liber Speech 插件安装包。装到本机或另一台 Windows 主机，装完即用 Docker 拉起服务。
 
 #define MyAppName "Liber Speech"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.3"
 
 [Setup]
 AppId={{D5F9B2C3-8E40-4F26-AB71-3A9C7D2E5F81}

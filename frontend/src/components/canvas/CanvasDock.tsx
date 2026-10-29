@@ -1,7 +1,6 @@
-/** 画布右上工具坞：命名 + 保存 / 分组(跳工作流包页) / 执行。 */
-import { Boxes, Loader2, Play, Save } from "lucide-react";
+/** 画布右上工具坞：命名、保存、执行。 */
+import { Loader2, Play, Save } from "lucide-react";
 import { Panel } from "@xyflow/react";
-import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +19,6 @@ export function CanvasDock({
   onRun: () => void;
 }) {
   const tx = useTx();
-  const navigate = useNavigate();
   const name = useCanvasStore((s) => s.name);
   const setName = useCanvasStore((s) => s.setName);
   const dirty = useCanvasStore((s) => s.dirty);
@@ -44,16 +42,6 @@ export function CanvasDock({
       >
         {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
         {dirty ? tx("保存 *") : tx("保存")}
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        className="bg-card/95"
-        onClick={() => navigate("/settings/workflows")}
-        title={tx("工作流包与画布分组（所属）在「设置 → 工作流包」里管理")}
-      >
-        <Boxes className="size-4" />
-        {tx("分组")}
       </Button>
       <Button
         size="sm"

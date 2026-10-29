@@ -14,10 +14,12 @@ from liberastra.api.utils import wait_for_job
 from liberastra.models import Character, Job, User, Voice
 from liberastra.pipelines.quick import resolve_quick_template
 from liberastra.pipelines.simple import analysis_pack_gaps
+from liberastra.providers.base import ProviderError
 from liberastra.schemas.job import JobOut
 from liberastra.schemas.video import QuickVideoRequest
-from liberastra.services.characters import appearance_prefix, paths_for_task
+from liberastra.services.characters import appearance_prefix, paths_for_task, reference_paths
 from liberastra.services.providers import pick_llm_with_model, pick_provider
+from liberastra.services.workflows import get_pack
 from liberastra.storage import save_upload
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -84,9 +86,32 @@ async def _image_or_character(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-def _submit(request: Request, db: Session, user: User, kind: str, params: dict, provider_id=None) -> Job:  # noqa: ANN001
+async def _optional_upload(upload: UploadFile | None) -> str | None:
+    """第二张图之类的可选上传。没传或空文件返回 None。"""
+    if upload is None or not upload.filename:
+        return None
+    content = await upload.read()
+    if not content:
+        return None
+    return save_upload(upload.filename or "image.png", content)
+
+
+def _submit(  # noqa: ANN001
+    request: Request,
+    db: Session,
+    user: User,
+    kind: str,
+    params: dict,
+    provider_id=None,
+    model: str | None = None,
+) -> Job:
     return request.app.state.jobs.submit(
-        db, owner_id=user.id, kind=kind, params=params, provider_id=provider_id
+        db,
+        owner_id=user.id,
+        kind=kind,
+        params=params,
+        provider_id=provider_id,
+        model=model,
     )
 
 
@@ -101,11 +126,17 @@ async def quick(
     # 模板类型决定哪些 Provider 必需：插图要 image，视频要 video，静态两者都不用
     tpl = resolve_quick_template(body.template, body.aspect)
     native_audio = body.audio_mode == "auto" and tpl.type == "video"
+    character = _character(db, user, body.character_id)
     voice = ""
     ref_audio = ""
+    voice_name = body.voice
+    voice_record_id = body.voice_record_id
+    # 用户没另选音色时，带上角色绑定的音色。
+    if character is not None and not voice_name and voice_record_id is None and character.voice_record_id:
+        voice_record_id = character.voice_record_id
     if not native_audio:
-        if body.voice or body.voice_record_id:
-            voice, ref_audio = _resolve_voice(db, user, body.voice, body.voice_record_id)
+        if voice_name or voice_record_id:
+            voice, ref_audio = _resolve_voice(db, user, voice_name, voice_record_id)
         tts_provider = pick_provider(db, "tts", body.tts_provider_id)
         if tts_provider.type == "comfyui" and not body.tts_workflow:
             raise HTTPException(
@@ -127,7 +158,6 @@ async def quick(
     if tpl.type == "video":
         pick_provider(db, "video", body.video_provider_id)
 
-    character = _character(db, user, body.character_id)
     style_prefix = f"{appearance_prefix(character)}{body.style_prefix}" if character else body.style_prefix
     job = _submit(
         request,
@@ -145,6 +175,8 @@ async def quick(
             "ref_audio": ref_audio,
             "language": body.language,
             "style_prefix": style_prefix,
+            "character_id": character.id if character else None,
+            "character_view": body.character_view,
             "storyboard": body.storyboard,
             "storyboard_only": body.storyboard_only,
             "optimize_visuals": body.optimize_visuals,
@@ -184,8 +216,11 @@ async def i2v(
     user: CurrentUser,
     db: DbSession,
     request: Request,
-    workflow: Annotated[str, Form()],
+    workflow: Annotated[str, Form()] = "",
+    model: Annotated[str, Form()] = "",
+    sub_capability: Annotated[str, Form()] = "i2v_first",
     image: Annotated[UploadFile | None, File()] = None,
+    image_2: Annotated[UploadFile | None, File()] = None,
     prompt: Annotated[str, Form()] = "",
     character_id: Annotated[int | None, Form()] = None,
     character_view: Annotated[str, Form()] = "front",
@@ -196,19 +231,63 @@ async def i2v(
     wait: bool = False,
 ) -> Job:
     provider = pick_provider(db, "video", provider_id)
-    paths = await _image_or_character(image, _character(db, user, character_id), character_view, multi=False)
-    image_path = paths[0]
+    character = _character(db, user, character_id)
+    uploaded = image is not None and bool(image.filename)
+    use_model = provider.type == "volcengine_ark" or (bool(model) and not workflow)
+    pack = None
+    if use_model:
+        if not model:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请选择视频模型")
+    else:
+        if not workflow:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请选择工作流包")
+        try:
+            pack = get_pack(workflow)
+        except ProviderError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if uploaded:
+        paths = await _image_or_character(image, None, character_view, multi=False)
+    elif use_model and sub_capability == "t2v":
+        paths = []
+    else:
+        if character is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传图片或选择角色")
+        # 只按必填图槽取角色图。可选尾帧留给第二张上传，或由 fallback 复制首帧。
+        slot_count = 2 if sub_capability == "i2v_flf" else 1
+        if pack is not None:
+            slot_count = sum(
+                1
+                for spec in pack.inputs.values()
+                if isinstance(spec, dict) and spec.get("type") == "image" and spec.get("required", True)
+            )
+        try:
+            paths = reference_paths(character, "i2v", slot_count or 1, character_view)
+        except ProviderError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    extra_image = await _optional_upload(image_2)
+    if extra_image:
+        paths.append(extra_image)
+    prompt_has_default = bool(pack and (pack.inputs.get("prompt") or {}).get("default"))
+    if character is not None and not (prompt_has_default and not prompt.strip()):
+        prefix = appearance_prefix(character)
+        if prefix and prefix not in prompt:
+            prompt = f"{prefix}{prompt}"
     job = _submit(
         request, db, user, "video.i2v",
         {
             "workflow": workflow,
+            "target_type": "model" if use_model else "workflow",
+            "sub_capability": sub_capability,
+            "model": model,
             "prompt": prompt,
-            "image_path": image_path,
+            "image_path": paths[0] if paths else "",
+            "image_paths": paths,
             "inputs": _parse_inputs(inputs),
             "bgm_path": bgm_path.strip() or None,
             "bgm_volume": bgm_volume,
         },
         provider.id,
+        model or None,
     )
     if wait:
         return await wait_for_job(db, job.id)
@@ -227,6 +306,7 @@ async def avatar(
     voice_record_id: Annotated[int | None, Form()] = None,
     language: Annotated[str, Form()] = "",
     character_id: Annotated[int | None, Form()] = None,
+    character_view: Annotated[str, Form()] = "portrait",
     tts_provider_id: Annotated[int | None, Form()] = None,
     tts_workflow: Annotated[str | None, Form()] = None,
     tts_inputs: Annotated[str, Form()] = "{}",
@@ -244,7 +324,7 @@ async def avatar(
     voice_name, ref_audio = (
         _resolve_voice(db, user, voice, voice_record_id) if (voice or voice_record_id) else ("", "")
     )
-    paths = await _image_or_character(image, character, "portrait", multi=False)
+    paths = await _image_or_character(image, character, character_view, multi=False)
     image_path = paths[0]
     job = _submit(
         request, db, user, "video.avatar",
@@ -279,6 +359,7 @@ async def motion(
     image: Annotated[UploadFile | None, File()] = None,
     prompt: Annotated[str, Form()] = "",
     character_id: Annotated[int | None, Form()] = None,
+    character_view: Annotated[str, Form()] = "front",
     provider_id: Annotated[int | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
     audio_mode: Annotated[str, Form()] = "model",
@@ -296,7 +377,13 @@ async def motion(
     if len(video_content) > 500 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="参考视频过大")
     video_path = save_upload(video.filename or "ref.mp4", video_content)
-    image_paths = await _image_or_character(image, _character(db, user, character_id), "front", multi=True)
+    # 定妆照是一张整图。其余视角仍按动作迁移送正面、侧面、背面。
+    image_paths = await _image_or_character(
+        image,
+        _character(db, user, character_id),
+        character_view,
+        multi=character_view != "turnaround",
+    )
     job = _submit(
         request, db, user, "video.motion",
         {

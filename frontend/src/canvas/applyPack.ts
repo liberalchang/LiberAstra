@@ -8,6 +8,12 @@ import { nextVarName, useCanvasStore } from "@/stores/canvas";
 
 const MEDIA_TYPES = ["image", "video", "audio"] as const;
 
+/** 动作迁移的目标图、侧面、背面由一个角色展开。必填图片槽补角色输入，用户仍可自己连图片。 */
+function autoInputKind(pack: WorkflowPackOut, specKind: MediaKind): MediaKind {
+  if (pack.capability === "motion" && specKind === "image") return "character";
+  return specKind;
+}
+
 /** 返回自动补建的输入节点数。 */
 export function applyPackToNode(
   nodeId: string,
@@ -20,7 +26,7 @@ export function applyPackToNode(
   const existingVar = (node0?.data as { varName?: string } | undefined)?.varName ?? "";
   // 变量名缺省或仍是旧默认(output_*)时,按产物类型重新分配;用户改过的名字不动
   const varName =
-    outKind && (!existingVar || /^output_(image|video|audio|media)_\d+$/.test(existingVar))
+    outKind && (!existingVar || /^output_(image|video|audio|text|media)_\d+$/.test(existingVar))
       ? nextVarName(
           store.nodes.filter((n) => n.id !== nodeId),
           `output_${outKind}`,
@@ -52,17 +58,18 @@ export function applyPackToNode(
     if (!node) return;
     Object.entries(pack.inputs).forEach(([, spec], index) => {
       if (!MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]) || !spec.required) return;
-      const mediaKind = spec.type as MediaKind;
+      const specKind = spec.type as MediaKind;
       const current = useCanvasStore.getState();
       // 上游已能提供该媒体类型即不补建——不止输入节点,功能节点的产物输出也算数
-      // (如从文生图拖线落空建图生图:连线先行,t2i 的输出就是图片输入)
+      // (如从文生图拖线落空建图生图:连线先行,t2i 的输出就是图片输入)。
+      // 角色节点的产物也是图片，所以已连图片或角色都不再补建。
       const hasIncoming = current.edges.some((e) => {
         if (e.target !== nodeId) return false;
         const source = current.nodes.find((n) => n.id === e.source);
-        return source ? nodeOutputKind(source) === mediaKind : false;
+        return source ? nodeOutputKind(source) === specKind : false;
       });
       if (hasIncoming) return;
-      const inputNode = useCanvasStore.getState().addNode("input", mediaKind, {
+      const inputNode = useCanvasStore.getState().addNode("input", autoInputKind(pack, specKind), {
         x: node.position.x - 320,
         y: node.position.y + created * 180 + index * 40,
       });

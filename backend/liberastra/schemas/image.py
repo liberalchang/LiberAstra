@@ -19,6 +19,7 @@ class ImageGenerateRequest(BaseModel):
     n: int = Field(default=1, ge=1, le=8)
     inputs: dict[str, Any] = Field(default_factory=dict)  # 额外工作流参数
     options: dict[str, Any] = Field(default_factory=dict)
+    model: str | None = None  # 云端模型 ID；ComfyUI 工作流包不使用
 
 
 class PromptOptimizeRequest(BaseModel):

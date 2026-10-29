@@ -20,11 +20,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
-import { applyPackToNode } from "@/canvas/applyPack";
-import { scopeOf, validateCanvas } from "@/canvas/preflight";
+import { applyMenuToNode, providerForSpec, resolveSpec, specsForMenu, speechFieldsFromSpec, speechSpecSelected } from "@/canvas/applyMenu";
+import { PresetInspector } from "@/components/canvas/PresetInspector";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
+import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { cn } from "@/lib/utils";
-import { createDefaultGroups } from "@/canvas/defaultGroups";
 import {
   nodeOutputKind,
   type CanvasFlowNode,
@@ -35,18 +35,20 @@ import {
   type MediaKind,
   type SpeechNodeData,
 } from "@/canvas/types";
-import { AccelControl, hasAccel, type AccelState } from "@/components/AccelControl";
+import { AccelControl, defaultAccelState, hasAccel, type AccelState } from "@/components/AccelControl";
 import { AssetPicker } from "@/components/canvas/AssetPicker";
 import { ImagePaintEditor } from "@/components/canvas/ImagePaintEditor";
 import { ResultPreview } from "@/components/canvas/nodes";
 import { PromptField, type PromptVar } from "@/components/PromptField";
+import { CharacterInputPicker } from "@/components/canvas/CharacterInputPicker";
 import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
-import { SPEECH_LANGUAGES } from "@/components/SpeechLanguageSelect";
+import { SPEECH_LANGUAGES, SpeechLanguageSelect } from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
+import { characterPromptContext, viewLabel } from "@/lib/characterPrompt";
 import { useCanvasStore } from "@/stores/canvas";
 
 const MEDIA_TYPES = ["image", "video", "audio"] as const;
@@ -77,8 +79,37 @@ function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
     video: tx("视频输入"),
     audio: tx("音频输入"),
     text: tx("文本输入"),
+    character: tx("角色输入"),
   };
   return titles[d.mediaKind] ?? tx("输入");
+}
+
+function characterExtra(
+  nodes: CanvasFlowNode[],
+  edges: { source: string; target: string }[],
+  nodeId: string,
+  capability: string,
+): string | undefined {
+  const lines: string[] = [];
+  const sources = edges
+    .filter((edge) => edge.target === nodeId)
+    .map((edge) => nodes.find((item) => item.id === edge.source))
+    .filter((item): item is CanvasFlowNode => Boolean(item));
+  const characters = sources.filter(
+    (item) => item.data.kind === "input" && item.data.mediaKind === "character" && item.data.characterName,
+  );
+  for (const item of characters) {
+    if (item.data.kind !== "input") continue;
+    lines.push(
+      characterPromptContext(
+        item.data.characterName || "",
+        item.data.characterDescription || "",
+        item.data.characterSlot || "front",
+        capability === "motion" && characters.length === 1,
+      ),
+    );
+  }
+  return lines.length ? lines.join("\n") : undefined;
 }
 
 /** 输出变量卡：变量名(可改) + 产物预览/发布 + 输入节点的直通说明。 */
@@ -210,6 +241,37 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
           placeholder={tx("输入文本…")}
           onChange={(e) => updateNodeData(node.id, { text: e.target.value })}
         />
+      </section>
+    );
+  }
+
+  if (d.mediaKind === "character") {
+    return (
+      <section className="flex flex-col gap-2">
+        <SectionLabel>{tx("角色")}</SectionLabel>
+        <button
+          type="button"
+          className="rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted/40"
+          onClick={() => setPickerOpen(true)}
+        >
+          {d.characterName
+            ? `${d.characterName} · ${tx(viewLabel(d.characterSlot || "front"))}`
+            : tx("选择角色")}
+        </button>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {tx("一条连线代表一个人。下游只有一个图片槽时送入镜视角；选了定妆照则送整张设定图。动作迁移默认送正面、侧面、背面。")}
+        </p>
+        {pickerOpen && (
+          <CharacterInputPicker
+            characterId={d.characterId ?? null}
+            slot={d.characterSlot || "front"}
+            onClose={() => setPickerOpen(false)}
+            onConfirm={(picked) => {
+              updateNodeData(node.id, picked);
+              setPickerOpen(false);
+            }}
+          />
+        )}
       </section>
     );
   }
@@ -466,47 +528,25 @@ function FunctionInspector({
   const tx = useTx();
   const d = node.data as FunctionNodeData;
   const store = useCanvasStore();
+  const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm, staleTime: 60_000 });
   const providerId = useComfyProviderId();
-  const queryClient = useQueryClient();
-  const [creatingGroups, setCreatingGroups] = useState(false);
-
-  const { data: groups } = useQuery({ queryKey: ["canvas-groups"], queryFn: api.getCanvasGroups });
+  const { data: menu } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
+  const { data: specs } = useQuery({ queryKey: ["execution-specs"], queryFn: () => api.executionSpecs() });
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const { data: allPacks } = useQuery({
     queryKey: ["workflows"],
     queryFn: () => api.listWorkflows(),
     staleTime: 60_000,
   });
-
-  /** 按包能力(图像/视频/语音)建默认分组,建完选中第一个组。 */
-  const createGroups = async () => {
-    if (!allPacks) return;
-    setCreatingGroups(true);
-    try {
-      const defaults = await createDefaultGroups(allPacks);
-      if (!defaults) {
-        onFlash(tx("还没有可用的工作流包，先到「设置 → 工作流包」导入"));
-        return;
-      }
-      queryClient.setQueryData(["canvas-groups"], defaults);
-      store.updateNodeData(node.id, { group: Object.keys(defaults)[0] });
-      onFlash(tx("已按能力建好默认分组"));
-    } catch (err) {
-      onFlash(err instanceof Error ? err.message : tx("创建分组失败"));
-    } finally {
-      setCreatingGroups(false);
-    }
-  };
-
-  const groupNames = Object.keys(groups ?? {});
-  const groupPacks = (groups?.[d.group] ?? [])
-    .map((name) => allPacks?.find((p) => p.name === name))
-    .filter((p): p is WorkflowPackOut => Boolean(p));
-  const pack = groupPacks.find((p) => p.name === d.pack) ?? null;
-
-  const applyPack = (next: WorkflowPackOut) => {
-    const created = applyPackToNode(node.id, next, d.values);
-    if (created > 0) onFlash(tx("已自动补建 {n} 个必填输入节点", { n: created }));
-  };
+  const pack = allPacks?.find((item) => item.name === d.pack) ?? null;
+  // 菜单绑包时如果还没拿到工作流列表，加速开关会丢。列表到达后补上默认值。
+  useEffect(() => {
+    if (!pack || !hasAccel(pack.accel) || d.accel) return;
+    useCanvasStore.getState().updateNodeData(node.id, { accel: defaultAccelState(pack.accel) });
+  }, [pack, d.accel, node.id]);
+  const currentSpec = (specs ?? []).find(
+    (row) => row.target_id === d.targetId && row.sub_capability === d.subCapability,
+  );
 
   // 已连接节点的可见变量:文本变量插 {{名}},媒体变量插 <Picture N> 风格标签
   const variables: PromptVar[] = (() => {
@@ -521,11 +561,16 @@ function FunctionInspector({
     for (const s of sources) {
       const varName = s.data.varName ?? "";
       if (!varName) continue;
-      if (s.data.kind === "input" && s.data.mediaKind === "text") {
+      const textProducer =
+        (s.data.kind === "input" && s.data.mediaKind === "text") ||
+        (s.data.kind === "speech" && s.data.mode === "asr") ||
+        nodeOutputKind(s) === "text";
+      if (textProducer) {
+        const body = s.data.kind === "input" && s.data.mediaKind === "text" ? (s.data.text ?? "") : "";
         out.push({
           name: varName,
-          preview: (s.data.text ?? "").slice(0, 40),
-          text: s.data.text ?? "",
+          preview: body.slice(0, 40) || nodeTitle(s, tx),
+          text: body,
         });
         continue;
       }
@@ -543,81 +588,54 @@ function FunctionInspector({
 
   return (
     <>
-      <section className="flex flex-col gap-3">
-        <SectionLabel>{tx("功能")}</SectionLabel>
-        <Field label={tx("所属（一批工作流包）")}>
-          <select
-            className={selectClass}
-            value={d.group}
-            onChange={(e) =>
-              store.updateNodeData(node.id, {
-                group: e.target.value,
-                pack: "",
-                values: {},
-                outputKind: null,
-                accel: null,
-                bindings: {},
-              })
-            }
-          >
-            <option value="">{tx("选择所属…")}</option>
-            {groupNames.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {/* 首用死胡同化解:一个分组都没有时,一键按能力建默认分组 */}
-        {groupNames.length === 0 && (
-          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-muted/40 p-3">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {tx("画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音）自动建好，稍后在「设置 → 工作流包」里调整。")}
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={creatingGroups}
-              onClick={() => void createGroups()}
+      {d.presetId ? (
+        <PresetInspector node={node} onFlash={onFlash} />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <SectionLabel>{tx("功能")}</SectionLabel>
+          <Field label={tx("功能")} hint={tx("选中后按该功能补建还缺的输入，已有输入不会删除")}>
+            <select
+              className={selectClass}
+              value=""
+              onChange={(event) => {
+                const next = (menu ?? []).find((row) => row.id === event.target.value);
+                if (!next) return;
+                const created = applyMenuToNode(node.id, next, resolveSpec(next, specs ?? []), providers ?? [], allPacks ?? []);
+                if (created > 0) onFlash(tx("已补建 {n} 个输入节点", { n: created }));
+              }}
             >
-              {creatingGroups ? tx("正在创建…") : tx("按能力建默认分组")}
-            </Button>
-          </div>
-        )}
-
-        {d.group && (
-          <Field label={tx("工作流包")} hint={tx("选择后自动补全该包需要的输入节点并连线")}>
-            <WorkflowPackControl name={pack?.name} description={pack?.description}>
-              <select
-                className={selectClass}
-                value={d.pack}
-                onChange={(e) => {
-                  const next = groupPacks.find((p) => p.name === e.target.value);
-                  if (next) applyPack(next);
-                }}
-              >
-                <option value="">{tx("选择工作流包…")}</option>
-                {groupPacks.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </WorkflowPackControl>
-            {groupPacks.length === 0 && (
-              <p className="text-xs text-warning">
-                {tx("这个分组还没有工作流包，先到「设置 → 工作流包 → 画布分组」里添加")}
-              </p>
-            )}
+              <option value="">{tx("选择功能…")}</option>
+              {(menu ?? []).map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.title}
+                </option>
+              ))}
+            </select>
           </Field>
-        )}
-      </section>
+        </section>
+      )}
 
       {pack && (
         <>
           <InputSlots node={node} pack={pack} />
 
+          {pack.capability === "avatar" && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tx("画面时长跟随已连接的音频。超过单段上限时按时间切开，下一段用上一段的尾帧。")}
+            </p>
+          )}
+          {pack.capability === "motion" && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tx("画面时长跟随参考视频。超过单段上限时分段衔接，下一张人物图用上一段的尾帧。")}
+            </p>
+          )}
+          {pack.capability === "analysis" && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tx("分析得到的文字写入本节点变量。下游提示词引用这个变量名。分析角度写在下方参数里。")}
+            </p>
+          )}
+
+          {pack.capability !== "analysis" && (
           <PromptField
             label={tx("提示词")}
             value={{
@@ -638,15 +656,23 @@ function FunctionInspector({
             jobScope={`canvas-prompt:${node.id}`}
             task={pack.capability}
             workflow={pack.name}
+            extraContext={characterExtra(store.nodes, store.edges, node.id, pack.capability)}
             minRowsClass="min-h-20"
           />
+          )}
 
           <section className="flex flex-col gap-3">
             <SectionLabel>{tx("参数")}</SectionLabel>
             <WorkflowInputs
               inputs={pack.inputs}
               values={d.values}
-              exclude={[...MEDIA_TYPES, "prompt"]}
+              exclude={[
+                ...MEDIA_TYPES,
+                "prompt",
+                ...(pack.capability === "avatar" || pack.capability === "motion"
+                  ? (["length", "frames"] as const)
+                  : []),
+              ]}
               providerId={providerId}
               fps={pack.fps}
               singleColumn
@@ -668,8 +694,106 @@ function FunctionInspector({
                 }
               />
             )}
+
+            {pack.capability === "motion" && (
+              <Field
+                label={tx("声音来源")}
+                hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}
+              >
+                <Segmented
+                  ariaLabel={tx("声音来源")}
+                  value={d.audioMode === "reference" ? "reference" : "model"}
+                  onChange={(value) =>
+                    store.updateNodeData(node.id, { audioMode: value === "reference" ? "reference" : "model" })
+                  }
+                  options={[
+                    { value: "model", label: tx("模型生成") },
+                    { value: "reference", label: tx("参考视频原声") },
+                  ]}
+                />
+              </Field>
+            )}
+            {(pack.capability === "avatar" || pack.capability === "motion") && (
+              <div className="flex flex-col gap-3">
+                <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
+                  <select
+                    className={selectClass}
+                    value={(d.bgmPath ?? "").replace(/^bgm\//, "")}
+                    onChange={(e) =>
+                      store.updateNodeData(node.id, {
+                        bgmPath: e.target.value ? `bgm/${e.target.value}` : "",
+                      })
+                    }
+                  >
+                    <option value="">{tx("无背景音乐")}</option>
+                    {d.bgmPath &&
+                      !bgmList?.some((item) => `bgm/${item.name}` === d.bgmPath) && (
+                        <option value={d.bgmPath.replace(/^bgm\//, "")}>
+                          {d.bgmPath.replace(/^bgm\//, "")}
+                          {tx("（已不在库中）")}
+                        </option>
+                      )}
+                    {bgmList?.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={d.bgmVolume ?? 0.2}
+                    onChange={(e) =>
+                      store.updateNodeData(node.id, { bgmVolume: Number(e.target.value) || 0 })
+                    }
+                  />
+                </Field>
+              </div>
+            )}
           </section>
         </>
+      )}
+
+      {d.presetId && !pack && d.subCapability !== "analysis" && d.subCapability !== "video_analysis" && (
+        <PromptField
+          label={tx("提示词")}
+          value={{
+            raw: d.prompt,
+            optimized: d.promptOptimized ?? "",
+            optimizedFromRaw: d.promptOptimizedFromRaw ?? "",
+            useOptimized: d.promptUseOptimized ?? false,
+          }}
+          onChange={(value) =>
+            store.updateNodeData(node.id, {
+              prompt: value.raw,
+              promptOptimized: value.optimized,
+              promptOptimizedFromRaw: value.optimizedFromRaw,
+              promptUseOptimized: value.useOptimized,
+            })
+          }
+          variables={variables}
+          jobScope={`canvas-prompt:${node.id}`}
+          task={d.subCapability || "t2i"}
+          workflow={d.targetId || ""}
+          extraContext={characterExtra(store.nodes, store.edges, node.id, d.subCapability || "")}
+          minRowsClass="min-h-20"
+        />
+      )}
+      {d.presetId && !pack && currentSpec && Object.keys(currentSpec.inputs).length > 0 && (
+        <WorkflowInputs
+          inputs={currentSpec.inputs}
+          values={d.values}
+          exclude={["prompt"]}
+          providerId={d.providerId ?? undefined}
+          singleColumn
+          onChange={(key, value) =>
+            store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+          }
+        />
       )}
 
       <RunActions node={node} canvasId={canvasId} onRequestSave={onRequestSave} onFlash={onFlash} />
@@ -749,19 +873,76 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
 
   const cap = d.mode === "tts" ? "tts" : "asr";
+  const { data: menu } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
+  const { data: specs } = useQuery({ queryKey: ["execution-specs"], queryFn: () => api.executionSpecs() });
   // 与语音页同一规则:comfy 是工作流驱动的,没有对应能力的包就不列出
   const { data: capPacks } = useQuery({
     queryKey: ["workflows", cap],
     queryFn: () => api.listWorkflows(cap),
   });
-  const candidates = (providers ?? []).filter((p) => {
-    if (!p.enabled || !p.capabilities.includes(cap)) return false;
-    if (p.type === "comfyui") return (capPacks?.length ?? 0) > 0;
-    return true;
-  });
+  const sameCap = (menu ?? []).filter((row) => row.enabled !== false && row.sub_capability === cap);
+  const menuItem =
+    (menu ?? []).find((row) => row.enabled !== false && row.id === d.presetId) ??
+    (sameCap.length === 1 ? sameCap[0] : undefined);
+  const pool = menuItem ? specsForMenu(menuItem, specs ?? []) : null;
+  const candidates = pool
+    ? (providers ?? []).filter((p) => pool.some((spec) => providerForSpec(spec, providers ?? [])?.id === p.id))
+    : (providers ?? []).filter((p) => {
+        if (!p.enabled || !p.capabilities.includes(cap)) return false;
+        if (p.type === "comfyui") return (capPacks?.length ?? 0) > 0;
+        return true;
+      });
   // 未选 = 第一个可用服务(与后端 pick_provider 的默认一致)
   const provider = candidates.find((p) => p.id === d.providerId) ?? candidates[0];
   const ptype = provider?.type;
+  const listed = (id: string) =>
+    !pool || pool.some((spec) => spec.target_id === id && providerForSpec(spec, providers ?? [])?.id === provider?.id);
+  // 菜单池用目录整行做 id，语音页下拉用短 id。有菜单时直接列池里的项，避免对不上而变成空列表。
+  const menuOptions = menuItem
+    ? (pool ?? []).filter((spec) => providerForSpec(spec, providers ?? [])?.id === provider?.id)
+    : null;
+  const menuModelSelect = menuOptions && (
+    <Field
+      label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
+      hint={tx("来自菜单设置。手动指定时只显示勾选的项。")}
+    >
+      <select
+        className={selectClass}
+        aria-label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
+        value={menuOptions.find((spec) => speechSpecSelected(spec, d))?.target_id ?? ""}
+        onChange={(e) => {
+          const spec = menuOptions.find((row) => row.target_id === e.target.value);
+          updateNodeData(node.id, {
+            presetId: menuItem?.id,
+            presetTitle: menuItem?.title,
+            voiceRecordId: null,
+            ...speechFieldsFromSpec(spec, providers ?? []),
+          });
+        }}
+      >
+        {menuOptions.length === 0 && <option value="">{tx("菜单里还没有可用模型")}</option>}
+        {menuOptions.map((spec) => (
+          <option key={`${spec.target_type}:${spec.target_id}`} value={spec.target_id}>
+            {spec.display_name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+  // 菜单默认项还没写上，或当前模型已被手动指定排除时，改到允许范围内的默认项。
+  useEffect(() => {
+    if (!menuItem || !pool || !specs?.length) return;
+    const current = d.workflow || d.voice || d.model || "";
+    if (current && pool.some((spec) => speechSpecSelected(spec, d))) return;
+    const chosen = resolveSpec(menuItem, specs);
+    if (!chosen) return;
+    updateNodeData(node.id, {
+      presetId: menuItem.id,
+      presetTitle: menuItem.title,
+      mode: menuItem.sub_capability === "asr" ? "asr" : "tts",
+      ...speechFieldsFromSpec(chosen, providers ?? []),
+    });
+  }, [menuItem, pool, specs, d.workflow, d.voice, d.model, providers, node.id, updateNodeData]);
 
   // Liber Speech 的合成包/识别模型目录(默认项 = 系统设置)
   const { data: speechCatalog } = useQuery({
@@ -789,16 +970,31 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       <select
         className={selectClass}
         value={provider?.id ?? ""}
-        onChange={(e) =>
+        onChange={(e) => {
+          const providerId = e.target.value === "" ? null : Number(e.target.value);
+          if (pool) {
+            const preferred = menuItem?.default_target?.target_id;
+            const spec =
+              pool.find((row) => providerForSpec(row, providers ?? [])?.id === providerId && row.target_id === preferred) ??
+              pool.find((row) => providerForSpec(row, providers ?? [])?.id === providerId);
+            updateNodeData(node.id, {
+              presetId: menuItem?.id,
+              voiceRecordId: null,
+              ...speechFieldsFromSpec(spec, providers ?? []),
+            });
+            return;
+          }
           updateNodeData(node.id, {
-            providerId: e.target.value === "" ? null : Number(e.target.value),
+            providerId,
             // 换服务清掉音色/模型残留,避免语言码被当成音色
             voiceRecordId: null,
             voice: "",
             model: "",
             workflow: "",
-          })
-        }
+            language: "",
+            format: "",
+          });
+        }}
       >
         {candidates.length === 0 && <option value="">{tx("没有可用服务")}</option>}
         {candidates.map((p) => (
@@ -832,42 +1028,59 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       <section className="flex flex-col gap-3">
         <SectionLabel>{tx("输入")}</SectionLabel>
         <p className="text-xs text-muted-foreground">
-          {tx("从「输入输出」加一个音频输入节点,连到本节点左侧;执行时取第一个连接的音频,转写为文本/字幕资产")}
+          {tx("连接音频或视频。转写正文写入本节点变量，下游提示词引用这个变量名。")}
         </p>
         {serviceSelect}
-        {ptype === "liber_speech" && (
-          <Field label={tx("识别模型")} hint={tx("不选则使用系统设置里的语音识别模型。")}>
-            <select
-              className={selectClass}
-              value={d.model ?? ""}
-              onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
-            >
-              <option value="">{tx("系统设置")}</option>
-              {(speechCatalog?.asr_models ?? []).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-        {ptype === "openai_stt" && (
-          <Field label={tx("识别模型")} hint={tx("来自该服务的模型列表;不选则用默认。")}>
-            <select
-              className={selectClass}
-              value={d.model ?? ""}
-              onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
-            >
-              <option value="">{refreshModels.isPending ? tx("正在从服务拉取模型…") : tx("默认模型")}</option>
-              {(provider?.models ?? []).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </Field>
+        {menuModelSelect || (
+          <>
+            {ptype === "liber_speech" && (
+              <Field label={tx("识别模型")} hint={tx("不选则使用系统设置里的语音识别模型。")}>
+                <select
+                  className={selectClass}
+                  value={d.model ?? ""}
+                  onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+                >
+                  <option value="">{tx("系统设置")}</option>
+                  {(speechCatalog?.asr_models ?? []).filter((m) => listed(m.id)).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {ptype === "openai_stt" && (
+              <Field label={tx("识别模型")} hint={tx("来自该服务的模型列表;不选则用默认。")}>
+                <select
+                  className={selectClass}
+                  value={d.model ?? ""}
+                  onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+                >
+                  <option value="">{refreshModels.isPending ? tx("正在从服务拉取模型…") : tx("默认模型")}</option>
+                  {(provider?.models ?? []).filter((m) => listed(m)).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </>
         )}
         {languageSelect}
+        <Field label={tx("输出类型")} hint={tx("自动按 txt → json → srt → vtt 优先级输出单个文件。")}>
+          <select
+            className={selectClass}
+            value={d.format ?? ""}
+            onChange={(e) => updateNodeData(node.id, { format: e.target.value })}
+          >
+            <option value="">{tx("自动")}</option>
+            <option value="txt">txt</option>
+            <option value="json">json</option>
+            <option value="srt">srt</option>
+            <option value="vtt">vtt</option>
+          </select>
+        </Field>
       </section>
     );
   }
@@ -884,6 +1097,14 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       </Field>
       {serviceSelect}
       {ptype === "liber_speech" && (
+        <SpeechLanguageSelect
+          value={d.language ?? ""}
+          onChange={(value) => updateNodeData(node.id, { language: value })}
+          model={(d.model || "").split(" · ")[0] || undefined}
+        />
+      )}
+      {menuModelSelect}
+      {!menuModelSelect && ptype === "liber_speech" && (
         <Field label={tx("文字转语音模型")} hint={tx("不选则使用系统设置里的文字转语音模型。")}>
           <select
             className={selectClass}
@@ -891,7 +1112,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
           >
             <option value="">{tx("系统设置")}</option>
-            {(speechCatalog?.tts_models ?? []).map((m) => (
+            {(speechCatalog?.tts_models ?? []).filter((m) => listed(m.id)).map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
               </option>
@@ -899,7 +1120,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           </select>
         </Field>
       )}
-      {ptype === "comfyui" && (
+      {!menuModelSelect && ptype === "comfyui" && (
         <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包,朗读文本会自动注入。")}>
           <select
             className={selectClass}
@@ -907,7 +1128,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             onChange={(e) => updateNodeData(node.id, { workflow: e.target.value })}
           >
             <option value="">{tx("选择语音工作流…")}</option>
-            {(capPacks ?? []).map((p) => (
+            {(capPacks ?? []).filter((p) => listed(p.name)).map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name}
               </option>
@@ -915,7 +1136,24 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           </select>
         </Field>
       )}
-      {(ptype === "edge_tts" || ptype === "openai_tts") && (
+      {ptype && ptype !== "comfyui" && (
+        <Field
+          label={tx("输出格式")}
+          hint={ptype === "edge_tts" ? tx("仅 mp3。本地 Edge TTS 不输出 wav / ogg。") : tx("wav / ogg 需要兼容服务支持。")}
+        >
+          <select
+            className={selectClass}
+            value={ptype === "edge_tts" ? "mp3" : d.format || "mp3"}
+            disabled={ptype === "edge_tts"}
+            onChange={(e) => updateNodeData(node.id, { format: e.target.value })}
+          >
+            <option value="mp3">mp3</option>
+            {ptype !== "edge_tts" && <option value="wav">wav</option>}
+            {ptype !== "edge_tts" && <option value="ogg_opus">ogg_opus</option>}
+          </select>
+        </Field>
+      )}
+      {!menuModelSelect && (ptype === "edge_tts" || ptype === "openai_tts") && (
         <Field
           label={tx("音色")}
           hint={tx("来自该服务的音色列表;为空时先点下方刷新或稍等自动拉取。")}
@@ -928,7 +1166,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             <option value="">
               {refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("默认音色")}
             </option>
-            {(provider?.models ?? []).map((v) => (
+            {(provider?.models ?? []).filter((v) => listed(v)).map((v) => (
               <option key={v} value={v}>
                 {v}
               </option>
@@ -936,7 +1174,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           </select>
         </Field>
       )}
-      {ptype === "openai_tts" && (
+      {!menuModelSelect && ptype === "openai_tts" && (
         <Field label={tx("模型")} hint={tx("不选则使用该服务的默认模型 tts-1。")}>
           <Input
             value={d.model ?? ""}

@@ -89,14 +89,89 @@ async def _run_video_pack(
     return outputs
 
 
-async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """图生视频：图片 + 提示词 → i2v 工作流。"""
+async def _run_model_video(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """火山方舟等云端视频模型。产物保存方式与工作流包视频一致。"""
+    from liberastra.services.model_media import generate_model_media
+
     params = job.params
-    inputs = {"prompt": params.get("prompt", ""), **params.get("inputs", {})}
-    image_keys = _input_keys(params["workflow"], "image")
-    image_path = params.get("image_path")
-    if image_keys and image_path:
-        inputs[image_keys[0]] = image_path
+    provider = pick_provider(db, "video", job.provider_id)
+    sub = str(params.get("sub_capability") or "i2v_first")
+    inputs = dict(params.get("inputs") or {})
+    paths = [path for path in params.get("image_paths") or [] if path]
+    if not paths and params.get("image_path"):
+        paths = [params["image_path"]]
+    if sub == "i2v_flf":
+        if paths:
+            inputs.setdefault("first_frame", paths[0])
+        if len(paths) > 1:
+            inputs.setdefault("last_frame", paths[1])
+    elif sub == "v2v_ref":
+        if paths:
+            inputs.setdefault("reference_image", paths)
+    elif paths:
+        inputs.setdefault("first_frame", paths[0])
+    ctx.report(db, job, progress=0.1, step="ark")
+    started = time.monotonic()
+    videos = await generate_model_media(
+        provider,
+        model=str(job.model or params.get("model") or ""),
+        sub_capability=sub,
+        prompt=str(params.get("prompt") or ""),
+        inputs=inputs,
+        on_progress=lambda progress: ctx.report(db, job, progress=0.1 + 0.85 * progress),
+        wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
+    )
+    if ctx.cancelled():
+        return []
+    outputs: list[dict[str, Any]] = []
+    for index, (filename, content) in enumerate(videos):
+        ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp4"
+        rel_path = f"outputs/{job.id}/video_{index}.{ext}"
+        from liberastra.storage import create_asset, save_bytes
+
+        save_bytes(content, rel_path)
+        asset = create_asset(
+            db,
+            kind="video",
+            rel_path=rel_path,
+            job_id=job.id,
+            owner_id=job.owner_id,
+            meta={
+                "provider": provider.name,
+                "model": job.model,
+                "prompt": params.get("prompt"),
+                "duration_s": round(time.monotonic() - started, 1),
+            },
+        )
+        outputs.append(
+            {"type": "asset", "asset_id": asset.id, "kind": "video", "filename": filename}
+        )
+    ctx.report(db, job, progress=1.0)
+    return outputs
+
+
+async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """图生视频：图片 + 提示词 → i2v 工作流。
+
+    提示词留空且包写了 default 时不写入，节点保留作者原句。
+    少传的可选图由执行器按 manifest 的 fallback 补齐。
+    云端模型不走工作流包，按 sub_capability 提交。
+    """
+    params = job.params
+    if params.get("target_type") == "model":
+        return await _run_model_video(db, job, ctx)
+    pack = get_pack(params["workflow"])
+    inputs = dict(params.get("inputs") or {})
+    prompt = str(params.get("prompt") or "")
+    prompt_spec = pack.inputs.get("prompt") or {}
+    if prompt.strip() or not prompt_spec.get("default"):
+        inputs["prompt"] = prompt
+    image_keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
+    paths = [path for path in params.get("image_paths") or [] if path]
+    if not paths and params.get("image_path"):
+        paths = [params["image_path"]]
+    for key, path in zip(image_keys, paths, strict=False):
+        inputs[key] = path
     return await _run_video_pack(db, job, ctx, inputs)
 
 
@@ -190,6 +265,104 @@ async def _apply_soundtrack(
     return current
 
 
+async def render_motion_takes(
+    *,
+    source: Path,
+    image_paths: list[str],
+    prompt_text: str,
+    base_inputs: dict[str, Any],
+    windows: list[tuple[float, int]],
+    fps: float,
+    video_key: str,
+    image_keys: list[str],
+    generate: Callable[[dict[str, Any], Callable[[float], None]], Awaitable[list[tuple[str, bytes]]]],
+    work: Callable[[str], Path],
+    rel_of: Callable[[Path], str],
+    report: Callable[[float, str], None],
+    cancelled: Callable[[], bool],
+    slice_video: Callable[..., Awaitable[None]] = ffmpeg.slice_video,
+    trim_video: Callable[..., Awaitable[None]] = ffmpeg.trim_video,
+    last_frame: Callable[..., Awaitable[None]] = ffmpeg.extract_last_frame,
+    concat: Callable[..., Awaitable[None]] = ffmpeg.concat_segments,
+) -> Path | None:
+    """按窗口切参考视频。下一段的第一张人物图换成上一段尾帧，侧面和背面保留。"""
+    if not windows:
+        raise ProviderError("参考视频太短，无法做动作迁移")
+    if fps <= 0:
+        fps = 24.0
+    side_back = image_paths[1:]
+    current_images = list(image_paths)
+    clips: list[Path] = []
+    count = len(windows)
+    for index, (start, frames) in enumerate(windows):
+        if cancelled():
+            return None
+        seconds = frames / fps
+        ref = work(f"ref_{index:02d}.mp4")
+        await slice_video(source, start, seconds, ref, fps=fps, frames=frames)
+        inputs: dict[str, Any] = {"prompt": prompt_text, **base_inputs, "length": frames}
+        inputs[video_key] = rel_of(ref)
+        for key, path in zip(image_keys, current_images, strict=False):
+            inputs[key] = path
+
+        def on_progress(frac: float, *, _index: int = index) -> None:
+            report(0.05 + 0.85 * (_index + frac) / count, f"分段 {_index + 1}/{count}")
+
+        videos = await generate(inputs, on_progress)
+        if cancelled():
+            return None
+        if not videos:
+            raise ProviderError("动作迁移没有生成视频")
+        raw = work(f"take_{index:02d}.mp4")
+        raw.write_bytes(videos[0][1])
+        trimmed = work(f"trim_{index:02d}.mp4")
+        await trim_video(raw, trimmed, seconds, fps=fps)
+        clips.append(trimmed)
+        if index < count - 1:
+            frame = work(f"last_{index:02d}.png")
+            await last_frame(trimmed, frame, fps=fps)
+            current_images = [rel_of(frame), *side_back]
+    final = work("video_0.mp4")
+    if len(clips) == 1:
+        final.write_bytes(clips[0].read_bytes())
+    else:
+        report(0.92, "concat")
+        await concat(clips, final, list_file=work("concat.txt"))
+    return final
+
+
+async def slice_audio_takes(
+    audio: Path,
+    *,
+    ceiling: float,
+    rel_path: str,
+    work: Callable[[str], Path],
+    rel_of: Callable[[Path], str],
+    probe: Callable[[Path], Awaitable[float]] = ffmpeg.probe_duration,
+    slice_audio: Callable[..., Awaitable[None]] = ffmpeg.slice_audio,
+) -> list[tuple[str, str, float]]:
+    """把已有音频按单段上限切开。不重新合成语音。短于上限时整段作为一次。"""
+    duration = await probe(audio)
+    if duration <= 0:
+        raise ProviderError("无法读取音频时长")
+    if duration <= ceiling + 0.05:
+        return [("", rel_path, duration)]
+    takes: list[tuple[str, str, float]] = []
+    start = 0.0
+    part = 0
+    while start < duration - 0.05 and part < 200:
+        piece = min(ceiling, duration - start)
+        out = work(f"avatar_a_{part:02d}{audio.suffix or '.wav'}")
+        await slice_audio(audio, start, piece, out)
+        probed = await probe(out)
+        takes.append(("", rel_of(out), probed or piece))
+        start += piece
+        part += 1
+    if not takes:
+        raise ProviderError("音频太短，无法做数字人")
+    return takes
+
+
 async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """动作迁移：参考视频按模型单段上限切开，尾帧接力，最后合成一条。"""
     params = job.params
@@ -212,56 +385,37 @@ async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     image_keys = _input_keys(params["workflow"], "image")
     if not video_keys:
         raise ProviderError("工作流包没有视频输入")
-    base_inputs = dict(params.get("inputs") or {})
-    side_back = image_paths[1:]
-    current_images = list(image_paths)
-    clips: list[Path] = []
     started = time.monotonic()
-    count = len(windows)
     timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
 
-    for index, (start, frames) in enumerate(windows):
-        if ctx.cancelled():
-            return []
-        seconds = frames / fps
-        ref = job_path(job, f"ref_{index:02d}.mp4")
-        await ffmpeg.slice_video(source, start, seconds, ref, fps=fps, frames=frames)
-        inputs: dict[str, Any] = {"prompt": prompt_text, **base_inputs, "length": frames}
-        inputs[video_keys[0]] = _rel_of(ref)
-        for key, path in zip(image_keys, current_images, strict=False):
-            inputs[key] = path
-        ctx.report(db, job, progress=0.05 + 0.85 * index / count, step=f"分段 {index + 1}/{count}")
+    async def generate(
+        inputs: dict[str, Any], on_progress: Callable[[float], None]
+    ) -> list[tuple[str, bytes]]:
         videos, _texts = await adapter.generate(
             pack=pack,
             inputs=inputs,
-            on_progress=lambda progress, step_index=index: ctx.report(
-                db,
-                job,
-                progress=0.05 + 0.85 * (step_index + progress) / count,
-                step=f"分段 {step_index + 1}/{count}",
-            ),
+            on_progress=on_progress,
             wait_timeout=timeout,
         )
-        if ctx.cancelled():
-            return []
-        if not videos:
-            raise ProviderError("动作迁移没有生成视频")
-        raw = job_path(job, f"take_{index:02d}.mp4")
-        raw.write_bytes(videos[0][1])
-        trimmed = job_path(job, f"trim_{index:02d}.mp4")
-        await ffmpeg.trim_video(raw, trimmed, seconds, fps=fps)
-        clips.append(trimmed)
-        if index < count - 1:
-            last = job_path(job, f"last_{index:02d}.png")
-            await ffmpeg.extract_last_frame(trimmed, last, fps=fps)
-            current_images = [_rel_of(last), *side_back]
+        return videos
 
-    final = job_path(job, "video_0.mp4")
-    if len(clips) == 1:
-        final.write_bytes(clips[0].read_bytes())
-    else:
-        ctx.report(db, job, progress=0.92, step="concat")
-        await ffmpeg.concat_segments(clips, final, list_file=job_path(job, "concat.txt"))
+    final = await render_motion_takes(
+        source=source,
+        image_paths=image_paths,
+        prompt_text=prompt_text,
+        base_inputs=dict(params.get("inputs") or {}),
+        windows=windows,
+        fps=fps,
+        video_key=video_keys[0],
+        image_keys=image_keys,
+        generate=generate,
+        work=lambda name: job_path(job, name),
+        rel_of=_rel_of,
+        report=lambda progress, step: ctx.report(db, job, progress=progress, step=step),
+        cancelled=ctx.cancelled,
+    )
+    if final is None or ctx.cancelled():
+        return []
     final = await _apply_soundtrack(final, params, reference=source)
     rel_path = _rel_of(final)
     asset = create_asset(
@@ -274,7 +428,7 @@ async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             "provider": provider.name,
             "workflow": params.get("workflow"),
             "prompt": prompt_text,
-            "segments": count,
+            "segments": len(windows),
             "audio_mode": params.get("audio_mode") or "model",
             "bgm": Path(str(params["bgm_path"])).name if params.get("bgm_path") else None,
             "duration_s": round(time.monotonic() - started, 1),
@@ -430,12 +584,19 @@ async def _concat_takes(segments: list[Path], out: Path, list_file: Path) -> Non
 
 
 def avatar_segment_prompt(text: str, custom: str) -> str:
-    """每段提示词都带上这一段自己的台词，避免后段还在念整篇文案。"""
-    line = f'台词："{text}"'
+    """每段提示词都带上这一段自己的台词，避免后段还在念整篇文案。
+
+    画布按时间切开已有音频时没有逐句台词。text 为空则只保留画面提示。
+    """
+    spoken = text.strip()
+    line = f'台词："{spoken}"' if spoken else ""
     custom = custom.strip()
-    if custom:
+    if custom and line:
         return f"{custom} {line}"
-    return f"正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。{line}"
+    if custom:
+        return custom
+    base = "正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。"
+    return f"{base}{line}" if line else base
 
 
 async def render_avatar_takes(

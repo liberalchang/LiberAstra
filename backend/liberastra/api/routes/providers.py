@@ -10,15 +10,19 @@ from liberastra.models import Provider, User
 from liberastra.providers import PROVIDER_TYPES
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.provider import (
+    ModelCatalogIn,
     ProviderCreate,
     ProviderOut,
     ProviderUpdate,
     TestResult,
 )
 from liberastra.services.providers import (
+    backfill_catalog,
     encrypt_api_key,
     fetch_model_folder,
     fetch_models,
+    replace_model_catalog,
+    seed_model_catalog,
     test_connection,
 )
 
@@ -58,7 +62,33 @@ def _ensure_local_edge_tts(db: DbSession, user: User) -> None:
 def list_providers(user: CurrentUser, db: DbSession) -> list[ProviderOut]:
     _ensure_local_edge_tts(db, user)
     records = db.scalars(select(Provider).where(Provider.owner_id == user.id)).all()
+    if any(backfill_catalog(record) for record in records):
+        db.commit()
     return [ProviderOut.from_record(r) for r in records]
+
+
+@router.get("/execution-specs")
+def execution_specs(
+    user: CurrentUser,
+    db: DbSession,
+    sub_capability: str | None = None,
+    category: str | None = None,
+) -> list[dict]:
+    """工作流包与已启用云端模型的统一参数契约。"""
+    from liberastra.providers.schema_registry import filter_specs, model_specs, workflow_specs
+    from liberastra.services.workflows import list_packs
+
+    specs = workflow_specs(list_packs())
+    records = db.scalars(
+        select(Provider).where(Provider.owner_id == user.id, Provider.enabled.is_(True))
+    ).all()
+    changed = False
+    for record in records:
+        changed = backfill_catalog(record) or changed
+        specs.extend(model_specs(record))
+    if changed:
+        db.commit()
+    return filter_specs(specs, sub_capability=sub_capability, category=category)
 
 
 @router.post("", response_model=ProviderOut, status_code=status.HTTP_201_CREATED)
@@ -84,6 +114,7 @@ def create_provider(body: ProviderCreate, user: CurrentUser, db: DbSession) -> P
         extra=body.extra,
         owner_id=user.id,
     )
+    seed_model_catalog(record)
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -139,6 +170,20 @@ async def list_provider_models(provider_id: int, user: CurrentUser, db: DbSessio
     record.models = models
     db.commit()
     return models
+
+
+@router.put("/{provider_id}/catalog", response_model=ProviderOut)
+def update_catalog(
+    provider_id: int, body: ModelCatalogIn, user: CurrentUser, db: DbSession
+) -> ProviderOut:
+    record = _get_owned(db, provider_id, user)
+    try:
+        replace_model_catalog(record, body.models)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    db.commit()
+    db.refresh(record)
+    return ProviderOut.from_record(record)
 
 
 @router.get("/{provider_id}/models/{folder}", response_model=list[str])

@@ -210,11 +210,18 @@ def test_liber_speech_asr_model_passthrough(tmp_path) -> None:  # noqa: ANN001
             await adapter.transcribe(file_path=str(audio), language="zh")
             await adapter.transcribe(file_path=str(audio), model="whisper-1")
             await adapter.transcribe(file_path=str(audio), model="large-v3-turbo")
+            await adapter.transcribe(
+                file_path=str(audio),
+                model="large-v3 · faster-whisper large-v3 · ASR",
+            )
 
     asyncio.run(run())
     assert b'name="model"' not in seen[0]
     assert b'name="model"' not in seen[1]
     assert b"large-v3-turbo" in seen[2]
+    assert b'name="model"' in seen[3]
+    assert b"large-v3" in seen[3]
+    assert b"faster-whisper" not in seen[3]
 
 
 def test_liber_speech_default_asr_model(tmp_path) -> None:  # noqa: ANN001
@@ -320,6 +327,12 @@ def test_liber_speech_model_and_language() -> None:
             await alias.synthesize(text="hi", voice="zh", fmt="wav")
             unknown = LiberSpeech("http://speech:5555", client=client, default_model="not-a-pack")
             await unknown.synthesize(text="hi", voice="zh", fmt="wav", model="not-a-pack")
+            await multi.synthesize(
+                text="你好",
+                voice="en",
+                fmt="wav",
+                model="multilingual_v3 · Chatterbox-Multilingual V3 · TTS",
+            )
 
     asyncio.run(run())
     assert seen == [
@@ -327,4 +340,5 @@ def test_liber_speech_model_and_language() -> None:
         {"model": "zh-cmn", "language": "zh"},
         {"model": "multilingual_v2", "language": "zh"},
         {"model": "not-a-pack", "language": "zh"},
+        {"model": "multilingual_v3", "language": "en"},
     ]

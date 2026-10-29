@@ -43,11 +43,87 @@ SCRIPT_PROMPT = (
     '只输出 JSON：{{"title": "视频标题", "segments": ["第一句", "第二句"]}}'
 )
 
-STORYBOARD_PROMPT = (
-    "根据口播分镜，为每句写对应的画面提示词（主体、场景、构图、光线，风格统一）。"
-    '输入：{{"title":..,"segments":[..]}}。只输出 JSON：'
-    '{{"frames": [{{"text": "口播句", "visual": "画面提示词"}}]}}'
-)
+def _storyboard_system(db: Session, params: dict[str, Any], workflow: str | None) -> str:
+    """画面分镜走提示词库。系统文案不能包含「口播文案」，否则测试用的假 LLM 会返回脚本。"""
+    from liberastra.models import Character
+    from liberastra.services.characters import appearance_prefix
+    from liberastra.services.prompts import build_system_prompt
+
+    extra = ""
+    character_id = params.get("character_id")
+    if character_id:
+        character = db.get(Character, int(character_id))
+        if character is not None:
+            view = str(params.get("character_view") or "front")
+            extra = (
+                f"{appearance_prefix(character).rstrip('。')}。"
+                f"当前参考图视角：{view}。"
+                "各镜 view 可在 portrait、front、side、back 之间轮换。"
+                if str(params.get("character_view") or "") != "turnaround"
+                else "各镜 view 固定为 turnaround，使用整张定妆照，不要改成单视角。"
+            )
+    system = build_system_prompt(
+        "quick_visual",
+        workflow=workflow or None,
+        aspect=str(params.get("aspect") or ""),
+        extra_context=extra,
+    )
+    return (
+        system
+        + "\n\n只输出 JSON："
+        + '{"frames":[{"text":"这一句配音","visual":"这一镜画面","view":"front"}]}'
+        + "。view 只能是 portrait、front、side、back、turnaround 之一。"
+    )
+
+
+def _frame_video_inputs(
+    db: Session,
+    params: dict[str, Any],
+    pack: Any,
+    frame: dict[str, Any],
+    visual: str,
+    width: int,
+    height: int,
+) -> dict[str, Any]:
+    """视频分镜输入。包有图片槽且选了角色时，按这一镜的 view 送入镜图。"""
+    from liberastra.models import Character
+    from liberastra.services.characters import reference_paths
+
+    inputs: dict[str, Any] = {
+        **params.get("video_inputs", {}),
+        "prompt": visual,
+        "width": width,
+        "height": height,
+    }
+    # 带 fallback 的可选槽（环绕的结束画面）留空，由执行器复制首帧，不要塞进下一张角色图。
+    keys = [
+        key
+        for key, spec in pack.inputs.items()
+        if isinstance(spec, dict) and spec.get("type") == "image" and not spec.get("fallback")
+    ]
+    character_id = params.get("character_id")
+    if not keys or not character_id:
+        return inputs
+    character = db.get(Character, int(character_id))
+    if character is None:
+        return inputs
+    if str(params.get("character_view") or "") == "turnaround":
+        view = "turnaround"
+    else:
+        view = str(frame.get("view") or params.get("character_view") or "front")
+        if view not in ("portrait", "front", "side", "back"):
+            view = str(params.get("character_view") or "front")
+    try:
+        paths = reference_paths(character, str(getattr(pack, "capability", "") or "i2v"), len(keys), view)
+    except ProviderError:
+        paths = []
+    for key, path in zip(keys, paths, strict=False):
+        if not inputs.get(key):
+            inputs[key] = path
+    required = [key for key in keys if pack.inputs[key].get("required") and not inputs.get(key)]
+    if required:
+        raise ProviderError("所选视频工作流需要角色参考图，但这个视角还没有图片")
+    return inputs
 
 _SENTENCE_SPLIT = re.compile(r"[^。！？!?；;]+[。！？!?；;]?")
 
@@ -166,10 +242,13 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             # LLM 把口播改写成画面提示词（与 Comfy Guide 增强是另一层）
             ctx.report(db, job, progress=0.1, step="storyboard")
             assert llm is not None and llm_provider is not None
+            workflow_name = (
+                params.get("video_workflow") if tpl.type == "video" else params.get("image_workflow")
+            )
             data = await _chat_json(
                 llm,
                 llm_provider,
-                STORYBOARD_PROMPT,
+                _storyboard_system(db, params, str(workflow_name) if workflow_name else None),
                 json.dumps({"title": title, "segments": segments}, ensure_ascii=False),
                 llm_model,
             )
@@ -282,12 +361,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             pack = get_pack(params["video_workflow"])
             clips, _texts = await video_adapter.generate(
                 pack=pack,
-                inputs={
-                    **params.get("video_inputs", {}),
-                    "prompt": visual,
-                    "width": tpl.media_width,
-                    "height": tpl.media_height,
-                },
+                inputs=_frame_video_inputs(
+                    db, params, pack, frame, visual, tpl.media_width, tpl.media_height
+                ),
                 on_progress=lambda p, frame_i=i: ctx.report(
                     db,
                     job,
@@ -315,12 +391,9 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             pack = get_pack(params["video_workflow"])
             clips, _texts = await video_adapter.generate(
                 pack=pack,
-                inputs={
-                    **params.get("video_inputs", {}),
-                    "prompt": visual,
-                    "width": tpl.media_width,
-                    "height": tpl.media_height,
-                },
+                inputs=_frame_video_inputs(
+                    db, params, pack, frame, visual, tpl.media_width, tpl.media_height
+                ),
                 on_progress=lambda p, frame_i=i: ctx.report(
                     db,
                     job,

@@ -61,6 +61,7 @@ class ProviderTypeInfoOut(BaseModel):
     requires_api_key: bool
     default_base_url: str | None
     description: str
+    group: str = ""
 
 
 class CapabilitiesOut(BaseModel):
@@ -71,3 +72,9 @@ class CapabilitiesOut(BaseModel):
 class TestResult(BaseModel):
     ok: bool
     message: str
+
+
+class ModelCatalogIn(BaseModel):
+    """整份模型目录。前端保存启停、简称和手动添加的接入点。"""
+
+    models: list[dict] = Field(default_factory=list)

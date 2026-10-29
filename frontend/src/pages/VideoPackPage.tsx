@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, type JobOut } from "@/api/client";
+import { enabledModels } from "@/lib/modelCatalog";
 import {
   AccelControl,
   buildInputsWithAccel,
@@ -38,6 +39,7 @@ import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
+import { CHARACTER_VIEWS, characterPromptContext } from "@/lib/characterPrompt";
 
 export type PackVideoKind = "i2v" | "avatar" | "motion";
 
@@ -72,6 +74,17 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const videoProviders = providers?.filter((p) => p.enabled && p.capabilities.includes("video"));
   const [providerId, setProviderId] = usePersistentState<number | "">(`video-${kind}:provider`, "");
   const provider = videoProviders?.find((p) => p.id === providerId) ?? videoProviders?.[0];
+  const isArk = provider?.type === "volcengine_ark" && kind === "i2v";
+  const arkModels = [
+    ...enabledModels(provider, "t2v"),
+    ...enabledModels(provider, "i2v_first"),
+    ...enabledModels(provider, "i2v_flf"),
+    ...enabledModels(provider, "v2v_ref"),
+  ];
+  const uniqueArk = [...new Map(arkModels.map((item) => [item.id, item])).values()];
+  const [arkModel, setArkModel] = usePersistentState(`video-${kind}:ark-model`, "");
+  const [arkSub, setArkSub] = usePersistentState(`video-${kind}:ark-sub`, "i2v_first");
+  const selectedArk = uniqueArk.find((item) => item.id === arkModel) ?? uniqueArk[0];
 
   const { data: allPacks } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
   const packs = allPacks?.filter((p) => cfg.packCaps.includes(p.capability));
@@ -91,6 +104,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFile2, setImageFile2] = useState<File | null>(null);
   const [characterId, setCharacterId] = usePersistentState<number | "">(`video-${kind}:character`, "");
   const [characterView, setCharacterView] = usePersistentState(`video-${kind}:character-view`, "front");
   const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
@@ -165,11 +179,19 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       const form = new FormData();
       if (kind === "motion" && videoFile) form.set("video", videoFile);
       if (imageFile) form.set("image", imageFile);
+      if (kind === "i2v" && pack?.inputs.image_2 && imageFile2) form.set("image_2", imageFile2);
       if (character) {
         form.set("character_id", String(character.id));
         if (kind === "i2v") form.set("character_view", characterView);
+        if ((kind === "avatar" || kind === "motion") && characterView === "turnaround") {
+          form.set("character_view", "turnaround");
+        }
       }
-      form.set("workflow", pack?.name ?? "");
+      form.set("workflow", isArk ? "" : (pack?.name ?? ""));
+      if (isArk && selectedArk) {
+        form.set("model", selectedArk.id);
+        form.set("sub_capability", arkSub);
+      }
       form.set("prompt", effectivePrompt);
       if (kind === "avatar") {
         form.set("text", text);
@@ -241,6 +263,24 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 ))}
               </select>
             </Field>
+            {isArk ? (
+              <>
+                <Field label={tx("模型")} hint={tx("只列出已启用、且支持视频的模型。")}>
+                  <select className={selectClass} value={selectedArk?.id ?? ""} onChange={(e) => setArkModel(e.target.value)}>
+                    {uniqueArk.map((item) => (
+                      <option key={item.id} value={item.id}>{item.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={tx("能力")}>
+                  <select className={selectClass} value={arkSub} onChange={(e) => setArkSub(e.target.value)}>
+                    {(selectedArk?.sub_capabilities ?? ["i2v_first"]).filter((sub) => ["t2v", "i2v_first", "i2v_flf", "v2v_ref"].includes(sub)).map((sub) => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                </Field>
+              </>
+            ) : (
             <Field label={tx("工作流包")} hint={tx("必须与当前功能匹配，例如图生视频、数字人或动作迁移。")}>
               <WorkflowPackControl name={pack?.name} description={pack?.description}>
                 <select
@@ -260,6 +300,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 </select>
               </WorkflowPackControl>
             </Field>
+            )}
           </div>
 
           {missingModels.length > 0 && (
@@ -282,10 +323,16 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             </Field>
           )}
           <Field
-            label={kind === "avatar" ? tx("人物图片") : tx("图片")}
+            label={
+              kind === "i2v" && pack?.inputs.image?.label
+                ? tx(pack.inputs.image.label)
+                : kind === "avatar"
+                  ? tx("人物图片")
+                  : tx("图片")
+            }
             hint={
               kind === "i2v"
-                ? tx("作为视频首帧。选了角色时用该视角的单人图。")
+                ? tx(pack?.inputs.image?.description || "作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。")
                 : kind === "avatar"
                   ? tx("口播人物图。选了角色时用定妆照右侧的面部半身特写。")
                   : tx("目标人物。选了角色时用正面、侧面、背面三张全身图。")
@@ -303,10 +350,29 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             </select>
             {kind === "i2v" && character && (
               <select className={`${selectClass} mb-2`} value={characterView} onChange={(e) => setCharacterView(e.target.value)}>
+                {CHARACTER_VIEWS.map(([key, label]) => (
+                  <option key={key} value={key}>{tx(label)}</option>
+                ))}
+              </select>
+            )}
+            {kind === "avatar" && character && (
+              <select
+                className={`${selectClass} mb-2`}
+                value={characterView === "turnaround" ? "turnaround" : "portrait"}
+                onChange={(e) => setCharacterView(e.target.value)}
+              >
                 <option value="portrait">{tx("面部半身特写")}</option>
-                <option value="front">{tx("正面全身")}</option>
-                <option value="side">{tx("侧面全身")}</option>
-                <option value="back">{tx("背面全身")}</option>
+                <option value="turnaround">{tx("定妆照")}</option>
+              </select>
+            )}
+            {kind === "motion" && character && (
+              <select
+                className={`${selectClass} mb-2`}
+                value={characterView === "turnaround" ? "turnaround" : "front"}
+                onChange={(e) => setCharacterView(e.target.value)}
+              >
+                <option value="front">{tx("正面、侧面、背面三张全身图")}</option>
+                <option value="turnaround">{tx("定妆照")}</option>
               </select>
             )}
             <FileDrop
@@ -316,6 +382,19 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               onSelect={(fs) => setImageFile(fs?.[0] ?? null)}
             />
           </Field>
+          {kind === "i2v" && pack?.inputs.image_2 && (
+            <Field
+              label={tx(pack.inputs.image_2.label || "结束画面")}
+              hint={tx(pack.inputs.image_2.description || "可选。不传则与首帧同一张。")}
+            >
+              <FileDrop
+                accept="image/*"
+                title={tx("可选。不传则与首帧同一张")}
+                names={imageFile2 ? [imageFile2.name] : []}
+                onSelect={(fs) => setImageFile2(fs?.[0] ?? null)}
+              />
+            </Field>
+          )}
 
           {kind === "avatar" ? (
             <>
@@ -446,12 +525,22 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           ) : (
             <PromptField
               label={tx("提示词")}
-              hint={tx("描述希望画面如何运动或变化。")}
+              hint={tx(pack?.inputs.prompt?.description || "描述希望画面如何运动或变化。")}
               value={promptValue}
               onChange={setPromptValue}
               jobScope={`video-${kind}:prompt-opt`}
               task={kind === "motion" ? "motion" : "i2v"}
               workflow={pack?.name}
+              extraContext={
+                character
+                  ? characterPromptContext(
+                      character.name,
+                      character.description,
+                      kind === "motion" && characterView !== "turnaround" ? "front" : characterView,
+                      kind === "motion" && characterView !== "turnaround",
+                    )
+                  : undefined
+              }
               placeholder={tx("例如：缓慢推近，微风吹动发丝，环境音轻柔")}
             />
           )}

@@ -20,6 +20,7 @@ class ProviderTypeInfo:
     requires_api_key: bool
     default_base_url: str | None = None
     description: str = ""
+    group: str = ""  # local | api，服务提供方页面的左栏分类
 
 
 class LLMAdapter(Protocol):
@@ -78,3 +79,55 @@ class ASRAdapter(Protocol):
     ) -> ASRResult: ...
 
     async def test(self) -> str: ...
+
+
+@dataclass(frozen=True)
+class MediaSlotSpec:
+    """一个媒体输入槽：决定功能页上传框数量，以及画布要补几个前置节点。"""
+
+    key: str
+    type: str  # image | video | audio | text
+    label: str
+    required: bool = True
+    multiple: bool = False
+    input_kind: str = ""  # 画布补建用。动作迁移的人物图是 character
+
+
+@dataclass(frozen=True)
+class ExecutionSpec:
+    """ComfyUI 工作流包与云端模型共用的执行契约。"""
+
+    target_type: str  # workflow | model
+    target_id: str
+    display_name: str
+    sub_capability: str
+    provider_type: str
+    provider_id: int | None = None
+    provider_name: str = ""
+    category: str = ""  # image | video | speech | llm
+    media_slots: tuple[MediaSlotSpec, ...] = ()
+    inputs: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "target_type": self.target_type,
+            "target_id": self.target_id,
+            "display_name": self.display_name,
+            "sub_capability": self.sub_capability,
+            "provider_type": self.provider_type,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "category": self.category,
+            "media_slots": [
+                {
+                    "key": slot.key,
+                    "type": slot.type,
+                    "label": slot.label,
+                    "required": slot.required,
+                    "multiple": slot.multiple,
+                    "input_kind": slot.input_kind or slot.type,
+                }
+                for slot in self.media_slots
+            ],
+            "inputs": self.inputs,
+        }

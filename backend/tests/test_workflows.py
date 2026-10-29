@@ -106,6 +106,7 @@ def test_minimax_h3_i2v_accel_roundtrip() -> None:
 
 H3_VIDEO_PACKS = (
     "minimax_h3_i2v",
+    "minimax_h3_i2v_ref",
     "minimax_h3_t2v",
     "minimax_h3_i2v_enhancer",
     "minimax_h3_t2v_enhancer",
@@ -115,7 +116,7 @@ H3_VIDEO_PACKS = (
 
 
 def test_minimax_h3_video_packs_use_turbo_lora_node() -> None:
-    """六个 H3 视频包共用剪枝主模型可用的 Turbo 节点，而不是标准 LoRA 加载器。"""
+    """这些 H3 视频包共用剪枝主模型可用的 Turbo 节点，而不是标准 LoRA 加载器。"""
     ema = "minimax_h3_turbo_v4_step600_ema.safetensors"
     for name in H3_VIDEO_PACKS:
         pack = get_pack(name)
@@ -754,3 +755,74 @@ def test_flux3_klein_packs() -> None:
     assert "images.image2" not in wf["127:146"]["inputs"]
     assert "images.image3" not in wf["127:146"]["inputs"]
     validate_pack(multi)
+
+
+def test_minimax_h3_orbit_one_or_two_images() -> None:
+    """一张图复制到尾帧；两张不同的图换双图提示词，并且不断开 last_frame。"""
+    from liberastra.providers.comfyui.workflow import _detach_unused_media_links, prepare_pack_inputs
+
+    pack = get_pack("minimax_h3_orbit")
+    assert pack.capability == "i2v"
+    assert pack.fps == 24
+    assert pack.accel == {}
+    assert pack.inputs["image"]["required"] is True
+    assert pack.inputs["image_2"]["required"] is False
+    assert pack.inputs["image_2"]["fallback"] == "image"
+    assert pack.inputs["prompt"]["required"] is False
+    node = pack.workflow["105:104"]["inputs"]
+    assert node["first_frame"] == ["114", 0]
+    assert node["last_frame"] == ["115", 0]
+    assert node["width"] == 768
+    assert node["height"] == 768
+    assert node["length"] == 73
+    assert node["prompt"] == pack.inputs["prompt"]["default"]
+    assert pack.workflow["116"]["class_type"] == "LoraLoaderModelOnly"
+    assert pack.workflow["116"]["inputs"]["lora_name"] == "minimax_h3_flf2v_lora_v1.safetensors"
+    assert pack.workflow["116"]["inputs"]["strength_model"] == 1.0
+    assert pack.workflow["105:9"]["inputs"]["steps"] == 28
+    assert pack.workflow["105:9"]["inputs"]["model"] == ["116", 0]
+    assert pack.workflow["105:11"]["inputs"]["vae_name"] == "minimax_h3_video_vae_int8_convrot.safetensors"
+    assert "LoraLoaderModelOnly" in pack.requirements["nodes"]
+    assert "loras/minimax_h3_flf2v_lora_v1.safetensors" in pack.requirements["models"]
+
+    one = prepare_pack_inputs(pack, {"image": "uploads/a.png"})
+    assert one["image_2"] == "uploads/a.png"
+    assert "prompt" not in one
+    wired = apply_inputs(pack, one)
+    assert wired["105:104"]["inputs"]["prompt"] == pack.inputs["prompt"]["default"]
+    assert wired["105:104"]["inputs"]["last_frame"] == ["115", 0]
+    _detach_unused_media_links(wired, pack, one)
+    assert wired["105:104"]["inputs"]["last_frame"] == ["115", 0]
+
+    two = prepare_pack_inputs(pack, {"image": "uploads/a.png", "image_2": "uploads/b.png"})
+    assert two["image_2"] == "uploads/b.png"
+    assert two["prompt"] == pack.inputs["prompt"]["distinct_image_2"]
+    assert two["prompt"].endswith("The outfit gradually changes during the orbit.")
+
+    custom = prepare_pack_inputs(
+        pack, {"image": "uploads/a.png", "image_2": "uploads/b.png", "prompt": "slow orbit"}
+    )
+    assert custom["prompt"] == "slow orbit"
+
+
+def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
+    """参考图进 ReferenceToVideo，不接 first_frame。自写提示词会补上 <Picture 1>。"""
+    from liberastra.providers.comfyui.workflow import prepare_pack_inputs
+
+    pack = get_pack("minimax_h3_i2v_ref")
+    assert pack.capability == "i2v"
+    node = pack.workflow["105:104"]
+    assert node["class_type"] == "MiniMaxH3ReferenceToVideo"
+    assert node["inputs"]["ref_images.ref_image_0"] == ["114", 0]
+    assert node["inputs"]["ref_image_size"] == "match"
+    assert "first_frame" not in node["inputs"]
+    assert "last_frame" not in node["inputs"]
+    assert "<Picture 1>" in pack.inputs["prompt"]["default"]
+    kept = prepare_pack_inputs(pack, {"image": "uploads/a.png", "prompt": "人物转身，环境音轻柔"})
+    assert kept["prompt"].startswith("参考 <Picture 1>")
+    assert kept["prompt"].endswith("人物转身，环境音轻柔")
+    tagged = prepare_pack_inputs(pack, {"image": "uploads/a.png", "prompt": "让 <Picture 1> 走路"})
+    assert tagged["prompt"] == "让 <Picture 1> 走路"
+    motion = get_pack("minimax_h3_motion")
+    untouched = prepare_pack_inputs(motion, {"image": "uploads/a.png", "prompt": "复刻动作"})
+    assert untouched["prompt"] == "复刻动作"

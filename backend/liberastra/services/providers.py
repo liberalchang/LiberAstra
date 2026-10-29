@@ -61,6 +61,25 @@ def build_adapter(
         return ComfyUIImage(record.base_url)
     if record.type == "openai_images":
         return OpenAIImages(record.base_url, api_key, default_model or "gpt-image-1", client=client)
+    if record.type == "volcengine_ark":
+        from liberastra.providers.vendors.volcengine.ark import VolcengineArk
+
+        return VolcengineArk(
+            record.base_url, api_key, client=client, timeout=timeout or 120.0
+        )
+    if record.type == "volcengine_speech":
+        from liberastra.providers.vendors.volcengine.speech import DoubaoSpeech
+
+        return DoubaoSpeech(record.base_url, api_key, client=client)
+    if record.type == "anthropic":
+        from liberastra.providers.vendors.cloud.anthropic import AnthropicLLM
+
+        return AnthropicLLM(record.base_url, api_key, **llm_kw)
+    from liberastra.providers.vendors.cloud.presets import CLOUD_TYPES
+
+    if record.type in CLOUD_TYPES:
+        extra_headers = {"x-goog-api-client": "liberastra/1.0"} if record.type == "google" else None
+        return OpenAICompatibleLLM(record.base_url, api_key, extra_headers=extra_headers, **llm_kw)
     raise ProviderError(f"未知 Provider 类型: {record.type}")
 
 
@@ -171,12 +190,118 @@ async def fetch_speech_catalog(record: Provider) -> dict[str, Any]:
 
 
 async def fetch_models(record: Provider) -> list[str]:
+    """拉取远端列表并写入 model_catalog。界面读目录，不能只改 models 字符串。"""
+    can_refresh = (
+        hasattr(build_adapter(record), "list_models")
+        or hasattr(build_adapter(record), "list_voices")
+        or record.type in {"volcengine_ark", "volcengine_speech"}
+    )
+    if can_refresh:
+        return await refresh_model_catalog(record)
     adapter = build_adapter(record)
     if hasattr(adapter, "list_models"):
         return await adapter.list_models()  # type: ignore[no-any-return]
     if hasattr(adapter, "list_voices"):
         return await adapter.list_voices()  # type: ignore[no-any-return]
     raise ProviderError(f"{record.type} 不支持拉取列表")
+
+
+def seed_model_catalog(record: Provider) -> None:
+    """新建带预设目录的服务商时写入模型，用户不用先点刷新也能看到开关。"""
+    from liberastra.providers.catalog import enabled_model_ids, merge_catalog, read_catalog
+    from liberastra.providers.vendors.cloud.presets import CLOUD_TYPES
+    from liberastra.providers.vendors.volcengine.presets import presets_for
+
+    if record.type not in {"volcengine_ark", "volcengine_speech", *CLOUD_TYPES}:
+        return
+    if read_catalog(record.extra):
+        return
+    catalog = merge_catalog([], [], presets_for(record.type))
+    _write_catalog(record, catalog)
+    record.models = enabled_model_ids(catalog)
+
+
+def _seed_saved_models(record: Provider) -> list[dict[str, Any]]:
+    """把重构前只存在 models 里的 ID 补进目录。Edge TTS 没有任何条目时给一个默认识别得到的音色。"""
+    from liberastra.providers.catalog import classify_remote, model_item, read_catalog
+
+    existing = read_catalog(record.extra)
+    ids = {item["id"] for item in existing}
+    for mid in list(record.models or []):
+        text = str(mid).strip()
+        if not text or text in ids:
+            continue
+        item = classify_remote(record.type, text)
+        if item is None:
+            continue
+        item["enabled"] = True
+        existing.append(item)
+        ids.add(text)
+    if record.type == "edge_tts" and not existing:
+        existing.append(
+            model_item(
+                "zh-CN-XiaoxiaoNeural",
+                label="晓晓",
+                category="tts",
+                sub_capabilities=["tts"],
+                enabled=True,
+            )
+        )
+    return existing
+
+
+def backfill_catalog(record: Provider) -> bool:
+    """已保存的模型 ID 还没进目录时写回去。返回是否改动了记录。"""
+    from liberastra.providers.catalog import enabled_model_ids, non_generative_model, read_catalog
+
+    before = read_catalog(record.extra)
+    seeded = _seed_saved_models(record)
+    for item in seeded:
+        subs = item.get("sub_capabilities") or []
+        if item.get("custom") or subs != ["chat"] or not non_generative_model(str(item.get("id") or "")):
+            continue
+        item["category"] = "unknown"
+        item["sub_capabilities"] = []
+    if seeded == before:
+        return False
+    _write_catalog(record, seeded)
+    record.models = enabled_model_ids(seeded)
+    return True
+
+
+def replace_model_catalog(record: Provider, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    from liberastra.providers.catalog import enabled_model_ids, normalize_model_item
+
+    catalog = [normalize_model_item(item) for item in items]
+    _write_catalog(record, catalog)
+    record.models = enabled_model_ids(catalog)
+    return catalog
+
+
+async def refresh_model_catalog(record: Provider) -> list[str]:
+    """拉取远端模型 ID，与预设表、用户开关合并。远端失败时保留已有目录。"""
+    from liberastra.providers.catalog import enabled_model_ids, merge_catalog
+    from liberastra.providers.vendors.volcengine.presets import presets_for
+
+    remote: list[str] = []
+    adapter = build_adapter(record)
+    if hasattr(adapter, "list_models"):
+        remote = await adapter.list_models()
+    catalog = merge_catalog(
+        _seed_saved_models(record),
+        remote,
+        presets_for(record.type),
+        provider_type=record.type,
+    )
+    _write_catalog(record, catalog)
+    record.models = enabled_model_ids(catalog)
+    return record.models
+
+
+def _write_catalog(record: Provider, catalog: list[dict[str, Any]]) -> None:
+    extra = dict(record.extra or {})
+    extra["model_catalog"] = catalog
+    record.extra = extra
 
 
 async def fetch_model_folder(record: Provider, folder: str) -> list[str]:

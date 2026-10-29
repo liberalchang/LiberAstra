@@ -58,10 +58,10 @@ export function checkConnection(
     const out = nodeOutputKind(sourceNode);
     if (out !== targetNode.data.mediaKind) return { ok: false, reason: "concat-kind" };
   }
-  // 语音转文字只收音频
+  // 语音转文字收音频或视频
   if (targetNode.data.kind === "speech" && targetNode.data.mode === "asr") {
     const out = nodeOutputKind(sourceNode);
-    if (out !== "audio") return { ok: false, reason: "concat-kind" };
+    if (out !== "audio" && out !== "video") return { ok: false, reason: "concat-kind" };
   }
   return { ok: true };
 }

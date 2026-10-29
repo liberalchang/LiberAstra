@@ -14,12 +14,13 @@ import {
   Loader2,
   Mic,
   Plus,
+  UsersRound,
   Video,
   Zap,
 } from "lucide-react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "@/api/client";
 import type {
@@ -40,6 +41,7 @@ export const MEDIA_ICONS = {
   video: Video,
   audio: AudioLines,
   text: FileText,
+  character: UsersRound,
 } as const;
 
 const STATUS_COLOR: Record<NodeRunStatus, string> = {
@@ -291,6 +293,42 @@ function PlusHandle({ nodeId, id }: { nodeId: string; id: string }) {
   );
 }
 
+/** 角色节点展示所选视角的图片，不把角色名和视角写成正文。 */
+function CharacterSlotPreview({ characterId, slot }: { characterId: number; slot: string }) {
+  const tx = useTx();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    setUrl(null);
+    setFailed(false);
+    api
+      .characterImage(characterId, slot)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [characterId, slot]);
+
+  if (url) {
+    return <img src={url} alt="" className="h-24 w-full rounded-lg bg-muted/40 object-contain" />;
+  }
+  return (
+    <div className="grid h-24 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">
+      {failed ? tx("预览加载失败") : tx("加载中")}
+    </div>
+  );
+}
+
 export function InputNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as InputNodeData;
@@ -302,6 +340,7 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
     video: tx("视频输入"),
     audio: tx("音频输入"),
     text: tx("文本输入"),
+    character: tx("角色输入"),
   };
   return (
     <>
@@ -317,6 +356,14 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
           <p className="line-clamp-3 min-h-10 text-xs text-muted-foreground">
             {d.text || tx("在右侧属性面板输入文本…")}
           </p>
+        ) : d.mediaKind === "character" ? (
+          d.characterId != null ? (
+            <CharacterSlotPreview characterId={d.characterId} slot={d.characterSlot || "front"} />
+          ) : (
+            <div className="grid h-24 place-items-center rounded-lg bg-muted/40 px-2 text-center text-xs text-muted-foreground">
+              {tx("未选择角色")}
+            </div>
+          )
         ) : d.assetId ? (
           <button
             type="button"
@@ -349,51 +396,40 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
   );
 }
 
+function PresetCapsules({
+  providerId,
+  targetLabel,
+}: {
+  providerId?: number | null;
+  targetLabel?: string;
+}) {
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders, staleTime: 60_000 });
+  const name = providers?.find((item) => item.id === providerId)?.name || "";
+  const pill = "max-w-[7.5rem] truncate rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground";
+  return (
+    <div className="flex gap-1">
+      <span className={pill}>{name || "—"}</span>
+      <span className={pill}>{targetLabel || "—"}</span>
+    </div>
+  );
+}
+
 export function FunctionNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as FunctionNodeData;
   const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const { data: groups } = useQuery({
-    queryKey: ["canvas-groups"],
-    queryFn: api.getCanvasGroups,
-    staleTime: 60_000,
-  });
-  const groupNames = Object.keys(groups ?? {});
   return (
     <>
       <Handle type="target" position={Position.Left} id={`in-${id}`} className={handleClass} />
       <NodeShell
         icon={<Zap className="size-3.5" />}
-        title={d.pack || tx("功能节点")}
-        badge={d.group || undefined}
+        title={d.presetTitle || d.pack || tx("功能节点")}
+        badge={undefined}
         status={d.run.status}
         selected={selected}
         invalid={invalid}
         footer={
-          <select
-            className="nodrag w-full rounded-md border border-border bg-background px-2 py-1 text-xs"
-            value={d.group}
-            onChange={(e) =>
-              // 与右侧属性面板同一行为:换组清空包与全部派生状态(两处此前不一致)
-              updateNodeData(id, {
-                group: e.target.value,
-                pack: "",
-                values: {},
-                outputKind: null,
-                accel: null,
-                bindings: {},
-              })
-            }
-            title={tx("所属（一批工作流包）；在右侧属性面板选择具体包")}
-          >
-            <option value="">{tx("选择所属…")}</option>
-            {groupNames.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
+          <PresetCapsules providerId={d.providerId} targetLabel={d.targetLabel || d.pack} />
         }
       >
         <ResultPreview run={d.run} expectedKind={d.outputKind ?? "image"} nodeId={id} />

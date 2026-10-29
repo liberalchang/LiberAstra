@@ -105,9 +105,17 @@ def canonical_speech_model(model: str) -> str:
     return key
 
 
+def catalog_line_model_id(model: str) -> str:
+    """菜单和供应商列表存的是「id · 名称 · 角色」，请求语音服务时只用 id。"""
+    raw = (model or "").strip()
+    if " · " in raw:
+        return raw.split(" · ", 1)[0].strip()
+    return raw
+
+
 def speech_form_model(model: str) -> str:
     """写入合成表单的模型名。别名展开，未知 id 原样传出。"""
-    raw = (model or "").strip()
+    raw = catalog_line_model_id(model)
     return SPEECH_ALIASES.get(raw, raw)
 
 
@@ -308,7 +316,7 @@ class LiberSpeech:
         if language:
             data["language"] = language
         # 空值和 OpenAI 默认名 whisper-1 走系统设置，仍为空则由语音服务 .env 决定。
-        chosen = (model or "").strip()
+        chosen = catalog_line_model_id(model or "")
         if chosen.lower() in {"", "default", "whisper", "whisper-1"}:
             chosen = self.default_asr_model
         if chosen:

@@ -61,6 +61,66 @@ export type TokenResponse = components["schemas"]["TokenResponse"];
 export type ProviderTypeInfo = components["schemas"]["ProviderTypeInfo"];
 export type CapabilitiesOut = components["schemas"]["CapabilitiesOut"];
 export type ProviderOut = components["schemas"]["ProviderOut"];
+
+/** 服务商模型目录里的一条。存在 Provider.extra.model_catalog。 */
+export interface ModelItem {
+  id: string;
+  label: string;
+  category: "llm" | "image" | "video" | "tts" | "asr" | string;
+  sub_capabilities: string[];
+  enabled: boolean;
+  custom: boolean;
+  /** 对话的最大输出，或火山图像 / 视频的表单默认值。未知模型不带这项。 */
+  params?: {
+    max_output?: number;
+    defaults?: Record<string, string | number | boolean>;
+  };
+}
+
+export interface MediaSlot {
+  key: string;
+  type: string;
+  label: string;
+  required: boolean;
+  multiple: boolean;
+  /** 画布补建的节点种类。动作迁移的人物图是 character。 */
+  input_kind?: string;
+}
+
+/** 工作流包与云端模型共用的执行契约。 */
+export interface ExecutionSpec {
+  target_type: "workflow" | "model" | string;
+  target_id: string;
+  display_name: string;
+  sub_capability: string;
+  provider_type: string;
+  provider_id: number | null;
+  provider_name: string;
+  category: string;
+  media_slots: MediaSlot[];
+  inputs: Record<string, WorkflowInputSpec>;
+}
+
+export interface CanvasMenuTarget {
+  provider_id: number | null;
+  target_type: "model" | "workflow" | string;
+  target_id: string;
+}
+
+export interface CanvasMenuItem {
+  id: string;
+  category: "speech" | "image" | "video" | string;
+  title: string;
+  hint: string;
+  sub_capability: string;
+  bind_mode: "auto" | "manual" | string;
+  manual_targets: CanvasMenuTarget[];
+  default_target: CanvasMenuTarget | null;
+  /** 关闭后不出现在画布功能菜单里。缺省视为开启。 */
+  enabled?: boolean;
+  /** 该能力的默认前置槽。还没绑定具体工作流或模型时，用它补输入节点。 */
+  media_slots?: MediaSlot[];
+}
 export type TestResult = components["schemas"]["TestResult"];
 
 export interface ProviderCreateInput {
@@ -403,6 +463,21 @@ export const api = {
   testProvider: (id: number) =>
     request<TestResult>(`/api/v1/providers/${id}/test`, { method: "POST" }),
   fetchProviderModels: (id: number) => request<string[]>(`/api/v1/providers/${id}/models`),
+  saveProviderCatalog: (id: number, models: ModelItem[]) =>
+    request<ProviderOut>(`/api/v1/providers/${id}/catalog`, {
+      method: "PUT",
+      body: JSON.stringify({ models }),
+    }),
+  executionSpecs: (subCapability?: string) =>
+    request<ExecutionSpec[]>(
+      `/api/v1/providers/execution-specs${subCapability ? `?sub_capability=${encodeURIComponent(subCapability)}` : ""}`,
+    ),
+  getCanvasMenu: () => request<CanvasMenuItem[]>("/api/v1/canvases/menu"),
+  saveCanvasMenu: (items: CanvasMenuItem[]) =>
+    request<CanvasMenuItem[]>("/api/v1/canvases/menu", {
+      method: "PUT",
+      body: JSON.stringify(items),
+    }),
   fetchProviderModelFolder: (id: number, folder: string) =>
     request<string[]>(`/api/v1/providers/${id}/models/${folder}`),
 
@@ -443,6 +518,8 @@ export const api = {
   deleteCharacter: (id: number) => request<void>(`/api/v1/characters/${id}`, { method: "DELETE" }),
   characterImage: (id: number, slot: string) =>
     requestBlob(`/api/v1/characters/${id}/image/${slot}`),
+  registerCharacterAsset: (id: number, slot: string) =>
+    request<AssetOut>(`/api/v1/characters/${id}/asset/${slot}`, { method: "POST" }),
   listAssets: (kind?: string, includeHidden?: boolean) => {
     const qs = [kind && `kind=${kind}`, includeHidden && "include_hidden=true"]
       .filter(Boolean)

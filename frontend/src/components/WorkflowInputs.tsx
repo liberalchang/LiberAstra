@@ -23,6 +23,8 @@ interface Props {
 }
 
 /** 常见参数名的中文兜底（manifest 未写 label 时使用）。 */
+
+export { WorkflowInputs as DynamicSchemaInputs };
 const KEY_LABELS: Record<string, string> = {
   prompt: "提示词",
   negative_prompt: "负面提示词",

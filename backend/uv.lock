@@ -1275,7 +1275,7 @@ wheels = [
 
 [[package]]
 name = "liberastra"
-version = "1.0.0"
+version = "1.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

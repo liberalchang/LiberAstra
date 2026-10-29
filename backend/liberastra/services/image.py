@@ -37,9 +37,10 @@ async def produce_images(
         return await adapter.generate(
             pack=pack, inputs=inputs or {}, on_progress=on_progress, wait_timeout=wait_timeout
         )
-    return await adapter.generate(
-        prompt=prompt, size=size, n=n, model=model, **(options or {})
-    )
+    extra = dict(options or {})
+    size = str(extra.pop("size", size))
+    extra.pop("model", None)
+    return await adapter.generate(prompt=prompt, size=size, n=n, model=model, **extra)
 
 
 async def run_image_generate_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:

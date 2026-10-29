@@ -18,7 +18,38 @@ from liberastra.services.canvas_graph import (
     substitute_prompt,
     topo_order,
 )
-from liberastra.services.canvas_run import _family_tokens
+from liberastra.services.canvas_run import _canvas_soundtrack, _family_tokens, _image_keys_to_fill
+from liberastra.services.workflows import get_pack
+
+
+def test_canvas_soundtrack_drops_user_duration() -> None:
+    avatar = get_pack("minimax_h3_avatar")
+    inputs = {"length": "80", "frames": "10", "prompt": "说话"}
+    extra = _canvas_soundtrack(
+        avatar,
+        {"audioMode": "reference", "bgmPath": "bgm/a.mp3", "bgmVolume": "0.3"},
+        inputs,
+    )
+    assert "length" not in inputs
+    assert "frames" not in inputs
+    assert extra["audio_mode"] == "model"
+    assert extra["bgm_path"] == "bgm/a.mp3"
+    assert extra["bgm_volume"] == 0.3
+
+    motion = get_pack("minimax_h3_motion")
+    motion_inputs = {"length": "40"}
+    motion_extra = _canvas_soundtrack(motion, {"audioMode": "reference", "bgmVolume": 0}, motion_inputs)
+    assert "length" not in motion_inputs
+    assert motion_extra["audio_mode"] == "reference"
+    assert motion_extra["bgm_volume"] == 0.0
+
+
+def test_orbit_canvas_does_not_expand_character_into_end_frame() -> None:
+    """只接一个角色时，结束画面留空，由 fallback 复制首帧。另接一张图才占尾帧。"""
+    pack = get_pack("minimax_h3_orbit")
+    keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
+    assert _image_keys_to_fill(pack, keys, 1) == ["image"]
+    assert _image_keys_to_fill(pack, keys, 2) == ["image", "image_2"]
 
 
 def _graph(nodes: list[dict], edges: list[dict]) -> dict:

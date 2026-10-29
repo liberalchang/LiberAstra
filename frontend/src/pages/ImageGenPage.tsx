@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api } from "@/api/client";
+import { enabledModels } from "@/lib/modelCatalog";
 import {
   AccelControl,
   buildInputsWithAccel,
@@ -42,6 +43,20 @@ export function ImageGenPage() {
   const [providerId, setProviderId] = usePersistentState<number | "">("image-generate:provider", "");
   const provider = imageProviders?.find((p) => p.id === providerId) ?? imageProviders?.[0];
   const isComfy = provider?.type === "comfyui";
+  const isArk = provider?.type === "volcengine_ark";
+  const arkModels = enabledModels(provider, "t2i");
+  const [arkModel, setArkModel] = usePersistentState("image-generate:ark-model", "");
+  const selectedArk = arkModels.find((item) => item.id === arkModel) ?? arkModels[0];
+  const { data: arkSpecs } = useQuery({
+    queryKey: ["execution-specs", "t2i"],
+    queryFn: () => api.executionSpecs("t2i"),
+    enabled: isArk,
+  });
+  const arkSpec = arkSpecs?.find((spec) => spec.target_id === selectedArk?.id && spec.target_type === "model");
+  const [arkExtra, setArkExtra] = usePersistentState<Record<string, string>>(
+    `image-generate:ark-extra:${selectedArk?.id ?? "none"}`,
+    {},
+  );
 
   const { data: packs } = useQuery({
     queryKey: ["workflows", "t2i"],
@@ -94,6 +109,8 @@ export function ImageGenPage() {
       api.generateImage({
         provider_id: provider?.id,
         workflow: isComfy ? pack?.name : undefined,
+        model: isArk ? selectedArk?.id : undefined,
+        options: isArk ? arkExtra : undefined,
         prompt: effectivePrompt,
         negative_prompt: negative,
         width: aspect.width,
@@ -139,6 +156,15 @@ export function ImageGenPage() {
                 ))}
               </select>
             </Field>
+            {isArk && (
+              <Field label={tx("模型")} hint={tx("只列出已启用、且支持文生图的模型。")}>
+                <select className={selectClass} value={selectedArk?.id ?? ""} onChange={(e) => setArkModel(e.target.value)}>
+                  {arkModels.map((item) => (
+                    <option key={item.id} value={item.id}>{item.label}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {isComfy && (
               <Field label={tx("工作流包")} hint={tx("ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。")}>
                 <WorkflowPackControl name={pack?.name} description={pack?.description}>
@@ -236,6 +262,14 @@ export function ImageGenPage() {
             />
           )}
 
+          {isArk && arkSpec && (
+            <WorkflowInputs
+              inputs={arkSpec.inputs}
+              values={arkExtra}
+              onChange={(key, value) => setArkExtra((current) => ({ ...current, [key]: value }))}
+              exclude={["prompt"]}
+            />
+          )}
           {isComfy && pack && (
             <WorkflowInputs
               inputs={pack.inputs}

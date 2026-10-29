@@ -43,6 +43,20 @@ def test_build_system_prompt_includes_scene_and_task() -> None:
     assert "中文" in text
 
 
+def test_video_tasks_require_camera_and_audio() -> None:
+    for task in ("t2v", "i2v", "quick_visual", "motion"):
+        text = build_system_prompt(
+            task,
+            user_prompt="海边走路",
+            extra_context="登场角色：林梦影。固定外观：黑长直。",
+        )
+        assert "背景音：" in text
+        assert "林梦影" in text
+        assert "推" in text
+    visual = build_system_prompt("quick_visual", user_prompt="海边")
+    assert "口播文案" not in visual
+
+
 def test_build_system_prompt_auto_keeps_task() -> None:
     text = build_system_prompt("i2v", scene="auto", user_prompt="slow camera pan")
     assert "当前功能" in text and "i2v" in text

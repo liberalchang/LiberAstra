@@ -1,7 +1,7 @@
 /** 画布底部工具栏（LibTv 风格）：添加节点 / 抓手-选择模式切换 / 整理 / 撤销重做。
  * 放在 bottom-center 悬浮 pill 里,让「怎么加节点、怎么移动画布」一眼可见。
  */
-import { Hand, LayoutGrid, MousePointer2, Plus, Redo2, Undo2 } from "lucide-react";
+import { Hand, LayoutGrid, Menu, MousePointer2, Plus, Redo2, Undo2 } from "lucide-react";
 import { Panel } from "@xyflow/react";
 
 import { useTx } from "@/i18n/tx";
@@ -14,11 +14,13 @@ export function CanvasBottomBar({
   tool,
   onToolChange,
   onAdd,
+  onMenu,
   onLayout,
 }: {
   tool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
-  onAdd: () => void;
+  onAdd: (anchor: HTMLElement) => void;
+  onMenu: () => void;
   onLayout: () => void;
 }) {
   const tx = useTx();
@@ -41,7 +43,10 @@ export function CanvasBottomBar({
         <Redo2 className="size-4" />
       </button>
       <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
-      <button type="button" className={btn} title={tx("添加节点")} aria-label={tx("添加节点")} onClick={onAdd}>
+      <button type="button" className={btn} title={tx("功能菜单")} aria-label={tx("功能菜单")} onClick={onMenu}>
+        <Menu className="size-4" />
+      </button>
+      <button type="button" className={btn} title={tx("添加节点")} aria-label={tx("添加节点")} onClick={(event) => onAdd(event.currentTarget)}>
         <Plus className="size-4" />
       </button>
       <button

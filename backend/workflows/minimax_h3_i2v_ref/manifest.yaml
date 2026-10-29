@@ -1,0 +1,118 @@
+name: minimax_h3_i2v_ref
+capability: i2v
+description: 'MiniMax H3 参考图生视频
+
+  上传的图片只提供外观，不锁第一帧。角色、服装和脸从参考图来，镜头和起始构图按提示词生成。可选 Turbo 加速。'
+fps: 24
+inputs:
+  image:
+    node: '114'
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图片
+    description: 只借用外观。可以是一张照片，也可以是整张定妆照。不会被当成视频第一帧。
+  prompt:
+    node: 105:104
+    field: inputs.prompt
+    type: str
+    required: false
+    label: 提示词
+    description: 留空使用参考图原句。自己写动作时保留 <Picture 1>，否则执行时会自动补上。
+    default: 参考 <Picture 1> 的脸、发型和服装，生成一段带同步环境音的连续镜头。这张图只提供外观，不是视频第一帧，镜头可以从别的构图开始。
+  width:
+    node: 105:104
+    field: inputs.width
+    type: int
+    default: 1344
+    min: 512
+    max: 1920
+    multiple: 32
+  height:
+    node: 105:104
+    field: inputs.height
+    type: int
+    default: 768
+    min: 512
+    max: 1920
+    multiple: 32
+  length:
+    node: 105:104
+    field: inputs.length
+    type: int
+    default: 124
+    min: 73
+    max: 362
+    align_base: 17
+    align_offset: 5
+    label: 帧数
+  seed:
+    node: '105:15'
+    field: inputs.noise_seed
+    type: int
+    default: -1
+  steps:
+    node: '105:9'
+    field: inputs.steps
+    type: int
+    default: 20
+    min: 4
+    max: 50
+  sampler_name:
+    node: '105:17'
+    field: inputs.sampler_name
+    type: str
+    default: res_multistep
+    label: 采样器
+  clip_name:
+    node: '105:13'
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+  unet_name:
+    node: '105:6'
+    field: inputs.unet_name
+    type: str
+    default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（FL2VA）
+outputs:
+  node: '92'
+  key: images
+accel:
+  label: Turbo 加速
+  family: minimax_h3
+  default_enabled: false
+  node: 105:200
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: _ema
+    recommended: minimax_h3_turbo_v4_step600_ema.safetensors
+  strength:
+    field: inputs.strength
+    default: 1.0
+    min: 0.5
+    max: 1.5
+  preset:
+    steps: 8
+    sampler_name: euler
+requirements:
+  nodes:
+  - MiniMaxH3ReferenceToVideo
+  - MiniMaxH3TurboLoRA
+  - SamplerCustomAdvanced
+  - SaveVideo
+  - CreateVideo
+  models:
+  - diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+  - text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  - vae/minimax_h3_video_vae_fp16.safetensors
+  - vae/minimax_h3_audio_vae_fp32.safetensors
+  - loras/minimax_h3_turbo_v4_step600_ema.safetensors
+llm_note: '事实:MiniMax H3 参考图生视频。图片进 MiniMaxH3ReferenceToVideo 的 ref_images，ref_image_size 为 match。没有 first_frame，参考图不锁第一帧。官方 TE；输出带同步音效；可选 Turbo LoRA。
+
+  写作指导:必须保留 <Picture 1> 指代参考图。写镜头、动作、环境和同步声音。不要把参考图写成视频开头的定格画面。'

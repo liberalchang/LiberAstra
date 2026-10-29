@@ -109,8 +109,135 @@ def apply_split(character: Character, turnaround: bytes) -> None:
     character.portrait_path = save_character_bytes(portrait, ".png")
 
 
+BODY_VIEWS = ("front", "side", "back")
+REF_VIEWS = ("portrait", "front", "side", "back")
+
+
+def reference_views(capability: str, slot_count: int, primary: str) -> list[str]:
+    """按下游图片槽位数决定送哪些视角。口播只送特写；动作迁移只送全身。
+
+    选了定妆照时只送整张四段式原图，不再拆成正面、侧面、背面或特写。
+    """
+    if slot_count <= 0:
+        return []
+    if primary == "turnaround":
+        return ["turnaround"]
+    primary = primary if primary in REF_VIEWS else "front"
+    if capability == "avatar":
+        return ["portrait"]
+    if capability == "motion":
+        return list(BODY_VIEWS)[:slot_count]
+    if slot_count <= 1:
+        return [primary]
+    # 第一张是这一镜的入镜视角，其余槽补还没用到的全身视角。特写只在入镜就是特写时出现。
+    ordered = [primary]
+    for view in BODY_VIEWS:
+        if view not in ordered:
+            ordered.append(view)
+    return ordered[:slot_count]
+
+
+def _paths_for_views(paths: dict[str, str], views: list[str]) -> list[str]:
+    """按视角取已有文件。跳过缺图和重复路径。整张定妆照只在视图列表写明 turnaround 时使用。"""
+    chosen: list[str] = []
+    seen: set[str] = set()
+    for view in views:
+        if view not in SLOTS:
+            continue
+        path = paths.get(view) or ""
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        chosen.append(path)
+    return chosen
+
+
+def expand_reference_paths(capability: str, slot_count: int, items: list[dict[str, Any]]) -> list[str]:
+    """把普通图片和角色节点展开成工作流图片槽。
+
+    只有一个角色时，普通图片先占槽，剩下的槽按 reference_views 补视角。
+    多个角色时，每个角色只送自己的入镜视角，顺序跟连线一致。
+    """
+    if slot_count <= 0:
+        return []
+    characters = [item for item in items if item.get("type") == "character"]
+    plains = [item for item in items if item.get("type") == "path"]
+    if len(characters) == 1:
+        if len(plains) >= slot_count:
+            return [str(item["path"]) for item in plains][:slot_count]
+        remaining = slot_count - len(plains)
+        views = reference_views(capability, remaining, str(characters[0].get("primary") or "front"))
+        result: list[str] = []
+        for item in items:
+            if item.get("type") == "path":
+                result.append(str(item["path"]))
+            elif item.get("type") == "character":
+                result.extend(_paths_for_views(item.get("paths") or {}, views))
+        return result[:slot_count]
+    result = []
+    for item in items:
+        if item.get("type") == "path":
+            result.append(str(item["path"]))
+        elif item.get("type") == "character":
+            primary = str(item.get("primary") or "front")
+            result.extend(_paths_for_views(item.get("paths") or {}, [primary]))
+    return result[:slot_count]
+
+
+def reference_paths(character: Character, capability: str, slot_count: int, primary: str) -> list[str]:
+    """从角色档取出这一次生成要用的图片路径。"""
+    paths = {
+        view: slot_path(character, view) or ""
+        for view in SLOTS
+    }
+    chosen = _paths_for_views(paths, reference_views(capability, max(slot_count, 1), primary))
+    if not chosen:
+        raise ProviderError("这个角色还没有可用的单人图")
+    return chosen
+
+
+def ensure_character_asset(db: Session, character: Character, slot: str):  # noqa: ANN201
+    """把已有的角色视角登记成图片资产。同一角色同一视角同一文件只登记一次。"""
+    from sqlalchemy import select
+
+    from liberastra.models import Asset
+    from liberastra.storage import create_asset
+
+    if slot not in SLOTS:
+        raise ProviderError("视角不存在")
+    rel = slot_path(character, slot)
+    if not rel:
+        raise ProviderError("这个视角还没有图片")
+    rows = db.scalars(
+        select(Asset).where(Asset.owner_id == character.owner_id, Asset.kind == "image")
+    ).all()
+    for asset in rows:
+        meta = asset.meta or {}
+        same_character = meta.get("character_id") == character.id and meta.get("character_slot") == slot
+        if same_character and asset.path == rel:
+            return asset
+    return create_asset(
+        db,
+        kind="image",
+        rel_path=rel,
+        owner_id=character.owner_id,
+        meta={
+            "character_id": character.id,
+            "character_slot": slot,
+            "character_name": character.name,
+        },
+    )
+
+
 def paths_for_task(character: Character, view: str, *, multi: bool) -> list[str]:
-    """按任务取图。多视角任务只用正/侧/背全身图，单图任务按所选视角取一张。"""
+    """按任务取图。多视角任务只用正/侧/背全身图，单图任务按所选视角取一张。
+
+    定妆照是整张四段式原图，选中后不再改送切分后的单人图。
+    """
+    if view == "turnaround":
+        if not character.turnaround_path:
+            raise ProviderError("这个角色还没有定妆照")
+        return [character.turnaround_path]
     if multi:
         ordered = [character.front_path or character.portrait_path, character.side_path, character.back_path]
         paths = [path for path in ordered if path]
@@ -196,7 +323,7 @@ def slot_path(character: Character, slot: str) -> str | None:
     attr = _SLOT_ATTR.get(slot)
     if attr is None:
         return None
-    return getattr(character, attr)
+    return getattr(character, attr, None)
 
 
 def _sheet_inputs(pack_name: str, prompt: str) -> dict[str, Any]:

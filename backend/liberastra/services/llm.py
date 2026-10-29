@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from liberastra.jobs.manager import JobContext, JobManager
 from liberastra.models import Job, Provider
+from liberastra.providers.catalog import read_catalog
 from liberastra.services.providers import build_llm_adapter
 
 
@@ -43,10 +44,23 @@ async def run_chat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str,
     text = await adapter.chat(
         model=job.model or "",
         messages=job.params.get("messages", []),
-        **job.params.get("options", {}),
+        **_chat_options(provider, job.model or "", job.params.get("options") or {}),
     )
     ctx.report(db, job, progress=1.0)
     return [{"type": "text", "content": text}]
+
+
+def _chat_options(provider: Provider, model: str, options: dict[str, Any]) -> dict[str, Any]:
+    """请求里已经带了 max_tokens 就尊重请求。否则用模型设置里的最大输出。"""
+    if options.get("max_tokens"):
+        return options
+    for item in read_catalog(provider.extra):
+        if item.get("id") != model:
+            continue
+        tokens = (item.get("params") or {}).get("max_output")
+        if tokens:
+            return {**options, "max_tokens": int(tokens)}
+    return options
 
 
 def register_llm_jobs(manager: JobManager) -> None:

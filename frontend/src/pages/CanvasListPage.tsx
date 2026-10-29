@@ -1,9 +1,11 @@
 /** 画布列表页：卡片网格 + 新建 / 复制 / 删除。画布即资源,点卡片进入编辑器继续编辑。 */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Plus, Trash2, Waypoints } from "lucide-react";
+import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, type CanvasListOut } from "@/api/client";
+import { CanvasMenuSettings } from "@/components/canvas/CanvasMenuSettings";
 import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { useTx } from "@/i18n/tx";
@@ -59,6 +61,7 @@ export function CanvasListPage() {
   const tx = useTx();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [view, setView] = useState<"list" | "menu">("list");
   const { data, isLoading } = useQuery({ queryKey: ["canvases"], queryFn: api.listCanvases });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["canvases"] });
@@ -87,13 +90,23 @@ export function CanvasListPage() {
         title={tx("画布")}
         description={tx("把输入、生成与合成编排成可视化流程；节点结果可保存到资源库。")}
       />
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">
+          <button type="button" className={view === "list" ? "rounded-md bg-background px-3 py-1" : "px-3 py-1"} onClick={() => setView("list")}>
+            {tx("画布")}
+          </button>
+          <button type="button" className={view === "menu" ? "rounded-md bg-background px-3 py-1" : "px-3 py-1"} onClick={() => setView("menu")}>
+            {tx("菜单设置")}
+          </button>
+        </div>
+        <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending || view === "menu"}>
           <Plus className="size-4" />
           {tx("新建画布")}
         </Button>
       </div>
-      {isLoading ? (
+      {view === "menu" ? (
+        <CanvasMenuSettings />
+      ) : isLoading ? (
         <p className="text-sm text-muted-foreground">{tx("加载中…")}</p>
       ) : !data?.length ? (
         <div className="grid h-48 place-items-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">

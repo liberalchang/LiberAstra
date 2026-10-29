@@ -43,6 +43,7 @@ import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { cn, formatStepName } from "@/lib/utils";
 import { useTx } from "@/i18n/tx";
+import { characterPromptContext, CHARACTER_VIEWS } from "@/lib/characterPrompt";
 
 const ASPECTS = [
   { value: "9:16", label: "9:16 竖屏" },
@@ -206,13 +207,20 @@ export function VideoQuickPage() {
   );
   const [stylePrefix, setStylePrefix] = usePersistentState("video-quick:style-prefix", "");
   const [characterId, setCharacterId] = usePersistentState<number | "">("video-quick:character", "");
+  const [characterView, setCharacterView] = usePersistentState("video-quick:character-view", "front");
   const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
-  const { data: videoPacks } = useQuery({
-    // 逐镜生成是文生视频（只有提示词、无首帧图），精确按能力筛选
+  const character = characters?.find((item) => item.id === characterId) ?? null;
+  const { data: t2vPacks } = useQuery({
     queryKey: ["workflows", "t2v"],
     queryFn: () => api.listWorkflows("t2v"),
     enabled: tpl?.type === "video",
   });
+  const { data: i2vPacks } = useQuery({
+    queryKey: ["workflows", "i2v"],
+    queryFn: () => api.listWorkflows("i2v"),
+    enabled: tpl?.type === "video" && characterId !== "",
+  });
+  const videoPacks = characterId !== "" ? [...(t2vPacks ?? []), ...(i2vPacks ?? [])] : t2vPacks;
   const [videoProviderId, setVideoProviderId] = usePersistentState<number | "">("video-quick:video-provider", "");
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
   const [videoWorkflow, setVideoWorkflow] = usePersistentState("video-quick:video-workflow", "");
@@ -291,6 +299,10 @@ export function VideoQuickPage() {
   const [ttsExtra, setTtsExtra] = usePersistentState<Record<string, string>>("video-quick:tts-extra", {});
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-quick:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("video-quick:voice-name", "");
+  useEffect(() => {
+    if (characterId === "" || voiceRecordId !== "") return;
+    if (character?.voice_record_id) setVoiceRecordId(character.voice_record_id);
+  }, [character, characterId, setVoiceRecordId, voiceRecordId]);
   const [speechLang, setSpeechLang] = usePersistentState("video-quick:speech-lang", "zh");
 
   // ---- ④ 背景音乐 ----
@@ -368,6 +380,7 @@ export function VideoQuickPage() {
       language: !ttsIsComfy && isLibraryVoice ? speechLanguage(speechLang, speechModel) : undefined,
       style_prefix: stylePrefix,
       character_id: characterId === "" ? undefined : characterId,
+      character_view: characterView,
       storyboard: board,
       storyboard_only: storyboardOnly,
       optimize_visuals: optimize,
@@ -581,6 +594,11 @@ export function VideoQuickPage() {
                   task="quick_visual"
                   aspect={aspect}
                   workflow={tpl?.type === "video" ? videoPack?.name : imagePack?.name}
+                  extraContext={
+                    character
+                      ? characterPromptContext(character.name, character.description, characterView)
+                      : undefined
+                  }
                   placeholder={tx("输入口播文案…")}
                   minRowsClass="min-h-28"
                 />
@@ -769,7 +787,14 @@ export function VideoQuickPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label={tx("视频工作流")} hint={tx("每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。")}>
+                <Field
+                  label={tx("视频工作流")}
+                  hint={
+                    character
+                      ? tx("选了角色后可以改用图生视频包。每镜按入镜视角送一张角色图，用来锁住同一个人。")
+                      : tx("每个分镜跑一遍该工作流。带 Guide 的包（如 *_enhancer）会在包内增强提示词；不带的包（如 *_uncensored）不会。与上方 LLM 开关无关。")
+                  }
+                >
                   <WorkflowPackControl name={videoPack?.name} description={videoPack?.description}>
                     <select
                       className={selectClass}
@@ -781,6 +806,26 @@ export function VideoQuickPage() {
                       ))}
                     </select>
                   </WorkflowPackControl>
+                </Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={tx("登场角色")} hint={tx("可选。外观会写进每镜画面，并在图生视频包里送入这一镜的角色图。")}>
+                  <select className={selectClass} value={characterId} onChange={(e) => setCharacterId(e.target.value ? Number(e.target.value) : "")}>
+                    <option value="">{tx("不指定")}</option>
+                    {characters?.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={tx("入镜视角")} hint={tx("单张参考图用这个视角。选了定妆照会整张送入每一镜；其余视角可以按镜轮换。")}>
+                  <select className={selectClass} value={characterView} onChange={(e) => setCharacterView(e.target.value)} disabled={!character}>
+                    {CHARACTER_VIEWS.map(([key, label]) => (
+                      <option key={key} value={key}>{tx(label)}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={tx("风格前缀")} hint={tx("加在每个画面提示词前面，保持全片风格统一，可以留空。")}>
+                  <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder={tx("例如：电影感，浅景深，")} />
                 </Field>
               </div>
               {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (

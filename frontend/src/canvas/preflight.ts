@@ -106,7 +106,8 @@ export function validateCanvas(
       const promptSpec = pack.inputs["prompt"];
       const effectiveEmpty =
         !f.prompt.trim() && !(f.promptUseOptimized && (f.promptOptimized ?? "").trim());
-      if (promptSpec?.required && effectiveEmpty) {
+      const promptFilledByRunner = pack.capability === "avatar" || pack.capability === "motion";
+      if (promptSpec?.required && effectiveEmpty && !promptFilledByRunner) {
         issues.push({ nodeId: node.id, message: "提示词为空" });
       }
       continue;
@@ -117,6 +118,8 @@ export function validateCanvas(
       if (!hasOutgoing(node.id)) continue; // 未连接的输入节点是摆设,不阻断
       if (i.mediaKind === "text") {
         if (!(i.text ?? "").trim()) issues.push({ nodeId: node.id, message: "文本输入为空" });
+      } else if (i.mediaKind === "character") {
+        if (i.characterId == null) issues.push({ nodeId: node.id, message: "未选择角色" });
       } else if (i.assetId == null) {
         issues.push({ nodeId: node.id, message: `未选择${MEDIA_LABEL[i.mediaKind]}文件` });
       }
@@ -128,8 +131,13 @@ export function validateCanvas(
       if (s.mode === "tts") {
         if (!(s.text ?? "").trim()) issues.push({ nodeId: node.id, message: "待合成文本为空" });
         if (!s.voiceRecordId) issues.push({ nodeId: node.id, message: "未选择音色" });
-      } else if (!incoming(node.id).some((n) => nodeOutputKind(n) === "audio")) {
-        issues.push({ nodeId: node.id, message: "缺少音频输入" });
+      } else if (
+        !incoming(node.id).some((n) => {
+          const kind = nodeOutputKind(n);
+          return kind === "audio" || kind === "video";
+        })
+      ) {
+        issues.push({ nodeId: node.id, message: "缺少音频或视频输入" });
       }
       continue;
     }

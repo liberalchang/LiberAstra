@@ -55,14 +55,16 @@ class OpenAICompatibleLLM:
         *,
         client: httpx.AsyncClient | None = None,
         timeout: float = 300.0,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._client = client
         self._timeout = timeout
+        self._extra_headers = dict(extra_headers or {})
 
     def _headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", **self._extra_headers}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers

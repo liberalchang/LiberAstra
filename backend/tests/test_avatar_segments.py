@@ -13,6 +13,8 @@ from liberastra.pipelines.simple import (
     max_reference_video_seconds,
     motion_windows,
     render_avatar_takes,
+    render_motion_takes,
+    slice_audio_takes,
     split_avatar_script,
     split_text_half,
 )
@@ -79,6 +81,108 @@ def test_prompt_uses_only_this_line() -> None:
     prompt = avatar_segment_prompt("第二句。", "")
     assert "第二句。" in prompt
     assert "第一句" not in prompt
+
+
+def test_prompt_without_spoken_line_keeps_visual_only() -> None:
+    assert "台词" not in avatar_segment_prompt("", "缓慢推近")
+    assert avatar_segment_prompt("", "缓慢推近") == "缓慢推近"
+    assert "口型" in avatar_segment_prompt("", "")
+
+
+def test_slice_audio_takes_follow_probed_duration(tmp_path: Path) -> None:
+    calls: list[tuple[float, float]] = []
+
+    async def _probe_short(_path: Path) -> float:
+        return 5.0
+
+    async def probe(path: Path) -> float:
+        if path.name.startswith("avatar_a_"):
+            return 8.0
+        return 20.0
+
+    async def slice_audio(audio: Path, start: float, duration: float, out: Path) -> None:
+        calls.append((start, duration))
+        out.write_bytes(b"a")
+
+    takes = asyncio.run(
+        slice_audio_takes(
+            tmp_path / "in.mp3",
+            ceiling=8,
+            rel_path="outputs/in.mp3",
+            work=lambda name: tmp_path / name,
+            rel_of=lambda path: path.name,
+            probe=probe,
+            slice_audio=slice_audio,
+        )
+    )
+    assert [item[0] for item in takes] == ["", "", ""]
+    assert calls == [(0.0, 8), (8.0, 8), (16.0, 4.0)]
+    short = asyncio.run(
+        slice_audio_takes(
+            tmp_path / "short.mp3",
+            ceiling=15,
+            rel_path="outputs/short.mp3",
+            work=lambda name: tmp_path / name,
+            rel_of=lambda path: f"rel/{path.name}",
+            probe=_probe_short,
+            slice_audio=slice_audio,
+        )
+    )
+    assert short == [("", "outputs/short.mp3", 5.0)]
+
+
+def test_render_motion_chains_last_frame_and_ignores_user_length(tmp_path: Path) -> None:
+    seen: list[dict[str, Any]] = []
+
+    async def generate(inputs: dict[str, Any], on_progress) -> list[tuple[str, bytes]]:
+        seen.append(dict(inputs))
+        on_progress(1.0)
+        return [("a.mp4", f"v{len(seen)}".encode())]
+
+    async def slice_video(video: Path, start: float, duration: float, out: Path, **_kwargs: Any) -> None:
+        out.write_bytes(b"ref")
+
+    async def trim(src: Path, dst: Path, seconds: float, fps: float) -> None:
+        dst.write_bytes(src.read_bytes())
+
+    async def last_frame(video: Path, png: Path, fps: float = 24) -> None:
+        png.write_bytes(b"png")
+
+    async def concat(paths: list[Path], out: Path, *, list_file: Path) -> None:
+        list_file.write_text("ok", encoding="utf-8")
+        out.write_bytes(b"".join(path.read_bytes() for path in paths))
+
+    def work(name: str) -> Path:
+        return tmp_path / name
+
+    final = asyncio.run(
+        render_motion_takes(
+            source=tmp_path / "ref.mp4",
+            image_paths=["face.png", "side.png"],
+            prompt_text="跟着动",
+            base_inputs={"length": 50, "width": 512},
+            windows=[(0.0, 124), (5.0, 90)],
+            fps=24,
+            video_key="video",
+            image_keys=["image", "image_2"],
+            generate=generate,
+            work=work,
+            rel_of=lambda path: path.name,
+            report=lambda _progress, _step: None,
+            cancelled=lambda: False,
+            slice_video=slice_video,
+            trim_video=trim,
+            last_frame=last_frame,
+            concat=concat,
+        )
+    )
+    assert final is not None and final.exists()
+    assert seen[0]["length"] == 124
+    assert seen[0]["image"] == "face.png"
+    assert seen[0]["image_2"] == "side.png"
+    assert seen[1]["length"] == 90
+    assert seen[1]["image"] == "last_00.png"
+    assert seen[1]["image_2"] == "side.png"
 
 
 def test_render_chains_last_frame_and_overrides_length(tmp_path: Path) -> None:

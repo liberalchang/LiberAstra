@@ -5,7 +5,7 @@
  */
 import type { Edge, Node } from "@xyflow/react";
 
-export type MediaKind = "image" | "video" | "audio" | "text";
+export type MediaKind = "image" | "video" | "audio" | "text" | "character";
 export type CanvasNodeKind = "input" | "function" | "concat" | "speech";
 export type ConcatMediaKind = "audio" | "video";
 export type SpeechMode = "tts" | "asr";
@@ -49,6 +49,11 @@ export interface InputNodeData extends Record<string, unknown> {
   text?: string;
   /** 输出变量名(输入节点不做变换,变量即其资源引用);默认 input_{类型}_{n} */
   varName?: string;
+  /** 角色输入：一个人，入镜视角在下游按槽位数展开 */
+  characterId?: number | null;
+  characterSlot?: string;
+  characterName?: string;
+  characterDescription?: string;
   run: NodeRunState;
 }
 
@@ -56,8 +61,16 @@ export interface FunctionNodeData extends Record<string, unknown> {
   kind: "function";
   /** 所属（工作流包分组名） */
   group: string;
-  /** 选中的工作流包名 */
+  /** 选中的工作流包名。云端模型节点为空。 */
   pack: string;
+  /** 画布菜单项。有它时卡片用简称，属性面板按该能力过滤。 */
+  presetId?: string;
+  presetTitle?: string;
+  subCapability?: string;
+  targetType?: string;
+  targetId?: string;
+  targetLabel?: string;
+  providerId?: number | null;
   /** manifest 参数值（字符串化，提交时后端按类型转换） */
   values: Record<string, string>;
   /** Turbo LoRA 等加速配置（__accel 保留键） */
@@ -74,6 +87,11 @@ export interface FunctionNodeData extends Record<string, unknown> {
   varName?: string;
   /** 输入槽绑定:包媒体参数名 → 上游节点输出变量名(未绑定的槽按类型顺序自动映射) */
   bindings?: Record<string, string>;
+  /** 动作迁移声音来源。数字人固定为模型音轨。 */
+  audioMode?: "model" | "reference";
+  /** 音乐库相对路径，如 bgm/name.mp3。空表示不混背景音乐。 */
+  bgmPath?: string;
+  bgmVolume?: number;
   run: NodeRunState;
 }
 
@@ -89,6 +107,9 @@ export interface ConcatNodeData extends Record<string, unknown> {
 
 export interface SpeechNodeData extends Record<string, unknown> {
   kind: "speech";
+  /** 来源菜单项。有它时属性里的服务商和模型按该菜单的匹配方式过滤。 */
+  presetId?: string;
+  presetTitle?: string;
   /** tts=文字转语音(产音频);asr=语音转文字(吃音频,产文本/字幕) */
   mode: SpeechMode;
   /** tts 的文本内容,支持 {{varName}} */
@@ -103,8 +124,10 @@ export interface SpeechNodeData extends Record<string, unknown> {
   model?: string;
   /** Comfy 语音工作流包名(tts) */
   workflow?: string;
-  /** asr 语言(空=自动) */
+  /** asr 语言(空=自动)；Liber Speech 的朗读语言也写在这里 */
   language?: string;
+  /** tts: mp3 / wav / ogg_opus。asr: txt / json / srt / vtt，空为自动。 */
+  format?: string;
   /** 输出变量名;tts → output_audio_n,asr → output_text_n */
   varName?: string;
   run: NodeRunState;
@@ -126,6 +149,8 @@ export function createDefaultNodeData(
       assetId: null,
       text: "",
       varName: "",
+      characterId: null,
+      characterSlot: mediaKind === "character" ? "front" : undefined,
       run: idleRun(),
     };
   }
@@ -182,6 +207,16 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       versions,
       text: typeof data.text === "string" ? data.text : "",
       varName: typeof data.varName === "string" ? data.varName : "",
+      characterId: data.characterId == null ? null : Number(data.characterId),
+      characterSlot:
+        typeof data.characterSlot === "string"
+          ? data.characterSlot
+          : data.mediaKind === "character"
+            ? "front"
+            : undefined,
+      characterName: typeof data.characterName === "string" ? data.characterName : undefined,
+      characterDescription:
+        typeof data.characterDescription === "string" ? data.characterDescription : "",
       run: normalizeRun(data.run),
     };
   }
@@ -197,6 +232,8 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
   if (kind === "speech") {
     return {
       kind: "speech",
+      presetId: typeof data.presetId === "string" ? data.presetId : "",
+      presetTitle: typeof data.presetTitle === "string" ? data.presetTitle : "",
       mode: data.mode === "asr" ? "asr" : "tts",
       text: typeof data.text === "string" ? data.text : "",
       providerId: data.providerId == null ? null : Number(data.providerId),
@@ -205,6 +242,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       model: typeof data.model === "string" ? data.model : "",
       workflow: typeof data.workflow === "string" ? data.workflow : "",
       language: typeof data.language === "string" ? data.language : "",
+      format: typeof data.format === "string" ? data.format : "",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
     };
@@ -213,6 +251,13 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
     kind: "function",
     group: typeof data.group === "string" ? data.group : "",
     pack: typeof data.pack === "string" ? data.pack : "",
+    presetId: typeof data.presetId === "string" ? data.presetId : "",
+    presetTitle: typeof data.presetTitle === "string" ? data.presetTitle : "",
+    subCapability: typeof data.subCapability === "string" ? data.subCapability : "",
+    targetType: typeof data.targetType === "string" ? data.targetType : "",
+    targetId: typeof data.targetId === "string" ? data.targetId : "",
+    targetLabel: typeof data.targetLabel === "string" ? data.targetLabel : "",
+    providerId: data.providerId == null || data.providerId === "" ? null : Number(data.providerId),
     values:
       data.values && typeof data.values === "object"
         ? Object.fromEntries(
@@ -227,6 +272,9 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
     promptUseOptimized: Boolean(data.promptUseOptimized),
     outputKind: (data.outputKind as MediaKind | null) ?? null,
     varName: typeof data.varName === "string" ? data.varName : "",
+    audioMode: data.audioMode === "reference" ? "reference" : "model",
+    bgmPath: typeof data.bgmPath === "string" ? data.bgmPath : "",
+    bgmVolume: Number.isFinite(Number(data.bgmVolume)) ? Number(data.bgmVolume) : 0.2,
     bindings:
       data.bindings && typeof data.bindings === "object"
         ? Object.fromEntries(
@@ -240,8 +288,10 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
 /** 功能节点的产物类型由包 capability 决定（执行前用于连线兼容判断）。 */
 export function outputKindOfCapability(capability: string | undefined): MediaKind | null {
   if (!capability) return null;
-  if (["t2i", "i2i", "upscale"].includes(capability)) return "image";
-  if (["t2v", "i2v", "avatar", "motion"].includes(capability)) return "video";
+  if (["t2i", "i2i", "i2i_single", "i2i_multi", "inpaint", "color_grade", "upscale"].includes(capability)) return "image";
+  if (["t2v", "i2v", "i2v_first", "i2v_flf", "i2v_orbit", "i2v_enhance", "t2v_enhance", "v2v_ref", "avatar", "motion"].includes(capability)) return "video";
+  if (["analysis", "video_analysis", "asr"].includes(capability)) return "text";
+  if (capability === "tts") return "audio";
   return null;
 }
 
@@ -251,7 +301,12 @@ export function nodeOutputKind(
   capabilityOf?: (pack: string) => string | undefined,
 ): MediaKind | null {
   const data = node.data;
-  if (data.kind === "input") return data.mediaKind === "text" ? null : data.mediaKind;
+  if (data.kind === "input") {
+    if (data.mediaKind === "text") return null;
+    // 角色节点产出的是图片，下游按图片槽接收。
+    if (data.mediaKind === "character") return "image";
+    return data.mediaKind;
+  }
   if (data.kind === "concat") return data.mediaKind;
   if (data.kind === "speech") return data.mode === "tts" ? "audio" : null;
   // 功能节点:选包时写入的 outputKind 是权威;查表只是兜底。

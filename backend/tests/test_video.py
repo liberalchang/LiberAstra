@@ -279,6 +279,221 @@ def test_assets_subtitle_style(
     assert seen[0]["subtitle_color"] == "#FFCC00"
 
 
+def test_quick_video_prefixes_cleaned_appearance(
+    client: TestClient, auth_header: dict[str, str], video_providers: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import test_characters
+
+    created = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={
+            "name": "林梦影",
+            "description": "黑长直。16:9横版角色设定图，四个视角。",
+            "auto_split": "true",
+        },
+        files={"turnaround": ("sheet.png", test_characters._sheet(), "image/png")},
+    )
+    assert created.status_code == 201, created.text
+    prompts: list[str] = []
+
+    async def record(provider, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        prompts.append(str(kwargs.get("prompt") or ""))
+        return [("frame.png", PNG_1PX)]
+
+    monkeypatch.setattr(quick, "produce_images", record)
+    resp = client.post(
+        "/api/v1/videos/quick?wait=true",
+        json={
+            "script": "第一句口播\n第二句口播",
+            "split_mode": "line",
+            "voice": "v1",
+            "aspect": "1:1",
+            "character_id": created.json()["id"],
+        },
+        headers=auth_header,
+        timeout=120,
+    )
+    assert resp.status_code == 202, resp.text
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert prompts and "黑长直" in prompts[0]
+    assert "16:9" not in prompts[0]
+
+
+def test_i2v_character_views(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import test_characters
+
+    captured: dict[str, dict] = {}
+
+    class _FakeVideo:
+        def __init__(self, base_url: str) -> None:
+            pass
+
+        async def generate(self, **kwargs):  # noqa: ANN003, ANN202
+            captured["inputs"] = kwargs["inputs"]
+            await asyncio.sleep(0)
+            return [("out.mp4", b"MP4DATA")], []
+
+    monkeypatch.setattr(simple, "ComfyUIVideo", _FakeVideo)
+    provider = client.post(
+        "/api/v1/providers",
+        json={"name": "comfy-i2v", "type": "comfyui", "base_url": "http://mock:8188"},
+        headers=auth_header,
+    ).json()
+    created = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={"name": "林梦影", "description": "黑长直，白衬衫", "auto_split": "true"},
+        files={"turnaround": ("sheet.png", test_characters._sheet(), "image/png")},
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    one = client.post(
+        "/api/v1/workflows/import",
+        json={
+            "name": "i2v_one",
+            "capability": "i2v",
+            "workflow": {"1": {"class_type": "N", "inputs": {"image": "", "prompt": ""}}},
+            "inputs": {
+                "image": {"node": "1", "field": "inputs.image", "type": "image"},
+                "prompt": {"node": "1", "field": "inputs.prompt", "type": "str"},
+            },
+            "outputs": {"node": "1"},
+        },
+        headers=auth_header,
+    )
+    assert one.status_code == 201, one.text
+    side = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        data={
+            "workflow": "i2v_one",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+            "character_id": str(body["id"]),
+            "character_view": "side",
+        },
+        headers=auth_header,
+    )
+    job = side.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert job["params"]["image_paths"] == [body["side_path"]]
+    assert "黑长直" in job["params"]["prompt"]
+    uploaded = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        files={"image": ("a.png", PNG_1PX, "image/png")},
+        data={
+            "workflow": "i2v_one",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+            "character_id": str(body["id"]),
+            "character_view": "side",
+        },
+        headers=auth_header,
+    )
+    assert uploaded.json()["status"] == "succeeded", uploaded.json()["error"]
+    assert uploaded.json()["params"]["image_paths"] != [body["side_path"]]
+
+    multi = client.post(
+        "/api/v1/workflows/import",
+        json={
+            "name": "i2v_multi",
+            "capability": "i2v",
+            "workflow": {"1": {"class_type": "N", "inputs": {}}},
+            "inputs": {
+                "image": {"node": "1", "field": "inputs.image", "type": "image"},
+                "image_2": {"node": "1", "field": "inputs.image_2", "type": "image"},
+                "image_3": {"node": "1", "field": "inputs.image_3", "type": "image"},
+                "prompt": {"node": "1", "field": "inputs.prompt", "type": "str"},
+            },
+            "outputs": {"node": "1"},
+        },
+        headers=auth_header,
+    )
+    assert multi.status_code == 201, multi.text
+    portrait = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        data={
+            "workflow": "i2v_multi",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+            "character_id": str(body["id"]),
+            "character_view": "portrait",
+        },
+        headers=auth_header,
+    )
+    paths = portrait.json()["params"]["image_paths"]
+    assert paths == [body["portrait_path"], body["front_path"], body["side_path"]]
+
+
+def test_frame_video_inputs_uses_shot_view() -> None:
+    from types import SimpleNamespace
+
+    character = SimpleNamespace(
+        id=7,
+        portrait_path="p.png",
+        front_path="f.png",
+        side_path="s.png",
+        back_path="b.png",
+    )
+
+    class _Db:
+        def get(self, model, ident):  # noqa: ANN001, ARG002
+            return character
+
+    pack = SimpleNamespace(
+        capability="i2v",
+        inputs={"image": {"type": "image", "required": True}, "prompt": {"type": "str"}},
+    )
+    inputs = quick._frame_video_inputs(
+        _Db(),
+        {"character_id": 7, "character_view": "front", "video_inputs": {}},
+        pack,
+        {"view": "back"},
+        "画面",
+        16,
+        9,
+    )
+    assert inputs["image"] == "b.png"
+
+
+def test_frame_video_inputs_skips_fallback_end_frame() -> None:
+    from types import SimpleNamespace
+
+    character = SimpleNamespace(
+        id=7,
+        portrait_path="p.png",
+        front_path="f.png",
+        side_path="s.png",
+        back_path="b.png",
+    )
+
+    class _Db:
+        def get(self, model, ident):  # noqa: ANN001, ARG002
+            return character
+
+    pack = SimpleNamespace(
+        capability="i2v",
+        inputs={
+            "image": {"type": "image", "required": True},
+            "image_2": {"type": "image", "required": False, "fallback": "image"},
+        },
+    )
+    inputs = quick._frame_video_inputs(
+        _Db(),
+        {"character_id": 7, "character_view": "side", "video_inputs": {}},
+        pack,
+        {},
+        "画面",
+        16,
+        9,
+    )
+    assert inputs["image"] == "s.png"
+    assert "image_2" not in inputs
+
+
 def test_assets_subtitle_off(
     client: TestClient, auth_header: dict[str, str], video_providers: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

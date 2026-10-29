@@ -37,6 +37,7 @@ async def run_workflow_pack(
     inputs 可带保留键 __accel：{enabled, lora, strength}，在 apply_inputs 之后改写加速节点。
     """
     node_inputs, accel = extract_accel(inputs)
+    prepare_pack_inputs(pack, node_inputs)
     if pack.accel and resolve_accel_enabled(pack, accel):
         lora = resolve_accel_lora(pack, accel)
         if not lora:
@@ -65,6 +66,75 @@ async def run_workflow_pack(
     wait_kwargs: dict[str, Any] = {} if wait_timeout is None else {"timeout": wait_timeout}
     result = await client.wait_result(prompt_id, on_progress=on_progress, use_ws=use_ws, **wait_kwargs)
     return result.get("outputs", {})  # type: ignore[no-any-return]
+
+
+def prepare_pack_inputs(pack: WorkflowPack, node_inputs: dict[str, Any]) -> dict[str, Any]:
+    """补齐声明了 fallback 的可选媒体，并在两张图不同时换用双图提示词。
+
+    360° 环绕只传一张图时，尾帧必须仍是这张图。断开 last_frame 镜头会漂走，回不到起点。
+    """
+    _fill_media_fallbacks(pack, node_inputs)
+    _apply_distinct_image_prompt(pack, node_inputs)
+    _apply_reference_picture_prompt(pack, node_inputs)
+    return node_inputs
+
+
+def _fill_media_fallbacks(pack: WorkflowPack, node_inputs: dict[str, Any]) -> None:
+    for key, spec in pack.inputs.items():
+        if spec.get("type") not in _UPLOAD_INPUT_TYPES:
+            continue
+        source_key = spec.get("fallback")
+        if not source_key:
+            continue
+        if str(node_inputs.get(key) or "").strip():
+            continue
+        origin = str(node_inputs.get(str(source_key)) or "").strip()
+        if origin:
+            node_inputs[key] = origin
+
+
+def _apply_distinct_image_prompt(pack: WorkflowPack, node_inputs: dict[str, Any]) -> None:
+    """两张图路径不同，且提示词仍是默认句或空白时，换成 manifest 里的双图提示词。"""
+    spec = pack.inputs.get("prompt") or {}
+    variant = spec.get("distinct_image_2")
+    if not isinstance(variant, str) or not variant.strip():
+        return
+    first = str(node_inputs.get("image") or "").strip()
+    second = str(node_inputs.get("image_2") or "").strip()
+    if not first or not second or first == second:
+        return
+    current = node_inputs.get("prompt")
+    default = spec.get("default")
+    blank = current is None or not str(current).strip()
+    same_as_default = default is not None and str(current).strip() == str(default).strip()
+    if blank or same_as_default:
+        node_inputs["prompt"] = variant
+
+
+def _pack_uses_picture_reference(pack: WorkflowPack) -> bool:
+    """参考图生视频：有 ReferenceToVideo，且没有参考视频槽。动作迁移两者都有，不走这里。"""
+    has_reference = any(
+        isinstance(node, dict) and node.get("class_type") == "MiniMaxH3ReferenceToVideo"
+        for node in pack.workflow.values()
+    )
+    has_video = any(spec.get("type") == "video" for spec in pack.inputs.values())
+    return has_reference and not has_video
+
+
+def _apply_reference_picture_prompt(pack: WorkflowPack, node_inputs: dict[str, Any]) -> None:
+    """用户自己写了动作但没标 <Picture 1> 时补上。空白提示词留给包内默认句。"""
+    if not _pack_uses_picture_reference(pack):
+        return
+    current = node_inputs.get("prompt")
+    if current is None or not str(current).strip():
+        return
+    text = str(current).strip()
+    if "<Picture" in text:
+        return
+    node_inputs["prompt"] = (
+        "参考 <Picture 1> 的脸、发型和服装。这张图只提供外观，不是视频第一帧。"
+        f"{text}"
+    )
 
 
 def _detach_unused_media_links(

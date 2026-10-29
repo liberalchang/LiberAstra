@@ -13,6 +13,7 @@ export interface components {
       requires_api_key: boolean;
       default_base_url: string | null;
       description: string;
+      group?: string;
     };
     CapabilitiesOut: { provider_types: components["schemas"]["ProviderTypeInfo"][]; capabilities: string[] };
     ProviderOut: {

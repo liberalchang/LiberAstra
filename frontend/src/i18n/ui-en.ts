@@ -1,6 +1,61 @@
 /** 界面功能区中文 → 英文。键必须与界面原文完全一致。 */
 export const UI_EN: Record<string, string> = {
   "CLI 文档": "CLI Docs",
+  "编辑 {name}": "Edit {name}",
+  "搜索模型": "Search models",
+  "获取模型列表": "Fetch models",
+  "没有匹配的模型": "No matching models",
+  "模型设置": "Model settings",
+  "模型 ID": "Model ID",
+  "调用时使用这个 ID，这里不能改。": "Requests use this ID. It cannot be changed here.",
+  "展示名称": "Display name",
+  "勾选后进入对应的画布功能。不认识的类型不会显示。":
+    "Checked abilities appear in the matching canvas tools. Unknown types stay hidden.",
+  "未知": "Unknown",
+  "未分类": "Unclassified",
+  "全部模型": "All models",
+  "将取消：{names}": "Will clear: {names}",
+  "标为未分类": "Mark as unclassified",
+  "例如 qwen-plus": "for example qwen-plus",
+  "还没有模型。可以获取列表，或在下面手动添加。":
+    "No models yet. Fetch the list, or add one below.",
+  "{name} 可以做{kind}，列表里还没有。未分类的模型在「全部模型」。":
+    "{name} can do {kind}, but none are listed yet. Unclassified models are under All models.",
+  "删除后，这份配置的地址、密钥和模型列表都会去掉。已生成的作品还在。":
+    "This removes the address, key, and model list. Work you already generated stays.",
+  "手动添加模型": "Add a model by hand",
+  "勾选后，它会出现在对应的画布功能里。不勾选时只出现在「全部模型」。":
+    "Checked abilities show up in the matching canvas tools. With none checked, it stays under All models.",
+  "这个服务商的模型不在这里选功能。画布用的是工作流包。":
+    "Models from this provider do not pick a tool here. The canvas uses workflow packs.",
+  "最大输出 Token": "Max output tokens",
+  "留空则用服务默认。对话请求会带上这个上限。":
+    "Leave empty for the service default. Chat requests use this limit.",
+  "这个页签里还没有模型": "No models on this tab",
+  "模型默认参数": "Model defaults",
+  "这些值会成为画布上该模型的初始参数，节点里仍可修改。":
+    "These become the canvas defaults. A node can still change them.",
+  "留空使用默认": "Leave empty for the default",
+  "分辨率": "Resolution",
+  "水印": "Watermark",
+  "生成音频": "Generate audio",
+  "固定镜头": "Lock camera",
+  "组图": "Image set",
+  "未知模型不进入画布功能。确认用途后再选择类型。":
+    "Unknown models stay out of the canvas. Choose a type once you know what it does.",
+  "停用 {name}": "Disable {name}",
+  "启用 {name}": "Enable {name}",
+  "对话": "Chat",
+  "视觉": "Vision",
+  "单图编辑": "Edit one image",
+  "多图编辑": "Edit several images",
+  "文生视频": "Text to video",
+  "首帧": "First frame",
+  "首尾帧": "First and last frame",
+  "360全景": "360 orbit",
+  "调色": "Color grade",
+  "重绘": "Inpaint",
+  "识别": "Transcribe",
   "使用文档": "Guide",
   "按侧栏功能说明用法；视频与 Comfy 工作流见「服务提供方 → 工作流包 → 模型文件」。":
     "How to use each page. For video and Comfy workflows, see Providers → Workflow Packs → model files.",
@@ -204,6 +259,9 @@ export const UI_EN: Record<string, string> = {
   "只列出已启用、且具备 asr 能力的 Provider。本机不内置识别模型。":
     "Enabled providers with speech-to-text only. This app does not ship a recognition model.",
   "识别模型": "Recognition model",
+  "来自菜单设置。手动指定时只显示勾选的项。":
+    "From the menu settings. Manual mode lists only the checked items.",
+  "菜单里还没有可用模型": "No models checked in the menu yet",
   "不选则使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。传入的是别名，例如 large-v3-turbo。":
     "Leave this empty to use LIBER_SPEECH_ASR_MODEL. A selection is an alias such as large-v3-turbo.",
   "不选则使用系统设置里的语音转文字模型。系统设置也未指定时，使用语音服务环境变量 LIBER_SPEECH_ASR_MODEL。":
@@ -917,6 +975,10 @@ export const UI_EN: Record<string, string> = {
   "侧面全身": "Full-body side",
   "背面全身": "Full-body back",
   "定妆照": "Character sheet",
+  "使用这张图": "Use this image",
+  "一条连线代表一个人。下游只有一个图片槽时送入镜视角；选了定妆照则送整张设定图。动作迁移默认送正面、侧面、背面。":
+    "One wire is one person. A single image slot receives the chosen view; the character sheet sends the whole picture. Motion uses front, side, and back unless the sheet is chosen.",
+  "正面、侧面、背面三张全身图": "Full-body front, side, and back",
   "点击查看大图": "View full size",
   "上一张": "Previous",
   "下一张": "Next",
@@ -941,6 +1003,8 @@ export const UI_EN: Record<string, string> = {
     "Optional. The appearance is prefixed to every shot so the character stays recognizable.",
   "不指定": "None",
   "作为视频首帧。选了角色时用该视角的单人图。": "Used as the first frame. A saved character uses the chosen single view.",
+  "可选。不传则与首帧同一张": "Optional. Leave empty to reuse the first frame.",
+  "结束画面": "End frame",
   "目标人物或画面。选了角色时用角色库里的单人图。": "The target person. A saved character uses the single-view images.",
   "口播人物图。选了角色时用定妆照右侧的面部半身特写。":
     "The talking-head image. A saved character uses the face close-up from the sheet.",
@@ -1057,6 +1121,7 @@ export const UI_EN: Record<string, string> = {
   "输入": "Input",
   "功能": "Function",
   "图片输入": "Image input",
+  "角色输入": "Character input",
   "视频输入": "Video input",
   "音频输入": "Audio input",
   "文本输入": "Text input",
@@ -1072,6 +1137,24 @@ export const UI_EN: Record<string, string> = {
   "已保存": "Published",
   "保存到资源库": "Save to library",
   "未选择文件": "No file selected",
+  "未选择角色": "No character selected",
+  "选择角色": "Choose a character",
+  "去角色库创建": "Create one in the character library",
+  "角色库还是空的。": "The character library is empty.",
+  "使用这个视角": "Use this view",
+  "尚未生成": "Not generated yet",
+  "加载中": "Loading",
+  "入镜视角": "Entry view",
+  "一条连线代表一个人。下游只有一个图片槽时送入镜视角；动作迁移送正面、侧面、背面。":
+    "One connection is one person. A single image slot receives the entry view; motion transfer receives front, side, and back.",
+  "选了角色后可以改用图生视频包。每镜按入镜视角送一张角色图，用来锁住同一个人。":
+    "With a character selected you can switch to an image-to-video pack. Each shot sends that view to keep the same person.",
+  "可选。外观会写进每镜画面，并在图生视频包里送入这一镜的角色图。":
+    "Optional. The look is written into every shot, and an image-to-video pack also receives that shot's still.",
+  "单张参考图用这个视角。选了定妆照会整张送入每一镜；其余视角可以按镜轮换。":
+    "This view is the single reference. The character sheet is sent whole on every shot; other views can change per shot.",
+  "作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。":
+    "Used as the first frame. A one-slot workflow sends the chosen view; extra slots fill the remaining body views.",
   "在右侧属性面板输入文本…": "Enter text in the inspector…",
   "连接多段输入后在此排序": "Connect inputs, then order them here",
   "输入节点": "Input node",
@@ -1095,6 +1178,7 @@ export const UI_EN: Record<string, string> = {
   "导出涂抹后的新图": "Export painted image",
   "导出裁剪区域": "Export cropped region",
   "加载图片…": "Loading image…",
+  "预览加载失败": "Preview failed to load",
   "所属（一批工作流包）": "Group (a set of packs)",
   "选择后自动补全该包需要的输入节点并连线":
     "Required input nodes are auto-created and connected on selection",
@@ -1133,6 +1217,9 @@ export const UI_EN: Record<string, string> = {
   "选择：左键框选节点（中/右键仍可拖动画布）": "Select: left-drag box-selects (middle/right still pans)",
   "双击画布或点下方 + 添加节点；拖动节点右侧圆点连线":
     "Double-click the canvas or press + below to add nodes; drag from a node's right dot to connect",
+  "点下方 +，向右选择输入、合成或功能；也可以从上方「全部功能」添加":
+    "Press + below, then choose input, concat, or a function from the menu on the right. You can also add from All functions above.",
+  "这一类还没有功能": "Nothing in this category yet",
   "工作流包与画布分组（所属）在「设置 → 工作流包」里管理":
     "Packs and canvas groups are managed under Settings → Workflow Packs",
   "分组即画布功能节点里的「所属」：选中一个组 = 选定这批工作流包":
@@ -1205,10 +1292,18 @@ export const UI_EN: Record<string, string> = {
   "选择模式": "Select mode",
   "还没有可用的工作流包，先到「设置 → 工作流包」导入":
     "No workflow packs yet — import some in Settings → Workflow Packs first",
-  "画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音）自动建好，稍后在「设置 → 工作流包」里调整。":
-    "Canvas organizes workflow packs into groups. None exist yet — create them automatically by capability (image/video/speech), then fine-tune in Settings → Workflow Packs.",
-  "还没有分组。可以按能力（图像/视频/语音）自动建好，或到「设置 → 工作流包 → 画布分组」手动添加。":
-    "No groups yet — create them automatically by capability (image/video/speech), or add manually in Settings → Workflow Packs → Canvas Groups.",
+  "画布按「所属」组织工作流包。还没有任何分组，可以按能力（图像/视频/语音/画面分析）自动建好，稍后在「设置 → 工作流包」里调整。":
+    "Canvas organizes workflow packs into groups. None exist yet — create them automatically by capability (image/video/speech/analysis), then fine-tune in Settings → Workflow Packs.",
+  "还没有分组。可以按能力（图像/视频/语音/画面分析）自动建好，或到「设置 → 工作流包 → 画布分组」手动添加。":
+    "No groups yet — create them automatically by capability (image/video/speech/analysis), or add manually in Settings → Workflow Packs → Canvas Groups.",
+  "画面时长跟随已连接的音频。超过单段上限时按时间切开，下一段用上一段的尾帧。":
+    "Duration follows the connected audio. Longer clips are split by time, and the next segment starts from the previous last frame.",
+  "画面时长跟随参考视频。超过单段上限时分段衔接，下一张人物图用上一段的尾帧。":
+    "Duration follows the reference video. Longer clips are split, and the next person image is the previous last frame.",
+  "分析得到的文字写入本节点变量。下游提示词引用这个变量名。分析角度写在下方参数里。":
+    "The description is stored on this node's variable. Downstream prompts can reference that name. The analysis angle is in the parameters below.",
+  "连接音频或视频。转写正文写入本节点变量，下游提示词引用这个变量名。":
+    "Connect audio or video. The transcript is stored on this node's variable for downstream prompts.",
   "强制执行": "Force Run",
   "强制重跑此节点及其全部上游（忽略复用缓存）":
     "Force re-run this node and all its upstream (cache ignored)",
@@ -1292,4 +1387,9 @@ export const UI_EN: Record<string, string> = {
   "当前": "Current",
   "不选则使用系统设置里的语音识别模型。":
     "Empty uses the recognition model from System Settings.",
+  "自动匹配使用已启用且具备该能力的模型和工作流，属性里仍可改选。手动指定后，属性里只列出勾选的项。默认是新节点最初选中的那一个。完成编辑后即保存。":
+    "Auto uses every enabled model and workflow with this capability, and the inspector can still switch. Manual lists only the checked ones. The default is what a new node selects first. Finish editing to save.",
+  "手动指定 · 默认 {name}": "Manual · default {name}",
+  "自动匹配 · 默认 {name}": "Auto · default {name}",
+  "完成编辑": "Done",
 };

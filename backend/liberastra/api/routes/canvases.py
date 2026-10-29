@@ -186,6 +186,90 @@ def put_groups(body: dict[str, list[str]], user: CurrentUser, db: DbSession) -> 
     return cleaned
 
 
+MENU_SETTING_KEY = "canvas_custom_menu"
+# 出厂功能增加时加 1。旧存档按这个版本补上新增项；用户在当前版本里删掉的项不再补回。
+MENU_REVISION = 2
+
+
+def _decode_menu(raw: str) -> tuple[list[dict], int]:
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return [], 1
+    if isinstance(data, dict) and isinstance(data.get("items"), list):
+        items = [item for item in data["items"] if isinstance(item, dict)]
+        return items, int(data.get("revision") or 1)
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)], 1
+    return [], 1
+
+
+def _merge_factory_items(items: list[dict]) -> list[dict]:
+    from liberastra.providers.catalog import default_canvas_menu
+
+    have = {str(item.get("id") or "") for item in items}
+    merged = list(items)
+    for factory in default_canvas_menu():
+        if factory["id"] not in have:
+            merged.append(factory)
+    return merged
+
+
+def _present_menu(items: list[dict]) -> list[dict]:
+    """响应里带上该能力的默认媒体槽，没绑到具体模型时前端仍能补前置节点。"""
+    from liberastra.providers.catalog import media_slots
+
+    presented = []
+    for item in items:
+        row = dict(item)
+        row["enabled"] = bool(item.get("enabled", True))
+        row["media_slots"] = media_slots(str(item.get("sub_capability") or ""))
+        presented.append(row)
+    return presented
+
+
+def _store_menu(db: DbSession, items: list[dict], revision: int) -> None:
+    payload = json.dumps({"revision": revision, "items": items}, ensure_ascii=False)
+    row = db.get(AppSetting, MENU_SETTING_KEY)
+    if row is None:
+        db.add(AppSetting(key=MENU_SETTING_KEY, value=payload))
+    else:
+        row.value = payload
+    db.commit()
+
+
+@router.get("/menu")
+def get_canvas_menu(user: CurrentUser, db: DbSession) -> list[dict]:
+    """画布快捷菜单。没有保存过时返回出厂默认项；旧存档补上后来新增的出厂功能。"""
+    del user
+    from liberastra.providers.catalog import default_canvas_menu
+
+    row = db.get(AppSetting, MENU_SETTING_KEY)
+    if row is None:
+        return _present_menu(default_canvas_menu())
+    items, revision = _decode_menu(row.value)
+    if revision < MENU_REVISION:
+        items = _merge_factory_items(items)
+        _store_menu(db, items, MENU_REVISION)
+    return _present_menu(items)
+
+
+@router.put("/menu")
+def put_canvas_menu(body: list[dict], user: CurrentUser, db: DbSession) -> list[dict]:
+    del user
+    from liberastra.providers.catalog import normalize_menu_item
+
+    try:
+        cleaned = [normalize_menu_item(item) for item in body]
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    ids = [item["id"] for item in cleaned]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="菜单项 id 重复")
+    _store_menu(db, cleaned, MENU_REVISION)
+    return _present_menu(cleaned)
+
+
 @router.get("/{canvas_id}", response_model=CanvasOut)
 def get_canvas(canvas_id: str, user: CurrentUser, db: DbSession) -> CanvasOut:
     return _canvas_out(db, _get_owned(db, canvas_id, user))

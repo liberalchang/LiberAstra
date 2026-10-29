@@ -21,12 +21,14 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import "@xyflow/react/dist/style.css";
 
-import { api, ApiError, type WorkflowPackOut } from "@/api/client";
+import { api, ApiError, type CanvasMenuItem, type WorkflowPackOut } from "@/api/client";
+import { applyMenuToNode, resolveSpec } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { layeredLayout } from "@/canvas/layout";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { CanvasBottomBar, type CanvasTool } from "@/components/canvas/CanvasBottomBar";
 import { CanvasDock } from "@/components/canvas/CanvasDock";
+import { CanvasFunctionMenu } from "@/components/canvas/CanvasFunctionMenu";
 import { canvasEdgeTypes } from "@/components/canvas/CanvasEdge";
 import { NodeInspector } from "@/components/canvas/NodeInspector";
 import { canvasNodeTypes } from "@/components/canvas/nodes";
@@ -80,6 +82,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     };
   }, [colorMode]);
   const [quickAdd, setQuickAdd] = useState<QuickAddState | null>(null);
+  const [functionOpen, setFunctionOpen] = useState(false);
   const [tool, setTool] = useState<CanvasTool>("hand");
   const [saving, setSaving] = useState(false);
   // 通知:sticky 的错误不自动消失;计时器可清理,连续 flash 不互踩
@@ -332,9 +335,18 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const openQuickAdd = (clientX: number, clientY: number, pendingFrom?: string) => {
     const rect = wrapRef.current?.getBoundingClientRect();
     if (!rect) return;
-    // 菜单限制在画布框内(宽 240 + 高约 320),避免贴边时超出画布区域
-    const x = Math.max(8, Math.min(clientX - rect.left, rect.width - 248));
-    const y = Math.max(8, Math.min(clientY - rect.top, rect.height - 330));
+    // 一级菜单约 176 宽，二级向右再占 224。靠右时一级左移；靠底栏时向上展开。
+    const menuW = 176;
+    const flyoutW = 232;
+    const menuH = 220;
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    const pair = menuW + flyoutW + 12;
+    // 优先把二级菜单留在一级右侧。靠右缘时整组左移，而不是改成向左展开。
+    const x = localX + pair <= rect.width
+      ? Math.max(8, localX)
+      : Math.max(8, Math.min(localX, rect.width - pair));
+    const y = localY + menuH > rect.height - 72 ? Math.max(72, localY - menuH) : Math.max(8, localY);
     setQuickAdd({ x, y, pendingFrom });
   };
 
@@ -345,6 +357,12 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       x: quickAdd.x + (rect?.left ?? 0),
       y: quickAdd.y + (rect?.top ?? 0),
     });
+    if (pick.menu) {
+      const from = quickAdd.pendingFrom;
+      setQuickAdd(null);
+      void addFromMenu(pick.menu, position, from);
+      return;
+    }
     // 快速建点 = 一步撤销:建点、语音模式修正、选包补建、自动连线合并为一个历史条目
     store.batch(() => {
       const node = store.addNode(pick.kind, pick.mediaKind, position);
@@ -365,7 +383,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           targetHandle: `in-${node.id}`,
         });
       }
-      // 功能节点带所属:默认加载组内第一个包(并自动补建必填输入)
       if (pick.kind === "function" && pick.group) {
         store.updateNodeData(node.id, { group: pick.group });
         const groups = queryClient.getQueryData<Record<string, string[]>>(["canvas-groups"]);
@@ -379,6 +396,46 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       }
     });
     setQuickAdd(null);
+  };
+
+  const addFromMenu = async (item: CanvasMenuItem, position?: { x: number; y: number }, pendingFrom?: string) => {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    const at = position ?? screenToFlowPosition({
+      x: (rect?.left ?? 0) + (rect?.width ?? 800) / 2,
+      y: (rect?.top ?? 0) + 220,
+    });
+    // 菜单本身不拉执行契约。点选时再取，否则节点绑不上工作流，属性面板只剩空的模型框。
+    const specs = await queryClient.ensureQueryData({
+      queryKey: ["execution-specs"],
+      queryFn: () => api.executionSpecs(),
+    });
+    const providers = await queryClient.ensureQueryData({
+      queryKey: ["providers"],
+      queryFn: api.listProviders,
+    });
+    const packs = await queryClient.ensureQueryData({
+      queryKey: ["workflows"],
+      queryFn: () => api.listWorkflows(),
+    });
+    store.batch(() => {
+      const node = store.addNode(item.category === "speech" ? "speech" : "function", undefined, at);
+      if (item.category === "speech" && item.sub_capability === "asr") {
+        store.updateNodeData(node.id, {
+          mode: "asr",
+          varName: nextVarName(store.nodes, "output_text"),
+        });
+      }
+      if (pendingFrom) {
+        store.onConnect({
+          source: pendingFrom,
+          target: node.id,
+          sourceHandle: `out-${pendingFrom}`,
+          targetHandle: `in-${node.id}`,
+        });
+      }
+      const created = applyMenuToNode(node.id, item, resolveSpec(item, specs), providers, packs);
+      if (created > 0) flash(tx("已自动补建 {n} 个必填输入节点", { n: created }));
+    });
   };
 
   return (
@@ -456,19 +513,21 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           onSave={() => void save()}
           onRun={() => void run()}
         />
+        <CanvasFunctionMenu open={functionOpen} onOpenChange={setFunctionOpen} onPick={addFromMenu} />
         <CanvasBottomBar
           tool={tool}
           onToolChange={setTool}
-          onAdd={() => {
-            const rect = wrapRef.current?.getBoundingClientRect();
-            if (rect) openQuickAdd(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          onAdd={(anchor) => {
+            const rect = anchor.getBoundingClientRect();
+            openQuickAdd(rect.left, rect.top);
           }}
+          onMenu={() => setFunctionOpen((current) => !current)}
           onLayout={layout}
         />
         {store.nodes.length === 0 && !quickAdd && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
             <p className="rounded-xl border border-dashed border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground">
-              {tx("双击画布或点下方 + 添加节点；拖动节点右侧圆点连线")}
+              {tx("点下方 +，向右选择输入、合成或功能；也可以从上方「全部功能」添加")}
             </p>
           </div>
         )}

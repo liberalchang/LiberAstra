@@ -6,7 +6,15 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from liberastra.models import Character
-from liberastra.services.characters import clean_appearance, paths_for_task, sheet_prompt, split_turnaround
+from liberastra.services.characters import (
+    clean_appearance,
+    expand_reference_paths,
+    paths_for_task,
+    reference_paths,
+    reference_views,
+    sheet_prompt,
+    split_turnaround,
+)
 
 
 def _sheet() -> bytes:
@@ -122,6 +130,87 @@ def test_clean_appearance_drops_sheet_layout() -> None:
     anchored = sheet_prompt("", references=1)
     assert anchored.startswith("保持参考图")
     assert "完整全身正面" in anchored
+
+
+def test_reference_views_follow_slot_count() -> None:
+    assert reference_views("i2v", 1, "side") == ["side"]
+    assert reference_views("motion", 3, "portrait") == ["front", "side", "back"]
+    assert reference_views("i2v", 3, "portrait") == ["portrait", "front", "side"]
+    assert reference_views("i2v", 3, "back") == ["back", "front", "side"]
+    assert reference_views("avatar", 2, "front") == ["portrait"]
+    assert "turnaround" not in reference_views("i2v", 4, "front")
+    assert reference_views("i2v", 3, "turnaround") == ["turnaround"]
+    assert reference_views("motion", 3, "turnaround") == ["turnaround"]
+
+
+def test_reference_paths_skip_missing_and_sheet() -> None:
+    from types import SimpleNamespace
+
+    character = SimpleNamespace(
+        portrait_path="p.png",
+        front_path="f.png",
+        side_path=None,
+        back_path="b.png",
+        turnaround_path="sheet.png",
+    )
+    assert reference_paths(character, "motion", 3, "front") == ["f.png", "b.png"]
+    assert reference_paths(character, "i2v", 1, "turnaround") == ["sheet.png"]
+    # 侧面缺失时，单槽只要这一张，没有可回退的其他视角。
+    try:
+        reference_paths(character, "i2v", 1, "side")
+        raised = False
+    except Exception:
+        raised = True
+    assert raised
+    first = {"portrait": "p.png", "front": "f.png", "side": "s.png", "back": "b.png"}
+    second = {"portrait": "p2.png", "front": "f2.png", "side": "s2.png", "back": "b2.png"}
+    multi = expand_reference_paths(
+        "i2v",
+        3,
+        [
+            {"type": "character", "primary": "portrait", "paths": first},
+            {"type": "character", "primary": "back", "paths": second},
+        ],
+    )
+    assert multi == ["p.png", "b2.png"]
+    filled = expand_reference_paths(
+        "motion",
+        3,
+        [{"type": "character", "primary": "portrait", "paths": first}],
+    )
+    assert filled == ["f.png", "s.png", "b.png"]
+    assert "p.png" not in filled
+    sheet_only = expand_reference_paths(
+        "i2v",
+        3,
+        [{"type": "character", "primary": "turnaround", "paths": {**first, "turnaround": "sheet.png"}}],
+    )
+    assert sheet_only == ["sheet.png"]
+
+
+def test_character_asset_is_idempotent(client: TestClient, auth_header: dict[str, str]) -> None:
+    created = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={"name": "林梦影", "description": "黑长直，白衬衫", "auto_split": "true"},
+        files={"turnaround": ("sheet.png", _sheet(), "image/png")},
+    )
+    assert created.status_code == 201, created.text
+    character_id = created.json()["id"]
+    first = client.post(f"/api/v1/characters/{character_id}/asset/front", headers=auth_header)
+    second = client.post(f"/api/v1/characters/{character_id}/asset/front", headers=auth_header)
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200
+    assert first.json()["id"] == second.json()["id"]
+    assert first.json()["meta"]["character_slot"] == "front"
+    sheet = client.post(f"/api/v1/characters/{character_id}/asset/turnaround", headers=auth_header)
+    again = client.post(f"/api/v1/characters/{character_id}/asset/turnaround", headers=auth_header)
+    assert sheet.status_code == 200, sheet.text
+    assert again.status_code == 200
+    assert sheet.json()["id"] == again.json()["id"]
+    assert sheet.json()["meta"]["character_slot"] == "turnaround"
+    missing = client.post(f"/api/v1/characters/{character_id}/asset/nope", headers=auth_header)
+    assert missing.status_code == 400
 
 
 def test_create_character_splits_turnaround(client: TestClient, auth_header: dict[str, str]) -> None:

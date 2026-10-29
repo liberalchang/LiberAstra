@@ -291,8 +291,9 @@ def _detect_family(pack: Any, model_hints: list[str] | None = None) -> str:  # n
         blob += f" {key}"
     if "minimax_h3" in blob or "minimax-h3" in blob or "hailuo" in blob:
         return (
-            "MiniMax H3：自然语言；结构为「画面主体与环境 + 镜头运动 + 时序动作 + 同步环境音/音效/对白」；"
-            "音视频联合生成友好；语言跟随用户输入。"
+            "MiniMax H3：用完整镜头散文，不要逗号标签堆叠。"
+            "必须写明运镜术语（推、拉、摇、移、跟、升、降、环绕或固定镜头），"
+            "并单独一行以「背景音：」写出同步环境声。语言跟随用户输入。"
         )
     if "qwen_image" in blob or "qwen-image" in blob or "qwen_image" in pack.name.lower():
         return (

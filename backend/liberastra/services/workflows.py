@@ -117,6 +117,17 @@ def validate_pack(pack: WorkflowPack) -> None:
             raise ProviderError(f"工作流包 {pack.name} 参数 {key} 指向不存在的节点 {node}")
         if not spec.get("field"):
             raise ProviderError(f"工作流包 {pack.name} 参数 {key} 缺少 field 映射")
+        fallback = spec.get("fallback")
+        if fallback:
+            source = pack.inputs.get(str(fallback))
+            if source is None:
+                raise ProviderError(
+                    f"工作流包 {pack.name} 参数 {key} 的 fallback 指向不存在的输入 {fallback}"
+                )
+            if source.get("type") != spec.get("type"):
+                raise ProviderError(
+                    f"工作流包 {pack.name} 参数 {key} 的 fallback 类型必须与 {fallback} 相同"
+                )
     if pack.accel:
         _validate_accel(pack)
 

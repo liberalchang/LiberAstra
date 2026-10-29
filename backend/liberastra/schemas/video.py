@@ -18,6 +18,8 @@ class QuickVideoRequest(BaseModel):
     voice_record_id: int | None = None
     language: str = ""  # Liber Speech 的 language_id；空则按音色名猜测
     character_id: int | None = None
+    # 快速创作视频：这一镜默认入镜视角。分镜 JSON 里的 view 可以按镜覆盖。
+    character_view: str = Field(default="front", pattern="^(portrait|front|side|back|turnaround)$")
     style_prefix: str = ""
     storyboard: dict[str, Any] | None = None  # 提供则跳过 LLM（分镜编辑器回传）
     storyboard_only: bool = False  # 只生成脚本与分镜

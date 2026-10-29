@@ -66,7 +66,7 @@ async def generate(
             "options": body.options,
         },
         provider_id=provider.id,
-        model=None,
+        model=body.model,
     )
     if wait:
         return await wait_for_job(db, job.id)
@@ -119,9 +119,14 @@ async def edit(
             "prompt": prompt,
             "image_paths": image_paths,
             "inputs": merged_inputs,
+            "options": {
+                key: extra_inputs[key]
+                for key in ("size", "output_format", "watermark", "sequential_image_generation")
+                if key in extra_inputs
+            },
         },
         provider_id=provider.id,
-        model=None,
+        model=str(extra_inputs.get("model") or "") or None,
     )
     if wait:
         return await wait_for_job(db, job.id)

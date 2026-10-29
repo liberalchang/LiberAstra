@@ -11,11 +11,13 @@ from sqlalchemy import select
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.models import Character, Job, User
 from liberastra.providers.base import ProviderError
+from liberastra.schemas.asset import AssetOut
 from liberastra.schemas.character import CharacterOut
 from liberastra.schemas.job import JobOut
 from liberastra.services.characters import (
     SLOTS,
     apply_split,
+    ensure_character_asset,
     remove_character_files,
     save_character_bytes,
     slot_path,
@@ -153,6 +155,19 @@ async def generate_character(
         provider_id=provider.id,
     )
     return job
+
+
+@router.post("/{character_id}/asset/{slot}", response_model=AssetOut)
+def register_character_asset(character_id: int, slot: str, user: CurrentUser, db: DbSession) -> AssetOut:
+    """把角色某一视角登记成图片资产，供画布按资产引用。重复调用返回同一条。"""
+    if slot not in SLOTS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="视角不存在")
+    record = _owned(db, character_id, user)
+    try:
+        asset = ensure_character_asset(db, record, slot)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return AssetOut.model_validate(asset)
 
 
 @router.get("/{character_id}/image/{slot}")
