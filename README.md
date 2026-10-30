@@ -47,7 +47,9 @@ Windows：下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAst
 
 ![首页](docs/images/home.webp)
 
-60 秒演示和 GIF 还没有放进仓库。录好之后把 GIF 放到 `docs/images/demo.gif`，视频链接写在这一节。片尾保留仓库地址和 `docker compose up -d --build`。
+功能演示（约 6 分钟）：
+
+https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
 ## 和谁不同
 
@@ -312,7 +314,9 @@ Full steps, profiles, and model locations: [docs/deployment.en.md](docs/deployme
 
 ![Home](docs/images/home.webp)
 
-A 60-second demo and a GIF are not in the repo yet. When they exist, `docs/images/demo.gif` belongs in this section, plus a Bilibili or YouTube link. End the clip with the repository URL and `docker compose up -d --build`.
+Feature walkthrough, about 6 minutes:
+
+https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
 ### How it differs
 
