@@ -355,7 +355,8 @@ def test_old_saved_menu_receives_later_factory_functions(
     kept = [item for item in loaded.json() if item["sub_capability"] != "color_grade"]
     saved = client.put("/api/v1/canvases/menu", json=kept, headers=auth_header)
     assert saved.status_code == 200, saved.text
-    again = {item["sub_capability"] for item in client.get("/api/v1/canvases/menu", headers=auth_header).json()}
+    menu = client.get("/api/v1/canvases/menu", headers=auth_header)
+    again = {item["sub_capability"] for item in menu.json()}
     assert "color_grade" not in again
     assert "i2v_orbit" in again
 
