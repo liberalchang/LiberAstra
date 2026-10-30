@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -176,17 +176,12 @@ export function ImageGenPage() {
             {isComfy && (
               <Field label={tx("工作流包")} hint={tx("ComfyUI 使用这个包里的参数。没有包时先到工作流包页面导入。")}>
                 <WorkflowPackControl name={pack?.name} description={pack?.description}>
-                  <select
-                    className={selectClass}
+                  <PackSelect
+                    packs={packs}
                     value={pack?.name ?? ""}
-                    onChange={(e) => setWorkflow(e.target.value)}
-                  >
-                    {packs?.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setWorkflow}
+                    ariaLabel={tx("工作流包")}
+                  />
                 </WorkflowPackControl>
               </Field>
             )}
@@ -210,12 +205,6 @@ export function ImageGenPage() {
             placeholder={tx("例如：窗边的陶瓷杯，柔和侧光，浅景深")}
           />
           <AspectSelect value={aspect} onChange={setAspect} />
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
-              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
-            </Button>
-          </div>
           <AdvancedPanel summary={advancedSummary}>
             <Field label={tx("负面提示词")} hint={tx("不希望出现的内容，可以留空。")}>
               <Input
@@ -295,6 +284,14 @@ export function ImageGenPage() {
           </AdvancedPanel>
         </CardContent>
       </Card>
+        }
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
+              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
+            </Button>
+          </div>
         }
         right={
           <ResultPanel

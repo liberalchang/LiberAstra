@@ -3,8 +3,10 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
+import { SearchSelect, type SearchOption } from "@/components/ui/search-select";
 import { cn } from "@/lib/utils";
 import { useTx } from "@/i18n/tx";
+import type { WorkflowPackOut } from "@/api/client";
 
 /** 工作流包下拉框右侧的「提示」：弹出 manifest 里的 description。 */
 function HintButton({ name, description }: { name?: string; description?: string }) {
@@ -113,5 +115,55 @@ export function WorkflowPackControl({
       <div className="min-w-0 flex-1">{children}</div>
       <HintButton name={name} description={description} />
     </div>
+  );
+}
+
+const PACK_CAPABILITY: Record<string, string> = {
+  t2i: "文生图",
+  i2i: "图生图",
+  upscale: "修复放大",
+  i2v: "图生视频",
+  t2v: "文生视频",
+  avatar: "数字人",
+  motion: "动作迁移",
+  tts: "语音",
+  analysis: "分析",
+};
+
+/** 能力中文名在前，包 id 作为次要信息。 */
+export function PackSelect({
+  packs,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  packs: WorkflowPackOut[] | undefined;
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  const tx = useTx();
+  const options: SearchOption[] = (packs ?? []).map((pack) => {
+    const capability = PACK_CAPABILITY[pack.capability] ?? pack.capability;
+    const first = pack.description.split("\n")[0]?.trim() ?? "";
+    const short = first && first.length <= 32 && first !== pack.name ? first : "";
+    return {
+      value: pack.name,
+      label: short ? `${tx(capability)} · ${short}` : tx(capability) || pack.name,
+      hint: pack.name,
+    };
+  });
+  if (value && !options.some((item) => item.value === value)) {
+    options.unshift({ value, label: value, hint: value });
+  }
+  return (
+    <SearchSelect
+      ariaLabel={ariaLabel}
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={tx("搜索工作流包")}
+      emptyText={tx("没有匹配项")}
+    />
   );
 }

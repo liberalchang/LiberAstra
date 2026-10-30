@@ -38,7 +38,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { SearchSelect } from "@/components/ui/search-select";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
@@ -738,15 +739,12 @@ export function VideoQuickPage() {
                 {imageProvider?.type === "comfyui" && (
                   <Field label={tx("插图工作流")} hint={tx("逐镜出图用的工作流包，其参数（模型等）在下方展开。")}>
                     <WorkflowPackControl name={imagePack?.name} description={imagePack?.description}>
-                      <select
-                        className={selectClass}
+                      <PackSelect
+                        packs={imagePacks}
                         value={imagePack?.name ?? ""}
-                        onChange={(e) => setImageWorkflow(e.target.value)}
-                      >
-                        {imagePacks?.map((p) => (
-                          <option key={p.name} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
+                        onChange={setImageWorkflow}
+                        ariaLabel={tx("插图工作流")}
+                      />
                     </WorkflowPackControl>
                   </Field>
                 )}
@@ -787,15 +785,12 @@ export function VideoQuickPage() {
                   }
                 >
                   <WorkflowPackControl name={videoPack?.name} description={videoPack?.description}>
-                    <select
-                      className={selectClass}
+                    <PackSelect
+                      packs={videoPacks}
                       value={videoPack?.name ?? ""}
-                      onChange={(e) => setVideoWorkflow(e.target.value)}
-                    >
-                      {videoPacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                      onChange={setVideoWorkflow}
+                      ariaLabel={tx("视频工作流")}
+                    />
                   </WorkflowPackControl>
                 </Field>
               </div>
@@ -939,17 +934,12 @@ export function VideoQuickPage() {
             <>
               <Field label={tx("语音工作流")} hint={tx("选择已导入的 Comfy 语音工作流包，朗读文本会自动注入。")}>
                 <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
-                  <select
-                    className={selectClass}
+                  <PackSelect
+                    packs={ttsPacks}
                     value={ttsPack?.name ?? ""}
-                    onChange={(e) => setTtsWorkflow(e.target.value)}
-                  >
-                    {ttsPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setTtsWorkflow}
+                    ariaLabel={tx("语音工作流")}
+                  />
                 </WorkflowPackControl>
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
@@ -1000,19 +990,20 @@ export function VideoQuickPage() {
             <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
               <div className="flex gap-2">
                 {serviceVoices.length > 0 ? (
-                  <select
-                    className={selectClass}
+                  <SearchSelect
+                    ariaLabel={tx("音色")}
                     value={voiceName}
-                    onChange={(e) => setVoiceName(e.target.value)}
-                  >
-                    <option value="">{tx("选择音色…")}</option>
-                    {voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName) && (
-                      <option value={voiceName}>{voiceName}</option>
-                    )}
-                    {serviceVoices.map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
+                    onChange={setVoiceName}
+                    placeholder={tx("搜索音色")}
+                    emptyText={tx("没有匹配项")}
+                    options={[
+                      { value: "", label: tx("选择音色…") },
+                      ...(voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName)
+                        ? [{ value: voiceName, label: voiceName }]
+                        : []),
+                      ...serviceVoices.map((item) => ({ value: item, label: item })),
+                    ]}
+                  />
                 ) : (
                   <Input
                     placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural")}
@@ -1049,23 +1040,6 @@ export function VideoQuickPage() {
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex items-center gap-3">
-        {mode === "batch" ? (
-          <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
-            {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
-          </Button>
-        ) : (
-          <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
-            {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
-          </Button>
-        )}
-        {running && job?.steps?.length > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
-          </span>
-        )}
-      </div>
       <AdvancedPanel summary={advancedSummary || tx("采样、配乐与权重")}>
         {tpl?.type === "image" && imagePack && hasAccel(imagePack.accel) && imagePack.accel && (
           <AccelControl
@@ -1155,6 +1129,27 @@ export function VideoQuickPage() {
         </Field>
       </AdvancedPanel>
       </div>
+        }
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <div className="flex items-center gap-3">
+              {mode === "batch" ? (
+                <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
+                  {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
+                </Button>
+              ) : (
+                <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
+                  {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
+                </Button>
+              )}
+              {running && job?.steps?.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
+                </span>
+              )}
+            </div>
+          </div>
         }
         right={
           <div className="flex flex-col gap-6">

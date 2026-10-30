@@ -502,6 +502,24 @@ def _resolve_function_inputs(
     return pack, inputs, fingerprint, soundtrack
 
 
+def _canvas_labels(db: Session, canvas_id: str, node: dict[str, Any]) -> dict[str, str]:
+    """任务列表用的画布名和节点名。节点没有标题时退回包名或类型。"""
+    canvas = db.get(Canvas, canvas_id)
+    data = node.get("data") or {}
+    label = ""
+    for key in ("label", "title", "name", "pack", "workflow", "model"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            label = value.strip()
+            break
+    if not label:
+        label = str(data.get("kind") or node.get("type") or "")
+    return {
+        "canvas_name": canvas.name if canvas is not None else "",
+        "node_label": label,
+    }
+
+
 def _assets_alive(db: Session, asset_ids: list[int]) -> bool:
     return all(db.get(Asset, int(aid)) is not None for aid in asset_ids)
 
@@ -567,6 +585,7 @@ async def _execute_function(
             "sub_capability": pack.sub_capability,
             "prompt": str(inputs.get("prompt") or ""),
             "inputs": inputs,
+            **_canvas_labels(db, canvas_id, node),
         }
     else:
         params = {
@@ -575,6 +594,7 @@ async def _execute_function(
             "workflow": pack.name,
             "inputs": inputs,
             **soundtrack,
+            **_canvas_labels(db, canvas_id, node),
         }
     job = manager.submit(
         db,
@@ -669,6 +689,7 @@ async def _execute_concat(
             "node_id": node_id,
             "asset_ids": asset_ids,
             "kind": media_kind,
+            **_canvas_labels(db, canvas_id, node),
         },
     )
     row.job_id = job.id
@@ -791,6 +812,7 @@ async def _execute_speech(
         return
 
     manager: JobManager = app.state.jobs
+    params.update(_canvas_labels(db, canvas_id, node))
     job = manager.submit(
         db,
         owner_id=owner_id,

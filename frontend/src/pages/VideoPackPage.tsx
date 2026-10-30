@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -290,21 +290,18 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             ) : (
             <Field label={tx("工作流包")} hint={tx("必须与当前功能匹配，例如图生视频、数字人或动作迁移。")}>
               <WorkflowPackControl name={pack?.name} description={pack?.description}>
-                <select
-                  className={selectClass}
-                  value={pack?.name ?? ""}
-                  onChange={(e) => setWorkflow(e.target.value)}
-                >
-                  {packs?.length ? (
-                    packs.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">{tx("无 {caps} 工作流包", { caps: cfg.packCaps.join(" / ") })}</option>
-                  )}
-                </select>
+                {packs?.length ? (
+                  <PackSelect
+                    packs={packs}
+                    value={pack?.name ?? ""}
+                    onChange={setWorkflow}
+                    ariaLabel={tx("工作流包")}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {tx("无 {caps} 工作流包", { caps: cfg.packCaps.join(" / ") })}
+                  </p>
+                )}
               </WorkflowPackControl>
             </Field>
             )}
@@ -432,15 +429,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 <>
                   <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本自动注入。")}>
                     <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
-                      <select
-                        className={selectClass}
+                      <PackSelect
+                        packs={ttsPacks}
                         value={ttsPack?.name ?? ""}
-                        onChange={(e) => setTtsWorkflow(e.target.value)}
-                      >
-                        {ttsPacks?.map((p) => (
-                          <option key={p.name} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
+                        onChange={setTtsWorkflow}
+                        ariaLabel={tx("语音工作流")}
+                      />
                     </WorkflowPackControl>
                   </Field>
                   {ttsPack && (
@@ -552,12 +546,6 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             />
           )}
 
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
-            </Button>
-          </div>
           <AdvancedPanel summary={advancedSummary || tx("采样、配乐与权重")}>
             {pack && hasAccel(pack.accel) && pack.accel && (
               <AccelControl
@@ -612,6 +600,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           </AdvancedPanel>
         </CardContent>
       </Card>
+        }
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
+              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
+            </Button>
+          </div>
         }
         right={
           <ResultPanel

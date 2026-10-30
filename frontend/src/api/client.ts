@@ -490,6 +490,8 @@ export const api = {
   retryJob: (id: string) => request<JobOut>(`/api/v1/jobs/${id}/retry`, { method: "POST" }),
   deleteAsset: (id: number) => request<void>(`/api/v1/assets/${id}`, { method: "DELETE" }),
   getAsset: (id: number) => request<AssetOut>(`/api/v1/assets/${id}`),
+  renameAsset: (id: number, name: string) =>
+    request<AssetOut>(`/api/v1/assets/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
 
   submitTts: (body: {
     provider_id?: number;

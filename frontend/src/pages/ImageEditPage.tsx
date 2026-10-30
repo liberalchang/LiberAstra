@@ -23,7 +23,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -157,17 +157,12 @@ export function ImageEditPage({ capability, title, description }: Props) {
             {isComfy && (
               <Field label={tx("工作流包")} hint={tx("按当前能力（图生图或放大）过滤。没有对应包时先导入。")}>
                 <WorkflowPackControl name={pack?.name} description={pack?.description}>
-                  <select
-                    className={selectClass}
+                  <PackSelect
+                    packs={packs}
                     value={pack?.name ?? ""}
-                    onChange={(e) => setWorkflow(e.target.value)}
-                  >
-                    {packs?.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setWorkflow}
+                    ariaLabel={tx("工作流包")}
+                  />
                 </WorkflowPackControl>
               </Field>
             )}
@@ -272,34 +267,6 @@ export function ImageEditPage({ capability, title, description }: Props) {
                     : tx("可选")
             }
           />
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => submit.mutate()}
-              disabled={
-                files.length < Math.max(requiredImageSlots, 1) ||
-                files.length > Math.max(imageSlots, 1) ||
-                (isComfy && !pack) ||
-                submit.isPending ||
-                !!running
-              }
-            >
-              {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
-            </Button>
-            {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
-              <span className="text-sm text-muted-foreground">
-                {isMaskPack
-                  ? tx("此工作流需要 {need} 张图（原图 + 蒙版），还差 {left} 张", {
-                      need: requiredImageSlots,
-                      left: requiredImageSlots - files.length,
-                    })
-                  : tx("至少上传 {need} 张参考图，还差 {left} 张", {
-                      need: requiredImageSlots,
-                      left: requiredImageSlots - files.length,
-                    })}
-              </span>
-            )}
-          </div>
           {isComfy && pack && (
             <AdvancedPanel summary={advancedSummary}>
               {hasAccel(pack.accel) && pack.accel && (
@@ -323,6 +290,38 @@ export function ImageEditPage({ capability, title, description }: Props) {
           )}
         </CardContent>
       </Card>
+        }
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => submit.mutate()}
+                disabled={
+                  files.length < Math.max(requiredImageSlots, 1) ||
+                  files.length > Math.max(imageSlots, 1) ||
+                  (isComfy && !pack) ||
+                  submit.isPending ||
+                  !!running
+                }
+              >
+                {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
+              </Button>
+              {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
+                <span className="text-sm text-muted-foreground">
+                  {isMaskPack
+                    ? tx("此工作流需要 {need} 张图（原图 + 蒙版），还差 {left} 张", {
+                        need: requiredImageSlots,
+                        left: requiredImageSlots - files.length,
+                      })
+                    : tx("至少上传 {need} 张参考图，还差 {left} 张", {
+                        need: requiredImageSlots,
+                        left: requiredImageSlots - files.length,
+                      })}
+                </span>
+              )}
+            </div>
+          </div>
         }
         right={
           <ResultPanel

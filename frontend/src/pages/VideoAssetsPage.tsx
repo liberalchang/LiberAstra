@@ -35,7 +35,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -456,28 +456,22 @@ export function VideoAssetsPage() {
                 </Field>
                 <Field label={tx("图片分析工作流")} hint={tx("analysis 能力包，如 analysis_image_qwenvl。有图片时必选。")}>
                   <WorkflowPackControl name={analysisImagePack?.name} description={analysisImagePack?.description}>
-                    <select
-                      className={selectClass}
+                    <PackSelect
+                      packs={analysisPacks}
                       value={analysisImagePack?.name ?? ""}
-                      onChange={(e) => setAnalysisImageWorkflow(e.target.value)}
-                    >
-                      {analysisPacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                      onChange={setAnalysisImageWorkflow}
+                      ariaLabel={tx("图片分析工作流")}
+                    />
                   </WorkflowPackControl>
                 </Field>
                 <Field label={tx("视频分析工作流")} hint={tx("有视频素材时使用，如 analysis_video_qwenvl。")}>
                   <WorkflowPackControl name={analysisVideoPack?.name} description={analysisVideoPack?.description}>
-                    <select
-                      className={selectClass}
+                    <PackSelect
+                      packs={analysisPacks}
                       value={analysisVideoPack?.name ?? ""}
-                      onChange={(e) => setAnalysisVideoWorkflow(e.target.value)}
-                    >
-                      {analysisPacks?.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
+                      onChange={setAnalysisVideoWorkflow}
+                      ariaLabel={tx("视频分析工作流")}
+                    />
                   </WorkflowPackControl>
                 </Field>
               </div>
@@ -579,15 +573,12 @@ export function VideoAssetsPage() {
                   </Field>
                   <Field label={tx("动画工作流")} hint={tx("i2v 能力的工作流包，图片作为首帧。")}>
                     <WorkflowPackControl name={videoPack?.name} description={videoPack?.description}>
-                      <select
-                        className={selectClass}
+                      <PackSelect
+                        packs={i2vPacks}
                         value={videoPack?.name ?? ""}
-                        onChange={(e) => setVideoWorkflow(e.target.value)}
-                      >
-                        {i2vPacks?.map((p) => (
-                          <option key={p.name} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
+                        onChange={setVideoWorkflow}
+                        ariaLabel={tx("动画工作流")}
+                      />
                     </WorkflowPackControl>
                   </Field>
                 </div>
@@ -653,15 +644,12 @@ export function VideoAssetsPage() {
             <>
               <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，口播文本会自动注入。")}>
                 <WorkflowPackControl name={ttsPack?.name} description={ttsPack?.description}>
-                  <select
-                    className={selectClass}
+                  <PackSelect
+                    packs={ttsPacks}
                     value={ttsPack?.name ?? ""}
-                    onChange={(e) => setTtsWorkflow(e.target.value)}
-                  >
-                    {ttsPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                    onChange={setTtsWorkflow}
+                    ariaLabel={tx("语音工作流")}
+                  />
                 </WorkflowPackControl>
               </Field>
               {ttsPacks && ttsPacks.length === 0 && (
@@ -831,20 +819,24 @@ export function VideoAssetsPage() {
               />
             </Field>
           </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
-            </Button>
-            {running && job?.steps?.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""))}
-              </span>
-            )}
-          </div>
         </CardContent>
       </Card>
       </div>
+        }
+        footer={
+          <div className="flex flex-col gap-2">
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <div className="flex items-center gap-3">
+              <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
+                {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
+              </Button>
+              {running && job?.steps?.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""))}
+                </span>
+              )}
+            </div>
+          </div>
         }
         right={
           <ResultPanel

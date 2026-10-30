@@ -1402,4 +1402,18 @@ export const UI_EN: Record<string, string> = {
   "手动指定 · 默认 {name}": "Manual · default {name}",
   "自动匹配 · 默认 {name}": "Auto · default {name}",
   "完成编辑": "Done",
+  "没有匹配项": "No matches",
+  "搜索工作流包": "Search workflow packs",
+  "搜索音色": "Search voices",
+  "使用系统默认": "Use the system default",
+  "主模型和文本编码器对不上。打开高级参数，换成同一套模型后再重试。":
+    "The main model and text encoder do not match. Open Advanced and pick a matching set, then retry.",
+  "连不上模型服务。到服务提供方确认地址已经打开，然后再重试。":
+    "Cannot reach the model service. Check that its address is open under Providers, then retry.",
+  "工作流包还缺必填项。打开高级参数补上缺少的字段后再重试。":
+    "This workflow pack is missing a required field. Open Advanced, fill the missing field, then retry.",
+  "分析": "Analysis",
+  "未命名": "Untitled",
+  "改名后列表和下载都会用这个名字。留空则恢复自动名称。":
+    "The list and downloads use this name. Leave it empty to restore the automatic title.",
 };

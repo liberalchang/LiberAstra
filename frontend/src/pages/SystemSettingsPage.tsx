@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
+import { SearchSelect } from "@/components/ui/search-select";
+import { PackSelect } from "@/components/WorkflowPackHint";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useAuthStore } from "@/stores/auth";
@@ -330,44 +332,37 @@ export function SystemSettingsPage() {
           )}
           {catalogError && <p className="text-sm text-danger">{catalogError}</p>}
           <Field label={tx("文字转语音模型")} hint={tx(speechModelHint(speechModel))}>
-            <select
-              className={selectClass}
+            <SearchSelect
+              ariaLabel={tx("文字转语音模型")}
               value={speechModel}
               disabled={!speechCatalog.data}
-              onChange={(e) => setSpeechModel(e.target.value)}
-            >
-              {ttsGroups.map((group) =>
-                group.id ? (
-                  <optgroup key={group.id} label={tx(speechGroupLabel(group.id))}>
-                    {group.items.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : (
-                  group.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))
-                ),
+              onChange={setSpeechModel}
+              placeholder={tx("搜索模型")}
+              emptyText={tx("没有匹配项")}
+              options={ttsGroups.flatMap((group) =>
+                group.items.map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  hint: item.id,
+                  group: group.id ? tx(speechGroupLabel(group.id)) : undefined,
+                })),
               )}
-            </select>
+            />
           </Field>
           <Field label={tx("语音转文字模型")} hint={tx(asrModelHint(speechAsrModel))}>
-            <select
-              className={selectClass}
+            <SearchSelect
+              ariaLabel={tx("语音转文字模型")}
               value={speechAsrModel}
               disabled={!speechCatalog.data}
-              onChange={(e) => setSpeechAsrModel(e.target.value)}
-            >
-              {asrOptions.map((item) => (
-                <option key={item.id || "env"} value={item.id}>
-                  {item.id ? item.label : tx(item.label)}
-                </option>
-              ))}
-            </select>
+              onChange={setSpeechAsrModel}
+              placeholder={tx("搜索模型")}
+              emptyText={tx("没有匹配项")}
+              options={asrOptions.map((item) => ({
+                value: item.id,
+                label: item.id ? item.label : tx(item.label),
+                hint: item.id || undefined,
+              }))}
+            />
           </Field>
           <div className="flex items-center gap-3">
             <Button
@@ -423,34 +418,28 @@ export function SystemSettingsPage() {
             </select>
           </Field>
           <Field label={tx("定妆照工作流包")} hint={tx("只列出文生图工作流包。默认 Qwen-Image 2.1。")}>
-            <select
-              className={selectClass}
+            <PackSelect
+              packs={t2iPacks}
               value={characterWorkflow}
-              onChange={(e) => setCharacterWorkflow(e.target.value)}
-            >
-              {t2iPacks.length === 0 && <option value={characterWorkflow}>{characterWorkflow}</option>}
-              {t2iPacks.map((pack) => (
-                <option key={pack.name} value={pack.name}>
-                  {pack.name}
-                </option>
-              ))}
-            </select>
+              onChange={setCharacterWorkflow}
+              ariaLabel={tx("定妆照工作流包")}
+            />
           </Field>
           <Field label={tx("单张参考图工作流")} hint={tx("上传 1 张参考图时使用的图生图包。")}>
-            <select className={selectClass} value={characterI2i} onChange={(e) => setCharacterI2i(e.target.value)}>
-              {i2iPacks.length === 0 && <option value={characterI2i}>{characterI2i}</option>}
-              {i2iPacks.map((pack) => (
-                <option key={pack.name} value={pack.name}>{pack.name}</option>
-              ))}
-            </select>
+            <PackSelect
+              packs={i2iPacks}
+              value={characterI2i}
+              onChange={setCharacterI2i}
+              ariaLabel={tx("单张参考图工作流")}
+            />
           </Field>
           <Field label={tx("多张参考图工作流")} hint={tx("上传 2 到 3 张参考图时使用的多图编辑包。")}>
-            <select className={selectClass} value={characterI2iMulti} onChange={(e) => setCharacterI2iMulti(e.target.value)}>
-              {i2iPacks.length === 0 && <option value={characterI2iMulti}>{characterI2iMulti}</option>}
-              {i2iPacks.map((pack) => (
-                <option key={pack.name} value={pack.name}>{pack.name}</option>
-              ))}
-            </select>
+            <PackSelect
+              packs={i2iPacks}
+              value={characterI2iMulti}
+              onChange={setCharacterI2iMulti}
+              ariaLabel={tx("多张参考图工作流")}
+            />
           </Field>
           <div className="flex items-center gap-3 sm:col-span-2">
             <Button

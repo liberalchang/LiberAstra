@@ -1,11 +1,20 @@
 import { AudioLines, Download, FileText, ImageIcon, Loader2, Video, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, fetchAssetBlob } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { LightboxShell } from "@/components/ui/lightbox";
-import { assetDownloadName, assetSummary, assetTitle, cn, formatSize, formatTime } from "@/lib/utils";
+import {
+  assetCustomName,
+  assetDownloadName,
+  assetRawTitle,
+  assetSummary,
+  cn,
+  formatSize,
+  formatTime,
+} from "@/lib/utils";
 import { useTx } from "@/i18n/tx";
 
 export interface PreviewTarget {
@@ -180,6 +189,10 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
   const text = useAssetText(target?.id ?? null, target?.kind ?? null);
   const targetId = target?.id ?? null;
 
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
   // 拉取资产详情：补齐 meta / path，用于参数展示与友好下载名
   const { data: detail } = useQuery({
     queryKey: ["asset", targetId],
@@ -187,20 +200,46 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
     enabled: targetId != null,
   });
 
+  useEffect(() => {
+    setDraft(null);
+    setNameError(null);
+  }, [targetId]);
+
+  const rename = useMutation({
+    mutationFn: (name: string) => api.renameAsset(targetId!, name),
+    onSuccess: (asset) => {
+      queryClient.setQueryData(["asset", asset.id], asset);
+      void queryClient.invalidateQueries({ queryKey: ["assets"] });
+      setDraft(null);
+      setNameError(null);
+    },
+    onError: (err: Error) => setNameError(err.message),
+  });
+
   if (!target) return null;
 
   const meta = detail?.meta ?? target.meta ?? null;
   const summary = assetSummary(meta);
-  const name = target.name ?? (detail ? assetTitle(detail) : `asset-${target.id}`);
+  const custom = assetCustomName(meta);
+  const autoName = detail
+    ? assetRawTitle({ ...detail, meta: { ...meta, name: undefined } })
+    : (target.name ?? tx("未命名"));
+  const shown = (draft ?? custom ?? autoName).slice(0, 80);
+  const commitName = (raw: string) => {
+    const next = raw.trim();
+    const baseline = (custom ?? autoName).trim().slice(0, 80);
+    if (next === baseline || rename.isPending) return;
+    rename.mutate(next);
+  };
   const size = target.size ?? detail?.size;
   const createdAt = target.createdAt ?? detail?.created_at;
-  const downloadName = detail ? assetDownloadName(detail) : name;
+  const downloadName = detail ? assetDownloadName(detail) : shown;
   const duration = typeof meta?.duration_s === "number" ? `${meta.duration_s}s` : null;
   const previewable = ["image", "audio", "video"].includes(target.kind);
   const textual = TEXTUAL_KINDS.includes(target.kind);
 
   return (
-    <LightboxShell onClose={onClose} ariaLabel={name} className="md:flex-row">
+    <LightboxShell onClose={onClose} ariaLabel={shown || tx("未命名")} className="md:flex-row">
       <Button
         variant="outline"
         size="icon"
@@ -217,7 +256,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
           {previewable && !url ? (
             <Loader2 className="size-8 animate-spin text-white/60" />
           ) : target.kind === "image" ? (
-            <img src={url!} alt={name} className="max-h-[60vh] w-full object-contain md:max-h-[90vh]" />
+            <img src={url!} alt={shown || tx("未命名")} className="max-h-[60vh] w-full object-contain md:max-h-[90vh]" />
           ) : target.kind === "video" ? (
             <video src={url!} controls autoPlay className="max-h-[60vh] w-full object-contain md:max-h-[90vh]" />
           ) : target.kind === "audio" ? (
@@ -251,7 +290,25 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
         <div className="flex w-full shrink-0 flex-col gap-4 p-5 md:w-72 md:overflow-y-auto">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-primary">{tx("快速预览")}</span>
-            <h2 className="break-all text-lg font-semibold leading-snug">{name}</h2>
+            <div className="flex gap-2">
+              <Input
+                aria-label={tx("名称")}
+                maxLength={80}
+                value={shown}
+                placeholder={tx("未命名")}
+                onChange={(event) => setDraft(event.target.value)}
+                onBlur={(event) => commitName(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
+              />
+              <Button type="button" variant="outline" onClick={() => commitName(shown)} disabled={rename.isPending}>
+                {tx("保存")}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {nameError ?? (rename.isPending ? tx("保存中…") : tx("改名后列表和下载都会用这个名字。留空则恢复自动名称。"))}
+            </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium">{tx(kindLabel(target.kind))}</span>
@@ -271,7 +328,7 @@ export function MediaLightbox({ target, onClose }: { target: PreviewTarget | nul
               </span>
             )}
           </div>
-          {summary && summary !== name && (
+          {summary && summary !== shown && (
             <p className="break-all rounded-xl bg-muted/60 p-3 text-xs leading-relaxed text-muted-foreground">
               {summary}
             </p>

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { assetTitle, formatSize, formatStepName, formatTime } from "@/lib/utils";
+import { explainJobError } from "@/lib/jobError";
 import { useTx } from "@/i18n/tx";
 
 export interface MetaItem {
@@ -182,7 +183,12 @@ export function ResultPanel({ job, mediaKind, historyKind, jobKind, meta = [], e
             <GeneratingState job={job} />
           ) : job.status === "failed" ? (
             <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
-              {job.error ?? tx("任务失败")}
+              <p>{tx(explainJobError(job.error ?? "").summary || tx("任务失败"))}</p>
+              {job.error && (
+                <p className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs opacity-80">
+                  {explainJobError(job.error).detail}
+                </p>
+              )}
             </div>
           ) : job.status === "canceled" ? (
             <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">{tx("任务已取消")}</div>
@@ -221,7 +227,9 @@ export function ResultPanel({ job, mediaKind, historyKind, jobKind, meta = [], e
       {/* 下方：历史资产 */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">{tx("历史作品")}</h2>
-        {history?.length === 0 && <p className="text-sm text-muted-foreground">{tx("暂无历史记录")}</p>}
+        {history?.length === 0 && (
+          <p className="text-sm text-muted-foreground">{emptyHint ?? tx("暂无历史记录")}</p>
+        )}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
           {history?.map((a) => {
             const name = assetTitle(a);

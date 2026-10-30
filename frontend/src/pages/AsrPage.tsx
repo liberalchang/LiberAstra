@@ -180,7 +180,7 @@ export function AsrPage() {
                 </div>
               ) : (
                 <select className={selectClass} value={asrModel} onChange={(e) => setAsrModel(e.target.value)}>
-                  <option value="">{tx("系统设置")}</option>
+                  <option value="">{tx("使用系统默认")}</option>
                   {liberModels.map((item) => (
                     <option key={item.id} value={item.id}>
                       {tx(item.label)}

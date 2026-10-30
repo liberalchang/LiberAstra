@@ -9,7 +9,9 @@ import { api, fetchAssetBlob, type JobOut } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
-import { cn, formatStepName } from "@/lib/utils";
+import { cn, formatStepName, readableText } from "@/lib/utils";
+import { explainJobError } from "@/lib/jobError";
+import { useTx } from "@/i18n/tx";
 
 const STATUS_COLOR: Record<string, string> = {
   succeeded: "text-success",
@@ -41,16 +43,17 @@ const KIND_LABEL: Record<string, string> = {
 
 const SUMMARY_KEYS = ["prompt", "text", "title", "topic", "script"];
 
+function paramText(params: Record<string, unknown> | undefined, key: string): string {
+  const value = params?.[key];
+  return typeof value === "string" ? readableText(value) : "";
+}
+
 function jobSummary(params: Record<string, unknown> | undefined): string {
-  if (!params) return "";
-  for (const key of SUMMARY_KEYS) {
-    const value = params[key];
-    if (typeof value === "string" && value.trim()) {
-      const text = value.replace(/\s+/g, " ").trim();
-      return text.length > 42 ? `${text.slice(0, 42)}…` : text;
-    }
-  }
-  return "";
+  const inputs = params?.inputs;
+  const nested =
+    inputs && typeof inputs === "object" ? paramText(inputs as Record<string, unknown>, "prompt") : "";
+  const text = [...SUMMARY_KEYS.map((key) => paramText(params, key)), nested].find(Boolean) ?? "";
+  return text.length > 42 ? `${text.slice(0, 42)}…` : text;
 }
 
 function matchesFilter(status: JobOut["status"], filter: JobFilter): boolean {
@@ -62,6 +65,7 @@ function matchesFilter(status: JobOut["status"], filter: JobFilter): boolean {
 
 export function JobsPage() {
   const { t } = useTranslation();
+  const tx = useTx();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter] = useState<JobFilter>("all");
@@ -72,6 +76,13 @@ export function JobsPage() {
     refetchInterval: (query) =>
       query.state.data?.some((j) => j.status === "pending" || j.status === "running") ? 1500 : false,
   });
+  const needsCanvas = (jobs ?? []).some((job) => paramText(job.params, "canvas_id"));
+  const { data: canvases } = useQuery({
+    queryKey: ["canvases"],
+    queryFn: () => api.listCanvases(),
+    enabled: needsCanvas,
+  });
+  const canvasNames = new Map((canvases ?? []).map((canvas) => [canvas.id, canvas.name]));
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["jobs"] });
   const cancel = useMutation({ mutationFn: (id: string) => api.cancelJob(id), onSuccess: invalidate });
@@ -108,12 +119,18 @@ export function JobsPage() {
         const active = j.status === "pending" || j.status === "running";
         const canRetry = j.status === "failed" || j.status === "canceled";
         const summary = jobSummary(j.params);
+        const canvasId = paramText(j.params, "canvas_id");
+        const canvasName = paramText(j.params, "canvas_name") || (canvasId ? canvasNames.get(canvasId) ?? "" : "");
+        const node =
+          paramText(j.params, "node_label") || paramText(j.params, "workflow") || paramText(j.params, "model");
         const kindLabel = KIND_LABEL[j.kind] ? t(KIND_LABEL[j.kind]) : j.kind;
+        const title = canvasName ? `${canvasName} · ${node || kindLabel}` : kindLabel;
+        const explained = j.error ? explainJobError(j.error) : null;
         return (
         <Card key={j.id}>
           <CardContent className="flex flex-col gap-2 p-4">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="text-sm font-medium">{kindLabel}</span>
+              <span className="text-sm font-medium">{title}</span>
               {summary && <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{summary}</span>}
               <span className={cn("text-sm", STATUS_COLOR[j.status])}>{t(`common.${j.status}`)}</span>
               {active && (
@@ -138,7 +155,7 @@ export function JobsPage() {
               )}
               {canRetry && (
                 <Button variant="outline" size="sm" onClick={() => retry.mutate(j.id)}>
-                  <RotateCcw /> {t("common.retry")}
+                  <RotateCcw /> {t("jobs.retrySame")}
                 </Button>
               )}
               <Button
@@ -149,15 +166,15 @@ export function JobsPage() {
                 {t("jobs.detail")}
               </Button>
             </div>
-            {j.status === "failed" && j.error && (
-              <p className="text-sm text-danger">{j.error}</p>
+            {j.status === "failed" && explained && (
+              <p className="line-clamp-3 text-sm text-danger">{tx(explained.summary)}</p>
             )}
             {expanded === j.id && (
               <div className="flex flex-col gap-2 border-t border-border pt-2">
                 <p className="text-xs text-muted-foreground">
                   {t("jobs.id")} {j.id.slice(0, 8)} · {j.kind}
                 </p>
-                {j.error && j.status !== "failed" && <p className="text-sm text-danger">{j.error}</p>}
+                {explained && <p className="whitespace-pre-wrap break-words text-sm text-danger">{explained.detail}</p>}
                 {j.steps.length > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {j.steps.map((s) => formatStepName(String(s.name))).join(" → ")}

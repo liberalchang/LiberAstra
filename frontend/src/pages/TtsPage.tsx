@@ -22,7 +22,8 @@ import {
 } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
-import { WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { SearchSelect } from "@/components/ui/search-select";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
@@ -228,15 +229,14 @@ export function TtsPage() {
               >
                 <div className="flex gap-2">
                   {edgeVoices.length > 0 ? (
-                    <select
-                      className={selectClass}
+                    <SearchSelect
+                      ariaLabel={tx("音色")}
                       value={voiceName}
-                      onChange={(e) => setVoiceName(e.target.value)}
-                    >
-                      {edgeVoices.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
+                      onChange={setVoiceName}
+                      placeholder={tx("搜索音色")}
+                      emptyText={tx("没有匹配项")}
+                      options={edgeVoices.map((item) => ({ value: item, label: item }))}
+                    />
                   ) : (
                     <Input
                       placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : "zh-CN-XiaoxiaoNeural"}
@@ -259,17 +259,12 @@ export function TtsPage() {
             {isComfy && (
               <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包，朗读文本会自动注入。")}>
                 <WorkflowPackControl name={pack?.name} description={pack?.description}>
-                  <select
-                    className={selectClass}
+                  <PackSelect
+                    packs={ttsPacks}
                     value={pack?.name ?? ""}
-                    onChange={(e) => setWorkflow(e.target.value)}
-                  >
-                    {ttsPacks?.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setWorkflow}
+                    ariaLabel={tx("语音工作流")}
+                  />
                 </WorkflowPackControl>
               </Field>
             )}

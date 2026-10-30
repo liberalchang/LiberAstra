@@ -26,23 +26,52 @@ export function assetBaseName(path: string): string {
   return path.split("/").pop() ?? path;
 }
 
+/** 去掉未替换的 {{变量}}，避免把模板占位符当成标题。 */
+export function readableText(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return raw.replace(/\{\{[^}]*\}\}/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** 落盘名是哈希或画布临时文件时，不适合当展示标题。 */
+export function isMachineFileName(name: string): boolean {
+  const stem = name.replace(/\.[^.]+$/, "");
+  return /^[0-9a-f]{8,}([_-]|$)/i.test(stem) || /canvas-(mask|edit|temp)/i.test(stem) || /^storyboard$/i.test(stem);
+}
+
+/** 用户在预览里起的名字，优先于提示词摘要。 */
+export function assetCustomName(meta?: Record<string, unknown> | null): string | null {
+  const name = readableText(typeof meta?.name === "string" ? meta.name : "");
+  return name || null;
+}
+
 /** 资产内容摘要：提示词 / 文案 / 标题，用于展示与下载命名。 */
 export function assetSummary(meta?: Record<string, unknown> | null): string | null {
   const v = meta?.prompt ?? meta?.text ?? meta?.title;
-  return typeof v === "string" && v.trim() ? v.trim() : null;
+  const text = readableText(typeof v === "string" ? v : "");
+  return text || null;
 }
 
-/** 资产卡片/列表的显示名：优先内容摘要，回落到落盘文件名。 */
+/** 未截断的展示名：自定义名称，其次摘要，机器文件名改为「未命名」。 */
+export function assetRawTitle(a: AssetNameSource): string {
+  const custom = assetCustomName(a.meta);
+  if (custom) return custom;
+  const summary = assetSummary(a.meta);
+  if (summary) return summary;
+  const base = assetBaseName(a.path);
+  if (isMachineFileName(base)) return "未命名";
+  return base;
+}
+
+/** 资产卡片/列表的显示名：优先内容摘要，机器文件名改为「未命名」。 */
 export function assetTitle(a: AssetNameSource, maxLen = 24): string {
-  const s = assetSummary(a.meta);
-  if (!s) return assetBaseName(a.path);
-  return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+  const raw = assetRawTitle(a);
+  return raw.length > maxLen ? `${raw.slice(0, maxLen)}…` : raw;
 }
 
 /** 下载文件名：`YYYYMMDD_摘要.ext`，无摘要时保持落盘文件名。 */
 export function assetDownloadName(a: AssetNameSource): string {
   const base = assetBaseName(a.path);
-  const s = assetSummary(a.meta);
+  const s = assetCustomName(a.meta) ?? assetSummary(a.meta);
   if (!s) return base;
   const ext = base.includes(".") ? base.slice(base.lastIndexOf(".")) : "";
   const date = (a.created_at ?? "").slice(0, 10).replaceAll("-", "");

@@ -120,6 +120,7 @@ const zh = {
     chat: "对话",
     script: "素材脚本",
     id: "任务编号",
+    retrySame: "重试，沿用原参数",
   },
   assets: {
     title: "资产库",
@@ -252,6 +253,7 @@ const en: typeof zh = {
     chat: "Chat",
     script: "Asset script",
     id: "Job id",
+    retrySame: "Retry with the same parameters",
   },
   assets: {
     title: "Asset Library",

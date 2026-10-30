@@ -275,6 +275,29 @@ def test_upload_as_asset_and_publish(client: TestClient, auth_header: dict[str, 
     assert pub.json()["hidden"] is False
 
 
+def test_rename_asset(client: TestClient, auth_header: dict[str, str]) -> None:
+    resp = client.post(
+        "/api/v1/uploads?as_asset=true&kind=image",
+        files={"file": ("pixel.png", b"\x89PNG\r\n\x1a\nfake", "image/png")},
+        headers=auth_header,
+    )
+    assert resp.status_code == 201, resp.text
+    asset_id = resp.json()["asset_id"]
+
+    renamed = client.patch(
+        f"/api/v1/assets/{asset_id}", json={"name": "窗边的杯子"}, headers=auth_header
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["meta"]["name"] == "窗边的杯子"
+
+    bad = client.patch(f"/api/v1/assets/{asset_id}", json={"name": "a/b"}, headers=auth_header)
+    assert bad.status_code == 400
+
+    cleared = client.patch(f"/api/v1/assets/{asset_id}", json={"name": "  "}, headers=auth_header)
+    assert cleared.status_code == 200, cleared.text
+    assert "name" not in (cleared.json()["meta"] or {})
+
+
 def test_run_text_only_chain(client: TestClient, auth_header: dict[str, str]) -> None:
     """纯文本输入节点链无需外部服务即可执行成功。"""
     text_node = _node("t1")

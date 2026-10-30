@@ -8,10 +8,12 @@ interface SplitPaneProps {
   /** 左栏宽度比例（0.28–0.72 之间拖动），按 storageKey 持久化 */
   storageKey: string;
   defaultRatio?: number;
+  /** 固定在左栏底部，不随表单滚走 */
+  footer?: ReactNode;
 }
 
 /** 左右分栏，分割线支持拖动；小屏自动堆叠为上下布局。 */
-export function SplitPane({ left, right, storageKey, defaultRatio = 0.46 }: SplitPaneProps) {
+export function SplitPane({ left, right, storageKey, defaultRatio = 0.46, footer }: SplitPaneProps) {
   const tx = useTx();
   const [ratio, setRatio] = useState(() => {
     try {
@@ -46,8 +48,12 @@ export function SplitPane({ left, right, storageKey, defaultRatio = 0.46 }: Spli
 
   return (
     <div ref={containerRef} className="flex flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-0">
-      <div className="w-full min-w-0 lg:shrink-0 lg:w-[var(--lw)]" style={{ "--lw": `${ratio * 100}%` } as React.CSSProperties}>
-        {left}
+      <div
+        className="flex w-full min-w-0 max-h-[calc(100dvh-15rem)] flex-col lg:sticky lg:top-0 lg:w-[var(--lw)] lg:shrink-0 lg:self-start lg:overflow-hidden"
+        style={{ "--lw": `${ratio * 100}%` } as React.CSSProperties}
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto">{left}</div>
+        {footer ? <div className="shrink-0 border-t border-border bg-background pt-3">{footer}</div> : null}
       </div>
       {/* 分割手柄：桌面端可拖动 */}
       <div

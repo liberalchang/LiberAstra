@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.models import Asset, Job, User
-from liberastra.schemas.asset import AssetOut
+from liberastra.schemas.asset import AssetOut, AssetRenameIn
 from liberastra.storage import resolve
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -25,10 +25,10 @@ def _get_owned(db, asset_id: int, user: User) -> Asset:  # noqa: ANN001
 
 
 def _download_name(record: Asset) -> str:
-    """下载文件名：日期 + 提示词/文案摘要；无摘要时退回落盘文件名。"""
+    """下载文件名：日期 + 自定义名称或提示词摘要；都没有时退回落盘文件名。"""
     base = Path(record.path).name
     meta = record.meta or {}
-    summary = meta.get("prompt") or meta.get("text") or meta.get("title")
+    summary = meta.get("name") or meta.get("prompt") or meta.get("text") or meta.get("title")
     if not summary:
         return base
     slug = re.sub(r'[\\/:*?"<>|\s]+', "_", str(summary)).strip("_")[:24]
@@ -75,6 +75,32 @@ def publish_asset(asset_id: int, user: CurrentUser, db: DbSession) -> Asset:
 @router.get("/{asset_id}", response_model=AssetOut)
 def get_asset(asset_id: int, user: CurrentUser, db: DbSession) -> Asset:
     return _get_owned(db, asset_id, user)
+
+
+_NAME_FORBIDDEN = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+@router.patch("/{asset_id}", response_model=AssetOut)
+def rename_asset(asset_id: int, body: AssetRenameIn, user: CurrentUser, db: DbSession) -> Asset:
+    """只改展示名，不改落盘文件。空名称会去掉自定义名字，列表回到提示词或「未命名」。"""
+    name = " ".join(body.name.split())
+    if len(name) > 80:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="名称最长 80 个字")
+    if name and _NAME_FORBIDDEN.search(name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="名称不能包含 \\ / : * ? \" < > |",
+        )
+    record = _get_owned(db, asset_id, user)
+    meta = dict(record.meta or {})
+    if name:
+        meta["name"] = name
+    else:
+        meta.pop("name", None)
+    record.meta = meta
+    db.commit()
+    db.refresh(record)
+    return record
 
 
 @router.get("/{asset_id}/content")

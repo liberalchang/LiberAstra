@@ -105,7 +105,7 @@ const NAV_GROUPS: {
 
 function navClass(isActive: boolean, collapsed: boolean) {
   return cn(
-    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/85 hover:bg-foreground/6",
+    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/85 hover:bg-foreground/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     // 暗色下主色字对比不足 4.5:1，改用更亮的紫字
     isActive && "bg-primary/15 font-medium text-primary hover:bg-primary/20 dark:text-[#c4b5fd]",
     collapsed && "justify-center px-0",
