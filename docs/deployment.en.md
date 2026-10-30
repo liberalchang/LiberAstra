@@ -64,18 +64,11 @@ powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
 
 Output: `packaging\windows\output\LiberAstra-Setup.exe`. The build machine needs Node.js 20+, network access, and [Inno Setup 6](https://jrsoftware.org/isdl.php).
 
-## Speech plugin
+## Speech and depth
 
-Online read-aloud can use edge-tts and skip this plugin. Local synthesis or transcription needs the plugin on this PC or on another NVIDIA host. Both sides need Docker for the installer path below.
+Online read-aloud can use edge-tts and skip the speech plugin. Local synthesis, transcription, or depth maps are installed inside the app: Resources → Plugins. Liber Speech listens on port 5555, Liber Depth on 5556. Releases do not include `LiberSpeech-Setup.exe`.
 
-- Windows: [LiberSpeech-Setup.exe from v1.0.2](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.2/LiberSpeech-Setup.exe). The v1.0.3 release ships only `LiberAstra-Setup.exe`. The wizard runs `docker compose up -d --build` and opens TCP 5555.
-- Linux GPU host: build `LiberSpeech-plugin.zip` with `packaging\speech\build.ps1`, copy it, unzip, and run `sh install.sh`. That zip is not attached to GitHub Releases.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File packaging\speech\build.ps1
-```
-
-Provider base URL: `http://127.0.0.1:5555` on the same machine, or `http://<host>:5555` otherwise. Weights download on first run according to `LIBER_SPEECH_TTS_MODEL` / `LIBER_SPEECH_ASR_MODEL`.
+On another GPU host, run `services/speech` or `services/depth` with `docker compose up -d --build`, then set the provider URL to `http://<host>:5555` or `http://<host>:5556`. Weights download on first run.
 
 ## Models you bring yourself
 

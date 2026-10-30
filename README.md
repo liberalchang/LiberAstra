@@ -39,7 +39,7 @@ docker compose up -d --build
 
 浏览器打开 `http://localhost:8000`。首次创建管理员，再到「设置 → 服务提供方」填写各服务地址。
 
-Windows：下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe)，装完打开 `http://127.0.0.1:8000`。语音插件不在最新 Release 里，见下面的常见问题。
+Windows：下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe)，装完打开 `http://127.0.0.1:8000`。本地语音和深度图在「资源 → 插件」里安装。
 
 环境变量、分置和模型地址：[文档索引](docs/README.md)。
 
@@ -74,7 +74,7 @@ https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
 **8000 端口被占用。** 在 `.env` 里设 `LIBERASTRA_PUBLISH_PORT=18000`，然后打开 `http://<主机>:18000`。容器内仍监听 8000。
 
-**最新 Release 里没有 LiberSpeech-Setup.exe。** `v1.0.3` 只附带主程序。本地语音插件用 [v1.0.2 的 LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.2/LiberSpeech-Setup.exe)。只做在线朗读时可以不装，用 edge-tts。
+**本地语音和深度图。** 装好主程序后，在「资源 → 插件」里安装并启用 Liber Speech（端口 5555）或 Liber Depth（端口 5556）。Release 不再附带 `LiberSpeech-Setup.exe`。只做在线朗读时可以不装语音插件，用 edge-tts。
 
 **装完页面是空的。** 先创建管理员，再添加服务提供方。没有 Provider 时，生成页没有可调用的后端。
 
@@ -222,10 +222,9 @@ ollama pull huihui_ai/gemma-4-abliterated:12b
 
 成套文件名见 [docs/使用文档.md](docs/使用文档.md)。
 
-**语音插件（可选）。** 只做在线朗读时可以不装。需要本地合成或识别时：
+**语音与深度（可选）。** 只做在线朗读时可以不装语音插件，用 edge-tts。需要本地合成、识别或深度图时，在「资源 → 插件」安装对应插件。插件和主程序在同一台 Windows 上时，语音地址是 `http://127.0.0.1:5555`，深度是 `http://127.0.0.1:5556`。
 
-- Windows： [v1.0.2 的 LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.2/LiberSpeech-Setup.exe)。`v1.0.3` 未附带该文件。向导结束时会执行 `docker compose up -d --build`，并放行 TCP 5555。
-- Linux 显卡主机：把 `LiberSpeech-plugin.zip` 拷过去，解压后执行 `sh install.sh`。该压缩包由 `packaging\speech\build.ps1` 生成，不随 Release 发布。
+放到另一台显卡主机时，仍可单独跑 `services/speech` 或 `services/depth` 的 `docker compose up -d --build`，再把 Base URL 填成那台机器的局域网地址。不再发布 `LiberSpeech-Setup.exe`。
 
 同一台机器的 Base URL 填 `http://127.0.0.1:5555`，别的主机填 `http://<IP>:5555`。
 
@@ -306,7 +305,7 @@ docker compose up -d --build
 
 Open `http://localhost:8000`. Create the admin user, then Settings → Providers.
 
-Windows: [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe), then `http://127.0.0.1:8000`. The speech installer is not on the latest release; see the FAQ.
+Windows: [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe), then `http://127.0.0.1:8000`. Install local speech or depth from Resources → Plugins.
 
 Full steps, profiles, and model locations: [docs/deployment.en.md](docs/deployment.en.md). Index: [docs/README.md](docs/README.md).
 
@@ -341,7 +340,7 @@ Pixelle-Video, Dreamifly, and Liber_SpeechAPI are upstream references. See [Refe
 
 **Port 8000 is taken.** Set `LIBERASTRA_PUBLISH_PORT=18000` in `.env` and open `http://<host>:18000`.
 
-**No LiberSpeech-Setup.exe on the latest release.** v1.0.3 ships the main app only. Use [LiberSpeech-Setup.exe from v1.0.2](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.2/LiberSpeech-Setup.exe). edge-tts covers online read-aloud without the plugin.
+**Local speech and depth.** After the app is installed, open Resources → Plugins and install Liber Speech (port 5555) or Liber Depth (port 5556). Releases no longer include `LiberSpeech-Setup.exe`. edge-tts covers online read-aloud without the speech plugin.
 
 **Empty generate pages.** Create the admin account, then add a provider. Without one there is no backend to call.
 

@@ -21,7 +21,7 @@ LiberAstra 是自托管 AIGC 编排台：对接 ComfyUI、Ollama、语音服务�
 | [API](./api.md) | HTTP 接口 |
 | [架构](./architecture.md) | 分层和扩展点 |
 
-Windows 主程序看 [最新 Release](https://github.com/liberalchang/LiberAstra/releases/latest) 的 `LiberAstra-Setup.exe`。`v1.0.3` 没有附带语音安装包；本地语音插件用 [v1.0.2 的 LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/download/v1.0.2/LiberSpeech-Setup.exe)。只做在线朗读时可以不装，用 edge-tts。
+Windows 主程序看 [最新 Release](https://github.com/liberalchang/LiberAstra/releases/latest) 的 `LiberAstra-Setup.exe`。本地语音和深度图在应用里「资源 → 插件」安装，Release 不再附带 `LiberSpeech-Setup.exe`。只做在线朗读时可以不装语音插件，用 edge-tts。
 
 ## 研发
 

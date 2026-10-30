@@ -52,7 +52,7 @@ def test_cleanup_old_data(client: TestClient, auth_header: dict[str, str]) -> No
 
 def test_system_info_and_backup(client: TestClient, auth_header: dict[str, str]) -> None:
     info = client.get("/api/v1/system/info", headers=auth_header).json()
-    assert info["version"] == "1.0.3"
+    assert info["version"] == "1.0.4"
     assert info["counts"]["users"] >= 1
 
     resp = client.get("/api/v1/system/backup", headers=auth_header)
