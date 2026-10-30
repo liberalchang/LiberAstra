@@ -766,7 +766,7 @@ export function VideoAssetsPage() {
           <CardTitle>{tx("画幅与背景音乐")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-3">
             <Field label={tx("画幅")} hint={tx("成片宽高比。")}>
               <select className={selectClass} value={aspect} onChange={(e) => setAspect(e.target.value)}>
                 <option value="9:16">{tx("9:16 竖屏")}</option>
@@ -793,7 +793,7 @@ export function VideoAssetsPage() {
               />
             </Field>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-3">
             <Field label={tx("视频字幕")} hint={tx("烧录在画面底部的口播字幕。关闭后成片无字幕。标题卡不烧字幕。")}>
               <label className="flex h-11 items-center gap-1.5 text-sm">
                 <input

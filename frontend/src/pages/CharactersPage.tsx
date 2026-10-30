@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api, type CharacterOut } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { PromptField, emptyPromptValue, resolveEffectivePrompt, type PromptFieldValue } from "@/components/PromptField";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -314,11 +314,11 @@ export function CharactersPage() {
           {error && <p className="text-sm text-danger">{error}</p>}
           {running && <p className="text-sm text-muted-foreground">{tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) })}</p>}
           {mode === "generate" ? (
-            <Button onClick={() => generate.mutate()} disabled={!name || (!appearance && refs.length === 0) || generate.isPending || !!running}>
+            <Button className={submitButtonClass} onClick={() => generate.mutate()} disabled={!name || (!appearance && refs.length === 0) || generate.isPending || !!running}>
               {tx("生成角色定妆照")}
             </Button>
           ) : (
-            <Button onClick={() => create.mutate()} disabled={!name || !turnaround || create.isPending}>
+            <Button className={submitButtonClass} onClick={() => create.mutate()} disabled={!name || !turnaround || create.isPending}>
               {tx("保存并自动切分")}
             </Button>
           )}

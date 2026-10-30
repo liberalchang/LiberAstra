@@ -1416,4 +1416,6 @@ export const UI_EN: Record<string, string> = {
   "未命名": "Untitled",
   "改名后列表和下载都会用这个名字。留空则恢复自动名称。":
     "The list and downloads use this name. Leave it empty to restore the automatic title.",
+  "越狱版": "Uncensored",
+  "官方版": "Official",
 };

@@ -145,11 +145,14 @@ export function PackSelect({
   const tx = useTx();
   const options: SearchOption[] = (packs ?? []).map((pack) => {
     const capability = PACK_CAPABILITY[pack.capability] ?? pack.capability;
+    const text = `${pack.name} ${pack.description}`;
+    const edition = /越狱|uncensored/i.test(text) ? tx("越狱版") : /官方/.test(text) ? tx("官方版") : "";
     const first = pack.description.split("\n")[0]?.trim() ?? "";
-    const short = first && first.length <= 32 && first !== pack.name ? first : "";
+    const short = !edition && first && first.length <= 24 && first !== pack.name ? first : "";
+    const detail = edition || short;
     return {
       value: pack.name,
-      label: short ? `${tx(capability)} · ${short}` : tx(capability) || pack.name,
+      label: detail ? `${tx(capability)} · ${detail}` : tx(capability) || pack.name,
       hint: pack.name,
     };
   });

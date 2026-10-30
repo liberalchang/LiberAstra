@@ -6,7 +6,7 @@ import { useLocation } from "react-router-dom";
 import { api, type SpeechCatalogModel } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   SpeechLanguageSelect,
   partitionServiceNames,
   sanitizeServiceVoice,
+  serviceVoiceOption,
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
@@ -235,7 +236,7 @@ export function TtsPage() {
                       onChange={setVoiceName}
                       placeholder={tx("搜索音色")}
                       emptyText={tx("没有匹配项")}
-                      options={edgeVoices.map((item) => ({ value: item, label: item }))}
+                      options={edgeVoices.map(serviceVoiceOption)}
                     />
                   ) : (
                     <Input
@@ -388,21 +389,20 @@ export function TtsPage() {
             />
           </Field>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => submit.mutate()}
-              disabled={
-                !text ||
-                (isEdge && !voiceName) ||
-                (isOpenAi && voiceRecordId === "" && !voiceName) ||
-                (isComfy && !pack) ||
-                submit.isPending ||
-                !!running
-              }
-            >
-              {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
-            </Button>
-          </div>
+          <Button
+            className={submitButtonClass}
+            onClick={() => submit.mutate()}
+            disabled={
+              !text ||
+              (isEdge && !voiceName) ||
+              (isOpenAi && voiceRecordId === "" && !voiceName) ||
+              (isComfy && !pack) ||
+              submit.isPending ||
+              !!running
+            }
+          >
+            {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
+          </Button>
         </CardContent>
       </Card>
         }

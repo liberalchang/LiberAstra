@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -227,11 +227,9 @@ export function AsrPage() {
             />
           </Field>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            <Button onClick={() => submit.mutate()} disabled={!file || submit.isPending || !!running}>
-              {running ? tx("转写中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始转写")}
-            </Button>
-          </div>
+          <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!file || submit.isPending || !!running}>
+            {running ? tx("转写中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始转写")}
+          </Button>
         </CardContent>
       </Card>
         }

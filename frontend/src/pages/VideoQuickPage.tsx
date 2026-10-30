@@ -23,6 +23,7 @@ import {
   isLanguageCodeVoice,
   partitionServiceNames,
   sanitizeServiceVoice,
+  serviceVoiceOption,
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
@@ -856,7 +857,7 @@ export function VideoQuickPage() {
                 </Field>
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="flex flex-col gap-3">
               <Field label={tx("视频字幕")} hint={tx("烧录在画面底部的字幕条（分镜文案），由 ffmpeg 生成，与模板内文案相互独立。关闭后成片无字幕。")}>
                 <label className="flex h-11 items-center gap-1.5 text-sm">
                   <input
@@ -999,9 +1000,9 @@ export function VideoQuickPage() {
                     options={[
                       { value: "", label: tx("选择音色…") },
                       ...(voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName)
-                        ? [{ value: voiceName, label: voiceName }]
+                        ? [serviceVoiceOption(voiceName)]
                         : []),
-                      ...serviceVoices.map((item) => ({ value: item, label: item })),
+                      ...serviceVoices.map(serviceVoiceOption),
                     ]}
                   />
                 ) : (

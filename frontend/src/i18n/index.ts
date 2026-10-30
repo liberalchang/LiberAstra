@@ -132,6 +132,8 @@ const zh = {
     text: "文本",
     hint: "图片、音频、视频和字幕都收在这里。",
     includeHidden: "含画布中间结果",
+    search: "搜索名称、提示词或时间",
+    noMatch: "没有匹配的资产",
   },
 };
 
@@ -265,6 +267,8 @@ const en: typeof zh = {
     text: "Text",
     hint: "Images, audio, video and subtitles live here.",
     includeHidden: "Include canvas drafts",
+    search: "Search name, prompt, or time",
+    noMatch: "No matching assets",
   },
 };
 
