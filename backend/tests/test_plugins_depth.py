@@ -63,7 +63,14 @@ def test_plugin_install_and_depth_naming(
         assert turned_on.status_code == 200
 
         class _Fake:
-            async def convert_depth(self, content: bytes, filename: str, *, model: str = "", device: str = ""):
+            async def convert_depth(
+                self,
+                content: bytes,
+                filename: str,
+                *,
+                model: str = "",
+                device: str = "",
+            ):
                 return "ignored.png", b"\x89PNG\r\n\x1a\nfake"
 
         monkeypatch.setattr("liberastra.api.routes.images.build_adapter", lambda record, **kwargs: _Fake())

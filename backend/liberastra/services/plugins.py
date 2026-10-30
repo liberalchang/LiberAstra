@@ -99,7 +99,10 @@ def _legacy_models_path(raw: str) -> bool:
 
 
 def plugin_models_dir(plugin_id: str) -> Path:
-    """模型目录。开发时在 data/plugins/<id>/models，Windows 安装包在 %LOCALAPPDATA%\\LiberAstra\\data\\plugins\\<id>\\models。"""
+    """模型目录。开发时在 data/plugins/<id>/models。
+
+    Windows 安装包在 %LOCALAPPDATA%\\LiberAstra\\data\\plugins\\<id>\\models。
+    """
     env_name = "LIBER_DEPTH_MODELS_DIR" if plugin_id == "depth" else "LIBER_SPEECH_MODELS_DIR"
     raw = os.environ.get(env_name, "").strip()
     if raw and not _legacy_models_path(raw):
@@ -422,7 +425,12 @@ def _create_venv(dest: Path) -> None:
     if not uv:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise RuntimeError(detail or "无法创建插件虚拟环境")
-    again = subprocess.run([uv, "venv", str(dest), "--python", sys.executable], capture_output=True, text=True, check=False)  # noqa: S603
+    again = subprocess.run(  # noqa: S603
+        [uv, "venv", str(dest), "--python", sys.executable],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     if again.returncode != 0:
         raise RuntimeError((again.stderr or again.stdout or "uv venv 失败").strip())
 
@@ -876,10 +884,9 @@ def _start_docker(plugin_id: str, code: Path, row: dict[str, Any], port: int) ->
     finally:
         log_file.close()
     if completed.returncode != 0 or not _wait_port(port, seconds=40):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=_log_tail(plugin_id) or f"{PLUGINS[plugin_id]['name']} 的 Docker 启动失败。请确认已安装 Docker。",
-        )
+        name = PLUGINS[plugin_id]["name"]
+        detail = _log_tail(plugin_id) or f"{name} 的 Docker 启动失败。请确认已安装 Docker。"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     return None
 
 

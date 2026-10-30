@@ -52,10 +52,11 @@ def install(
     plugin_id: str,
     user: CurrentUser,
     db: DbSession,
-    body: PluginInstallIn = PluginInstallIn(),
+    body: PluginInstallIn | None = None,
 ) -> PluginOut:
+    payload = body or PluginInstallIn()
     return PluginOut.model_validate(
-        install_plugin(db, user.id, plugin_id, device=body.device)
+        install_plugin(db, user.id, plugin_id, device=payload.device)
     )
 
 
