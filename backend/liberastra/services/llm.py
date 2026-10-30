@@ -54,7 +54,7 @@ def _chat_options(provider: Provider, model: str, options: dict[str, Any]) -> di
     """请求里已经带了 max_tokens 就尊重请求。否则用模型设置里的最大输出。"""
     if options.get("max_tokens"):
         return options
-    for item in read_catalog(provider.extra):
+    for item in read_catalog(provider.extra, provider.type):
         if item.get("id") != model:
             continue
         tokens = (item.get("params") or {}).get("max_output")

@@ -32,6 +32,112 @@ PROVIDER_GROUP = {
     "openai_images": "api",
 }
 
+# 模型目录不收录工作流包专属能力。那些包由画布菜单单独匹配。
+_WORKFLOW_ONLY_SUBS = frozenset({"color_grade", "inpaint", "i2v_orbit"})
+
+_LLM_PROVIDER_TYPES = (
+    "ollama",
+    "openai_compatible",
+    "anthropic",
+    "google",
+    "openai",
+    "chatgpt",
+    "deepseek",
+    "kimi_code",
+    "aliyun_bailian",
+)
+
+
+def _param_field(key: str, spec: dict[str, Any], *, when_sub: str = "") -> dict[str, Any]:
+    """把执行器字段收成设置页白名单。只保留表单需要的键。"""
+    row: dict[str, Any] = {"key": key, "type": spec["type"], "label": spec["label"]}
+    if "default" in spec:
+        row["default"] = spec["default"]
+    if spec.get("options"):
+        row["options"] = list(spec["options"])
+    if "min" in spec:
+        row["min"] = spec["min"]
+    if "max" in spec:
+        row["max"] = spec["max"]
+    if when_sub:
+        row["when_sub"] = when_sub
+    return row
+
+
+def _llm_param_schema() -> list[dict[str, Any]]:
+    return [{"key": "max_output", "type": "int", "label": "最大输出 Token", "min": 1, "max": 200_000}]
+
+
+def _ark_param_schemas() -> dict[str, list[dict[str, Any]]]:
+    """方舟图像、视频参数与请求体共用同一份字段，种子只留在画布节点。"""
+    from liberastra.providers.vendors.volcengine.schemas import IMAGE_FIELDS, VIDEO_FIELDS
+
+    image = [_param_field(key, spec) for key, spec in IMAGE_FIELDS.items()]
+    image.append(
+        _param_field(
+            "sequential_image_generation",
+            {"type": "str", "label": "组图", "default": "disabled", "options": ["disabled", "auto"]},
+            when_sub="t2i",
+        )
+    )
+    video = [_param_field(key, spec) for key, spec in VIDEO_FIELDS.items() if key != "seed"]
+    return {"llm": _llm_param_schema(), "image": image, "video": video}
+
+
+def model_profile(provider_type: str) -> dict[str, Any]:
+    """这个服务商在模型设置里能选的类型、能力和会转发的参数。"""
+    if provider_type in _LLM_PROVIDER_TYPES:
+        return {
+            "model_kinds": ["llm"],
+            "sub_capabilities_by_kind": {"llm": ["chat", "vision"]},
+            "param_schemas": {"llm": _llm_param_schema()},
+        }
+    if provider_type == "volcengine_ark":
+        return {
+            "model_kinds": ["llm", "image", "video"],
+            "sub_capabilities_by_kind": {
+                "llm": ["chat", "vision"],
+                "image": ["t2i", "i2i_single", "i2i_multi"],
+                "video": ["t2v", "i2v_first", "i2v_flf", "v2v_ref"],
+            },
+            "param_schemas": _ark_param_schemas(),
+        }
+    if provider_type in {"volcengine_speech", "liber_speech"}:
+        return {
+            "model_kinds": ["speech"],
+            "sub_capabilities_by_kind": {"speech": ["tts", "asr"]},
+            "param_schemas": {},
+        }
+    if provider_type in {"edge_tts", "openai_tts"}:
+        return {
+            "model_kinds": ["speech"],
+            "sub_capabilities_by_kind": {"speech": ["tts"]},
+            "param_schemas": {},
+        }
+    if provider_type == "openai_stt":
+        return {
+            "model_kinds": ["speech"],
+            "sub_capabilities_by_kind": {"speech": ["asr"]},
+            "param_schemas": {},
+        }
+    if provider_type == "openai_images":
+        return {
+            "model_kinds": ["image"],
+            "sub_capabilities_by_kind": {"image": ["t2i"]},
+            "param_schemas": {},
+        }
+    return {"model_kinds": [], "sub_capabilities_by_kind": {}, "param_schemas": {}}
+
+
+def execution_fields(provider_type: str, sub_capability: str) -> dict[str, dict[str, Any]]:
+    """画布节点上的参数。只有适配器真会读的服务商才有字段。"""
+    if provider_type != "volcengine_ark":
+        return {}
+    from liberastra.providers.vendors.volcengine.schemas import fields_for
+
+    return fields_for(sub_capability)
+
+
 # 细分能力 → 画布菜单大类、展示名、媒体槽。
 # 槽位决定功能页上传框和画布自动补建的前置节点。
 SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
@@ -296,8 +402,58 @@ def model_item(
     return item
 
 
-def clean_model_params(raw: Any) -> dict[str, Any]:
+def _kind_for_category(category: str) -> str:
+    if category in {"tts", "asr"}:
+        return "speech"
+    return category
+
+
+def _clean_against_schema(raw: Any, schema: list[dict[str, Any]]) -> dict[str, Any]:
+    """按这一类型的白名单收参数。没登记的键丢掉。"""
+    if not isinstance(raw, dict) or not schema:
+        return {}
+    by_key = {str(field["key"]): field for field in schema}
+    cleaned: dict[str, Any] = {}
+    defaults: dict[str, Any] = {}
+    incoming = raw.get("defaults") if isinstance(raw.get("defaults"), dict) else {}
+    max_output = raw.get("max_output")
+    for key, field in by_key.items():
+        value = max_output if key == "max_output" else incoming.get(key)
+        if value in (None, ""):
+            continue
+        kind = field["type"]
+        if kind == "int":
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                continue
+            low = int(field.get("min", number))
+            high = int(field.get("max", number))
+            number = max(low, min(high, number))
+            if key == "max_output":
+                cleaned["max_output"] = number
+            else:
+                defaults[key] = number
+        elif kind == "bool":
+            if isinstance(value, str):
+                defaults[key] = value.strip().lower() in {"1", "true", "yes", "on"}
+            else:
+                defaults[key] = bool(value)
+        else:
+            text = str(value)[:32]
+            options = field.get("options")
+            if options and text not in options:
+                continue
+            defaults[key] = text
+    if defaults:
+        cleaned["defaults"] = defaults
+    return cleaned
+
+
+def clean_model_params(raw: Any, schema: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """只保留对话的最大输出，以及图像、视频执行器认识的默认值。"""
+    if schema is not None:
+        return _clean_against_schema(raw, schema)
     if not isinstance(raw, dict):
         return {}
     cleaned: dict[str, Any] = {}
@@ -332,7 +488,7 @@ def clean_model_params(raw: Any) -> dict[str, Any]:
     return cleaned
 
 
-def normalize_model_item(raw: dict[str, Any]) -> dict[str, Any]:
+def normalize_model_item(raw: dict[str, Any], *, provider_type: str = "") -> dict[str, Any]:
     """把用户提交或历史记录收成固定字段。未知细分能力丢掉。"""
     model_id = str(raw.get("id") or "").strip()
     if not model_id:
@@ -340,22 +496,36 @@ def normalize_model_item(raw: dict[str, Any]) -> dict[str, Any]:
     subs = [
         str(item)
         for item in (raw.get("sub_capabilities") or [])
-        if str(item) in SUB_CAPABILITIES
+        if str(item) in SUB_CAPABILITIES and str(item) not in _WORKFLOW_ONLY_SUBS
     ]
     category = str(raw.get("category") or "")
     if category == "unknown":
         subs = []
     elif category not in {"llm", "image", "video", "tts", "asr"}:
         category = _category_from_subs(subs) or "llm"
-    params = clean_model_params(raw.get("params"))
-    if category == "unknown":
-        params = {}
-    elif category == "llm":
-        params.pop("defaults", None)
-    elif category in {"image", "video"}:
-        params.pop("max_output", None)
+    if provider_type:
+        profile = model_profile(provider_type)
+        kind = _kind_for_category(category)
+        if category != "unknown" and kind not in profile["model_kinds"]:
+            category = "unknown"
+            subs = []
+        elif category != "unknown":
+            allowed = set(profile["sub_capabilities_by_kind"].get(kind, []))
+            if category in {"tts", "asr"}:
+                allowed &= {category}
+            subs = [item for item in subs if item in allowed]
+        schema = [] if category == "unknown" else profile["param_schemas"].get(kind, [])
+        params = {} if category == "unknown" else clean_model_params(raw.get("params"), schema)
     else:
-        params = {}
+        params = clean_model_params(raw.get("params"))
+        if category == "unknown":
+            params = {}
+        elif category == "llm":
+            params.pop("defaults", None)
+        elif category in {"image", "video"}:
+            params.pop("max_output", None)
+        else:
+            params = {}
     label = str(raw.get("label") or "").strip() or model_id
     return model_item(
         model_id,
@@ -456,11 +626,11 @@ def merge_catalog(
     """预设表 + 远端列表 + 用户已有开关。手动添加的接入点始终保留。"""
     by_id: dict[str, dict[str, Any]] = {}
     for preset in presets:
-        item = normalize_model_item(preset)
+        item = normalize_model_item(preset, provider_type=provider_type)
         by_id[item["id"]] = item
     for raw in existing or []:
         try:
-            item = normalize_model_item(raw)
+            item = normalize_model_item(raw, provider_type=provider_type)
         except ValueError:
             continue
         previous = by_id.get(item["id"])
@@ -483,7 +653,7 @@ def merge_catalog(
             continue
         guessed = classify_remote(provider_type, remote_id) if provider_type else classify_model_id(remote_id)
         if guessed is not None:
-            by_id[remote_id] = guessed
+            by_id[remote_id] = normalize_model_item(guessed, provider_type=provider_type)
     return sorted(by_id.values(), key=lambda item: (not item["custom"], item["id"]))
 
 
@@ -491,7 +661,7 @@ def enabled_model_ids(catalog: list[dict[str, Any]]) -> list[str]:
     return [str(item["id"]) for item in catalog if item.get("enabled")]
 
 
-def read_catalog(extra: dict[str, Any] | None) -> list[dict[str, Any]]:
+def read_catalog(extra: dict[str, Any] | None, provider_type: str = "") -> list[dict[str, Any]]:
     raw = (extra or {}).get("model_catalog")
     if not isinstance(raw, list):
         return []
@@ -499,7 +669,7 @@ def read_catalog(extra: dict[str, Any] | None) -> list[dict[str, Any]]:
     for entry in raw:
         if isinstance(entry, dict):
             try:
-                items.append(normalize_model_item(entry))
+                items.append(normalize_model_item(entry, provider_type=provider_type))
             except ValueError:
                 continue
     return items

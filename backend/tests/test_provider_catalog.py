@@ -434,6 +434,7 @@ def test_chat_options_use_model_max_output() -> None:
     from liberastra.services.llm import _chat_options
 
     provider = SimpleNamespace(
+        type="deepseek",
         extra={
             "model_catalog": [
                 {
@@ -451,3 +452,95 @@ def test_chat_options_use_model_max_output() -> None:
     assert _chat_options(provider, "deepseek-chat", {})["max_tokens"] == 2048
     assert "max_tokens" not in _chat_options(provider, "other", {})
     assert _chat_options(provider, "deepseek-chat", {"max_tokens": 10})["max_tokens"] == 10
+
+
+def test_capabilities_publish_model_profile(client: TestClient, auth_header: dict[str, str]) -> None:
+    body = client.get("/api/v1/capabilities", headers=auth_header).json()
+    by_type = {item["type"]: item for item in body["provider_types"]}
+    deepseek = by_type["deepseek"]
+    assert deepseek["model_kinds"] == ["llm"]
+    assert deepseek["sub_capabilities_by_kind"] == {"llm": ["chat", "vision"]}
+    assert [field["key"] for field in deepseek["param_schemas"]["llm"]] == ["max_output"]
+    ark = by_type["volcengine_ark"]
+    assert ark["model_kinds"] == ["llm", "image", "video"]
+    image_fields = ark["param_schemas"]["image"]
+    image_keys = [field["key"] for field in image_fields]
+    assert "sequential_image_generation" in image_keys
+    video_keys = [field["key"] for field in ark["param_schemas"]["video"]]
+    assert "seed" not in video_keys
+    seq = next(field for field in image_fields if field["key"] == "sequential_image_generation")
+    assert seq["when_sub"] == "t2i"
+    assert by_type["comfyui"]["model_kinds"] == []
+    assert by_type["openai_images"]["sub_capabilities_by_kind"] == {"image": ["t2i"]}
+    assert by_type["edge_tts"]["sub_capabilities_by_kind"] == {"speech": ["tts"]}
+
+
+def test_normalize_drops_unregistered_provider_params() -> None:
+    from liberastra.providers.catalog import normalize_model_item
+
+    chat = normalize_model_item(
+        {
+            "id": "deepseek-chat",
+            "category": "llm",
+            "sub_capabilities": ["chat", "color_grade"],
+            "params": {"max_output": 4096, "defaults": {"size": "2K"}},
+        },
+        provider_type="deepseek",
+    )
+    assert chat["sub_capabilities"] == ["chat"]
+    assert chat["params"] == {"max_output": 4096}
+
+    image = normalize_model_item(
+        {
+            "id": "deepseek-image",
+            "category": "image",
+            "sub_capabilities": ["t2i", "color_grade"],
+            "params": {"defaults": {"size": "2K"}},
+        },
+        provider_type="deepseek",
+    )
+    assert image["category"] == "unknown"
+    assert image["sub_capabilities"] == []
+    assert "params" not in image
+
+    video = normalize_model_item(
+        {
+            "id": "seedance",
+            "category": "video",
+            "sub_capabilities": ["t2v", "i2v_orbit"],
+            "params": {"defaults": {"duration": 8, "seed": 7, "ratio": "16:9"}},
+        },
+        provider_type="volcengine_ark",
+    )
+    assert video["sub_capabilities"] == ["t2v"]
+    assert video["params"]["defaults"] == {"duration": 8, "ratio": "16:9"}
+
+
+def test_model_specs_keep_canvas_seed_and_drop_unregistered_defaults() -> None:
+    from types import SimpleNamespace
+
+    from liberastra.providers.schema_registry import model_specs
+
+    provider = SimpleNamespace(
+        id=1,
+        type="volcengine_ark",
+        name="ark",
+        extra={
+            "model_catalog": [
+                {
+                    "id": "seedance",
+                    "label": "Seedance",
+                    "category": "video",
+                    "sub_capabilities": ["t2v"],
+                    "enabled": True,
+                    "custom": True,
+                    "params": {"defaults": {"duration": 8, "seed": 7, "reasoning": "high"}},
+                }
+            ]
+        },
+    )
+    specs = model_specs(provider)
+    t2v = next(spec for spec in specs if spec.sub_capability == "t2v")
+    assert t2v.inputs["duration"]["default"] == 8
+    assert t2v.inputs["seed"]["default"] == -1
+    assert "reasoning" not in t2v.inputs

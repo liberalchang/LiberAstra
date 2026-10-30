@@ -54,6 +54,19 @@ class ProviderOut(BaseModel):
         )
 
 
+class ModelParamFieldOut(BaseModel):
+    """模型设置里的一个参数。只有适配器会转发的字段才出现。"""
+
+    key: str
+    type: str
+    label: str
+    default: str | int | bool | None = None
+    options: list[str] | None = None
+    min: int | None = None
+    max: int | None = None
+    when_sub: str = ""
+
+
 class ProviderTypeInfoOut(BaseModel):
     type: str
     label: str
@@ -62,6 +75,9 @@ class ProviderTypeInfoOut(BaseModel):
     default_base_url: str | None
     description: str
     group: str = ""
+    model_kinds: list[str] = Field(default_factory=list)
+    sub_capabilities_by_kind: dict[str, list[str]] = Field(default_factory=dict)
+    param_schemas: dict[str, list[ModelParamFieldOut]] = Field(default_factory=dict)
 
 
 class CapabilitiesOut(BaseModel):

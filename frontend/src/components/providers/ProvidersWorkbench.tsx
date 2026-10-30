@@ -16,9 +16,6 @@ import {
   Images,
   MessageSquare,
   Mic,
-  Orbit,
-  Paintbrush,
-  Palette,
   Pencil,
   RefreshCw,
   Settings,
@@ -54,9 +51,6 @@ const SUBS = [
   ["i2v_first", "首帧"],
   ["i2v_flf", "首尾帧"],
   ["v2v_ref", "参考视频"],
-  ["i2v_orbit", "360全景"],
-  ["color_grade", "调色"],
-  ["inpaint", "重绘"],
   ["tts", "文字转语音"],
   ["asr", "语音转文字"],
 ] as const;
@@ -71,56 +65,34 @@ const SUB_ICON: Record<string, LucideIcon> = {
   i2v_first: GalleryHorizontalEnd,
   i2v_flf: GalleryHorizontal,
   v2v_ref: Film,
-  i2v_orbit: Orbit,
-  color_grade: Palette,
-  inpaint: Paintbrush,
   tts: AudioLines,
   asr: Mic,
 };
-
-const SUB_GROUPS = [
-  { label: "对话", ids: ["chat", "vision"] },
-  { label: "图像", ids: ["t2i", "i2i_single", "i2i_multi", "color_grade", "inpaint"] },
-  { label: "视频", ids: ["t2v", "i2v_first", "i2v_flf", "v2v_ref", "i2v_orbit"] },
-  { label: "语音", ids: ["tts", "asr"] },
-] as const;
 
 function knownSubs(subs: string[]): string[] {
   return subs.filter((sub) => SUB_ICON[sub]);
 }
 
 type ModelKind = "llm" | "image" | "video" | "speech" | "unknown";
+type ParamField = NonNullable<ProviderTypeInfo["param_schemas"]>[string][number];
 
-/** 模型目录里这个服务商真正能送去执行的类型。检查点不在这里选功能。 */
-function offerFor(providerType: string): { kinds: ModelKind[]; subs: readonly string[] } {
-  const chat = { kinds: ["llm"] as ModelKind[], subs: ["chat", "vision"] as const };
-  const table: Record<string, { kinds: ModelKind[]; subs: readonly string[] }> = {
-    ollama: chat,
-    openai_compatible: chat,
-    anthropic: chat,
-    google: chat,
-    openai: chat,
-    chatgpt: chat,
-    deepseek: chat,
-    kimi_code: chat,
-    aliyun_bailian: chat,
-    volcengine_ark: {
-      kinds: ["llm", "image", "video"],
-      subs: ["chat", "vision", "t2i", "i2i_single", "i2i_multi", "t2v", "i2v_first", "i2v_flf", "v2v_ref"],
-    },
-    volcengine_speech: { kinds: ["speech"], subs: ["tts", "asr"] },
-    liber_speech: { kinds: ["speech"], subs: ["tts", "asr"] },
-    edge_tts: { kinds: ["speech"], subs: ["tts"] },
-    openai_tts: { kinds: ["speech"], subs: ["tts"] },
-    openai_stt: { kinds: ["speech"], subs: ["asr"] },
-    openai_images: { kinds: ["image"], subs: ["t2i"] },
-  };
-  return table[providerType] ?? { kinds: [], subs: [] };
+/** 页签、能力和参数都读后端下发的服务商配置，不再在前端另写一份。 */
+function kindsOf(info?: ProviderTypeInfo | null): ModelKind[] {
+  const allowed = new Set<ModelKind>(["llm", "image", "video", "speech"]);
+  return (info?.model_kinds ?? []).filter((id): id is ModelKind => allowed.has(id as ModelKind));
 }
 
-function executableForKind(providerType: string, kind: ModelKind): string[] {
-  const offer = offerFor(providerType);
-  return groupIds(kind).filter((id) => offer.subs.includes(id));
+function subsForKind(info: ProviderTypeInfo | null | undefined, kind: ModelKind): string[] {
+  if (kind === "unknown") return [];
+  return info?.sub_capabilities_by_kind?.[kind] ?? [];
+}
+
+function offeredSubs(info?: ProviderTypeInfo | null): string[] {
+  return kindsOf(info).flatMap((kind) => subsForKind(info, kind));
+}
+
+function fieldsFor(info: ProviderTypeInfo | null | undefined, kind: ModelKind, subs: string[]): ParamField[] {
+  return (info?.param_schemas?.[kind] ?? []).filter((field) => !field.when_sub || subs.includes(field.when_sub));
 }
 
 function subLabel(id: string): string {
@@ -163,9 +135,9 @@ export function ProvidersWorkbench() {
   const selected = listed ?? (pending?.type === selectedType ? pending : null);
   const catalog = useMemo(() => readCatalog(selected?.extra), [selected]);
   useEffect(() => {
-    const kinds = offerFor(selected?.type ?? "").kinds;
+    const kinds = kindsOf(activeInfo);
     if (tab !== "all" && !kinds.includes(tab as ModelKind)) setTab("all");
-  }, [selected?.type, tab]);
+  }, [activeInfo, tab]);
   const shown = catalog.filter((item) => {
     if (tab === "all") return true;
     if (tab === "speech") return item.category === "tts" || item.category === "asr";
@@ -301,6 +273,7 @@ export function ProvidersWorkbench() {
               </div>
             <Detail
               provider={selected}
+              profile={activeInfo}
               baseUrl={baseUrl || selected.base_url}
               apiKey={apiKey}
               checkModel={checkModel}
@@ -320,7 +293,7 @@ export function ProvidersWorkbench() {
               onDraftLabel={setDraftLabel}
               onDraftCategory={(value) => {
                 setDraftCategory(value);
-                const allowed = executableForKind(selected.type, value as ModelKind);
+                const allowed = subsForKind(activeInfo, value as ModelKind);
                 setDraftSubs((current) => {
                   const next = current.filter((id) => allowed.includes(id));
                   return next.length > 0 ? next : allowed.slice(0, 1);
@@ -355,15 +328,15 @@ export function ProvidersWorkbench() {
               }}
               onAddCustom={() => {
                 if (!draftId.trim()) return;
-                const offer = offerFor(selected.type);
-                const kind = (offer.kinds.includes(draftCategory as ModelKind) ? draftCategory : "unknown") as ModelKind;
-                const subs = draftSubs.filter((id) => executableForKind(selected.type, kind).includes(id));
+                const kinds = kindsOf(activeInfo);
+                const kind = (kinds.includes(draftCategory as ModelKind) ? draftCategory : "unknown") as ModelKind;
+                const subs = draftSubs.filter((id) => subsForKind(activeInfo, kind).includes(id));
                 saveCatalog.mutate([
                   ...catalog,
                   {
                     id: draftId.trim(),
                     label: draftLabel.trim() || draftId.trim(),
-                    category: offer.subs.length === 0 ? "unknown" : categoryFor(kind, subs),
+                    category: kinds.length === 0 ? "unknown" : categoryFor(kind, subs),
                     sub_capabilities: subs,
                     enabled: true,
                     custom: true,
@@ -383,6 +356,7 @@ export function ProvidersWorkbench() {
 
 function Detail(props: {
   provider: ProviderOut;
+  profile: ProviderTypeInfo | null;
   baseUrl: string;
   apiKey: string;
   checkModel: string;
@@ -419,14 +393,15 @@ function Detail(props: {
   const toggle = (id: string, on: boolean) => {
     props.onSaveCatalog(props.catalog.map((item) => (item.id === id ? { ...item, enabled: on } : item)));
   };
-  const offer = offerFor(props.provider.type);
-  const modelTabs = TABS.filter((item) => item.id === "all" || offer.kinds.includes(item.id as ModelKind));
+  const kinds = kindsOf(props.profile);
+  const modelTabs = TABS.filter((item) => item.id === "all" || kinds.includes(item.id as ModelKind));
   const manualKind = (
-    offer.kinds.includes(props.draftCategory as ModelKind) ? props.draftCategory : offer.kinds[0] ?? "llm"
+    kinds.includes(props.draftCategory as ModelKind) ? props.draftCategory : kinds[0] ?? "llm"
   ) as ModelKind;
-  const manualSubs = executableForKind(props.provider.type, manualKind);
+  const manualSubs = subsForKind(props.profile, manualKind);
   const saveItem = (next: ModelItem) => {
-    const subs = knownSubs(next.sub_capabilities).filter((id) => offer.subs.includes(id));
+    const allowed = new Set(offeredSubs(props.profile));
+    const subs = knownSubs(next.sub_capabilities).filter((id) => allowed.has(id));
     props.onSaveCatalog(
       props.catalog.map((item) =>
         item.id === next.id
@@ -531,6 +506,7 @@ function Detail(props: {
         title={tx("已启用")}
         items={visible.filter((item) => item.enabled)}
         providerType={props.provider.type}
+        allowedSubs={offeredSubs(props.profile)}
         onToggle={toggle}
         onEdit={setEditing}
       />
@@ -538,6 +514,7 @@ function Detail(props: {
         title={tx("未启用")}
         items={visible.filter((item) => !item.enabled)}
         providerType={props.provider.type}
+        allowedSubs={offeredSubs(props.profile)}
         onToggle={toggle}
         onEdit={setEditing}
       />
@@ -556,7 +533,7 @@ function Detail(props: {
       {editing && (
         <ModelSettings
           item={editing}
-          providerType={props.provider.type}
+          profile={props.profile}
           onClose={() => setEditing(null)}
           onSave={saveItem}
         />
@@ -589,7 +566,7 @@ function Detail(props: {
         {manual && (
           <div className="mt-2">
             <p className="mb-2 text-xs text-muted-foreground">
-              {offer.subs.length === 0
+              {kinds.length === 0
                 ? tx("这个服务商的模型不在这里选功能。画布用的是工作流包。")
                 : tx("勾选后，它会出现在对应的画布功能里。不勾选时只出现在「全部模型」。")}
             </p>
@@ -601,9 +578,9 @@ function Detail(props: {
                 onChange={(event) => props.onDraftId(event.target.value)}
               />
               <Input placeholder={tx("简称")} aria-label={tx("简称")} value={props.draftLabel} onChange={(event) => props.onDraftLabel(event.target.value)} />
-              {offer.kinds.length > 1 && (
+              {kinds.length > 1 && (
                 <select className={selectClass} aria-label={tx("类型")} value={props.draftCategory} onChange={(event) => props.onDraftCategory(event.target.value)}>
-                  {offer.kinds.map((kind) => (
+                  {kinds.map((kind) => (
                     <option key={kind} value={kind}>{tx(KIND_OPTIONS.find((item) => item.id === kind)?.label ?? kind)}</option>
                   ))}
                 </select>
@@ -767,12 +744,14 @@ function ModelList({
   title,
   items,
   providerType,
+  allowedSubs,
   onToggle,
   onEdit,
 }: {
   title: string;
   items: ModelItem[];
   providerType: string;
+  allowedSubs: string[];
   onToggle: (id: string, enabled: boolean) => void;
   onEdit: (item: ModelItem) => void;
 }) {
@@ -783,7 +762,7 @@ function ModelList({
       <p className="mb-1 text-xs text-muted-foreground">{title}</p>
       <ul>
         {items.map((item) => {
-          const marks = knownSubs(item.sub_capabilities).filter((id) => offerFor(providerType).subs.includes(id));
+          const marks = knownSubs(item.sub_capabilities).filter((id) => allowedSubs.includes(id));
           return (
             <li key={item.id} className="flex items-center gap-3 border-b border-border py-2.5">
               <ProviderMark type={providerType} size="sm" />
@@ -831,41 +810,10 @@ const KIND_OPTIONS: { id: ModelKind; label: string }[] = [
   { id: "unknown", label: "未知" },
 ];
 
-type DefaultField = {
-  key: string;
-  label: string;
-  kind: "select" | "number" | "bool";
-  options?: string[];
-};
-
-const IMAGE_DEFAULTS: DefaultField[] = [
-  { key: "size", label: "尺寸", kind: "select", options: ["2K", "2048x2048", "1920x1080", "1080x1920", "1024x1024"] },
-  { key: "output_format", label: "格式", kind: "select", options: ["png", "jpeg"] },
-  { key: "watermark", label: "水印", kind: "bool" },
-];
-
-const T2I_EXTRA: DefaultField[] = [
-  { key: "sequential_image_generation", label: "组图", kind: "select", options: ["disabled", "auto"] },
-];
-
-const VIDEO_DEFAULTS: DefaultField[] = [
-  { key: "resolution", label: "分辨率", kind: "select", options: ["480p", "720p", "1080p"] },
-  { key: "ratio", label: "画幅", kind: "select", options: ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"] },
-  { key: "duration", label: "时长（秒）", kind: "number" },
-  { key: "generate_audio", label: "生成音频", kind: "bool" },
-  { key: "camera_fixed", label: "固定镜头", kind: "bool" },
-  { key: "watermark", label: "水印", kind: "bool" },
-];
-
 function kindOf(item: ModelItem): ModelKind {
   if (item.category === "tts" || item.category === "asr") return "speech";
   if (item.category === "image" || item.category === "video" || item.category === "llm") return item.category;
   return "unknown";
-}
-
-function groupIds(kind: ModelKind): readonly string[] {
-  const label = KIND_OPTIONS.find((item) => item.id === kind)?.label;
-  return SUB_GROUPS.find((group) => group.label === label)?.ids ?? [];
 }
 
 function categoryFor(kind: ModelKind, subs: string[]): string {
@@ -885,41 +833,39 @@ function savedDefaults(item: ModelItem): Record<string, string> {
 
 function ModelSettings({
   item,
-  providerType,
+  profile,
   onClose,
   onSave,
 }: {
   item: ModelItem;
-  providerType: string;
+  profile: ProviderTypeInfo | null;
   onClose: () => void;
   onSave: (item: ModelItem) => void;
 }) {
   const tx = useTx();
-  const offer = offerFor(providerType);
+  const kinds = kindsOf(profile);
   const baseline = knownSubs(item.sub_capabilities);
-  const initialKind = offer.kinds.includes(kindOf(item)) ? kindOf(item) : "unknown";
+  const initialKind = kinds.includes(kindOf(item)) ? kindOf(item) : "unknown";
   const [label, setLabel] = useState(item.label);
   const [kind, setKind] = useState<ModelKind>(initialKind);
   const [subs, setSubs] = useState<string[]>(() =>
-    executableForKind(providerType, initialKind).filter((id) => baseline.includes(id)),
+    subsForKind(profile, initialKind).filter((id) => baseline.includes(id)),
   );
   const [maxOutput, setMaxOutput] = useState(item.params?.max_output ? String(item.params.max_output) : "");
   const [defaults, setDefaults] = useState<Record<string, string>>(savedDefaults(item));
-  const allowed = executableForKind(providerType, kind);
-  const fields =
-    kind === "video"
-      ? VIDEO_DEFAULTS
-      : [...IMAGE_DEFAULTS, ...(subs.includes("t2i") ? T2I_EXTRA : [])];
-  const dropped = baseline.filter(
-    (id) => offer.subs.includes(id) && (kind === "unknown" || !allowed.includes(id)),
-  );
+  const allowed = subsForKind(profile, kind);
+  const schemaFields = fieldsFor(profile, kind, subs);
+  const tokenField = schemaFields.find((field) => field.key === "max_output");
+  const defaultFields = schemaFields.filter((field) => field.key !== "max_output");
+  const offered = offeredSubs(profile);
+  const dropped = baseline.filter((id) => offered.includes(id) && (kind === "unknown" || !allowed.includes(id)));
   const chooseKind = (next: ModelKind) => {
     setKind(next);
     if (next === "unknown") {
       setSubs([]);
       return;
     }
-    const ids = new Set(executableForKind(providerType, next));
+    const ids = new Set(subsForKind(profile, next));
     setSubs(baseline.filter((id) => ids.has(id)));
   };
   const toggleSub = (id: string) => {
@@ -934,20 +880,29 @@ function ModelSettings({
           const nextSubs = kind === "unknown" ? [] : subs.filter((id) => allowed.includes(id));
           const params: NonNullable<ModelItem["params"]> = {};
           const tokens = Number(maxOutput);
-          if (kind === "llm" && maxOutput.trim() && Number.isFinite(tokens) && tokens >= 1) {
-            params.max_output = Math.min(200000, Math.round(tokens));
+          if (tokenField && maxOutput.trim() && Number.isFinite(tokens)) {
+            const low = tokenField.min ?? 1;
+            const high = tokenField.max ?? 200000;
+            if (tokens >= low) params.max_output = Math.min(high, Math.max(low, Math.round(tokens)));
           }
-          if ((kind === "image" || kind === "video") && providerType === "volcengine_ark") {
-            const saved: Record<string, string | number | boolean> = {};
-            for (const field of fields) {
-              const raw = defaults[field.key] ?? "";
-              if (!raw) continue;
-              if (field.kind === "bool") saved[field.key] = raw === "true";
-              else if (field.kind === "number") saved[field.key] = Number(raw);
-              else saved[field.key] = raw;
+          const saved: Record<string, string | number | boolean> = {};
+          for (const field of defaultFields) {
+            const raw = defaults[field.key] ?? "";
+            if (raw === "") continue;
+            if (field.type === "bool") {
+              if (raw !== "true" && raw !== "false") continue;
+              saved[field.key] = raw === "true";
+            } else if (field.type === "int") {
+              const number = Number(raw);
+              if (!Number.isFinite(number)) continue;
+              const low = field.min ?? number;
+              const high = field.max ?? number;
+              saved[field.key] = Math.min(high, Math.max(low, Math.round(number)));
+            } else {
+              saved[field.key] = raw;
             }
-            if (Object.keys(saved).length > 0) params.defaults = saved;
           }
+          if (Object.keys(saved).length > 0) params.defaults = saved;
           onSave({
             ...item,
             label: label.trim() || item.id,
@@ -971,11 +926,11 @@ function ModelSettings({
             <span className="font-medium">{tx("展示名称")}</span>
             <Input value={label} onChange={(event) => setLabel(event.target.value)} />
           </label>
-          {offer.kinds.length > 0 ? (
+          {kinds.length > 0 ? (
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium">{tx("类型")}</legend>
               <div className="flex flex-wrap gap-2">
-                {KIND_OPTIONS.filter((option) => offer.kinds.includes(option.id)).map((option) => (
+                {KIND_OPTIONS.filter((option) => kinds.includes(option.id)).map((option) => (
                   <label key={option.id} className="flex items-center gap-1.5 rounded-lg px-1 py-1 text-sm">
                     <input
                       type="radio"
@@ -1001,10 +956,10 @@ function ModelSettings({
           ) : (
             <p className="text-xs text-muted-foreground">{tx("这个服务商的模型不在这里选功能。画布用的是工作流包。")}</p>
           )}
-          {kind === "unknown" && offer.kinds.length > 0 && (
+          {kind === "unknown" && kinds.length > 0 && (
             <p className="text-xs text-muted-foreground">{tx("未知模型不进入画布功能。确认用途后再选择类型。")}</p>
           )}
-          {kind !== "unknown" && (
+          {kind !== "unknown" && allowed.length > 0 && (
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium">{tx("能力")}</legend>
               <p className="text-xs text-muted-foreground">{tx("勾选后进入对应的画布功能。不认识的类型不会显示。")}</p>
@@ -1021,13 +976,13 @@ function ModelSettings({
               })}
             </fieldset>
           )}
-          {kind === "llm" && (
+          {tokenField && (
             <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">{tx("最大输出 Token")}</span>
+              <span className="font-medium">{tx(tokenField.label)}</span>
               <Input
                 type="number"
-                min={1}
-                max={200000}
+                min={tokenField.min ?? 1}
+                max={tokenField.max ?? 200000}
                 value={maxOutput}
                 onChange={(event) => setMaxOutput(event.target.value)}
               />
@@ -1036,27 +991,27 @@ function ModelSettings({
               </span>
             </label>
           )}
-          {(kind === "image" || kind === "video") && providerType === "volcengine_ark" && (
+          {defaultFields.length > 0 && (
             <fieldset className="flex flex-col gap-3">
               <legend className="text-sm font-medium">{tx("模型默认参数")}</legend>
               <p className="text-xs text-muted-foreground">
                 {tx("这些值会成为画布上该模型的初始参数，节点里仍可修改。")}
               </p>
-              {fields.map((field) => (
+              {defaultFields.map((field) => (
                 <label key={field.key} className="flex flex-col gap-1.5 text-sm">
                   <span>{tx(field.label)}</span>
-                  {field.kind === "number" ? (
+                  {field.type === "int" ? (
                     <Input
                       type="number"
-                      min={-1}
-                      max={30}
+                      min={field.min ?? undefined}
+                      max={field.max ?? undefined}
                       value={defaults[field.key] ?? ""}
                       placeholder={tx("留空使用默认")}
                       onChange={(event) =>
                         setDefaults((current) => ({ ...current, [field.key]: event.target.value }))
                       }
                     />
-                  ) : (
+                  ) : field.options && field.options.length > 0 ? (
                     <select
                       className={selectClass}
                       value={defaults[field.key] ?? ""}
@@ -1065,12 +1020,30 @@ function ModelSettings({
                       }
                     >
                       <option value="">{tx("留空使用默认")}</option>
-                      {(field.kind === "bool" ? ["true", "false"] : field.options ?? []).map((option) => (
-                        <option key={option} value={option}>
-                          {field.kind === "bool" ? tx(option === "true" ? "开启" : "关闭") : option}
-                        </option>
+                      {field.options.map((option) => (
+                        <option key={option} value={option}>{option}</option>
                       ))}
                     </select>
+                  ) : field.type === "bool" ? (
+                    <select
+                      className={selectClass}
+                      value={defaults[field.key] ?? ""}
+                      onChange={(event) =>
+                        setDefaults((current) => ({ ...current, [field.key]: event.target.value }))
+                      }
+                    >
+                      <option value="">{tx("留空使用默认")}</option>
+                      <option value="true">{tx("开启")}</option>
+                      <option value="false">{tx("关闭")}</option>
+                    </select>
+                  ) : (
+                    <Input
+                      value={defaults[field.key] ?? ""}
+                      placeholder={tx("留空使用默认")}
+                      onChange={(event) =>
+                        setDefaults((current) => ({ ...current, [field.key]: event.target.value }))
+                      }
+                    />
                   )}
                 </label>
               ))}

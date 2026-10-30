@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any
 
 from liberastra.providers.base import ExecutionSpec, MediaSlotSpec
-from liberastra.providers.catalog import media_slots, pack_sub_capability, read_catalog
-from liberastra.providers.vendors.volcengine.schemas import apply_saved_defaults, fields_for
+from liberastra.providers.catalog import execution_fields, media_slots, pack_sub_capability, read_catalog
+from liberastra.providers.vendors.volcengine.schemas import apply_saved_defaults
 
 _FORM_FIELDS = (
     "type",
@@ -130,7 +130,7 @@ def workflow_specs(packs: list[Any]) -> list[ExecutionSpec]:
 def model_specs(provider: Any) -> list[ExecutionSpec]:
     """一个已启用模型的每个细分能力各一条契约。本地语音、Ollama 与云端走同一份目录。"""
     specs: list[ExecutionSpec] = []
-    for item in read_catalog(provider.extra):
+    for item in read_catalog(provider.extra, provider.type):
         if not item.get("enabled"):
             continue
         for sub in item.get("sub_capabilities") or []:
@@ -145,13 +145,9 @@ def model_specs(provider: Any) -> list[ExecutionSpec]:
                     provider_name=provider.name,
                     category=item.get("category") or "",
                     media_slots=_slots(media_slots(sub)),
-                    inputs=(
-                        apply_saved_defaults(
-                            fields_for(sub),
-                            (item.get("params") or {}).get("defaults"),
-                        )
-                        if provider.type == "volcengine_ark"
-                        else {}
+                    inputs=apply_saved_defaults(
+                        execution_fields(provider.type, sub),
+                        (item.get("params") or {}).get("defaults"),
                     ),
                 )
             )

@@ -6,6 +6,16 @@ export interface components {
     AuthStatus: { initialized: boolean };
     UserOut: { id: number; username: string; is_admin: boolean; created_at: string };
     TokenResponse: { access_token: string; token_type: string };
+    ModelParamField: {
+      key: string;
+      type: string;
+      label: string;
+      default?: string | number | boolean | null;
+      options?: string[] | null;
+      min?: number | null;
+      max?: number | null;
+      when_sub?: string;
+    };
     ProviderTypeInfo: {
       type: string;
       label: string;
@@ -14,6 +24,9 @@ export interface components {
       default_base_url: string | null;
       description: string;
       group?: string;
+      model_kinds?: string[];
+      sub_capabilities_by_kind?: Record<string, string[]>;
+      param_schemas?: Record<string, components["schemas"]["ModelParamField"][]>;
     };
     CapabilitiesOut: { provider_types: components["schemas"]["ProviderTypeInfo"][]; capabilities: string[] };
     ProviderOut: {

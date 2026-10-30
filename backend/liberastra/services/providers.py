@@ -214,18 +214,18 @@ def seed_model_catalog(record: Provider) -> None:
 
     if record.type not in {"volcengine_ark", "volcengine_speech", *CLOUD_TYPES}:
         return
-    if read_catalog(record.extra):
+    if read_catalog(record.extra, record.type):
         return
-    catalog = merge_catalog([], [], presets_for(record.type))
+    catalog = merge_catalog([], [], presets_for(record.type), provider_type=record.type)
     _write_catalog(record, catalog)
     record.models = enabled_model_ids(catalog)
 
 
 def _seed_saved_models(record: Provider) -> list[dict[str, Any]]:
     """把重构前只存在 models 里的 ID 补进目录。Edge TTS 没有任何条目时给一个默认识别得到的音色。"""
-    from liberastra.providers.catalog import classify_remote, model_item, read_catalog
+    from liberastra.providers.catalog import classify_remote, model_item, normalize_model_item, read_catalog
 
-    existing = read_catalog(record.extra)
+    existing = read_catalog(record.extra, record.type)
     ids = {item["id"] for item in existing}
     for mid in list(record.models or []):
         text = str(mid).strip()
@@ -234,6 +234,7 @@ def _seed_saved_models(record: Provider) -> list[dict[str, Any]]:
         item = classify_remote(record.type, text)
         if item is None:
             continue
+        item = normalize_model_item(item, provider_type=record.type)
         item["enabled"] = True
         existing.append(item)
         ids.add(text)
@@ -254,7 +255,7 @@ def backfill_catalog(record: Provider) -> bool:
     """已保存的模型 ID 还没进目录时写回去。返回是否改动了记录。"""
     from liberastra.providers.catalog import enabled_model_ids, non_generative_model, read_catalog
 
-    before = read_catalog(record.extra)
+    before = read_catalog(record.extra, record.type)
     seeded = _seed_saved_models(record)
     for item in seeded:
         subs = item.get("sub_capabilities") or []
@@ -272,7 +273,7 @@ def backfill_catalog(record: Provider) -> bool:
 def replace_model_catalog(record: Provider, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     from liberastra.providers.catalog import enabled_model_ids, normalize_model_item
 
-    catalog = [normalize_model_item(item) for item in items]
+    catalog = [normalize_model_item(item, provider_type=record.type) for item in items]
     _write_catalog(record, catalog)
     record.models = enabled_model_ids(catalog)
     return catalog
