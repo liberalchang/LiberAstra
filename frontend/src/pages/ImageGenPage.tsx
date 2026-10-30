@@ -21,7 +21,7 @@ import {
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { ASPECT_OPTIONS, AspectSelect, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -288,7 +288,7 @@ export function ImageGenPage() {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
+            <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
               {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
             </Button>
           </div>

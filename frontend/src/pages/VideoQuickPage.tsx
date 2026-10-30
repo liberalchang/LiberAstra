@@ -28,7 +28,7 @@ import {
 } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { TemplateThumb } from "@/components/TemplateThumb";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -1133,22 +1133,20 @@ export function VideoQuickPage() {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <div className="flex items-center gap-3">
-              {mode === "batch" ? (
-                <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
-                  {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
-                </Button>
-              ) : (
-                <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
-                  {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
-                </Button>
-              )}
-              {running && job?.steps?.length > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
-                </span>
-              )}
-            </div>
+            {running && job?.steps?.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
+              </p>
+            )}
+            {mode === "batch" ? (
+              <Button className={submitButtonClass} onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
+                {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
+              </Button>
+            ) : (
+              <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={submitDisabled}>
+                {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
+              </Button>
+            )}
           </div>
         }
         right={

@@ -60,7 +60,7 @@ export function SearchSelect({
 
   let lastGroup = "";
   return (
-    <div className="relative min-w-0">
+    <div className="relative min-w-0 w-full flex-1">
       <input
         className={selectClass}
         aria-label={ariaLabel}

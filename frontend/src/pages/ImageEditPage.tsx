@@ -17,7 +17,7 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -294,33 +294,32 @@ export function ImageEditPage({ capability, title, description }: Props) {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => submit.mutate()}
-                disabled={
-                  files.length < Math.max(requiredImageSlots, 1) ||
-                  files.length > Math.max(imageSlots, 1) ||
-                  (isComfy && !pack) ||
-                  submit.isPending ||
-                  !!running
-                }
-              >
-                {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
-              </Button>
-              {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
-                <span className="text-sm text-muted-foreground">
-                  {isMaskPack
-                    ? tx("此工作流需要 {need} 张图（原图 + 蒙版），还差 {left} 张", {
-                        need: requiredImageSlots,
-                        left: requiredImageSlots - files.length,
-                      })
-                    : tx("至少上传 {need} 张参考图，还差 {left} 张", {
-                        need: requiredImageSlots,
-                        left: requiredImageSlots - files.length,
-                      })}
-                </span>
-              )}
-            </div>
+            {imageSlots > 1 && files.length > 0 && files.length < requiredImageSlots && (
+              <p className="text-sm text-muted-foreground">
+                {isMaskPack
+                  ? tx("此工作流需要 {need} 张图（原图 + 蒙版），还差 {left} 张", {
+                      need: requiredImageSlots,
+                      left: requiredImageSlots - files.length,
+                    })
+                  : tx("至少上传 {need} 张参考图，还差 {left} 张", {
+                      need: requiredImageSlots,
+                      left: requiredImageSlots - files.length,
+                    })}
+              </p>
+            )}
+            <Button
+              className={submitButtonClass}
+              onClick={() => submit.mutate()}
+              disabled={
+                files.length < Math.max(requiredImageSlots, 1) ||
+                files.length > Math.max(imageSlots, 1) ||
+                (isComfy && !pack) ||
+                submit.isPending ||
+                !!running
+              }
+            >
+              {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
+            </Button>
           </div>
         }
         right={

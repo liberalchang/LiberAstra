@@ -31,3 +31,7 @@ export interface ButtonProps
 export function Button({ className, variant, size, ...props }: ButtonProps) {
   return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }
+
+/** 创作页底栏主按钮：与表单同宽。禁用时用描边，不用半透明主色。 */
+export const submitButtonClass =
+  "w-full disabled:border disabled:border-border disabled:bg-transparent disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none";

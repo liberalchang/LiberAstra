@@ -22,12 +22,14 @@ import {
   isLanguageCodeVoice,
   partitionServiceNames,
   sanitizeServiceVoice,
+  serviceVoiceOption,
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Button } from "@/components/ui/button";
+import { Button, submitButtonClass } from "@/components/ui/button";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -485,21 +487,23 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 <Field label={tx("音色")} hint={tx("来自所选服务的音色列表；点右侧按钮从服务拉取，也可直接输入。")}>
                   <div className="flex gap-2">
                   {serviceVoices.length > 0 ? (
-                    <select
-                      className={selectClass}
+                    <SearchSelect
+                      ariaLabel={tx("音色")}
                       value={voiceName}
-                      onChange={(e) => setVoiceName(e.target.value)}
-                    >
-                      <option value="">{tx("选择音色…")}</option>
-                      {voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName) && (
-                        <option value={voiceName}>{voiceName}</option>
-                      )}
-                      {serviceVoices.map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
+                      onChange={setVoiceName}
+                      placeholder={tx("搜索音色")}
+                      emptyText={tx("没有匹配项")}
+                      options={[
+                        { value: "", label: tx("选择音色…") },
+                        ...(voiceName && !isLanguageCodeVoice(voiceName) && !serviceVoices.includes(voiceName)
+                          ? [serviceVoiceOption(voiceName)]
+                          : []),
+                        ...serviceVoices.map(serviceVoiceOption),
+                      ]}
+                    />
                   ) : (
                     <Input
+                      className="min-w-0 flex-1"
                       placeholder={refreshModels.isPending ? tx("正在从服务拉取音色…") : tx("拉取失败时可手动输入，如 zh-CN-XiaoxiaoNeural")}
                       value={voiceName}
                       onChange={(e) => setVoiceName(e.target.value)}
@@ -604,7 +608,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
+            <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
             </Button>
           </div>

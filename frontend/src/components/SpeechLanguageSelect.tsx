@@ -97,6 +97,54 @@ export function speechModelHint(model: string): string {
 
 export const EDGE_DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural";
 
+/** 微软神经音色的中文名。没有收录的仍用拉丁短名，完整 id 放在次行。 */
+const EDGE_GIVEN_NAME: Record<string, string> = {
+  Xiaoxiao: "晓晓",
+  Xiaoyi: "晓伊",
+  Yunjian: "云健",
+  Yunxi: "云希",
+  Yunxia: "云夏",
+  Yunyang: "云扬",
+  Xiaochen: "晓辰",
+  Xiaohan: "晓涵",
+  Xiaomeng: "晓梦",
+  Xiaomo: "晓墨",
+  Xiaoqiu: "晓秋",
+  Xiaorui: "晓睿",
+  Xiaoshuang: "晓双",
+  Xiaoxuan: "晓萱",
+  Xiaoyan: "晓颜",
+  Xiaoyou: "晓悠",
+  Yunfeng: "云枫",
+  Yunhao: "云皓",
+  Yunye: "云野",
+  Yunze: "云泽",
+  Xiaobei: "晓北",
+  Xiaoni: "晓妮",
+  HiuMaan: "晓曼",
+  HiuGaai: "晓佳",
+  WanLung: "云龙",
+  HsiaoChen: "晓臻",
+  HsiaoYu: "晓雨",
+  YunJhe: "云哲",
+};
+
+/** 把 zh-CN-XiaoxiaoNeural 收成「晓晓 · 中文」，完整 id 留作次行。 */
+export function serviceVoiceOption(id: string): { value: string; label: string; hint?: string } {
+  const match = id.match(/^(.+)-([A-Za-z]+?)Neural$/);
+  if (!match) return { value: id, label: id };
+  const stem = match[2].replace(/Multilingual$/, "");
+  const given = EDGE_GIVEN_NAME[stem] ?? stem;
+  let language = match[1];
+  try {
+    const named = new Intl.DisplayNames(["zh-Hans"], { type: "language" }).of(match[1]);
+    if (named && named !== match[1]) language = named;
+  } catch {
+    // 地区码无法翻译时保留原文
+  }
+  return { value: id, label: `${given} · ${language}`, hint: id };
+}
+
 /** 两位语言码属于 Liber Speech，不是 Edge TTS 或 OpenAI 兼容 TTS 的音色名。 */
 export function isLanguageCodeVoice(value: string): boolean {
   return /^[a-z]{2}$/i.test(value.trim());
