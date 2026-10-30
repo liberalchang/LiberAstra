@@ -83,19 +83,6 @@ FLUX.3 Klein 工作流需要 ComfyUI 0.41 或更高版本。
 | `analysis_image_qwenvl`               | analysis | 图片素材分析。需要 ComfyUI-AILab 节点                                                                            | 节点默认模型 [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)。由节点加载，不放进 `diffusion_models/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 按该节点自己的模型目录                                                               |
 | `analysis_video_qwenvl`               | analysis | 视频素材分析。还需要 [Video Helper Suite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) 抽帧           | 与图片分析相同的 Qwen3-VL-8B-Instruct                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 按该节点自己的模型目录                                                               |
 
-### 深度生图、换衣与 360° 环绕新增的权重
-
-相对已经在用的 Qwen-Image 2.1 三件套、越狱 UNET，以及 H3 的 fp16 视频 VAE，新包只多了下面四个文件。
-
-| 文件 | 目录 | 用于 | 本机路径 |
-| --- | --- | --- | --- |
-| `Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors` | `controlnet/` | `qwen_image_21_union_depth`、`qwen_image_21_union_reference` | `D:\BaiduSyncdisk\mydir\Comfy\models\controlnet\` |
-| `qwen-image-2.1-outfit-swap.safetensors` | `loras/` | `qwen_image_21_outfit_swap` | `D:\BaiduSyncdisk\mydir\Comfy\models\loras\` |
-| `minimax_h3_flf2v_lora_v1.safetensors` | `loras/` | `minimax_h3_orbit` | `D:\BaiduSyncdisk\mydir\Comfy\models\loras\` |
-| `minimax_h3_video_vae_int8_convrot.safetensors` | `vae/` | `minimax_h3_orbit` | `D:\BaiduSyncdisk\mydir\Comfy\models\vae\` |
-
-深度生图和深度换姿的默认主模型是越狱 `qwen-image-2.1-UC-int8_convrot.safetensors`。换衣的主模型是官方 `qwen_image_2.1_int8_convrot.safetensors`。360° 环绕的主模型、官方文本编码器和音频 VAE 都是原有 H3 文件。这几份都不用再下。
-
 ### H3 共用文件
 
 官方、越狱和增强包都用这一套画面与声音权重。文件在 [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3)。
