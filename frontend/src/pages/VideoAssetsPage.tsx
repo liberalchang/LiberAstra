@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
+import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import {
   AccelControl,
   buildInputsWithAccel,
@@ -559,7 +560,7 @@ export function VideoAssetsPage() {
                   task="i2v"
                   workflow={videoPack?.name}
                   aspect={aspect}
-                  placeholder={tx("例如：微风吹动，缓慢推近，环境轻柔")}
+                  placeholder={workflowPromptPlaceholder(tx, videoPack, { fallback: "描述镜头、运动和声音" })}
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={tx("动画服务")} hint={tx("执行 i2v 的视频 Provider。")}>

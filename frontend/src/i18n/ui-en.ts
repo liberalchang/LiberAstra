@@ -347,6 +347,13 @@ export const UI_EN: Record<string, string> = {
     "Add in order: image 1 is the source, image 2 is the mask (white is repainted, black is kept). You can add them in batches and delete thumbnails.",
   "按顺序对应 image 1、image 2…。第 1 张为主图/画布，其余为参考。提示词里用「image 1」「image 2」指代。可分多次添加。":
     "Order is image 1, image 2, and so on. The first image is the canvas; the rest are references. Refer to them as “image 1” and “image 2” in the prompt.",
+  "按顺序添加：第 1 张是{a}，第 2 张是{b}。": "Add in order: the first image is {a}, the second is {b}.",
+  "按顺序添加：{list}。": "Add in order: {list}.",
+  "第 {n} 张是{name}": "image {n} is {name}",
+  "描述要生成的画面": "Describe the picture to generate",
+  "说明要怎么改": "Say what to change",
+  "可选，用来约束画面": "Optional. Use it to constrain the look",
+  "描述镜头、运动和声音": "Describe the shot, motion, and sound",
   "点击或拖拽上传图片": "Click or drop images",
   "依次添加原图和蒙版": "Add the source, then the mask",
   "按顺序添加参考图": "Add reference images in order",

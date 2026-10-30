@@ -28,6 +28,7 @@ from liberastra.services.canvas_graph import (
     resolve_scope,
     substitute_prompt,
     topo_order,
+    translate_prompt_slots,
 )
 from liberastra.services.characters import ensure_character_asset, expand_reference_paths, slot_path
 from liberastra.services.workflows import WorkflowPack, get_pack
@@ -368,7 +369,7 @@ def _resolve_function_inputs(
         optimized = str(data.get("promptOptimized") or "")
         if optimized.strip():
             raw_prompt = optimized
-    prompt = substitute_prompt(raw_prompt, variables)
+    prompt = translate_prompt_slots(substitute_prompt(raw_prompt, variables), pack.inputs)
     # 画面分析的说明写在包参数 custom_prompt，不占用功能节点的提示词框
     if prompt.strip() and pack.capability != "analysis":
         inputs["prompt"] = prompt

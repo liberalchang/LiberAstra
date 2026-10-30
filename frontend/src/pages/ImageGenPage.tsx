@@ -31,6 +31,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { negativePromptPlaceholder, workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
 
@@ -202,13 +203,15 @@ export function ImageGenPage() {
                   })
                 : undefined
             }
-            placeholder={tx("例如：窗边的陶瓷杯，柔和侧光，浅景深")}
+            placeholder={workflowPromptPlaceholder(tx, isComfy ? pack : null, {
+              fallback: "描述要生成的画面",
+            })}
           />
           <AspectSelect value={aspect} onChange={setAspect} />
           <AdvancedPanel summary={advancedSummary}>
-            <Field label={tx("负面提示词")} hint={tx("不希望出现的内容，可以留空。")}>
+            <Field label={tx("负面提示词")}>
               <Input
-                placeholder={tx("例如：模糊，变形，多余手指")}
+                placeholder={negativePromptPlaceholder(tx, isComfy ? pack : null)}
                 value={negative}
                 onChange={(e) => setNegative(e.target.value)}
               />

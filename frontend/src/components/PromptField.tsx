@@ -18,11 +18,11 @@ import { useTx } from "@/i18n/tx";
 export type { PromptFieldValue };
 export { emptyPromptValue, coercePromptValue, resolveEffectivePrompt };
 
-/** 画布变量:`/` 补全列表项;媒体变量插入 <Picture 1> 风格标签,文本变量插入 {{名}} */
+/** 画布变量:`/` 补全列表项。tag 是写进提示词的原文（槽位名或媒体称呼） */
 export interface PromptVar {
   name: string;
   preview: string;
-  /** 媒体变量:插入 <Picture 1> 风格标签而不是 {{名}} */
+  /** 写进提示词的原文。有工作流包时是槽位名，否则是 <Picture N> */
   tag?: string;
   /** 文本变量的全文内容:提交优化前把 {{名}} 替换成真实文本,LLM 才看得到内容 */
   text?: string;
@@ -362,7 +362,7 @@ export function PromptField({
             onBlur={() => window.setTimeout(() => setMenuAt(null), 150)}
           />
           {menuAt != null && variables && variables.length > 0 && (
-            <div className="absolute left-0 top-full z-40 mt-1 w-56 rounded-xl border border-border bg-card p-1 shadow-lg">
+            <div className="absolute left-0 top-full z-40 mt-1 w-72 rounded-xl border border-border bg-card p-1 shadow-lg">
               <div className="px-2 py-1 text-[10px] text-muted-foreground">{tx("插入变量")}</div>
               {variables.map((v, index) => (
                 <button

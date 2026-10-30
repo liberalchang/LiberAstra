@@ -10,6 +10,7 @@ inputs:
     type: image
     required: true
     label: 参考图 1（主图）
+    mention: 第一张
     description: 第一张，决定输出尺寸
   image_2:
     node: '147'
@@ -17,18 +18,21 @@ inputs:
     type: image
     required: true
     label: 参考图 2
+    mention: 第二张
   image_3:
     node: '148'
     field: inputs.image
     type: image
     required: false
     label: 参考图 3（可选）
+    mention: 第三张
   image_4:
     node: '149'
     field: inputs.image
     type: image
     required: false
     label: 参考图 4（可选）
+    mention: 第四张
   unet_name:
     node: 128:101
     field: inputs.unet_name

@@ -38,6 +38,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
+import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -530,7 +531,6 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           ) : (
             <PromptField
               label={tx("提示词")}
-              hint={tx(pack?.inputs.prompt?.description || "描述希望画面如何运动或变化。")}
               value={promptValue}
               onChange={setPromptValue}
               jobScope={`video-${kind}:prompt-opt`}
@@ -546,7 +546,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                     )
                   : undefined
               }
-              placeholder={tx("例如：缓慢推近，微风吹动发丝，环境音轻柔")}
+              placeholder={workflowPromptPlaceholder(tx, pack, { fallback: "描述镜头、运动和声音" })}
             />
           )}
 

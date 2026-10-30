@@ -26,6 +26,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { referenceImagesHint, workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
 
@@ -185,7 +186,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
                 ? tx("可多选、可分多次添加，也可以直接拖拽。传错了在下方缩略图上删除。")
                 : isMaskPack
                   ? tx("按顺序添加：第 1 张是原图，第 2 张是蒙版（白色区域重画，黑色保留）。可分多次选择或拖拽，下方缩略图可单独删除。")
-                  : tx("按顺序对应 image 1、image 2…。第 1 张为主图/画布，其余为参考。提示词里用「image 1」「image 2」指代。可分多次添加。")
+                  : referenceImagesHint(tx, imageInputs)
             }
           >
             <FileDrop
@@ -245,27 +246,14 @@ export function ImageEditPage({ capability, title, description }: Props) {
           </Field>
           <PromptField
             label={tx("提示词")}
-            hint={
-              imageSlots > 1
-                ? tx("只写白色区域里要变成什么，并写明脸、姿势等要保持的部分。")
-                : capability === "i2i"
-                  ? tx("说明要怎么改，例如把背景换成海滩。")
-                  : tx("放大或修复时可选，用来约束画面。")
-            }
             value={promptValue}
             onChange={setPromptValue}
             jobScope={`image-${capability}:prompt-opt`}
             task={capability === "upscale" ? "upscale" : "i2i"}
             workflow={isComfy ? pack?.name : undefined}
-            placeholder={
-              isMaskPack
-                ? tx("例如：把涂白的衣服换成淡紫色连衣裙，保持人脸和姿势")
-                : imageSlots > 1
-                  ? tx("例如：将 image 1 中的女性和 image 2 中的男性合成同一张合影，统一光照")
-                  : capability === "i2i"
-                    ? tx("例如：把背景换成海滩")
-                    : tx("可选")
-            }
+            placeholder={workflowPromptPlaceholder(tx, isComfy ? pack : null, {
+              fallback: capability === "upscale" ? "可选，用来约束画面" : "说明要怎么改",
+            })}
           />
           {isComfy && pack && (
             <AdvancedPanel summary={advancedSummary}>

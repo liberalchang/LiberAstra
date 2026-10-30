@@ -280,6 +280,8 @@ export interface WorkflowInputSpec {
   description?: string;
   /** 中文显示名，缺省时用内置映射或参数名 */
   label?: string;
+  /** 提示词里这个槽位要写成的称呼。画布 / 插入 label，提交时换成 mention */
+  mention?: string;
   /** 从 ComfyUI 的某个模型目录拉取选项（如 checkpoints、upscale_models），渲染为下拉框 */
   options_from?: string;
   /** 静态下拉选项（本机 TTS 音色等，不依赖 ComfyUI） */

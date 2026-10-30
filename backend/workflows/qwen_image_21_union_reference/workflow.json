@@ -1,0 +1,94 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen-image-2.1-UC-int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "QwenImage21UnionLoader",
+    "inputs": {
+      "union_model": "Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors"
+    }
+  },
+  "5": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "6": {
+    "class_type": "QwenImage21UnionReferenceEncode",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "reference_image": ["14", 0],
+      "prompt": "Edit the reference image so the person keeps the same face, hair and clothing, and matches the pose of the control image.",
+      "negative_prompt": "",
+      "resolution": 1024
+    }
+  },
+  "7": {
+    "class_type": "QwenImage21UnionApply",
+    "inputs": {
+      "model": ["1", 0],
+      "union_patch": ["4", 0],
+      "vae": ["3", 0],
+      "control_image": ["5", 0],
+      "control_mode": "Depth",
+      "strength": 1.0,
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 40,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": ["7", 0],
+      "positive": ["6", 0],
+      "negative": ["6", 1],
+      "latent_image": ["6", 2]
+    }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "qwen21-union-reference",
+      "images": ["9", 0]
+    }
+  },
+  "14": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  }
+}

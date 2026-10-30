@@ -1,0 +1,144 @@
+name: qwen_image_21_union_depth
+capability: i2i
+description: 'Qwen-Image 2.1 Fun ControlNet Union：只上传深度图，按提示词生成该动作的人物。
+
+  不需要人物照。来自 T8 qwen21_union_depth。需安装 ComfyUI 节点 qwen-image-2-1-fun-controlnet-union-t8，ComfyUI ≥ 0.37。Union 权重放 controlnet/，文件名须以 Qwen-Image-2.1-Fun-Controlnet-Union 开头。'
+inputs:
+  image:
+    node: '5'
+    field: inputs.image
+    type: image
+    required: true
+    label: 深度图
+    description: 近处亮、远处暗的深度图。画布比例跟这张图
+  unet_name:
+    node: '1'
+    field: inputs.unet_name
+    type: str
+    default: qwen-image-2.1-UC-int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: 默认越狱 UC-int8_convrot。可改回官方 int8/bf16，但越狱效果会变弱。须为 safetensors
+  clip_name:
+    node: '2'
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
+  vae_name:
+    node: '3'
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+  union_model:
+    node: '4'
+    field: inputs.union_model
+    type: str
+    default: Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors
+    options_from: controlnet
+    label: Union 控制模型
+    description: T8 转换的 Fun ControlNet Union。文件名须以 Qwen-Image-2.1-Fun-Controlnet-Union 开头，放在 controlnet/
+  prompt:
+    node: '6'
+    field: inputs.prompt
+    type: str
+    default: A detailed realistic photograph of one person matching the depth map pose, coherent lighting, sharp details.
+    label: 提示词
+    description: 写人物外观、服装和场景。动作由深度图决定。留空使用这句默认描述
+  negative_prompt:
+    node: '6'
+    field: inputs.negative_prompt
+    type: str
+    default: ''
+    label: 负面提示词
+  control_mode:
+    node: '7'
+    field: inputs.control_mode
+    type: str
+    default: Depth
+    options:
+    - Canny
+    - Depth
+    - Grayscale
+    - HED
+    - Lineart
+    - MLSD
+    - Pose
+    - Scribble
+    label: 控制类型
+    description: 深度图保持 Depth。这个下拉只标注控制图类型，模型按像素读取
+  strength:
+    node: '7'
+    field: inputs.strength
+    type: float
+    default: 1.0
+    min: 0
+    max: 2
+    label: 控制强度
+    description: 动作跟不紧时保持 1；结构过死可降到 0.7–0.8
+  start_percent:
+    node: '7'
+    field: inputs.start_percent
+    type: float
+    default: 0
+    min: 0
+    max: 1
+    label: 控制起始
+  end_percent:
+    node: '7'
+    field: inputs.end_percent
+    type: float
+    default: 1
+    min: 0
+    max: 1
+    label: 控制结束
+  resolution:
+    node: '13'
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 256
+    max: 4096
+    label: 输出边长
+    description: 按深度图宽高比生成 latent，长边约为此值，须为 32 的倍数
+  steps:
+    node: '8'
+    field: inputs.steps
+    type: int
+    default: 40
+    min: 1
+    max: 50
+    description: T8 示例为 40 步。CFG 固定为 1
+  seed:
+    node: '8'
+    field: inputs.seed
+    type: int
+    default: -1
+outputs:
+  node: '10'
+  key: images
+requirements:
+  nodes:
+  - UNETLoader
+  - CLIPLoader
+  - VAELoader
+  - QwenImage21UnionLoader
+  - LoadImage
+  - TextEncodeQwenImage21
+  - QwenImage21UnionApply
+  - QwenImage21UnionLatentFromImage
+  - KSampler
+  - VAEDecode
+  - SaveImage
+  models:
+  - diffusion_models/qwen-image-2.1-UC-int8_convrot.safetensors
+  - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+  - vae/qwen_image_2.1_vae_bf16.safetensors
+  - controlnet/Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors
+llm_note: '事实:Qwen-Image 2.1 Fun ControlNet Union 深度条件生图。只上传一张深度图，不接人物参考；latent 按深度图宽高比生成；CFG 固定为 1，默认 40 步。
+
+  写作指导:写人物是谁、穿什么、什么光线和场景。不要在提示词里重写肢体动作，动作以深度图为准。'

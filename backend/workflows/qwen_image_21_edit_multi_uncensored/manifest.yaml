@@ -10,6 +10,7 @@ inputs:
     type: image
     required: true
     label: 参考图 1（主图）
+    mention: image 1
     description: 主图 / 画布（对应提示词 image 1）
   image_2:
     node: '11'
@@ -17,6 +18,7 @@ inputs:
     type: image
     required: true
     label: 参考图 2
+    mention: image 2
     description: 第二张参考（对应 image 2）
   image_3:
     node: '12'
@@ -24,12 +26,14 @@ inputs:
     type: image
     required: false
     label: 参考图 3（可选）
+    mention: image 3
   image_4:
     node: '13'
     field: inputs.image
     type: image
     required: false
     label: 参考图 4（可选）
+    mention: image 4
   unet_name:
     node: '1'
     field: inputs.unet_name

@@ -15,7 +15,9 @@ from liberastra.core.config import get_settings
 from liberastra.jobs.manager import JobContext, JobManager
 from liberastra.models import Job
 from liberastra.providers.base import ProviderError
+from liberastra.services.canvas_graph import translate_prompt_slots
 from liberastra.services.providers import build_llm_adapter, pick_llm_with_model
+from liberastra.services.workflows import get_pack
 
 
 def _builtin_dir() -> Path:
@@ -357,6 +359,17 @@ def build_system_prompt(
     return "\n\n".join(c for c in chunks if c.strip())
 
 
+def _prompt_in_pack_words(prompt: str, workflow: str | None) -> str:
+    """优化前先把槽位名换成这个包认识的称呼，模型才知道指的是哪张图。"""
+    if not workflow or not prompt.strip():
+        return prompt
+    try:
+        pack = get_pack(workflow)
+    except ProviderError:
+        return prompt
+    return translate_prompt_slots(prompt, pack.inputs)
+
+
 def _optimize_messages(
     *,
     prompt: str,
@@ -366,6 +379,7 @@ def _optimize_messages(
     aspect: str | None,
     extra_context: str | None,
 ) -> list[dict[str, str]]:
+    prompt = _prompt_in_pack_words(prompt, workflow)
     system = build_system_prompt(
         task,
         scene=scene,

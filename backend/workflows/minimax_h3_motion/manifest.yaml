@@ -12,18 +12,21 @@ inputs:
     type: video
     required: true
     label: 参考视频
+    mention: "<Video 1>"
   image:
     node: '114'
     field: inputs.image
     type: image
     required: true
     label: 目标图片
+    mention: "<Picture 1>"
   image_2:
     node: '116'
     field: inputs.image
     type: image
     required: false
     label: 侧面参考
+    mention: "<Picture 2>"
     description: 可选。角色库会把侧面单人图放在这里，对应 <Picture 2>
   image_3:
     node: '117'
@@ -31,6 +34,7 @@ inputs:
     type: image
     required: false
     label: 背面参考
+    mention: "<Picture 3>"
     description: 可选。角色库会把背面单人图放在这里，对应 <Picture 3>
   prompt:
     node: 105:104
@@ -38,7 +42,7 @@ inputs:
     type: str
     required: true
     label: 提示词
-    description: 可用 <Picture 1> 指代目标图、<Video 1> 指代参考视频；未写标签或留空时自动补齐动作迁移指令
+    description: 用「目标图片」指人物、「参考视频」指动作；留空时自动补齐动作迁移指令
   width:
     node: 105:104
     field: inputs.width

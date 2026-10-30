@@ -2,7 +2,7 @@
  *
  * 变量体系：每个节点都有输出变量名(默认 类型+序号,可改);功能节点的包媒体参数
  * 渲染为输入槽,下拉选择已连接节点的输出变量(bindings);提示词 / 补全支持
- * 文本变量({{名}})与媒体变量(<Picture N> 标签)。
+ * 文本变量({{名}})。登记了称呼的包插入槽位名，提交时再换成包要的写法。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -46,9 +46,11 @@ import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { SPEECH_LANGUAGES, SpeechLanguageSelect } from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
+import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { characterPromptContext, viewLabel } from "@/lib/characterPrompt";
 import { useCanvasStore } from "@/stores/canvas";
 
@@ -133,6 +135,63 @@ function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
     character: tx("角色输入"),
   };
   return titles[d.mediaKind] ?? tx("输入");
+}
+
+function sourceCaption(node: CanvasFlowNode, tx: (s: string) => string): string {
+  const d = node.data;
+  if (d.kind === "input") {
+    if (d.characterName) return d.characterName;
+    if (d.assetName) return d.assetName;
+  }
+  return nodeTitle(node, tx);
+}
+
+function isMaskSpec(key: string, spec: WorkflowInputSpec): boolean {
+  if (key === "mask") return true;
+  return (spec.label ?? "").includes("蒙版") || (spec.description ?? "").includes("蒙版");
+}
+
+/** 包登记了 mention 时，/ 列出槽位名；副标题是当前接到这个槽的上游。 */
+function slotPromptVars(
+  pack: WorkflowPackOut,
+  bindings: Record<string, string> | undefined,
+  sources: CanvasFlowNode[],
+  tx: (s: string) => string,
+): PromptVar[] | null {
+  const slots = Object.entries(pack.inputs).filter(([key, spec]) => {
+    if (spec.type !== "image" && spec.type !== "video" && spec.type !== "audio") return false;
+    if (isMaskSpec(key, spec)) return false;
+    return Boolean(spec.mention?.trim());
+  });
+  if (slots.length === 0) return null;
+
+  const used = new Set<string>();
+  const byKind: Record<string, CanvasFlowNode[]> = { image: [], video: [], audio: [] };
+  for (const source of sources) {
+    const kind = nodeOutputKind(source);
+    if (kind === "image" || kind === "video" || kind === "audio") byKind[kind].push(source);
+  }
+  const cursor = { image: 0, video: 0, audio: 0 };
+
+  return slots.map(([key, spec]) => {
+    const kind = spec.type as "image" | "video" | "audio";
+    const boundName = bindings?.[key] ?? "";
+    let source = boundName
+      ? sources.find((item) => (item.data.varName ?? "") === boundName)
+      : undefined;
+    if (!source) {
+      const pool = byKind[kind];
+      while (cursor[kind] < pool.length && used.has(pool[cursor[kind]].id)) cursor[kind] += 1;
+      source = pool[cursor[kind]];
+      cursor[kind] += 1;
+    }
+    if (source) used.add(source.id);
+    return {
+      name: `slot:${key}`,
+      tag: spec.label?.trim() || spec.mention,
+      preview: source ? sourceCaption(source, tx) : tx("未连接"),
+    };
+  });
 }
 
 function characterExtra(
@@ -524,16 +583,14 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
         // 只有一个可用变量且未绑定时自动选中(与执行时的自动映射一致)
         const effective = bound || (options.length === 1 ? (options[0].data.varName ?? "") : "");
         return (
-          <div key={key} className="flex items-center gap-2">
-            <span
-              className="w-20 shrink-0 truncate text-xs text-muted-foreground"
-              title={spec.label ?? key}
-            >
-              {(spec.label ?? key) + (spec.required ? " *" : "")}
-            </span>
+          <Field
+            key={key}
+            label={(spec.label ?? key) + (spec.required ? " *" : "")}
+            hint={spec.description ? tx(spec.description) : undefined}
+          >
             <select
               className={selectClass}
-              style={{ height: "2rem" }}
+              aria-label={spec.label ?? key}
               value={effective}
               onChange={(e) =>
                 updateNodeData(node.id, { bindings: { ...(d.bindings ?? {}), [key]: e.target.value } })
@@ -558,7 +615,7 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
                 </>
               )}
             </select>
-          </div>
+          </Field>
         );
       })}
     </section>
@@ -599,16 +656,14 @@ function FunctionInspector({
     (row) => row.target_id === d.targetId && row.sub_capability === d.subCapability,
   );
 
-  // 已连接节点的可见变量:文本变量插 {{名}},媒体变量插 <Picture N> 风格标签
+  // 文本变量仍插 {{名}}。登记了 mention 的包按槽位名插入，其余包仍用 <Picture N>
   const variables: PromptVar[] = (() => {
     const sources = store.edges
       .filter((e) => e.target === node.id)
       .map((e) => store.nodes.find((n) => n.id === e.source))
       .filter((n): n is CanvasFlowNode => Boolean(n));
-    const out: PromptVar[] = [];
-    const counters: Record<string, number> = { image: 0, video: 0, audio: 0 };
-    const tagOf = (kind: string) =>
-      kind === "image" ? "Picture" : kind === "video" ? "Video" : "Audio";
+    const textVars: PromptVar[] = [];
+    const mediaSources: CanvasFlowNode[] = [];
     for (const s of sources) {
       const varName = s.data.varName ?? "";
       if (!varName) continue;
@@ -618,23 +673,32 @@ function FunctionInspector({
         nodeOutputKind(s) === "text";
       if (textProducer) {
         const body = s.data.kind === "input" && s.data.mediaKind === "text" ? (s.data.text ?? "") : "";
-        out.push({
+        textVars.push({
           name: varName,
           preview: body.slice(0, 40) || nodeTitle(s, tx),
           text: body,
         });
         continue;
       }
+      if (nodeOutputKind(s)) mediaSources.push(s);
+    }
+    const slots = pack ? slotPromptVars(pack, d.bindings, sources, tx) : null;
+    if (slots) return [...slots, ...textVars];
+    const counters: Record<string, number> = { image: 0, video: 0, audio: 0 };
+    const tagOf = (kind: string) =>
+      kind === "image" ? "Picture" : kind === "video" ? "Video" : "Audio";
+    const mediaVars: PromptVar[] = [];
+    for (const s of mediaSources) {
       const kind = nodeOutputKind(s);
       if (!kind) continue;
       counters[kind] += 1;
-      out.push({
-        name: varName,
+      mediaVars.push({
+        name: s.data.varName ?? s.id,
         tag: `<${tagOf(kind)} ${counters[kind]}>`,
-        preview: nodeTitle(s, tx),
+        preview: sourceCaption(s, tx),
       });
     }
-    return out;
+    return [...mediaVars, ...textVars];
   })();
 
   const paramExclude = [
@@ -720,6 +784,7 @@ function FunctionInspector({
             jobScope={`canvas-prompt:${node.id}`}
             task={pack.capability}
             workflow={pack.name}
+            placeholder={workflowPromptPlaceholder(tx, pack, { canvas: true })}
             extraContext={characterExtra(store.nodes, store.edges, node.id, pack.capability)}
             minRowsClass="min-h-20"
           />
@@ -885,6 +950,7 @@ function FunctionInspector({
           jobScope={`canvas-prompt:${node.id}`}
           task={d.subCapability || "t2i"}
           workflow={d.targetId || ""}
+          placeholder={workflowPromptPlaceholder(tx, null, { canvas: true })}
           extraContext={characterExtra(store.nodes, store.edges, node.id, d.subCapability || "")}
           minRowsClass="min-h-20"
         />
@@ -1051,6 +1117,16 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
       hint={tx("来自菜单设置。手动指定时只显示勾选的项。")}
     >
+      <WorkflowPackControl
+        name={menuOptions.find((spec) => speechSpecSelected(spec, d) && spec.target_type === "workflow")?.target_id}
+        description={
+          (capPacks ?? []).find(
+            (item) =>
+              item.name ===
+              menuOptions.find((spec) => speechSpecSelected(spec, d) && spec.target_type === "workflow")?.target_id,
+          )?.description
+        }
+      >
       <select
         className={selectClass}
         aria-label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
@@ -1072,6 +1148,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
           </option>
         ))}
       </select>
+      </WorkflowPackControl>
     </Field>
   );
   // 菜单默认项还没写上，或当前模型已被手动指定排除时，改到允许范围内的默认项。
@@ -1267,8 +1344,13 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       )}
       {!menuModelSelect && ptype === "comfyui" && (
         <Field label={tx("语音工作流")} hint={tx("tts 能力的工作流包,朗读文本会自动注入。")}>
+          <WorkflowPackControl
+            name={d.workflow || undefined}
+            description={(capPacks ?? []).find((item) => item.name === d.workflow)?.description}
+          >
           <select
             className={selectClass}
+            aria-label={tx("语音工作流")}
             value={d.workflow ?? ""}
             onChange={(e) => updateNodeData(node.id, { workflow: e.target.value })}
           >
@@ -1279,6 +1361,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
               </option>
             ))}
           </select>
+          </WorkflowPackControl>
         </Field>
       )}
       {ptype && ptype !== "comfyui" && (

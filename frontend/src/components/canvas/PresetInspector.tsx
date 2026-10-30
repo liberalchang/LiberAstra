@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { api, type ExecutionSpec } from "@/api/client";
 import { applyMenuToNode, providerForSpec, resolveSpec, specsForMenu } from "@/canvas/applyMenu";
 import type { CanvasFlowNode, FunctionNodeData } from "@/canvas/types";
+import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { Field, selectClass } from "@/components/ui/field";
 import { useTx } from "@/i18n/tx";
 
@@ -63,6 +64,14 @@ export function PresetInspector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id, item?.bind_mode, defaultKey, specs, d.targetId, d.targetType, pool]);
 
+  const selectedSpec = pool.find(
+    (row) => row.target_id === d.targetId && row.target_type === d.targetType,
+  );
+  const selectedPack =
+    selectedSpec?.target_type === "workflow"
+      ? packs?.find((item) => item.name === selectedSpec.target_id)
+      : undefined;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
@@ -96,19 +105,22 @@ export function PresetInspector({
         </select>
       </Field>
       <Field label={tx("模型 / 工作流")}>
-        <select
-          className={selectClass}
-          value={`${d.targetType ?? ""}:${d.targetId ?? ""}`}
-          onChange={(event) => apply(pool.find((row) => `${row.target_type}:${row.target_id}` === event.target.value))}
-        >
-          {pool
-            .filter((row) => providerForSpec(row, providers ?? [])?.id === (d.providerId ?? providerIds[0]))
-            .map((row) => (
-              <option key={`${row.target_type}:${row.target_id}`} value={`${row.target_type}:${row.target_id}`}>
-                {row.display_name}
-              </option>
-            ))}
-        </select>
+        <WorkflowPackControl name={selectedPack?.name} description={selectedPack?.description}>
+          <select
+            className={selectClass}
+            aria-label={tx("模型 / 工作流")}
+            value={`${d.targetType ?? ""}:${d.targetId ?? ""}`}
+            onChange={(event) => apply(pool.find((row) => `${row.target_type}:${row.target_id}` === event.target.value))}
+          >
+            {pool
+              .filter((row) => providerForSpec(row, providers ?? [])?.id === (d.providerId ?? providerIds[0]))
+              .map((row) => (
+                <option key={`${row.target_type}:${row.target_id}`} value={`${row.target_type}:${row.target_id}`}>
+                  {row.display_name}
+                </option>
+              ))}
+          </select>
+        </WorkflowPackControl>
       </Field>
     </div>
   );

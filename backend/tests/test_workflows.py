@@ -805,6 +805,55 @@ def test_minimax_h3_orbit_one_or_two_images() -> None:
     assert custom["prompt"] == "slow orbit"
 
 
+def test_qwen_image_21_union_depth_and_reference_packs() -> None:
+    """Union：深度图单独生人；人物照 + 深度图改动作。控制类型可切，默认 Depth。"""
+    depth = get_pack("qwen_image_21_union_depth")
+    assert depth.capability == "i2i"
+    assert depth.source == "builtin"
+    assert [k for k, spec in depth.inputs.items() if spec.get("type") == "image"] == ["image"]
+    assert depth.inputs["image"]["required"] is True
+    assert depth.inputs["control_mode"]["default"] == "Depth"
+    assert depth.inputs["unet_name"]["default"] == "qwen-image-2.1-UC-int8_convrot.safetensors"
+    assert "QwenImage21UnionLatentFromImage" in depth.requirements["nodes"]
+
+    generated = apply_inputs(
+        depth, {"image": "uploads/depth.png", "prompt": "a dancer in red", "seed": 3}
+    )
+    assert generated["5"]["inputs"]["image"] == "example.png"
+    assert generated["6"]["inputs"]["prompt"] == "a dancer in red"
+    assert "vae" not in generated["6"]["inputs"]
+    assert generated["7"]["inputs"]["control_mode"] == "Depth"
+    assert generated["7"]["inputs"]["control_image"] == ["5", 0]
+    assert generated["13"]["inputs"]["image"] == ["5", 0]
+    assert generated["8"]["inputs"]["latent_image"] == ["13", 0]
+    assert generated["8"]["inputs"]["steps"] == 40
+    assert generated["8"]["inputs"]["cfg"] == 1
+    validate_pack(depth)
+
+    ref = get_pack("qwen_image_21_union_reference")
+    assert ref.capability == "i2i"
+    assert [k for k, spec in ref.inputs.items() if spec.get("type") == "image"] == ["image", "image_2"]
+    assert ref.inputs["image"]["required"] is True
+    assert ref.inputs["image_2"]["required"] is True
+    posed = apply_inputs(
+        ref,
+        {
+            "image": "uploads/person.png",
+            "image_2": "uploads/depth.png",
+            "control_mode": "Pose",
+            "seed": 3,
+        },
+    )
+    assert posed["6"]["inputs"]["reference_image"] == ["14", 0]
+    assert posed["7"]["inputs"]["control_image"] == ["5", 0]
+    assert posed["7"]["inputs"]["control_mode"] == "Pose"
+    assert posed["8"]["inputs"]["latent_image"] == ["6", 2]
+    kept = apply_inputs(ref, {"image": "uploads/person.png", "image_2": "uploads/depth.png", "seed": 1})
+    assert kept["7"]["inputs"]["control_mode"] == "Depth"
+    assert "face, hair and clothing" in kept["6"]["inputs"]["prompt"]
+    validate_pack(ref)
+
+
 def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
     """参考图进 ReferenceToVideo，不接 first_frame。自写提示词会补上 <Picture 1>。"""
     from liberastra.providers.comfyui.workflow import prepare_pack_inputs
@@ -826,3 +875,8 @@ def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
     motion = get_pack("minimax_h3_motion")
     untouched = prepare_pack_inputs(motion, {"image": "uploads/a.png", "prompt": "复刻动作"})
     assert untouched["prompt"] == "复刻动作"
+    named = prepare_pack_inputs(
+        motion,
+        {"image": "uploads/a.png", "video": "uploads/b.mp4", "prompt": "让目标图片复刻参考视频"},
+    )
+    assert named["prompt"] == "让<Picture 1>复刻<Video 1>"

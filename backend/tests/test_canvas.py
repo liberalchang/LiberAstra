@@ -17,6 +17,7 @@ from liberastra.services.canvas_graph import (
     resolve_scope,
     substitute_prompt,
     topo_order,
+    translate_prompt_slots,
 )
 from liberastra.services.canvas_run import _canvas_soundtrack, _family_tokens, _image_keys_to_fill
 from liberastra.services.workflows import get_pack
@@ -121,6 +122,29 @@ def test_substitute_prompt() -> None:
     assert substitute_prompt("画一只{{animal}}", {"animal": "猫"}) == "画一只猫"
     with pytest.raises(ProviderError):
         substitute_prompt("{{missing}}", {})
+
+
+def test_translate_prompt_slots_by_pack() -> None:
+    qwen = get_pack("qwen_image_21_edit_multi_uncensored")
+    text = "保持参考图 1（主图）的五官，姿势改成参考图 2"
+    assert translate_prompt_slots(text, qwen.inputs) == "保持image 1的五官，姿势改成image 2"
+    legacy = translate_prompt_slots("保持<Picture 1>的五官，参考<Picture 2>", qwen.inputs)
+    assert legacy == "保持image 1的五官，参考image 2"
+    # 已经写成包的称呼时不再改写
+    ready = "保持 image 1 的五官，姿势改成 image 2"
+    assert translate_prompt_slots(ready, qwen.inputs) == ready
+
+    flux = get_pack("flux3_klein_edit_multi")
+    assert translate_prompt_slots("参考图 1（主图）和参考图 2", flux.inputs) == "第一张和第二张"
+    assert translate_prompt_slots("<Picture 1>", flux.inputs) == "第一张"
+
+    motion = get_pack("minimax_h3_motion")
+    motion_text = "让<Picture 1>复刻<Video 1>的动作"
+    assert translate_prompt_slots(motion_text, motion.inputs) == motion_text
+    assert translate_prompt_slots("让目标图片复刻参考视频", motion.inputs) == "让<Picture 1>复刻<Video 1>"
+    ref = get_pack("minimax_h3_i2v_ref")
+    assert translate_prompt_slots("参考图片里的人往前走", ref.inputs) == "<Picture 1>里的人往前走"
+    assert translate_prompt_slots("保留<Picture 1>", ref.inputs) == "保留<Picture 1>"
 
 
 def test_family_tokens() -> None:

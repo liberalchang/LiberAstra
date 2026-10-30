@@ -14,6 +14,7 @@ import { LightboxShell } from "@/components/ui/lightbox";
 import { Segmented } from "@/components/ui/segmented";
 import { useTrackedJob } from "@/hooks/useJob";
 import { useTx } from "@/i18n/tx";
+import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 
 const SLOTS = [
   ["portrait", "面部特写"],
@@ -177,6 +178,13 @@ export function CharactersPage() {
   const queryClient = useQueryClient();
   const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
   const { data: prefs } = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  const characterWorkflow = prefs?.default_character_workflow || "qwen_image_21";
+  const { data: characterPacks } = useQuery({
+    queryKey: ["workflows"],
+    queryFn: () => api.listWorkflows(),
+    staleTime: 60_000,
+  });
+  const characterPack = characterPacks?.find((item) => item.name === characterWorkflow);
   const [mode, setMode] = useState<"generate" | "upload">("generate");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -273,9 +281,11 @@ export function CharactersPage() {
               onChange={setPromptValue}
               jobScope="character-sheet:prompt-opt"
               task="character_sheet"
-              workflow={prefs?.default_character_workflow || "qwen_image_21"}
+              workflow={characterWorkflow}
               aspect="16:9"
-              placeholder={tx("例如：20岁左右，冷白皮，黑色长卷发，奶油白衬衫")}
+              placeholder={workflowPromptPlaceholder(tx, characterPack, {
+                fallback: "例如：20岁左右，冷白皮，黑色长卷发，奶油白衬衫",
+              })}
               minRowsClass="min-h-28"
             />
             <Field label={tx("参考图")} hint={tx("选填，最多 3 张。有参考图时外观描述可以留空。")}>

@@ -7,6 +7,7 @@ from typing import Any
 
 from liberastra.providers.base import ProviderError
 from liberastra.providers.comfyui.client import ComfyClient
+from liberastra.services.canvas_graph import translate_prompt_slots
 from liberastra.services.workflows import (
     WorkflowPack,
     apply_accel,
@@ -73,10 +74,19 @@ def prepare_pack_inputs(pack: WorkflowPack, node_inputs: dict[str, Any]) -> dict
 
     360° 环绕只传一张图时，尾帧必须仍是这张图。断开 last_frame 镜头会漂走，回不到起点。
     """
+    _translate_written_prompt(pack, node_inputs)
     _fill_media_fallbacks(pack, node_inputs)
     _apply_distinct_image_prompt(pack, node_inputs)
     _apply_reference_picture_prompt(pack, node_inputs)
     return node_inputs
+
+
+def _translate_written_prompt(pack: WorkflowPack, node_inputs: dict[str, Any]) -> None:
+    """页面和画布都可能写下槽位名。提交前换成这个包登记的称呼。空提示词留给包内默认句。"""
+    current = node_inputs.get("prompt")
+    if current is None or not str(current).strip():
+        return
+    node_inputs["prompt"] = translate_prompt_slots(str(current), pack.inputs)
 
 
 def _fill_media_fallbacks(pack: WorkflowPack, node_inputs: dict[str, Any]) -> None:

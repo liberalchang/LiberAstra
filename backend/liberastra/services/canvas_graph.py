@@ -122,6 +122,43 @@ def substitute_prompt(text: str, variables: dict[str, str]) -> str:
     return _VAR_RE.sub(repl, text)
 
 
+_MEDIA_TAG = {"image": "Picture", "video": "Video", "audio": "Audio"}
+
+
+def _is_mask_input(key: str, spec: dict[str, Any]) -> bool:
+    if key == "mask":
+        return True
+    label = str(spec.get("label") or "")
+    description = str(spec.get("description") or "")
+    return "蒙版" in label or "蒙版" in description
+
+
+def translate_prompt_slots(text: str, inputs: dict[str, dict[str, Any]]) -> str:
+    """把提示词里的槽位名和旧的 <Picture N> 换成当前工作流包登记的称呼。
+
+    没有 mention 的包保持原句。画布里 / 插入的是槽位 label，提交前才翻译。
+    """
+    counters = {"image": 0, "video": 0, "audio": 0}
+    refs: list[tuple[str, str, str]] = []
+    for key, spec in inputs.items():
+        kind = str(spec.get("type") or "")
+        if kind not in _MEDIA_TAG or _is_mask_input(key, spec):
+            continue
+        counters[kind] += 1
+        mention = str(spec.get("mention") or "").strip()
+        if not mention:
+            continue
+        label = str(spec.get("label") or "").strip()
+        legacy = f"<{_MEDIA_TAG[kind]} {counters[kind]}>"
+        refs.append((label, legacy, mention))
+    for label, legacy, mention in sorted(refs, key=lambda item: len(item[0]), reverse=True):
+        if label and label != mention:
+            text = text.replace(label, mention)
+        if legacy != mention:
+            text = text.replace(legacy, mention)
+    return text
+
+
 def canonical_fingerprint(payload: dict[str, Any]) -> str:
     """sha256 over canonical JSON——输入/参数未变则指纹不变，用于增量复用。"""
     blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
