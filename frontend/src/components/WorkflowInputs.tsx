@@ -20,6 +20,8 @@ interface Props {
   fps?: number | null;
   /** 窄容器（如画布属性面板）强制单列，避免两列挤压截断 */
   singleColumn?: boolean;
+  /** all：宽高比和其余字段一起渲染。aspect：只留宽高比。rest：跳过宽高比。吸附逻辑两种都跑。 */
+  part?: "all" | "aspect" | "rest";
 }
 
 /** 常见参数名的中文兜底（manifest 未写 label 时使用）。 */
@@ -165,7 +167,16 @@ function intValueOf(raw: string | undefined, spec: WorkflowInputSpec): number {
 }
 
 /** 按工作流包 manifest 动态渲染参数表单。 */
-export function WorkflowInputs({ inputs, values, onChange, exclude = [], providerId, fps, singleColumn }: Props) {
+export function WorkflowInputs({
+  inputs,
+  values,
+  onChange,
+  exclude = [],
+  providerId,
+  fps,
+  singleColumn,
+  part = "all",
+}: Props) {
   const tx = useTx();
   // 帧数对齐：有效帧数 = align_base × k + align_offset（如 MiniMax 的 17k+5、Wan 的 4k+1）
   const snapFrames = (n: number, spec: WorkflowInputSpec) => {
@@ -245,10 +256,14 @@ export function WorkflowInputs({ inputs, values, onChange, exclude = [], provide
     );
   }
 
+  const showAspect = part !== "rest" && aspectBlock != null;
+  const showRest = part !== "aspect" && entries.length > 0;
+  if (!showAspect && !showRest) return null;
+
   return (
     <div className={singleColumn ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
-      {aspectBlock}
-      {entries.map(([key, spec]) => {
+      {showAspect && aspectBlock}
+      {showRest && entries.map(([key, spec]) => {
         // 视频包给了 fps：帧数参数改按"时长（秒）"设置，提交时换算回帧数并按包声明对齐
         const isFramesParam = (key === "length" || key === "frames") && spec.type === "int" && !!fps;
         const framesNow = isFramesParam ? intValueOf(values[key], spec) : 0;

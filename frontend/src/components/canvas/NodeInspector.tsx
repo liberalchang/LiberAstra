@@ -1,4 +1,4 @@
-/** 右侧属性面板：节点身份 → 输出变量卡 → 内容/输入槽 → 提示词 → 参数 → 操作。
+/** 右侧属性面板：节点身份 → 输出变量卡 → 内容/输入槽 → 提示词 → 常用参数 → 高级参数 → 操作。
  *
  * 变量体系：每个节点都有输出变量名(默认 类型+序号,可改);功能节点的包媒体参数
  * 渲染为输入槽,下拉选择已连接节点的输出变量(bindings);提示词 / 补全支持
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { api, type AssetOut, type WorkflowPackOut } from "@/api/client";
+import { api, type AssetOut, type WorkflowInputSpec, type WorkflowPackOut } from "@/api/client";
 import { applyMenuToNode, providerForSpec, resolveSpec, specsForMenu, speechFieldsFromSpec, speechSpecSelected } from "@/canvas/applyMenu";
 import { PresetInspector } from "@/components/canvas/PresetInspector";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
@@ -41,6 +41,7 @@ import { ImagePaintEditor } from "@/components/canvas/ImagePaintEditor";
 import { ResultPreview } from "@/components/canvas/nodes";
 import { PromptField, type PromptVar } from "@/components/PromptField";
 import { CharacterInputPicker } from "@/components/canvas/CharacterInputPicker";
+import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,56 @@ import { characterPromptContext, viewLabel } from "@/lib/characterPrompt";
 import { useCanvasStore } from "@/stores/canvas";
 
 const MEDIA_TYPES = ["image", "video", "audio"] as const;
+
+function canMergeAspect(inputs: Record<string, WorkflowInputSpec>, exclude: string[]): boolean {
+  const width = inputs.width;
+  const height = inputs.height;
+  return (
+    !!width &&
+    !!height &&
+    width.type !== "image" &&
+    height.type !== "image" &&
+    !exclude.includes("width") &&
+    !exclude.includes("height")
+  );
+}
+
+/** 折叠区里是否还有宽高比以外的字段。图像类型的槽位不算。 */
+function hasFoldableInputs(
+  inputs: Record<string, WorkflowInputSpec>,
+  exclude: string[],
+  hideAspect: boolean,
+): boolean {
+  const mergeWH = canMergeAspect(inputs, exclude);
+  return Object.entries(inputs).some(([key, spec]) => {
+    if (exclude.includes(key) || spec.type === "image") return false;
+    if (hideAspect && mergeWH && (key === "width" || key === "height")) return false;
+    return true;
+  });
+}
+
+function canvasAdvancedSummary(
+  tx: (text: string, vars?: Record<string, string | number>) => string,
+  capability: string,
+  values: Record<string, string>,
+  accelOn: boolean,
+  bgmPath?: string,
+): string {
+  if (capability === "t2i") {
+    const count = values.batch_size || values.n;
+    const parts = [
+      values.steps ? tx("步数 {n}", { n: values.steps }) : "",
+      count ? tx("{n} 张", { n: count }) : "",
+      accelOn ? tx("加速已开") : "",
+    ].filter(Boolean);
+    return parts.join(" · ") || tx("采样与权重");
+  }
+  if (capability === "i2i" || capability === "upscale") {
+    return accelOn ? tx("加速已开") : tx("采样与权重");
+  }
+  const parts = [accelOn ? tx("加速已开") : "", bgmPath ? tx("已选背景音乐") : ""].filter(Boolean);
+  return parts.join(" · ") || tx("采样、配乐与权重");
+}
 
 /** 第一个启用的 ComfyUI Provider（options_from / LoRA 下拉的数据来源）。 */
 function useComfyProviderId(): number | undefined {
@@ -586,6 +637,19 @@ function FunctionInspector({
     return out;
   })();
 
+  const paramExclude = [
+    ...MEDIA_TYPES,
+    "prompt",
+    ...(pack?.capability === "avatar" || pack?.capability === "motion" ? ["length", "frames"] : []),
+  ];
+  const showAdvanced =
+    !!pack &&
+    pack.capability !== "analysis" &&
+    (hasFoldableInputs(pack.inputs, paramExclude, pack.capability === "t2i") ||
+      (hasAccel(pack.accel) && !!d.accel) ||
+      pack.capability === "motion" ||
+      pack.capability === "avatar");
+
   return (
     <>
       {d.presetId ? (
@@ -662,97 +726,139 @@ function FunctionInspector({
           )}
 
           <section className="flex flex-col gap-3">
-            <SectionLabel>{tx("参数")}</SectionLabel>
-            <WorkflowInputs
-              inputs={pack.inputs}
-              values={d.values}
-              exclude={[
-                ...MEDIA_TYPES,
-                "prompt",
-                ...(pack.capability === "avatar" || pack.capability === "motion"
-                  ? (["length", "frames"] as const)
-                  : []),
-              ]}
-              providerId={providerId}
-              fps={pack.fps}
-              singleColumn
-              onChange={(key, value) =>
-                store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
-              }
-            />
-
-            {hasAccel(pack.accel) && d.accel && (
-              <AccelControl
-                accel={pack.accel!}
-                providerId={providerId}
-                value={d.accel as AccelState}
-                singleColumn
-                onChange={(next) => store.updateNodeData(node.id, { accel: next })}
-                inputs={pack.inputs}
-                onApplyPreset={(patch) =>
-                  store.updateNodeData(node.id, { values: { ...d.values, ...patch } })
-                }
-              />
-            )}
-
-            {pack.capability === "motion" && (
-              <Field
-                label={tx("声音来源")}
-                hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}
-              >
-                <Segmented
-                  ariaLabel={tx("声音来源")}
-                  value={d.audioMode === "reference" ? "reference" : "model"}
-                  onChange={(value) =>
-                    store.updateNodeData(node.id, { audioMode: value === "reference" ? "reference" : "model" })
+            {pack.capability === "analysis" ? (
+              <>
+                <SectionLabel>{tx("参数")}</SectionLabel>
+                <WorkflowInputs
+                  inputs={pack.inputs}
+                  values={d.values}
+                  exclude={[...MEDIA_TYPES, "prompt"]}
+                  providerId={providerId}
+                  fps={pack.fps}
+                  singleColumn
+                  onChange={(key, value) =>
+                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
                   }
-                  options={[
-                    { value: "model", label: tx("模型生成") },
-                    { value: "reference", label: tx("参考视频原声") },
-                  ]}
                 />
-              </Field>
-            )}
-            {(pack.capability === "avatar" || pack.capability === "motion") && (
-              <div className="flex flex-col gap-3">
-                <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
-                  <select
-                    className={selectClass}
-                    value={(d.bgmPath ?? "").replace(/^bgm\//, "")}
-                    onChange={(e) =>
-                      store.updateNodeData(node.id, {
-                        bgmPath: e.target.value ? `bgm/${e.target.value}` : "",
-                      })
-                    }
+              </>
+            ) : (
+              <>
+                {pack.capability === "t2i" && canMergeAspect(pack.inputs, paramExclude) && (
+                  <>
+                    <SectionLabel>{tx("参数")}</SectionLabel>
+                    <WorkflowInputs
+                      inputs={pack.inputs}
+                      values={d.values}
+                      exclude={paramExclude}
+                      providerId={providerId}
+                      fps={pack.fps}
+                      singleColumn
+                      part="aspect"
+                      onChange={(key, value) =>
+                        store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                      }
+                    />
+                  </>
+                )}
+                {showAdvanced && (
+                  <AdvancedPanel
+                    summary={canvasAdvancedSummary(
+                      tx,
+                      pack.capability,
+                      d.values,
+                      Boolean(d.accel?.enabled),
+                      d.bgmPath,
+                    )}
                   >
-                    <option value="">{tx("无背景音乐")}</option>
-                    {d.bgmPath &&
-                      !bgmList?.some((item) => `bgm/${item.name}` === d.bgmPath) && (
-                        <option value={d.bgmPath.replace(/^bgm\//, "")}>
-                          {d.bgmPath.replace(/^bgm\//, "")}
-                          {tx("（已不在库中）")}
-                        </option>
-                      )}
-                    {bgmList?.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={d.bgmVolume ?? 0.2}
-                    onChange={(e) =>
-                      store.updateNodeData(node.id, { bgmVolume: Number(e.target.value) || 0 })
-                    }
-                  />
-                </Field>
-              </div>
+                    {hasAccel(pack.accel) && d.accel && (
+                      <AccelControl
+                        accel={pack.accel!}
+                        providerId={providerId}
+                        value={d.accel as AccelState}
+                        singleColumn
+                        onChange={(next) => store.updateNodeData(node.id, { accel: next })}
+                        inputs={pack.inputs}
+                        onApplyPreset={(patch) =>
+                          store.updateNodeData(node.id, { values: { ...d.values, ...patch } })
+                        }
+                      />
+                    )}
+                    {pack.capability === "motion" && (
+                      <Field
+                        label={tx("声音来源")}
+                        hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}
+                      >
+                        <Segmented
+                          ariaLabel={tx("声音来源")}
+                          value={d.audioMode === "reference" ? "reference" : "model"}
+                          onChange={(value) =>
+                            store.updateNodeData(node.id, {
+                              audioMode: value === "reference" ? "reference" : "model",
+                            })
+                          }
+                          options={[
+                            { value: "model", label: tx("模型生成") },
+                            { value: "reference", label: tx("参考视频原声") },
+                          ]}
+                        />
+                      </Field>
+                    )}
+                    {(pack.capability === "avatar" || pack.capability === "motion") && (
+                      <div className="flex flex-col gap-3">
+                        <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
+                          <select
+                            className={selectClass}
+                            value={(d.bgmPath ?? "").replace(/^bgm\//, "")}
+                            onChange={(e) =>
+                              store.updateNodeData(node.id, {
+                                bgmPath: e.target.value ? `bgm/${e.target.value}` : "",
+                              })
+                            }
+                          >
+                            <option value="">{tx("无背景音乐")}</option>
+                            {d.bgmPath &&
+                              !bgmList?.some((item) => `bgm/${item.name}` === d.bgmPath) && (
+                                <option value={d.bgmPath.replace(/^bgm\//, "")}>
+                                  {d.bgmPath.replace(/^bgm\//, "")}
+                                  {tx("（已不在库中）")}
+                                </option>
+                              )}
+                            {bgmList?.map((item) => (
+                              <option key={item.name} value={item.name}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            value={d.bgmVolume ?? 0.2}
+                            onChange={(e) =>
+                              store.updateNodeData(node.id, { bgmVolume: Number(e.target.value) || 0 })
+                            }
+                          />
+                        </Field>
+                      </div>
+                    )}
+                    <WorkflowInputs
+                      inputs={pack.inputs}
+                      values={d.values}
+                      exclude={paramExclude}
+                      providerId={providerId}
+                      fps={pack.fps}
+                      singleColumn
+                      part={pack.capability === "t2i" ? "rest" : "all"}
+                      onChange={(key, value) =>
+                        store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                      }
+                    />
+                  </AdvancedPanel>
+                )}
+              </>
             )}
           </section>
         </>
@@ -784,16 +890,55 @@ function FunctionInspector({
         />
       )}
       {d.presetId && !pack && currentSpec && Object.keys(currentSpec.inputs).length > 0 && (
-        <WorkflowInputs
-          inputs={currentSpec.inputs}
-          values={d.values}
-          exclude={["prompt"]}
-          providerId={d.providerId ?? undefined}
-          singleColumn
-          onChange={(key, value) =>
-            store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
-          }
-        />
+        d.subCapability === "analysis" || d.subCapability === "video_analysis" ? (
+          <section className="flex flex-col gap-3">
+            <SectionLabel>{tx("参数")}</SectionLabel>
+            <WorkflowInputs
+              inputs={currentSpec.inputs}
+              values={d.values}
+              exclude={["prompt"]}
+              providerId={d.providerId ?? undefined}
+              singleColumn
+              onChange={(key, value) =>
+                store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+              }
+            />
+          </section>
+        ) : (
+          <>
+            {d.subCapability === "t2i" && canMergeAspect(currentSpec.inputs, ["prompt"]) && (
+              <section className="flex flex-col gap-3">
+                <SectionLabel>{tx("参数")}</SectionLabel>
+                <WorkflowInputs
+                  inputs={currentSpec.inputs}
+                  values={d.values}
+                  exclude={["prompt"]}
+                  providerId={d.providerId ?? undefined}
+                  singleColumn
+                  part="aspect"
+                  onChange={(key, value) =>
+                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                  }
+                />
+              </section>
+            )}
+            {hasFoldableInputs(currentSpec.inputs, ["prompt"], d.subCapability === "t2i") && (
+              <AdvancedPanel summary={canvasAdvancedSummary(tx, d.subCapability || "", d.values, false)}>
+                <WorkflowInputs
+                  inputs={currentSpec.inputs}
+                  values={d.values}
+                  exclude={["prompt"]}
+                  providerId={d.providerId ?? undefined}
+                  singleColumn
+                  part={d.subCapability === "t2i" ? "rest" : "all"}
+                  onChange={(key, value) =>
+                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                  }
+                />
+              </AdvancedPanel>
+            )}
+          </>
+        )
       )}
 
       <RunActions node={node} canvasId={canvasId} onRequestSave={onRequestSave} onFlash={onFlash} />
