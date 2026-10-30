@@ -520,8 +520,12 @@ export const api = {
     requestBlob(`/api/v1/characters/${id}/image/${slot}`),
   registerCharacterAsset: (id: number, slot: string) =>
     request<AssetOut>(`/api/v1/characters/${id}/asset/${slot}`, { method: "POST" }),
-  listAssets: (kind?: string, includeHidden?: boolean) => {
-    const qs = [kind && `kind=${kind}`, includeHidden && "include_hidden=true"]
+  listAssets: (kind?: string, includeHidden?: boolean, jobKind?: string) => {
+    const qs = [
+      kind && `kind=${encodeURIComponent(kind)}`,
+      includeHidden && "include_hidden=true",
+      jobKind && `job_kind=${encodeURIComponent(jobKind)}`,
+    ]
       .filter(Boolean)
       .join("&");
     return request<AssetOut[]>(`/api/v1/assets${qs ? `?${qs}` : ""}`);

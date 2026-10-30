@@ -11,6 +11,7 @@ import {
   type AccelState,
 } from "@/components/AccelControl";
 import { PageHeader } from "@/components/PageShell";
+import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import {
   PromptField,
   resolveEffectivePrompt,
@@ -124,6 +125,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
 
   const running = job && (job.status === "pending" || job.status === "running");
   const noPacks = isComfy && packs && packs.length === 0;
+  const advancedSummary = hasAccel(pack?.accel) && accel.enabled ? tx("加速已开") : tx("采样与权重");
 
   return (
     <div className="flex flex-col gap-6">
@@ -270,25 +272,6 @@ export function ImageEditPage({ capability, title, description }: Props) {
                     : tx("可选")
             }
           />
-          {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
-            <AccelControl
-              accel={pack.accel}
-              providerId={provider?.id}
-              value={accel}
-              onChange={setAccel}
-              inputs={pack.inputs}
-              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
-            />
-          )}
-          {isComfy && pack && (
-            <WorkflowInputs
-              inputs={pack.inputs}
-              values={extra}
-              onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={imageExclude}
-              providerId={provider?.id}
-            />
-          )}
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button
@@ -317,6 +300,27 @@ export function ImageEditPage({ capability, title, description }: Props) {
               </span>
             )}
           </div>
+          {isComfy && pack && (
+            <AdvancedPanel summary={advancedSummary}>
+              {hasAccel(pack.accel) && pack.accel && (
+                <AccelControl
+                  accel={pack.accel}
+                  providerId={provider?.id}
+                  value={accel}
+                  onChange={setAccel}
+                  inputs={pack.inputs}
+                  onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
+                />
+              )}
+              <WorkflowInputs
+                inputs={pack.inputs}
+                values={extra}
+                onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
+                exclude={imageExclude}
+                providerId={provider?.id}
+              />
+            </AdvancedPanel>
+          )}
         </CardContent>
       </Card>
         }

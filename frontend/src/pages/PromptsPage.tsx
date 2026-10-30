@@ -4,7 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, RotateCcw, Save, ScrollText, Upload } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, type PromptSceneOut, type PromptTaskOut } from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
@@ -85,6 +85,28 @@ export function PromptsPage() {
     setNotice(null);
     setError(null);
   };
+
+  useEffect(() => {
+    if (!data || isNew) return;
+    if (tab === "tasks") {
+      if (data.tasks.some((item) => item.id === selectedId)) return;
+      const first = data.tasks[0];
+      if (!first) return;
+      setSelectedId(first.id);
+      setTaskDraft({
+        id: first.id,
+        name: first.name,
+        capabilities: (first.capabilities ?? []).join(","),
+        system: first.system,
+      });
+      return;
+    }
+    if (data.scenes.some((item) => item.id === selectedId)) return;
+    const first = data.scenes[0];
+    if (!first) return;
+    setSelectedId(first.id);
+    setSceneDraft({ id: first.id, name: first.name, append: first.append });
+  }, [data, tab, isNew, selectedId]);
 
   const saveTask = useMutation({
     mutationFn: () =>
@@ -178,7 +200,7 @@ export function PromptsPage() {
         kind="prompts"
         icon={ScrollText}
         title={tx("提示词模板")}
-        description={tx("管理 ✨ 提示词优化的功能模板与场景预设；改动即保存，立即对下次优化生效。")}
+        description={tx("管理 ✨ 提示词优化的功能模板与场景预设；保存后立即对下次优化生效。")}
       />
 
       <div className="flex flex-wrap items-center gap-2">

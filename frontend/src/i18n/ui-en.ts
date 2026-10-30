@@ -132,6 +132,13 @@ export const UI_EN: Record<string, string> = {
   "LoRA 模型": "LoRA",
   "随机种子": "Seed",
   "步数": "Steps",
+  "高级参数": "Advanced",
+  "步数 {n}": "{n} steps",
+  "{n} 张": "{n} images",
+  "加速已开": "Turbo on",
+  "已选背景音乐": "Music selected",
+  "采样、配乐与权重": "Sampling, music, and weights",
+  "采样与权重": "Sampling and weights",
   "CFG 强度": "CFG",
   "降噪强度": "Denoise",
   "宽度": "Width",
@@ -589,6 +596,9 @@ export const UI_EN: Record<string, string> = {
   "例如：缓慢推近，微风吹动发丝，环境音轻柔": "e.g. slow push-in, a breeze in the hair, soft ambience",
   "开始生成": "Generate",
   "上传素材，生成第一段视频": "Upload media to generate the first video",
+  "上传首帧图片并填写提示词，生成图生视频": "Upload a first frame and a prompt to make an image-to-video clip",
+  "上传人物图片并填写口播文案，生成数字人视频": "Upload a portrait and a script to make a talking-head video",
+  "上传参考视频与目标人物图片，生成动作迁移视频": "Upload a reference video and a person image to transfer the motion",
   "文案": "Script",
 
   "服务提供方": "Providers",
@@ -1325,8 +1335,8 @@ export const UI_EN: Record<string, string> = {
   "重跑选中节点（上游能复用则复用）":
     "Re-run selected node(s) (upstream reused when possible)",
   "提示词模板": "Prompt Templates",
-  "管理 ✨ 提示词优化的功能模板与场景预设；改动即保存，立即对下次优化生效。":
-    "Manage the task templates and scene presets behind ✨ prompt optimization; changes take effect on the next optimization.",
+  "管理 ✨ 提示词优化的功能模板与场景预设；保存后立即对下次优化生效。":
+    "Manage the task templates and scene presets behind prompt optimization. Saved changes apply to the next run.",
   "功能模板": "Task templates",
   "场景预设": "Scene presets",
   "模板类型": "Template type",

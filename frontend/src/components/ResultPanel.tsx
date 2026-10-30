@@ -25,6 +25,8 @@ interface ResultPanelProps {
   mediaKind: "image" | "audio" | "video" | null;
   /** 历史资产的 kind 筛选 */
   historyKind: string;
+  /** 只看这类任务产出的资产，例如 video.i2v */
+  jobKind?: string;
   meta?: MetaItem[];
   emptyHint?: string;
 }
@@ -87,21 +89,22 @@ function ClickableThumb({
   );
 }
 
-export function ResultPanel({ job, mediaKind, historyKind, meta = [], emptyHint }: ResultPanelProps) {
+export function ResultPanel({ job, mediaKind, historyKind, jobKind, meta = [], emptyHint }: ResultPanelProps) {
   const tx = useTx();
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
+  const historyKey = ["assets", historyKind, jobKind ?? "all"] as const;
 
   const { data: history } = useQuery({
-    queryKey: ["assets", historyKind],
-    queryFn: () => api.listAssets(historyKind),
+    queryKey: historyKey,
+    queryFn: () => api.listAssets(historyKind, undefined, jobKind),
   });
 
   useEffect(() => {
     if (job?.status === "succeeded") {
-      queryClient.invalidateQueries({ queryKey: ["assets", historyKind] });
+      queryClient.invalidateQueries({ queryKey: ["assets", historyKind, jobKind ?? "all"] });
     }
-  }, [job?.status, historyKind, queryClient]);
+  }, [job?.status, historyKind, jobKind, queryClient]);
 
   const running = job != null && !TERMINAL_STATUSES.includes(job.status);
   const resultAssets =

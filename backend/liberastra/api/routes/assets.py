@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from liberastra.api.deps import CurrentUser, DbSession
-from liberastra.models import Asset, User
+from liberastra.models import Asset, Job, User
 from liberastra.schemas.asset import AssetOut
 from liberastra.storage import resolve
 
@@ -43,6 +43,7 @@ def list_assets(
     user: CurrentUser,
     db: DbSession,
     kind: str | None = None,
+    job_kind: str | None = None,
     limit: int = 50,
     include_hidden: bool = False,
 ) -> list[Asset]:
@@ -52,6 +53,9 @@ def list_assets(
     if kind:
         kinds = [k.strip() for k in kind.split(",") if k.strip()]
         stmt = stmt.where(Asset.kind.in_(kinds))
+    if job_kind:
+        job_kinds = [k.strip() for k in job_kind.split(",") if k.strip()]
+        stmt = stmt.join(Job, Asset.job_id == Job.id).where(Job.kind.in_(job_kinds))
     return list(db.scalars(stmt.limit(min(limit, 200))).all())
 
 

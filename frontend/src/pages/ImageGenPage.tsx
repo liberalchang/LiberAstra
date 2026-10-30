@@ -13,6 +13,7 @@ import {
   type AccelState,
 } from "@/components/AccelControl";
 import { PageHeader } from "@/components/PageShell";
+import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import {
   PromptField,
   emptyPromptValue,
@@ -128,6 +129,13 @@ export function ImageGenPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const advancedSummary = [
+    tx("步数 {n}", { n: steps }),
+    tx("{n} 张", { n: count }),
+    hasAccel(pack?.accel) && accel.enabled ? tx("加速已开") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,91 +209,90 @@ export function ImageGenPage() {
             }
             placeholder={tx("例如：窗边的陶瓷杯，柔和侧光，浅景深")}
           />
-          <Field label={tx("负面提示词")} hint={tx("不希望出现的内容，可以留空。")}>
-            <Input
-              placeholder={tx("例如：模糊，变形，多余手指")}
-              value={negative}
-              onChange={(e) => setNegative(e.target.value)}
-            />
-          </Field>
           <AspectSelect value={aspect} onChange={setAspect} />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={tx("步数")} hint={tx("采样步数，1 到 150。数值越大通常越慢。")}>
-              <NumberStepper
-                ariaLabel={tx("步数")}
-                min={1}
-                max={150}
-                value={steps}
-                onChange={setSteps}
-              />
-            </Field>
-            <Field label={tx("种子")} hint={tx("-1 表示每次随机，也可以用右侧按钮摇一个。")}>
-              <div className="flex gap-2">
-                <div className="min-w-0 flex-1">
-                  <NumberStepper
-                    ariaLabel={tx("种子")}
-                    min={-1}
-                    max={2147483647}
-                    value={seed}
-                    onChange={setSeed}
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={tx("随机一个种子")}
-                  onClick={() => setSeed(Math.floor(Math.random() * 2147483647))}
-                >
-                  <Dices />
-                </Button>
-              </div>
-            </Field>
-            <Field label={tx("张数")} hint={tx("同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。")}>
-              <NumberStepper
-                ariaLabel={tx("张数")}
-                min={1}
-                max={4}
-                value={count}
-                onChange={setCount}
-              />
-            </Field>
-          </div>
-
-          {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
-            <AccelControl
-              accel={pack.accel}
-              providerId={provider?.id}
-              value={accel}
-              onChange={setAccel}
-              inputs={pack.inputs}
-              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
-            />
-          )}
-
-          {isArk && arkSpec && (
-            <WorkflowInputs
-              inputs={arkSpec.inputs}
-              values={arkExtra}
-              onChange={(key, value) => setArkExtra((current) => ({ ...current, [key]: value }))}
-              exclude={["prompt"]}
-            />
-          )}
-          {isComfy && pack && (
-            <WorkflowInputs
-              inputs={pack.inputs}
-              values={extra}
-              onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={DEDICATED}
-              providerId={provider?.id}
-            />
-          )}
-
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
               {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
             </Button>
           </div>
+          <AdvancedPanel summary={advancedSummary}>
+            <Field label={tx("负面提示词")} hint={tx("不希望出现的内容，可以留空。")}>
+              <Input
+                placeholder={tx("例如：模糊，变形，多余手指")}
+                value={negative}
+                onChange={(e) => setNegative(e.target.value)}
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label={tx("步数")} hint={tx("采样步数，1 到 150。数值越大通常越慢。")}>
+                <NumberStepper
+                  ariaLabel={tx("步数")}
+                  min={1}
+                  max={150}
+                  value={steps}
+                  onChange={setSteps}
+                />
+              </Field>
+              <Field label={tx("种子")} hint={tx("-1 表示每次随机，也可以用右侧按钮摇一个。")}>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <NumberStepper
+                      ariaLabel={tx("种子")}
+                      min={-1}
+                      max={2147483647}
+                      value={seed}
+                      onChange={setSeed}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={tx("随机一个种子")}
+                    onClick={() => setSeed(Math.floor(Math.random() * 2147483647))}
+                  >
+                    <Dices />
+                  </Button>
+                </div>
+              </Field>
+              <Field label={tx("张数")} hint={tx("同一次生成的张数，1 到 4。ComfyUI 用连续种子各出一张。")}>
+                <NumberStepper
+                  ariaLabel={tx("张数")}
+                  min={1}
+                  max={4}
+                  value={count}
+                  onChange={setCount}
+                />
+              </Field>
+            </div>
+            {isComfy && pack && hasAccel(pack.accel) && pack.accel && (
+              <AccelControl
+                accel={pack.accel}
+                providerId={provider?.id}
+                value={accel}
+                onChange={setAccel}
+                inputs={pack.inputs}
+                onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
+              />
+            )}
+            {isArk && arkSpec && (
+              <WorkflowInputs
+                inputs={arkSpec.inputs}
+                values={arkExtra}
+                onChange={(key, value) => setArkExtra((current) => ({ ...current, [key]: value }))}
+                exclude={["prompt"]}
+              />
+            )}
+            {isComfy && pack && (
+              <WorkflowInputs
+                inputs={pack.inputs}
+                values={extra}
+                onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
+                exclude={DEDICATED}
+                providerId={provider?.id}
+              />
+            )}
+          </AdvancedPanel>
         </CardContent>
       </Card>
         }

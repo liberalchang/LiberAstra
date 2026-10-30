@@ -851,6 +851,7 @@ export function VideoAssetsPage() {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
+            jobKind="video.assets"
             emptyHint={tx("上传素材，拼成一条短片")}
             meta={[
               { label: tx("画幅"), value: aspect },

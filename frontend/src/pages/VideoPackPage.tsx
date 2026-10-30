@@ -1,5 +1,6 @@
 import { Film, PersonStanding, RefreshCw, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
+import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -231,6 +232,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const advancedSummary = [
+    hasAccel(pack?.accel) && accel.enabled ? tx("加速已开") : "",
+    bgmName ? tx("已选背景音乐") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const ready =
     pack &&
     (imageFile || character) &&
@@ -545,65 +552,64 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             />
           )}
 
-          {pack && hasAccel(pack.accel) && pack.accel && (
-            <AccelControl
-              accel={pack.accel}
-              providerId={provider?.id}
-              value={accel}
-              onChange={setAccel}
-              inputs={pack.inputs}
-              onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
-            />
-          )}
-
-          {kind === "motion" && (
-            <Field label={tx("声音来源")} hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}>
-              <Segmented
-                ariaLabel={tx("声音来源")}
-                value={audioMode}
-                onChange={setAudioMode}
-                options={[
-                  { value: "model", label: tx("模型生成") },
-                  { value: "reference", label: tx("参考视频原声") },
-                ]}
-              />
-            </Field>
-          )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
-              <select className={selectClass} value={bgmName} onChange={(e) => setBgmName(e.target.value)}>
-                <option value="">{tx("无背景音乐")}</option>
-                {bgmList?.map((item) => (
-                  <option key={item.name} value={item.name}>{item.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
-              <Input type="number" min={0} max={1} step={0.05} value={bgmVolume} onChange={(e) => setBgmVolume(e.target.value)} />
-            </Field>
-          </div>
-
-          {pack && (
-            <WorkflowInputs
-              inputs={pack.inputs}
-              values={extra}
-              onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-              exclude={
-                kind === "avatar" || kind === "motion"
-                  ? ["prompt", "image", "video", "audio", "length", "frames"]
-                  : ["prompt", "image", "video", "audio"]
-              }
-              providerId={provider?.id}
-              fps={pack.fps}
-            />
-          )}
-
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex items-center gap-3">
             <Button onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
               {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
             </Button>
           </div>
+          <AdvancedPanel summary={advancedSummary || tx("采样、配乐与权重")}>
+            {pack && hasAccel(pack.accel) && pack.accel && (
+              <AccelControl
+                accel={pack.accel}
+                providerId={provider?.id}
+                value={accel}
+                onChange={setAccel}
+                inputs={pack.inputs}
+                onApplyPreset={(patch) => setExtra((prev) => ({ ...prev, ...patch }))}
+              />
+            )}
+            {kind === "motion" && (
+              <Field label={tx("声音来源")} hint={tx("模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。")}>
+                <Segmented
+                  ariaLabel={tx("声音来源")}
+                  value={audioMode}
+                  onChange={setAudioMode}
+                  options={[
+                    { value: "model", label: tx("模型生成") },
+                    { value: "reference", label: tx("参考视频原声") },
+                  ]}
+                />
+              </Field>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={tx("背景音乐")} hint={tx("可选。从音乐库选择，叠在当前声音上面。")}>
+                <select className={selectClass} value={bgmName} onChange={(e) => setBgmName(e.target.value)}>
+                  <option value="">{tx("无背景音乐")}</option>
+                  {bgmList?.map((item) => (
+                    <option key={item.name} value={item.name}>{item.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3。")}>
+                <Input type="number" min={0} max={1} step={0.05} value={bgmVolume} onChange={(e) => setBgmVolume(e.target.value)} />
+              </Field>
+            </div>
+            {pack && (
+              <WorkflowInputs
+                inputs={pack.inputs}
+                values={extra}
+                onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
+                exclude={
+                  kind === "avatar" || kind === "motion"
+                    ? ["prompt", "image", "video", "audio", "length", "frames"]
+                    : ["prompt", "image", "video", "audio"]
+                }
+                providerId={provider?.id}
+                fps={pack.fps}
+              />
+            )}
+          </AdvancedPanel>
         </CardContent>
       </Card>
         }
@@ -612,7 +618,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
-            emptyHint={tx("上传素材，生成第一段视频")}
+            jobKind={`video.${kind}`}
+            emptyHint={tx(
+              kind === "avatar"
+                ? "上传人物图片并填写口播文案，生成数字人视频"
+                : kind === "motion"
+                  ? "上传参考视频与目标人物图片，生成动作迁移视频"
+                  : "上传首帧图片并填写提示词，生成图生视频",
+            )}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },
               { label: tx("工作流"), value: pack?.name ?? "" },

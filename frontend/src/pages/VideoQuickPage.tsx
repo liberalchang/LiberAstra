@@ -1,4 +1,4 @@
-import { Clapperboard, FileText, Image as ImageIcon, Music, RefreshCw, Volume2 } from "lucide-react";
+import { Clapperboard, FileText, Image as ImageIcon, RefreshCw, Volume2 } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
+import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
@@ -472,6 +473,15 @@ export function VideoQuickPage() {
     ((tpl?.type === "image" || tpl?.type === "video") &&
       (mode === "script" ? scriptVisual.useOptimized && !scriptVisual.optimized.trim() : optimizeVisuals));
   const nativeAudio = tpl?.type === "video" && audioMode === "auto";
+  const advancedSummary = [
+    (tpl?.type === "image" && hasAccel(imagePack?.accel) && imageAccel.enabled) ||
+    (tpl?.type === "video" && hasAccel(videoPack?.accel) && videoAccel.enabled)
+      ? tx("加速已开")
+      : "",
+    bgmName ? tx("已选背景音乐") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const submitDisabled =
     (mode === "topic" ? !effectiveTopic : !script.trim()) ||
     !tpl ||
@@ -752,25 +762,6 @@ export function VideoQuickPage() {
                   <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder={tx("例如：电影感，浅景深，")} />
                 </Field>
               </div>
-              {imagePack && hasAccel(imagePack.accel) && imagePack.accel && (
-                <AccelControl
-                  accel={imagePack.accel}
-                  providerId={imageProvider?.id}
-                  value={imageAccel}
-                  onChange={setImageAccel}
-                  inputs={imagePack.inputs}
-                  onApplyPreset={(patch) => setImageExtra((prev) => ({ ...prev, ...patch }))}
-                />
-              )}
-              {imageProvider?.type === "comfyui" && imagePack && (
-                <WorkflowInputs
-                  inputs={imagePack.inputs}
-                  values={imageExtra}
-                  onChange={(k, v) => setImageExtra((prev) => ({ ...prev, [k]: v }))}
-                  exclude={["prompt", "width", "height"]}
-                  providerId={imageProvider.id}
-                />
-              )}
             </>
           )}
           {tpl?.type === "video" && (
@@ -828,26 +819,6 @@ export function VideoQuickPage() {
                   <Input value={stylePrefix} onChange={(e) => setStylePrefix(e.target.value)} placeholder={tx("例如：电影感，浅景深，")} />
                 </Field>
               </div>
-              {videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
-                <AccelControl
-                  accel={videoPack.accel}
-                  providerId={videoProvider?.id}
-                  value={videoAccel}
-                  onChange={setVideoAccel}
-                  inputs={videoPack.inputs}
-                  onApplyPreset={(patch) => setVideoExtra((prev) => ({ ...prev, ...patch }))}
-                />
-              )}
-              {videoPack && (
-                <WorkflowInputs
-                  inputs={videoPack.inputs}
-                  values={videoExtra}
-                  onChange={(k, v) => setVideoExtra((prev) => ({ ...prev, [k]: v }))}
-                  exclude={["prompt", "width", "height", "image"]}
-                  providerId={videoProvider?.id}
-                  fps={videoPack.fps}
-                />
-              )}
               <p className="text-xs leading-relaxed text-warning">
                 {tx("注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。", { count })}
               </p>
@@ -986,15 +957,6 @@ export function VideoQuickPage() {
                   {tx('没有 tts 能力的工作流包，请到「设置 → 工作流包」导入（如 IndexTTS2）。')}
                 </p>
               )}
-              {ttsPack && (
-                <WorkflowInputs
-                  inputs={ttsPack.inputs}
-                  values={ttsExtra}
-                  onChange={(k, v) => setTtsExtra((prev) => ({ ...prev, [k]: v }))}
-                  exclude={["text"]}
-                  providerId={ttsProvider?.id}
-                />
-              )}
             </>
           ) : isLibraryVoice ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1087,70 +1049,111 @@ export function VideoQuickPage() {
         </CardContent>
       </Card>
 
-      {/* ④ 背景音乐 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Music className="size-4" />{tx("背景音乐")}</CardTitle>
-          <CardDescription>{tx("可选。上传后按设定音量混入成片。")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={tx("背景音乐")} hint={tx("从音乐库选择；留空则只有人声。")}>
-              <select
-                className={selectClass}
-                value={bgmName}
-                onChange={(e) => setBgmName(e.target.value)}
-              >
-                <option value="">{tx("无背景音乐")}</option>
-                {bgmName && !bgmList?.some((b) => b.name === bgmName) && (
-                  <option value={bgmName}>{bgmName}{tx("（已不在库中）")}</option>
-                )}
-                {bgmList?.map((b) => (
-                  <option key={b.name} value={b.name}>{b.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3，别盖过人声。")}>
-              <Input
-                type="number"
-                min={0}
-                max={1}
-                step={0.05}
-                value={bgmVolume}
-                onChange={(e) => setBgmVolume(e.target.value)}
-              />
-            </Field>
-          </div>
-          <Field label={tx("上传新音乐")} hint={tx("上传到音乐库并直接选中；支持 MP3 / WAV / M4A / OGG，以后可直接复用。")}>
-            <FileDrop
-              accept="audio/*"
-              title={uploadBgm.isPending ? tx("上传中…") : tx("点击或拖拽上传，自动存入音乐库")}
-              subtitle="MP3 / WAV / M4A / OGG / FLAC / AAC"
-              onSelect={(fs) => {
-                const f = fs?.[0];
-                if (f) uploadBgm.mutate(f);
-              }}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <div className="flex items-center gap-3">
+        {mode === "batch" ? (
+          <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
+            {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
+          </Button>
+        ) : (
+          <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
+            {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
+          </Button>
+        )}
+        {running && job?.steps?.length > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
+          </span>
+        )}
+      </div>
+      <AdvancedPanel summary={advancedSummary || tx("采样、配乐与权重")}>
+        {tpl?.type === "image" && imagePack && hasAccel(imagePack.accel) && imagePack.accel && (
+          <AccelControl
+            accel={imagePack.accel}
+            providerId={imageProvider?.id}
+            value={imageAccel}
+            onChange={setImageAccel}
+            inputs={imagePack.inputs}
+            onApplyPreset={(patch) => setImageExtra((prev) => ({ ...prev, ...patch }))}
+          />
+        )}
+        {tpl?.type === "image" && imageProvider?.type === "comfyui" && imagePack && (
+          <WorkflowInputs
+            inputs={imagePack.inputs}
+            values={imageExtra}
+            onChange={(k, v) => setImageExtra((prev) => ({ ...prev, [k]: v }))}
+            exclude={["prompt", "width", "height"]}
+            providerId={imageProvider.id}
+          />
+        )}
+        {tpl?.type === "video" && videoPack && hasAccel(videoPack.accel) && videoPack.accel && (
+          <AccelControl
+            accel={videoPack.accel}
+            providerId={videoProvider?.id}
+            value={videoAccel}
+            onChange={setVideoAccel}
+            inputs={videoPack.inputs}
+            onApplyPreset={(patch) => setVideoExtra((prev) => ({ ...prev, ...patch }))}
+          />
+        )}
+        {tpl?.type === "video" && videoPack && (
+          <WorkflowInputs
+            inputs={videoPack.inputs}
+            values={videoExtra}
+            onChange={(k, v) => setVideoExtra((prev) => ({ ...prev, [k]: v }))}
+            exclude={["prompt", "width", "height", "image"]}
+            providerId={videoProvider?.id}
+            fps={videoPack.fps}
+          />
+        )}
+        {!nativeAudio && ttsIsComfy && ttsPack && (
+          <WorkflowInputs
+            inputs={ttsPack.inputs}
+            values={ttsExtra}
+            onChange={(k, v) => setTtsExtra((prev) => ({ ...prev, [k]: v }))}
+            exclude={["text"]}
+            providerId={ttsProvider?.id}
+          />
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("背景音乐")} hint={tx("从音乐库选择；留空则只有人声。")}>
+            <select
+              className={selectClass}
+              value={bgmName}
+              onChange={(e) => setBgmName(e.target.value)}
+            >
+              <option value="">{tx("无背景音乐")}</option>
+              {bgmName && !bgmList?.some((b) => b.name === bgmName) && (
+                <option value={bgmName}>{bgmName}{tx("（已不在库中）")}</option>
+              )}
+              {bgmList?.map((b) => (
+                <option key={b.name} value={b.name}>{b.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label={tx("BGM 音量")} hint={tx("0 到 1，建议 0.1 到 0.3，别盖过人声。")}>
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={bgmVolume}
+              onChange={(e) => setBgmVolume(e.target.value)}
             />
           </Field>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex items-center gap-3">
-            {mode === "batch" ? (
-              <Button onClick={() => batchSubmit.mutate()} disabled={batchDisabled}>
-                {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
-              </Button>
-            ) : (
-              <Button onClick={() => submit.mutate()} disabled={submitDisabled}>
-                {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
-              </Button>
-            )}
-            {running && job?.steps?.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""), tx)}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <Field label={tx("上传新音乐")} hint={tx("上传到音乐库并直接选中；支持 MP3 / WAV / M4A / OGG，以后可直接复用。")}>
+          <FileDrop
+            accept="audio/*"
+            title={uploadBgm.isPending ? tx("上传中…") : tx("点击或拖拽上传，自动存入音乐库")}
+            subtitle="MP3 / WAV / M4A / OGG / FLAC / AAC"
+            onSelect={(fs) => {
+              const f = fs?.[0];
+              if (f) uploadBgm.mutate(f);
+            }}
+          />
+        </Field>
+      </AdvancedPanel>
       </div>
         }
         right={
@@ -1180,6 +1183,7 @@ export function VideoQuickPage() {
               job={job ?? null}
               mediaKind="video"
               historyKind="video"
+              jobKind="video.quick"
               emptyHint={tx("一句话或一段文案，生成一条短视频")}
               meta={[
                 { label: tx("画幅"), value: aspect },

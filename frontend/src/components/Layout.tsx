@@ -105,9 +105,9 @@ const NAV_GROUPS: {
 
 function navClass(isActive: boolean, collapsed: boolean) {
   return cn(
-    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/80 hover:bg-foreground/6",
-    // 当前项用主色淡底 + 主色文字：颜色承担「你在哪里」的导航职责
-    isActive && "bg-primary/10 font-medium text-primary hover:bg-primary/12",
+    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm text-foreground/85 hover:bg-foreground/6",
+    // 暗色下主色字对比不足 4.5:1，改用更亮的紫字
+    isActive && "bg-primary/15 font-medium text-primary hover:bg-primary/20 dark:text-[#c4b5fd]",
     collapsed && "justify-center px-0",
   );
 }
@@ -253,7 +253,8 @@ export function Layout() {
           <button
             type="button"
             className="absolute right-3 grid size-8 place-items-center rounded-full text-white/80 hover:bg-white/15"
-            aria-label={t("common.cancel")}
+            aria-label={t("common.close")}
+            title={t("common.close")}
             onClick={() => {
               sessionStorage.setItem("liberastra-banner", "off");
               setBanner(false);
@@ -267,7 +268,7 @@ export function Layout() {
         <div className="hidden md:block">{renderSidebar(collapsed)}</div>
         {open && (
           <div className="fixed inset-0 z-40 md:hidden">
-            <button className="absolute inset-0 bg-black/60" aria-label={t("common.cancel")} onClick={() => setOpen(false)} />
+            <button className="absolute inset-0 bg-black/60" aria-label={t("common.close")} onClick={() => setOpen(false)} />
             <div className="relative z-10 h-full">{renderSidebar(false)}</div>
           </div>
         )}
