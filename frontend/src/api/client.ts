@@ -198,6 +198,26 @@ export interface AssetOut {
   created_at: string;
 }
 
+export interface PluginOut {
+  id: string;
+  name: string;
+  description: string;
+  port: number;
+  installed: boolean;
+  enabled: boolean;
+  running: boolean;
+  device: string;
+  models_dir: string;
+  code_dir: string;
+  launch: string;
+  model_status: string;
+  env_status: string;
+  env_dir: string;
+  install_progress: number;
+  install_phase: string;
+  last_error: string;
+}
+
 export interface SystemPreferences {
   /** ComfyUI 出图/出视频等待上限（秒） */
   comfy_wait_timeout_seconds: number;
@@ -597,6 +617,20 @@ export const api = {
     request<JobOut>("/api/v1/images/generate", { method: "POST", body: JSON.stringify(body) }),
   editImage: (form: FormData) =>
     request<JobOut>("/api/v1/images/edit", { method: "POST", body: form }),
+  convertDepth: (form: FormData) =>
+    request<AssetOut[]>("/api/v1/images/depth", { method: "POST", body: form }),
+  listPlugins: () => request<PluginOut[]>("/api/v1/plugins"),
+  installPlugin: (id: string, body?: { device?: string; models_dir?: string }) =>
+    request<PluginOut>(`/api/v1/plugins/${id}/install`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  uninstallPlugin: (id: string) =>
+    request<PluginOut>(`/api/v1/plugins/${id}/uninstall`, { method: "POST" }),
+  enablePlugin: (id: string) =>
+    request<PluginOut>(`/api/v1/plugins/${id}/enable`, { method: "POST" }),
+  disablePlugin: (id: string) =>
+    request<PluginOut>(`/api/v1/plugins/${id}/disable`, { method: "POST" }),
   listPrompts: () =>
     request<{ tasks: PromptTaskOut[]; scenes: PromptSceneOut[] }>("/api/v1/prompts"),
   /** 覆盖/新建功能模板;删除 = 恢复默认(删用户覆盖层) */

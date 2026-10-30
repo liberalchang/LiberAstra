@@ -5,6 +5,7 @@
 #   docker compose --profile comfyui up -d  # + ComfyUI（需要 NVIDIA runtime）
 #   docker compose --profile postgres up -d # + PostgreSQL（并设置 DATABASE_URL）
 #   docker compose --profile speech up -d   # + 语音服务（显卡主机；也可只拷 services/speech 单独部署）
+#   docker compose --profile depth up -d    # + 深度图服务（显卡主机；也可只拷 services/depth 单独部署）
 
 services:
   liberastra:
@@ -78,6 +79,34 @@ services:
               count: all
               capabilities: [gpu]
 
+  # 与语音服务相同：可选组件。同一 compose 网络用 http://liber-depth:5556，
+  # 别的机器用 http://<显卡主机IP>:5556。只拷目录时：cd services/depth && docker compose up -d --build
+  liber-depth:
+    profiles: ["depth"]
+    build:
+      context: ./services/depth
+      dockerfile: Dockerfile
+    image: liberastra-depth:latest
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    environment:
+      LIBER_DEPTH_DEVICE: ${LIBER_DEPTH_DEVICE:-cuda}
+      LIBER_DEPTH_API_KEY: ${LIBER_DEPTH_API_KEY:-}
+      LIBER_DEPTH_MODEL: ${LIBER_DEPTH_MODEL:-dpt_swin2_large_384}
+      LIBER_DEPTH_MODELS_DIR: /models
+      LIBER_DEPTH_RESULTS_DIR: /data/results
+    volumes:
+      - liber-depth-models:/models
+      - liber-depth-results:/data/results
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   postgres:
     image: postgres:16-alpine
     profiles: ["postgres"]
@@ -97,3 +126,5 @@ volumes:
   postgres-data:
   liber-speech-models:
   liber-speech-results:
+  liber-depth-models:
+  liber-depth-results:

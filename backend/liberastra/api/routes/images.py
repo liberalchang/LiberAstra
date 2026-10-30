@@ -1,15 +1,18 @@
-"""图像路由：文生图、图生图/修复放大（统一为 edit）、提示词优化。"""
+"""图像路由：文生图、图生图/修复放大（统一为 edit）、提示词优化、深度图。"""
 
 from __future__ import annotations
 
+import uuid
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.api.utils import wait_for_job
-from liberastra.models import Job, Provider
+from liberastra.models import Asset, Job, Provider
 from liberastra.providers.base import ProviderError
+from liberastra.schemas.asset import AssetOut
 from liberastra.schemas.image import (
     ImageGenerateRequest,
     PromptOptimizeRequest,
@@ -17,8 +20,10 @@ from liberastra.schemas.image import (
 )
 from liberastra.schemas.job import JobOut
 from liberastra.services.image import optimize_prompt
-from liberastra.services.providers import pick_provider
+from liberastra.services.plugins import depth_output_name
+from liberastra.services.providers import build_adapter, pick_provider
 from liberastra.storage import save_upload
+from liberastra.storage.local import create_asset, resolve, save_bytes
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -143,3 +148,81 @@ async def optimize(
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return PromptOptimizeResponse(optimized=optimized.strip())
+
+
+def _parse_asset_ids(raw: str) -> list[int]:
+    ids: list[int] = []
+    for part in (raw or "").replace("，", ",").split(","):
+        text = part.strip()
+        if not text:
+            continue
+        if not text.isdigit():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"无效的资产 ID：{text}")
+        ids.append(int(text))
+    return ids
+
+
+@router.post("/depth", response_model=list[AssetOut])
+async def convert_depth(
+    user: CurrentUser,
+    db: DbSession,
+    images: Annotated[list[UploadFile] | None, File()] = None,
+    asset_ids: Annotated[str, Form()] = "",
+    provider_id: Annotated[int | None, Form()] = None,
+    model: Annotated[str, Form()] = "",
+    device: Annotated[str, Form()] = "",
+) -> list[Asset]:
+    """批量把图片转成深度图。产物文件名固定为 <原名>_depth.png。"""
+    wanted_device = (device or "").strip().lower()
+    if wanted_device and wanted_device not in {"cuda", "cpu"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="device 只能是 cuda 或 cpu")
+    items: list[tuple[str, bytes]] = []
+    for upload in images or []:
+        content = await upload.read()
+        if not content:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="空文件")
+        items.append((upload.filename or "image.png", content))
+    for asset_id in _parse_asset_ids(asset_ids):
+        asset = db.get(Asset, asset_id)
+        if asset is None or asset.owner_id != user.id or asset.kind != "image":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"找不到图片资产 {asset_id}")
+        meta = asset.meta or {}
+        source = str(meta.get("source_name") or Path(asset.path).name)
+        items.append((source, resolve(asset.path).read_bytes()))
+    if not items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传图片或选择已有资产")
+    if len(items) > 20:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="一次最多转换 20 张")
+
+    provider = pick_provider(db, "depth", provider_id)
+    adapter = build_adapter(provider)
+    saved: list[Asset] = []
+    for filename, content in items:
+        try:
+            _remote_name, png = await adapter.convert_depth(
+                content,
+                filename,
+                model=model.strip(),
+                device=wanted_device,
+            )
+        except ProviderError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        out_name = depth_output_name(filename)
+        rel_path = f"outputs/depth/{uuid.uuid4().hex[:12]}_{out_name}"
+        save_bytes(png, rel_path)
+        saved.append(
+            create_asset(
+                db,
+                kind="image",
+                rel_path=rel_path,
+                owner_id=user.id,
+                meta={
+                    "op": "depth",
+                    "source_name": out_name,
+                    "name": Path(out_name).stem,
+                    "model": model.strip() or None,
+                    "provider": provider.name,
+                },
+            )
+        )
+    return saved

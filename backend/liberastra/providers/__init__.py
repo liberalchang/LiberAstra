@@ -158,6 +158,18 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
         ),
         group="local",
     ),
+    "liber_depth": ProviderTypeInfo(
+        type="liber_depth",
+        label="Liber Depth 深度图",
+        capabilities=("depth",),
+        requires_api_key=False,
+        default_base_url="http://127.0.0.1:5556",
+        description=(
+            "本仓库 services/depth 深度图插件服务。可安装在本地或部署在局域网显卡主机"
+            "（http://<主机IP>:5556），使用 MiDaS 模型将图片转为深度图。"
+        ),
+        group="local",
+    ),
     "comfyui": ProviderTypeInfo(
         type="comfyui",
         label="ComfyUI",

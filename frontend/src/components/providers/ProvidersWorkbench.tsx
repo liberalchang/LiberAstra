@@ -125,7 +125,9 @@ export function ProvidersWorkbench() {
   const [draftSubs, setDraftSubs] = useState<string[]>(["chat"]);
 
   const needle = query.trim().toLowerCase();
-  const types = (caps?.provider_types ?? []).filter((info) => `${info.label} ${info.type}`.toLowerCase().includes(needle));
+  const types = (caps?.provider_types ?? []).filter((info) =>
+    `${info.label} ${info.type} ${info.description}`.toLowerCase().includes(needle),
+  );
   const rowOf = (type: string) => {
     const rows = (providers ?? []).filter((item) => item.type === type);
     return rows.find((item) => item.enabled) ?? rows[0] ?? null;
@@ -198,7 +200,14 @@ export function ProvidersWorkbench() {
       />
       <div className="grid min-h-[36rem] overflow-hidden rounded-xl border border-border bg-card grid-cols-[14rem_minmax(0,1fr)]">
         <aside className="border-r border-border p-3">
-          <Input value={query} placeholder={tx("搜索服务商")} onChange={(event) => setQuery(event.target.value)} />
+          <Input
+            type="search"
+            name="provider-search"
+            autoComplete="off"
+            value={query}
+            placeholder={tx("搜索服务商")}
+            onChange={(event) => setQuery(event.target.value)}
+          />
           <button
             type="button"
             className={`mt-3 flex w-full items-center rounded-lg px-2 py-1.5 text-left text-sm ${selectedType == null ? "bg-muted" : "hover:bg-muted/60"}`}
@@ -247,11 +256,20 @@ export function ProvidersWorkbench() {
         </aside>
         <section className="p-5">
           {!activeInfo ? (
-            <ProviderGallery types={caps?.provider_types ?? []} rowOf={rowOf} onOpen={openType} onToggle={toggleType} />
+            needle && types.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{tx("没有匹配的服务商")}</p>
+            ) : (
+              <ProviderGallery types={types} rowOf={rowOf} onOpen={openType} onToggle={toggleType} />
+            )
           ) : !selected ? (
             <div className="flex max-w-lg flex-col gap-3">
               <h2 className="text-lg font-medium">{activeInfo.label}</h2>
               <p className="text-sm text-muted-foreground">{activeInfo.description}</p>
+              {activeInfo.type === "liber_depth" && (
+                <p className="text-sm text-muted-foreground">
+                  {tx("启用后会列出六种 MiDaS 权重。默认只打开 SwinV2 Large 384。一次转换只用其中一个。")}
+                </p>
+              )}
               <Button className="w-fit" onClick={() => create.mutate(activeInfo)} disabled={create.isPending}>
                 {tx("启用这份配置")}
               </Button>
@@ -429,6 +447,8 @@ function Detail(props: {
       <SettingRow title={tx("API Key")} hint={props.provider.has_api_key ? tx("已保存，留空表示不修改") : tx("填写后失焦即保存")}>
         <Input
           type="password"
+          name="api-key"
+          autoComplete="new-password"
           value={props.apiKey}
           onChange={(event) => props.onApiKey(event.target.value)}
           onBlur={() => props.apiKey && props.onPatch({ api_key: props.apiKey })}
@@ -455,6 +475,9 @@ function Detail(props: {
         <h3 className="text-sm font-medium">{tx("模型列表")}</h3>
         <div className="flex items-center gap-2">
           <Input
+            type="search"
+            name="model-search"
+            autoComplete="off"
             value={modelQuery}
             placeholder={tx("搜索模型")}
             aria-label={tx("搜索模型")}
@@ -637,6 +660,7 @@ const MARKS: Record<string, string> = {
   comfyui: "/provider-icons/comfyui.png",
   edge_tts: "/provider-icons/microsoft.png",
   liber_speech: "/provider-icons/liber.svg",
+  liber_depth: "/provider-icons/liber.svg",
 };
 
 function ProviderMark({ type, size = "md" }: { type: string; size?: "md" | "sm" }) {

@@ -2,7 +2,7 @@
  * 三层 canvas:底图 + 标记层 + 蒙版层。标记导出把笔迹烘进新图;
  * 蒙版导出白区黑底 PNG(供 inpaint 包);裁剪导出只取底图区域。
  */
-import { Crop, Eraser, Paintbrush, X } from "lucide-react";
+import { Crop, Eraser, Layers, Paintbrush, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { api, fetchAssetBlob } from "@/api/client";
@@ -67,6 +67,8 @@ export function ImagePaintEditor({
   maskAssetId,
   onApply,
   onApplyMask,
+  depthReady = false,
+  onDepth,
   onClose,
 }: {
   assetId: number;
@@ -76,6 +78,9 @@ export function ImagePaintEditor({
   onApply: (assetId: number, name: string, op: "markup" | "crop") => void;
   /** 导出蒙版建档后回调;无此 prop 时隐藏蒙版模式 */
   onApplyMask?: (assetId: number, name: string) => void;
+  /** 深度服务可用时才能点深度转换 */
+  depthReady?: boolean;
+  onDepth?: () => void;
   onClose: () => void;
 }) {
   const tx = useTx();
@@ -432,7 +437,21 @@ export function ImagePaintEditor({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!ready || saving || !depthReady || !onDepth}
+            title={
+              depthReady
+                ? tx("转为深度图")
+                : tx("请先安装并启用深度图插件，或在服务提供方启用 Liber Depth")
+            }
+            onClick={onDepth}
+          >
+            <Layers className="size-4" />
+            {tx("深度转换")}
+          </Button>
           {mode === "crop" ? (
             <Button
               size="sm"

@@ -31,9 +31,11 @@ export interface NodeRunState {
 /** 输入节点的版本:原始/涂抹/裁剪各为一版;蒙版挂在所属版本上(像素对齐,不独立流通)。 */
 export interface InputVersion {
   assetId: number;
-  /** 版本标签:原始 / 涂抹 N / 裁剪 N */
+  /** 版本标签:原始 / 涂抹 N / 裁剪 N / 深度 N */
   label: string;
   maskAssetId?: number | null;
+  /** 产生该版本的操作 */
+  op?: "markup" | "crop" | "depth";
 }
 
 export interface InputNodeData extends Record<string, unknown> {

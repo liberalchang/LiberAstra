@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 文档索引 / Docs
+    url: https://github.com/liberalchang/LiberAstra/blob/main/docs/README.md
+    about: 安装、部署和 CLI 先看文档索引。Install and deploy notes live here.
+  - name: 安全问题 / Security
+    url: https://github.com/liberalchang/LiberAstra/security/advisories/new
+    about: 密钥、Token 或未公开漏洞不要写成公开 Issue。

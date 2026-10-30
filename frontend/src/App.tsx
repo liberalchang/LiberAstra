@@ -20,8 +20,10 @@ const CharactersPage = lazy(() => import("@/pages/CharactersPage").then((m) => (
 const CliPage = lazy(() => import("@/pages/CliPage").then((m) => ({ default: m.CliPage })));
 const GuidePage = lazy(() => import("@/pages/GuidePage").then((m) => ({ default: m.GuidePage })));
 const ImageEditPage = lazy(() => import("@/pages/ImageEditPage").then((m) => ({ default: m.ImageEditPage })));
+const ImageDepthPage = lazy(() => import("@/pages/ImageDepthPage").then((m) => ({ default: m.ImageDepthPage })));
 const ImageGenPage = lazy(() => import("@/pages/ImageGenPage").then((m) => ({ default: m.ImageGenPage })));
 const JobsPage = lazy(() => import("@/pages/JobsPage").then((m) => ({ default: m.JobsPage })));
+const PluginsPage = lazy(() => import("@/pages/PluginsPage").then((m) => ({ default: m.PluginsPage })));
 const MusicPage = lazy(() => import("@/pages/MusicPage").then((m) => ({ default: m.MusicPage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const PromptsPage = lazy(() => import("@/pages/PromptsPage").then((m) => ({ default: m.PromptsPage })));
@@ -86,12 +88,14 @@ export default function App() {
             />
           }
         />
+        <Route path="/image/depth" element={<ImageDepthPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/prompts" element={<PromptsPage />} />
         <Route path="/settings/system" element={<SystemSettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/assets" element={<AssetsPage />} />
+        <Route path="/plugins" element={<PluginsPage />} />
         <Route path="/video/quick" element={<VideoQuickPage />} />
         <Route path="/video/templates" element={<TemplatesPage />} />
         <Route path="/video/assets" element={<VideoAssetsPage />} />

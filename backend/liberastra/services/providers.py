@@ -14,6 +14,7 @@ from liberastra.models import Provider
 from liberastra.providers.asr.openai_stt import OpenAISTT
 from liberastra.providers.base import ProviderError
 from liberastra.providers.image.comfyui import ComfyUIImage
+from liberastra.providers.image.liber_depth import LiberDepth
 from liberastra.providers.image.openai_images import OpenAIImages
 from liberastra.providers.llm.ollama import OllamaLLM
 from liberastra.providers.llm.openai_compatible import OpenAICompatibleLLM
@@ -57,6 +58,8 @@ def build_adapter(
         return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", client=client)
     if record.type == "liber_speech":
         return LiberSpeech(record.base_url, api_key, default_model or "multilingual", client=client)
+    if record.type == "liber_depth":
+        return LiberDepth(record.base_url, api_key, client=client)
     if record.type == "comfyui":
         return ComfyUIImage(record.base_url)
     if record.type == "openai_images":
@@ -212,6 +215,15 @@ def seed_model_catalog(record: Provider) -> None:
     from liberastra.providers.vendors.cloud.presets import CLOUD_TYPES
     from liberastra.providers.vendors.volcengine.presets import presets_for
 
+    if record.type == "liber_depth":
+        from liberastra.providers.catalog import depth_model_presets
+
+        if read_catalog(record.extra, record.type):
+            return
+        catalog = merge_catalog([], [], depth_model_presets(), provider_type=record.type)
+        _write_catalog(record, catalog)
+        record.models = enabled_model_ids(catalog)
+        return
     if record.type not in {"volcengine_ark", "volcengine_speech", *CLOUD_TYPES}:
         return
     if read_catalog(record.extra, record.type):

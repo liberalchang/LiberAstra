@@ -1,0 +1,24 @@
+name: Feature
+description: 建议一个还没有的能力 / Suggest a capability that is not there yet
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想完成什么 / What you are trying to do
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议 / Proposal
+      description: 和现有页面、CLI、MCP 或工作流包的关系。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 不在范围内的事 / Out of scope
+      description: 例如：不要求 LiberAstra 自己跑模型。

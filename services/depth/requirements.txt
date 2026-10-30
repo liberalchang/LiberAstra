@@ -1,0 +1,9 @@
+fastapi>=0.115
+uvicorn>=0.32
+python-multipart>=0.0.12
+numpy>=1.26
+opencv-python-headless>=4.10
+# GPU 主机建议用 Dockerfile 里的 pytorch 基础镜像，不要在这里重复装 CPU 版 torch。
+torch
+torchvision
+timm>=1.0

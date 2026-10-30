@@ -9,6 +9,8 @@ import {
   ImageUp,
   Images,
   Languages,
+  Layers,
+  Blocks,
   Terminal,
   LayoutDashboard,
   LayoutTemplate,
@@ -59,6 +61,7 @@ const NAV_GROUPS: {
       { to: "/image/generate", icon: ImagePlus, key: "nav.imageGen" },
       { to: "/image/edit", icon: WandSparkles, key: "nav.imageEdit" },
       { to: "/image/upscale", icon: ImageUp, key: "nav.upscale" },
+      { to: "/image/depth", icon: Layers, key: "nav.imageDepth" },
     ],
   },
   {
@@ -82,7 +85,10 @@ const NAV_GROUPS: {
       { to: "/speech/music", icon: Music, key: "nav.music" },
     ],
   },
-  { labelKey: "group.assets", items: [{ to: "/assets", icon: FolderOpen, key: "nav.assetList" }] },
+  { labelKey: "group.assets", items: [
+      { to: "/assets", icon: FolderOpen, key: "nav.assetList" },
+      { to: "/plugins", icon: Blocks, key: "nav.plugins" },
+    ] },
   { labelKey: "group.jobs", items: [{ to: "/jobs", icon: ListTodo, key: "nav.jobList" }] },
   {
     labelKey: "group.settings",

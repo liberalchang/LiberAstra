@@ -9,6 +9,7 @@ import {
   ArrowDown,
   ArrowUp,
   Brush,
+  Layers,
   Trash2,
   Clapperboard,
   FolderOpen,
@@ -340,6 +341,54 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [depthError, setDepthError] = useState<string | null>(null);
+  const pluginQuery = useQuery({
+    queryKey: ["plugins"],
+    queryFn: api.listPlugins,
+    enabled: d.mediaKind === "image",
+    staleTime: 30_000,
+  });
+  const providerQuery = useQuery({
+    queryKey: ["providers"],
+    queryFn: api.listProviders,
+    enabled: d.mediaKind === "image",
+    staleTime: 30_000,
+  });
+  const depthReady =
+    (pluginQuery.data?.some((item) => item.id === "depth" && item.installed && item.enabled) ?? false) ||
+    (providerQuery.data?.some((item) => item.type === "liber_depth" && item.enabled) ?? false);
+
+  const applyDepth = async () => {
+    if (!d.assetId || !depthReady) return;
+    setConverting(true);
+    setDepthError(null);
+    try {
+      const form = new FormData();
+      form.set("asset_ids", String(d.assetId));
+      const saved = await api.convertDepth(form);
+      const asset = saved[0];
+      if (!asset) return;
+      const name = String(asset.meta?.source_name || "depth.png");
+      const base = d.versions?.length
+        ? d.versions
+        : [{ assetId: d.assetId, label: tx("原始"), maskAssetId: d.maskAssetId ?? null }];
+      updateNodeData(node.id, {
+        assetId: asset.id,
+        assetName: name,
+        maskAssetId: null,
+        versions: [
+          ...base,
+          { assetId: asset.id, label: `${tx("深度")} ${base.length}`, maskAssetId: null, op: "depth" },
+        ],
+      });
+      setEditorOpen(false);
+    } catch (err) {
+      setDepthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConverting(false);
+    }
+  };
 
   if (d.mediaKind === "text") {
     return (
@@ -456,7 +505,23 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
             <Brush className="size-4" />
           </Button>
         )}
+        {kind === "image" && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!d.assetId || !depthReady || converting}
+            title={
+              depthReady
+                ? tx("转为深度图")
+                : tx("请先安装并启用深度图插件，或在服务提供方启用 Liber Depth")
+            }
+            onClick={() => void applyDepth()}
+          >
+            <Layers className="size-4" />
+          </Button>
+        )}
       </div>
+      {depthError && <p className="text-xs text-destructive">{depthError}</p>}
       {kind === "image" && d.maskAssetId && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5">
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
@@ -545,6 +610,8 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
             );
             updateNodeData(node.id, { maskAssetId: assetId, versions });
           }}
+          depthReady={depthReady}
+          onDepth={() => void applyDepth()}
           onClose={() => setEditorOpen(false)}
         />
       )}

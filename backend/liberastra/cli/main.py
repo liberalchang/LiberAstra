@@ -74,6 +74,8 @@ def serve(
         host=host or settings.host,
         port=port or settings.port,
         reload=reload,
+        # 只监视程序包。data/ 里的模型下载不能触发热重载，否则安装会被中途杀掉。
+        reload_dirs=[str(Path(__file__).resolve().parents[1])] if reload else None,
     )
 
 

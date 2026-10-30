@@ -6,6 +6,9 @@ skills/speechapi/data.json
 
 # 运行数据与密钥
 data/
+# 插件安装时下载的模型（MiDaS、语音权重）。即使以后单独放行 data/ 里的配置，这些文件仍不入库。
+backend/data/plugins/*/models/
+services/*/models/
 .env
 .env.*
 !.env.example

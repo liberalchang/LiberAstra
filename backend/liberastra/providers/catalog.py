@@ -128,6 +128,12 @@ def model_profile(provider_type: str) -> dict[str, Any]:
             "sub_capabilities_by_kind": {"image": ["t2i"]},
             "param_schemas": {},
         }
+    if provider_type == "liber_depth":
+        return {
+            "model_kinds": ["image"],
+            "sub_capabilities_by_kind": {"image": []},
+            "param_schemas": {},
+        }
     return {"model_kinds": [], "sub_capabilities_by_kind": {}, "param_schemas": {}}
 
 
@@ -428,6 +434,22 @@ def model_item(
     return item
 
 
+def depth_model_presets() -> list[dict[str, Any]]:
+    """MiDaS 权重目录。只有默认项打开；其余要用户自己放入文件并打开开关。"""
+    rows = [
+        ("dpt_swin2_large_384", "SwinV2 Large · 384。默认，质量优先，安装插件时下载这一份。", True),
+        ("dpt_beit_large_512", "BEiT Large · 512。边缘更细，更慢，权重大约数 GB。", False),
+        ("dpt_swin2_tiny_256", "SwinV2 Tiny · 256。更快，细节少。", False),
+        ("dpt_large_384", "DPT Large · 384。上一代 ViT 骨干。", False),
+        ("dpt_hybrid_384", "DPT Hybrid · 384。体积更小的上一代结构。", False),
+        ("midas_v21_small_256", "MiDaS v2.1 Small · 256。最轻，适合预览。", False),
+    ]
+    return [
+        model_item(model_id, label=label, category="image", sub_capabilities=[], enabled=enabled)
+        for model_id, label, enabled in rows
+    ]
+
+
 def _kind_for_category(category: str) -> str:
     if category in {"tts", "asr"}:
         return "speech"
@@ -604,6 +626,7 @@ _PROVIDER_KIND: dict[str, tuple[str, list[str]]] = {
     "openai_tts": ("tts", ["tts"]),
     "openai_stt": ("asr", ["asr"]),
     "openai_images": ("image", ["t2i"]),
+    "liber_depth": ("image", []),
 }
 
 

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LiberAstra — self-hosted AIGC orchestration</title>
+  <meta name="description" content="LiberAstra 编排台：自托管 AIGC 编排，对接 ComfyUI、Ollama 与 OpenAI 兼容 API。不是 liberastra.com.br。">
+  <link rel="canonical" href="https://github.com/liberalchang/LiberAstra">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      font-family: system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #0d0c10;
+      color: #f4f4f5;
+      line-height: 1.5;
+    }
+    main { max-width: 42rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+    h1 { font-size: 2.25rem; letter-spacing: -0.03em; margin: 0 0 0.5rem; }
+    .eyebrow { color: #c4b5fd; font-size: 0.875rem; margin: 0 0 0.75rem; }
+    a { color: #c4b5fd; }
+    .card {
+      background: #18171d;
+      border-radius: 16px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+    }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: 0.95em; }
+    ul { padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">LiberAstra 编排台 · self-hosted AIGC orchestration</p>
+    <h1>只编排，不推理</h1>
+    <p>把 ComfyUI、Ollama 和语音接到同一个工作台（Web / CLI / MCP / OpenAI <code>/v1</code>）。MIT。</p>
+    <p>搜索这个名字时，<a href="https://liberastra.com.br/">liberastra.com.br</a> 是另一个项目。这里是开源的自托管 AIGC 编排台，仓库在 <a href="https://github.com/liberalchang/LiberAstra">github.com/liberalchang/LiberAstra</a>。</p>
+    <div class="card">
+      <p>在仓库根目录：</p>
+      <p><code>docker compose up -d --build</code></p>
+      <p>浏览器打开 <code>http://localhost:8000</code>。首次创建管理员，再到「设置 → 服务提供方」填写地址。模型在 ComfyUI / Ollama 里，不在这个程序里。</p>
+    </div>
+    <ul>
+      <li><a href="https://github.com/liberalchang/LiberAstra/releases">Windows 安装包（Releases）</a></li>
+      <li><a href="https://github.com/liberalchang/LiberAstra/blob/main/docs/README.md">文档索引</a></li>
+      <li><a href="https://github.com/liberalchang/LiberAstra/blob/main/docs/deployment.en.md">Deployment in English</a></li>
+    </ul>
+    <h2>English</h2>
+    <p>LiberAstra is a self-hosted desk that orchestrates ComfyUI, Ollama, and speech services. It does not run the models. It is not the mentorship site at liberastra.com.br.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,45 @@
+name: Bug
+description: 某个已有功能的行为和预期不一致 / Something that should work does not
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        密钥、API Token、`data/.secret_key` 不要贴在这里。安全问题用 Security Advisory。
+        Do not paste secrets. Use a private security advisory for vulnerabilities.
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 实际结果，以及你期望的结果。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么重现 / Steps
+      placeholder: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境 / Environment
+      description: 系统、Docker 还是 Windows 安装包、LiberAstra 版本、相关的 ComfyUI / Ollama / 语音地址（可打码）。
+      placeholder: |
+        OS:
+        Install: docker compose / LiberAstra-Setup.exe
+        Version:
+        Provider:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: 去掉密钥后再贴。任务 id 可以留着。
+      render: text

@@ -73,7 +73,11 @@ def create_app() -> FastAPI:
         app.state.jobs = manager
         app.state.canvas_runs = {}
         manager.start()
+        from liberastra.services.plugins import restore_enabled_plugins, stop_managed_plugins
+
+        restore_enabled_plugins()
         yield
+        stop_managed_plugins()
         await manager.stop()
         await close_browser()
 

@@ -2,6 +2,13 @@
 
 独立语音服务。文字转语音用 Chatterbox，语音转文字用 faster-whisper 或 Qwen3-ASR。主服务只发 HTTP 请求，不在自己的进程里加载这些权重。
 
+## 本机插件
+
+在 LiberAstra「资源 → 插件」里安装并启用「Liber Speech」时：
+
+- 仓库里的 `services/speech` 由插件页安装后启动：`python -m uvicorn server:app`，端口 `5555`。语音和深度共用一份 Python 环境（含 PyTorch）。开发时在 `%LOCALAPPDATA%\LiberAstra\plugin-runtime`，安装包在 `%LOCALAPPDATA%\LiberAstra\data\plugins\runtime`。已经装过就不再重装。权重目录是 `data/plugins/speech/models`（Windows 安装包是 `%LOCALAPPDATA%\LiberAstra\data\plugins\speech\models`）。第一次合成时由服务自己下载到这个目录。
+- 已发布的 LiberSpeech 安装包在 `C:\Program Files\LiberSpeech`，用 `docker compose` 启动，权重留在安装包自己的 Docker 卷里。
+
 ## 启动
 
 在显卡主机上进入本目录，先复制环境变量：
