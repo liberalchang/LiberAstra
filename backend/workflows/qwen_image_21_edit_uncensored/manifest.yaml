@@ -9,7 +9,8 @@ inputs:
     field: inputs.image
     type: image
     required: true
-    description: 要编辑的原图，对应提示词里的 image_1
+    description: 要修改的那一张图
+    label: 原图
   unet_name:
     node: '1'
     field: inputs.unet_name
@@ -17,6 +18,7 @@ inputs:
     default: qwen-image-2.1-UC-int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（UNET）
+    description: 默认越狱 UC-int8_convrot。可改回官方 int8 或 bf16，越狱效果会变弱。须为 safetensors。
   clip_name:
     node: '2'
     field: inputs.clip_name
@@ -24,6 +26,7 @@ inputs:
     default: qwen3vl_8b_int8_convrot.safetensors
     options_from: text_encoders
     label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b，CLIPLoader 的 type 保持 qwen_image。
   vae_name:
     node: '3'
     field: inputs.vae_name
@@ -31,17 +34,19 @@ inputs:
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
   prompt:
     node: '5'
     field: inputs.prompt
     type: str
     required: true
-    description: 编辑指令，例如把背景换成海滩
+    description: 编辑指令，例如把背景换成海滩，人脸和姿势保持不变
   negative_prompt:
     node: '5'
     field: inputs.negative_prompt
     type: str
     default: ''
+    description: 不希望出现的内容，可以留空。
   resolution:
     node: '5'
     field: inputs.resolution
@@ -49,6 +54,7 @@ inputs:
     default: 1024
     min: 0
     max: 4096
+    description: 参考图缩放到大约这个边长，须为 32 的倍数。0 表示按原图尺寸
   steps:
     node: '6'
     field: inputs.steps
@@ -56,11 +62,13 @@ inputs:
     default: 25
     min: 1
     max: 50
+    description: 采样步数。这个包默认 25 步。
   seed:
     node: '6'
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
 outputs:
   node: '8'
   key: images

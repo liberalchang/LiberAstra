@@ -145,8 +145,9 @@ export function PackSelect({
   const tx = useTx();
   const options: SearchOption[] = (packs ?? []).map((pack) => {
     const capability = PACK_CAPABILITY[pack.capability] ?? pack.capability;
+    // 只认「官方版 / 越狱版」和包名里的 uncensored。正文里的「官方推荐」「可换越狱」不算版本。
     const text = `${pack.name} ${pack.description}`;
-    const edition = /越狱|uncensored/i.test(text) ? tx("越狱版") : /官方/.test(text) ? tx("官方版") : "";
+    const edition = /越狱版|uncensored/i.test(text) ? tx("越狱版") : /官方版/.test(text) ? tx("官方版") : "";
     const first = pack.description.split("\n")[0]?.trim() ?? "";
     const short = !edition && first && first.length <= 24 && first !== pack.name ? first : "";
     const detail = edition || short;

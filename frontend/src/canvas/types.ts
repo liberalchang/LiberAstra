@@ -288,7 +288,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
 /** 功能节点的产物类型由包 capability 决定（执行前用于连线兼容判断）。 */
 export function outputKindOfCapability(capability: string | undefined): MediaKind | null {
   if (!capability) return null;
-  if (["t2i", "i2i", "i2i_single", "i2i_multi", "inpaint", "color_grade", "upscale"].includes(capability)) return "image";
+  if (["t2i", "i2i", "i2i_single", "i2i_multi", "inpaint", "color_grade", "outfit_swap", "depth_pose", "depth_gen", "upscale"].includes(capability)) return "image";
   if (["t2v", "i2v", "i2v_first", "i2v_flf", "i2v_orbit", "i2v_enhance", "t2v_enhance", "v2v_ref", "avatar", "motion"].includes(capability)) return "video";
   if (["analysis", "video_analysis", "asr"].includes(capability)) return "text";
   if (capability === "tts") return "audio";

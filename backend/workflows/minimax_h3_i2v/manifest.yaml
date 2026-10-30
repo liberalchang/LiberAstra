@@ -11,6 +11,7 @@ inputs:
     type: image
     required: true
     label: 首帧图片
+    description: 作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。
   prompt:
     node: 105:104
     field: inputs.prompt
@@ -49,6 +50,7 @@ inputs:
     field: inputs.noise_seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   steps:
     node: '105:9'
     field: inputs.steps
@@ -56,12 +58,14 @@ inputs:
     default: 20
     min: 4
     max: 50
+    description: 采样步数。这个包默认 20 步。
   sampler_name:
     node: '105:17'
     field: inputs.sampler_name
     type: str
     default: res_multistep
     label: 采样器
+    description: 采样器。官方示例是 res_multistep，一般不用改。
   clip_name:
     node: '105:13'
     field: inputs.clip_name
@@ -77,6 +81,7 @@ inputs:
     default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（FL2VA）
+    description: 主模型。须与文本编码器同属 MiniMax H3。
 outputs:
   node: '92'
   key: images

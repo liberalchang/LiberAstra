@@ -54,6 +54,10 @@ export const UI_EN: Record<string, string> = {
   "首尾帧": "First and last frame",
   "360全景": "360 orbit",
   "调色": "Color grade",
+  "换衣": "Change outfit",
+  "深度换姿": "Pose from depth",
+  "深度生图": "Generate from depth",
+  "深度图换动作": "Pose from depth",
   "重绘": "Inpaint",
   "识别": "Transcribe",
   "使用文档": "Guide",
@@ -354,6 +358,21 @@ export const UI_EN: Record<string, string> = {
   "说明要怎么改": "Say what to change",
   "可选，用来约束画面": "Optional. Use it to constrain the look",
   "描述镜头、运动和声音": "Describe the shot, motion, and sound",
+  "这个包不使用提示词。": "This pack does not use a prompt.",
+  "写主体、光线和构图即可。扩展器会把短句扩成英文长描述。":
+    "Describe the subject, light, and framing. The expander turns a short line into a long English prompt.",
+  "用自然语言写主体、光线、构图和材质。画面里要出现的文字请用引号写出。":
+    "Write the subject, light, framing, and materials in plain language. Put any text that must appear in quotes.",
+  "写法和官方版相同，用自然语言长句。画面里的文字请用引号写出。":
+    "Same as the official pack: a full sentence. Put any text that must appear in quotes.",
+  "描述要生成的画面。SD 系可写英文标签，Flux 类用完整句子。":
+    "Describe the picture. SD-style models can take English tags; Flux-style models want a full sentence.",
+  "编辑指令，例如把背景换成海滩，人脸和姿势保持不变":
+    "An edit instruction, for example change the background to a beach and keep the face and pose.",
+  "留空会让 image 1 的人穿上 image 2 的衣服，并保持脸和姿势。多人时写清是谁。":
+    "Leave it empty to dress the person in image 1 with the outfit in image 2, keeping the face and pose. If there are several people, say which one.",
+  "写镜头、动作和声音。蒸馏版用短句即可。":
+    "Describe the shot, motion, and sound. A short line is enough for this distilled pack.",
   "点击或拖拽上传图片": "Click or drop images",
   "依次添加原图和蒙版": "Add the source, then the mask",
   "按顺序添加参考图": "Add reference images in order",

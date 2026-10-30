@@ -854,6 +854,38 @@ def test_qwen_image_21_union_depth_and_reference_packs() -> None:
     validate_pack(ref)
 
 
+def test_qwen_image_21_outfit_swap_pack() -> None:
+    """换衣：人物照 + 衣服图，Outfit Swap LoRA 挂在官方 INT8 上，分辨率 0。"""
+    pack = get_pack("qwen_image_21_outfit_swap")
+    assert pack.capability == "i2i"
+    assert pack.source == "builtin"
+    assert [k for k, spec in pack.inputs.items() if spec.get("type") == "image"] == ["image", "image_2"]
+    assert pack.inputs["image"]["required"] is True
+    assert pack.inputs["image_2"]["required"] is True
+    assert pack.inputs["unet_name"]["default"] == "qwen_image_2.1_int8_convrot.safetensors"
+    assert pack.inputs["lora_name"]["default"] == "qwen-image-2.1-outfit-swap.safetensors"
+    assert pack.inputs["resolution"]["default"] == 0
+    generated = apply_inputs(
+        pack,
+        {"image": "uploads/person.png", "image_2": "uploads/outfit.png", "seed": 3},
+    )
+    assert generated["10"]["inputs"]["image"] == "example.png"
+    assert generated["11"]["inputs"]["image"] == "example.png"
+    assert generated["5"]["inputs"]["images.image_1"] == ["10", 0]
+    assert generated["5"]["inputs"]["images.image_2"] == ["11", 0]
+    assert generated["5"]["inputs"]["resolution"] == 0
+    assert "Replace everything they wear" in generated["5"]["inputs"]["prompt"]
+    assert generated["200"]["inputs"]["lora_name"] == "qwen-image-2.1-outfit-swap.safetensors"
+    assert generated["200"]["inputs"]["strength_model"] == 1.0
+    assert generated["4"]["inputs"]["model"] == ["200", 0]
+    assert generated["6"]["inputs"]["model"] == ["4", 0]
+    assert generated["6"]["inputs"]["latent_image"] == ["5", 2]
+    assert generated["6"]["inputs"]["steps"] == 25
+    assert generated["6"]["inputs"]["cfg"] == 1
+    assert generated["8"]["inputs"]["images"] == ["9", 0]
+    validate_pack(pack)
+
+
 def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
     """参考图进 ReferenceToVideo，不接 first_frame。自写提示词会补上 <Picture 1>。"""
     from liberastra.providers.comfyui.workflow import prepare_pack_inputs

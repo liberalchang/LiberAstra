@@ -30,17 +30,20 @@ inputs:
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
   prompt:
     node: '5'
     field: inputs.prompt
     type: str
     required: true
+    description: 写法和官方版相同，用自然语言长句。画面里的文字请用引号写出。
   negative_prompt:
     node: '5'
     field: inputs.negative_prompt
     type: str
     default: ''
     label: 负面提示词
+    description: 不希望出现的内容，可以留空。
   width:
     node: '6'
     field: inputs.width
@@ -62,11 +65,13 @@ inputs:
     default: 25
     min: 1
     max: 50
+    description: 采样步数。这个包默认 25 步。
   seed:
     node: '7'
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   batch_size:
     node: '6'
     field: inputs.batch_size

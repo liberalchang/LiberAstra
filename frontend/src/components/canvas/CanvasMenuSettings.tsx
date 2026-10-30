@@ -128,15 +128,18 @@ const ABILITIES = [
   ["t2i", "文生图"],
   ["i2i_single", "单图编辑"],
   ["i2i_multi", "多图编辑"],
-  ["inpaint", "局部重绘"],
-  ["color_grade", "摄影调色"],
+  ["outfit_swap", "换衣"],
+  ["depth_pose", "深度换姿"],
+  ["depth_gen", "深度生图"],
+  ["color_grade", "调色"],
+  ["inpaint", "蒙版"],
   ["upscale", "放大修复"],
   ["analysis", "画面分析"],
   ["t2v", "文生视频"],
   ["t2v_enhance", "文生增强"],
-  ["i2v_first", "首帧生视频"],
+  ["i2v_first", "图生视频"],
   ["i2v_flf", "首尾帧视频"],
-  ["v2v_ref", "参考生视频"],
+  ["v2v_ref", "参考视频"],
   ["i2v_orbit", "360全景"],
   ["i2v_enhance", "图生增强"],
   ["avatar", "数字人口播"],
@@ -256,7 +259,7 @@ function MenuCard({
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-2">
-        <Input value={item.title} maxLength={8} aria-label={tx("简称")} onChange={(event) => onChange({ title: event.target.value })} />
+        <Input value={item.title} maxLength={10} aria-label={tx("简称")} onChange={(event) => onChange({ title: event.target.value })} />
         <Button variant="ghost" size="sm" onClick={onRemove}>{tx("删除")}</Button>
       </div>
       <Field label={tx("能力")}>

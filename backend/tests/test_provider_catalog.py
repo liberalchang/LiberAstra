@@ -172,7 +172,7 @@ def test_execution_specs_and_canvas_menu(client: TestClient, auth_header: dict[s
     menu = client.get("/api/v1/canvases/menu", headers=auth_header)
     assert menu.status_code == 200
     titles = {item["title"] for item in menu.json()}
-    assert "首帧生视频" in titles
+    assert "图生视频" in titles
 
     rejected = client.put(
         "/api/v1/canvases/menu",
@@ -187,9 +187,40 @@ def test_workflow_packs_keep_their_own_functions() -> None:
     assert pack_sub_capability("minimax_h3_orbit", "i2v", 2) == "i2v_orbit"
     assert pack_sub_capability("qwen_edit_2511_color_grade", "i2i", 2) == "color_grade"
     assert pack_sub_capability("qwen_image_21_inpaint", "i2i", 2) == "inpaint"
+    assert pack_sub_capability("qwen_image_21_outfit_swap", "i2i", 2) == "outfit_swap"
+    assert pack_sub_capability("qwen_image_21_union_reference", "i2i", 2) == "depth_pose"
+    assert pack_sub_capability("qwen_image_21_union_depth", "i2i", 1) == "depth_gen"
     titles = {item["title"]: item["sub_capability"] for item in default_canvas_menu()}
     assert titles["360全景"] == "i2v_orbit"
-    assert titles["摄影调色"] == "color_grade"
+    assert titles["调色"] == "color_grade"
+    assert titles["蒙版"] == "inpaint"
+    assert titles["换衣"] == "outfit_swap"
+    assert titles["深度换姿"] == "depth_pose"
+    assert titles["深度生图"] == "depth_gen"
+
+
+def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:
+    """每个工作流只进一个功能菜单。有越狱包时默认它，没有则用该功能的第一个包。"""
+    from liberastra.services.workflows import list_packs
+
+    menu = default_canvas_menu()
+    seen: list[str] = []
+    for item in menu:
+        if item["category"] == "speech":
+            assert item["bind_mode"] == "auto"
+            assert item["manual_targets"] == []
+            continue
+        assert item["bind_mode"] == "manual"
+        assert 2 <= len(item["title"]) <= 5
+        ids = [target["target_id"] for target in item["manual_targets"]]
+        assert ids
+        assert all(target["target_type"] == "workflow" for target in item["manual_targets"])
+        assert item["default_target"]["target_id"] in ids
+        if any("uncensored" in name for name in ids):
+            assert "uncensored" in item["default_target"]["target_id"]
+        seen.extend(ids)
+    assert len(seen) == len(set(seen))
+    assert {pack.name for pack in list_packs()} == set(seen)
 
 
 def test_every_workflow_pack_has_a_menu_function() -> None:
@@ -273,7 +304,9 @@ def test_seedance_25_first_frame_is_a_menu_function() -> None:
     )
     assert set(seedance["sub_capabilities"]) == {"t2v", "i2v_first", "i2v_flf", "v2v_ref"}
     first = next(item for item in default_canvas_menu() if item["sub_capability"] == "i2v_first")
-    assert first["title"] == "首帧生视频"
+    assert first["title"] == "图生视频"
+    assert first["bind_mode"] == "manual"
+    assert first["default_target"]["target_id"] == "minimax_h3_i2v_uncensored"
     assert any(slot["key"] == "first_frame" for slot in media_slots("i2v_first"))
 
 

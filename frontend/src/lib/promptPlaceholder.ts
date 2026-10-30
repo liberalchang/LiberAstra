@@ -37,11 +37,15 @@ export function workflowPromptPlaceholder(
   options?: { canvas?: boolean; fallback?: string },
 ): string {
   const desc = fieldDescription(pack?.inputs, "prompt");
+  const unused = Boolean(pack?.inputs) && !pack?.inputs?.prompt;
   if (options?.canvas) {
     const prefix = tx(CANVAS_PROMPT_HINT);
-    return desc ? `${prefix}。${tx(desc)}` : prefix;
+    if (desc) return `${prefix}。${tx(desc)}`;
+    if (unused) return `${prefix}。${tx("这个包不使用提示词。")}`;
+    return prefix;
   }
   if (desc) return tx(desc);
+  if (unused) return tx("这个包不使用提示词。");
   const fallback = options?.fallback || CAPABILITY_FALLBACK[pack?.capability || ""] || "输入简短描述…";
   return tx(fallback);
 }

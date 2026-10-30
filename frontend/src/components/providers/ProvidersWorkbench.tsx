@@ -732,7 +732,7 @@ function categoryOf(subs: string[]): string {
   if (subs.some((item) => ["t2v", "t2v_enhance", "i2v_first", "i2v_flf", "i2v_orbit", "i2v_enhance", "v2v_ref", "avatar", "motion", "video_analysis"].includes(item))) {
     return "video";
   }
-  if (subs.some((item) => ["t2i", "i2i_single", "i2i_multi", "inpaint", "color_grade", "upscale", "analysis"].includes(item))) {
+  if (subs.some((item) => ["t2i", "i2i_single", "i2i_multi", "inpaint", "color_grade", "outfit_swap", "depth_pose", "depth_gen", "upscale", "analysis"].includes(item))) {
     return "image";
   }
   if (subs.includes("tts")) return "tts";

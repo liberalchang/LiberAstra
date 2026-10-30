@@ -59,6 +59,7 @@ inputs:
     min: 0
     max: 1.5
     label: LoRA 强度
+    description: 调色 LoRA 强度。保持 1，过低颜色贴不上去。
   prompt:
     node: '13'
     field: inputs.prompt
@@ -72,6 +73,7 @@ inputs:
     type: str
     default: ''
     label: 负面提示词
+    description: 不希望出现的内容，可以留空。
   steps:
     node: '18'
     field: inputs.steps
@@ -93,6 +95,7 @@ inputs:
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   match_method:
     node: '20'
     field: inputs.method

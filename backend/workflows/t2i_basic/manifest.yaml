@@ -17,6 +17,7 @@ inputs:
     field: inputs.text
     type: str
     required: true
+    description: 描述要生成的画面。SD 系可写英文标签，Flux 类用完整句子。
   negative_prompt:
     node: '7'
     field: inputs.text
@@ -45,16 +46,19 @@ inputs:
     default: 20
     min: 1
     max: 150
+    description: 采样步数。这个包默认 20 步。
   cfg:
     node: '3'
     field: inputs.cfg
     type: float
     default: 7.0
+    description: 提示词遵循强度。SD 系常用 7，Flux 类通常接近 1。
   seed:
     node: '3'
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   batch_size:
     node: '5'
     field: inputs.batch_size

@@ -41,6 +41,7 @@ inputs:
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
   union_model:
     node: '4'
     field: inputs.union_model
@@ -62,6 +63,7 @@ inputs:
     type: str
     default: ''
     label: 负面提示词
+    description: 不希望出现的内容，可以留空。
   control_mode:
     node: '7'
     field: inputs.control_mode
@@ -95,6 +97,7 @@ inputs:
     min: 0
     max: 1
     label: 控制起始
+    description: 从采样的这一比例开始使用控制图。0 表示一上来就跟。
   end_percent:
     node: '7'
     field: inputs.end_percent
@@ -103,6 +106,7 @@ inputs:
     min: 0
     max: 1
     label: 控制结束
+    description: 到采样的这一比例结束控制。1 表示一直跟到结束。
   resolution:
     node: '6'
     field: inputs.resolution
@@ -124,6 +128,7 @@ inputs:
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
 outputs:
   node: '10'
   key: images

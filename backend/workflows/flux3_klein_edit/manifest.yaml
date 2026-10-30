@@ -34,6 +34,7 @@ inputs:
     default: qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors
     options_from: text_encoders
     label: 提示词扩展器
+    description: 把短提示词扩成英文长描述。官方要求不要关掉这条链路裸跑。
   vae_name:
     node: '3'
     field: inputs.vae_name
@@ -41,6 +42,7 @@ inputs:
     default: flux2-vae.safetensors
     options_from: vae
     label: VAE
+    description: FLUX.2 的 flux2-vae。不要用 Qwen 或 MiniMax 的 VAE。
   prompt:
     node: '49'
     field: inputs.prompt
@@ -60,6 +62,7 @@ inputs:
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
 outputs:
   node: '9'
   key: images

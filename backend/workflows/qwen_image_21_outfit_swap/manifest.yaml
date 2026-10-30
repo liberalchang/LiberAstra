@@ -1,0 +1,124 @@
+name: qwen_image_21_outfit_swap
+capability: i2i
+description: 'Qwen-Image 2.1 换衣（Outfit Swap Consistency LoRA）
+
+  第一张是人物照，第二张是衣服。脸、头发、手、姿势和背景保持不变，只换衣服。
+
+  主模型用官方 INT8（这条 LoRA 在官方 2.1 上测过）。ComfyUI 0.38 及以上。'
+inputs:
+  image:
+    node: '10'
+    field: inputs.image
+    type: image
+    required: true
+    label: 人物照
+    description: 要换衣服的人，对应提示词里的 image 1
+  image_2:
+    node: '11'
+    field: inputs.image
+    type: image
+    required: true
+    label: 衣服图
+    description: 要穿上的衣服，对应提示词里的 image 2。平铺或穿在别人身上都可以，尽量裁到衣服本身
+  unet_name:
+    node: '1'
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_2.1_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: 须用官方 Qwen-Image 2.1。这条换衣 LoRA 在越狱主模型上没测过。
+  clip_name:
+    node: '2'
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b，CLIPLoader 的 type 保持 qwen_image。
+  vae_name:
+    node: '3'
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
+  lora_name:
+    node: '200'
+    field: inputs.lora_name
+    type: str
+    default: qwen-image-2.1-outfit-swap.safetensors
+    options_from: loras
+    label: 换衣 LoRA
+    description: Outfit Swap Consistency LoRA。文件放在 loras/。
+  lora_strength:
+    node: '200'
+    field: inputs.strength_model
+    type: float
+    default: 1.0
+    min: 0.0
+    max: 1.5
+    label: LoRA 强度
+    description: 保持 1。太低衣服换不干净，太高脸容易被带偏。
+  prompt:
+    node: '5'
+    field: inputs.prompt
+    type: str
+    default: >-
+      Dress the person in image 1 in the outfit shown in image 2. Keep their face,
+      hair, hands, pose and the background exactly the same. Replace everything they wear.
+    description: 留空会让 image 1 的人穿上 image 2 的衣服，并保持脸和姿势。多人时写清是谁。
+  negative_prompt:
+    node: '5'
+    field: inputs.negative_prompt
+    type: str
+    default: ''
+    description: 不希望出现的内容，可以留空。
+  resolution:
+    node: '5'
+    field: inputs.resolution
+    type: int
+    default: 0
+    min: 0
+    max: 4096
+    label: 分辨率
+    description: 0 表示按人物照原尺寸出图
+  steps:
+    node: '6'
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+    description: 采样步数。这个包默认 25 步。
+  seed:
+    node: '6'
+    field: inputs.seed
+    type: int
+    default: -1
+    description: 随机种子。-1 表示每次随机。
+outputs:
+  node: '8'
+  key: images
+requirements:
+  nodes:
+  - UNETLoader
+  - CLIPLoader
+  - VAELoader
+  - LoraLoaderModelOnly
+  - QwenImage21Cache
+  - LoadImage
+  - TextEncodeQwenImage21
+  - KSampler
+  - VAEDecode
+  - SplitImageWithAlpha
+  - SaveImage
+  models:
+  - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
+  - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+  - vae/qwen_image_2.1_vae_bf16.safetensors
+  - loras/qwen-image-2.1-outfit-swap.safetensors
+llm_note: '事实:Qwen-Image 2.1 换衣,Outfit Swap Consistency LoRA 强度 1.0;人物照是 image 1,衣服图是 image 2;CFG 1,euler/simple,25 步;resolution 0 按人物照原尺寸。
+
+  写作指导:只写要换上的衣服和必须保持的脸、头发、手、姿势、背景。不要写肢体动作。想留鞋子时把 Replace everything they wear 改成 Keep their own shoes and legwear。'

@@ -43,6 +43,7 @@ inputs:
     field: inputs.noise_seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   steps:
     node: '105:9'
     field: inputs.steps
@@ -50,11 +51,13 @@ inputs:
     default: 20
     min: 4
     max: 50
+    description: 采样步数。这个包默认 20 步。
   sampler_name:
     node: '105:17'
     field: inputs.sampler_name
     type: str
     default: res_multistep
+    description: 采样器。官方示例是 res_multistep，一般不用改。
   clip_name:
     node: '105:13'
     field: inputs.clip_name
@@ -70,6 +73,7 @@ inputs:
     default: qwen3vl_32b_h3_generation_tail_50_63_int8_convrot.safetensors
     options_from: text_encoders
     label: 生成尾（须与编码器同族）
+    description: 提示词增强用的 generation tail，必须和文本编码器同一族。
   enhance_temperature:
     node: 105:122
     field: inputs.temperature
@@ -78,6 +82,7 @@ inputs:
     min: 0.1
     max: 1.5
     label: 增强温度
+    description: 增强器改写提示词的随机程度。0.7 比较稳，再高容易跑偏。
   unet_name:
     node: '105:6'
     field: inputs.unet_name
@@ -85,6 +90,7 @@ inputs:
     default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（FL2VA）
+    description: 主模型。须与文本编码器同属 MiniMax H3。
 outputs:
   node: '92'
   key: images

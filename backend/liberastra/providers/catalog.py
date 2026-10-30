@@ -33,7 +33,9 @@ PROVIDER_GROUP = {
 }
 
 # 模型目录不收录工作流包专属能力。那些包由画布菜单单独匹配。
-_WORKFLOW_ONLY_SUBS = frozenset({"color_grade", "inpaint", "i2v_orbit"})
+_WORKFLOW_ONLY_SUBS = frozenset(
+    {"color_grade", "inpaint", "outfit_swap", "depth_pose", "depth_gen", "i2v_orbit"}
+)
 
 _LLM_PROVIDER_TYPES = (
     "ollama",
@@ -172,16 +174,40 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "inpaint": {
         "menu": "image",
         "category": "image",
-        "label": "局部重绘",
+        "label": "蒙版",
         "slots": [
             {"key": "image", "type": "image", "label": "原图", "required": True},
             {"key": "mask", "type": "image", "label": "蒙版", "required": True},
         ],
     },
+    "outfit_swap": {
+        "menu": "image",
+        "category": "image",
+        "label": "换衣",
+        "slots": [
+            {"key": "image", "type": "image", "label": "人物照", "required": True},
+            {"key": "image_2", "type": "image", "label": "衣服图", "required": True},
+        ],
+    },
+    "depth_pose": {
+        "menu": "image",
+        "category": "image",
+        "label": "深度换姿",
+        "slots": [
+            {"key": "image", "type": "image", "label": "人物照", "required": True},
+            {"key": "image_2", "type": "image", "label": "深度图", "required": True},
+        ],
+    },
+    "depth_gen": {
+        "menu": "image",
+        "category": "image",
+        "label": "深度生图",
+        "slots": [{"key": "image", "type": "image", "label": "深度图", "required": True}],
+    },
     "color_grade": {
         "menu": "image",
         "category": "image",
-        "label": "摄影调色",
+        "label": "调色",
         "slots": [
             {"key": "image", "type": "image", "label": "原图", "required": True},
             {"key": "image_2", "type": "image", "label": "调色参考", "required": True},
@@ -682,6 +708,12 @@ def pack_sub_capability(name: str, capability: str, image_input_count: int) -> s
         return "color_grade"
     if "inpaint" in lowered:
         return "inpaint"
+    if "outfit_swap" in lowered:
+        return "outfit_swap"
+    if "union_depth" in lowered:
+        return "depth_gen"
+    if "union_" in lowered:
+        return "depth_pose"
     if "_orbit" in lowered:
         return "i2v_orbit"
     if "enhancer" in lowered and capability == "i2v":
@@ -721,49 +753,99 @@ def targets_for_menu_item(item: dict[str, Any], specs: list[dict[str, Any]]) -> 
     return chosen
 
 
+# 图像和视频菜单按最小功能列出。同一功能的官方版、越狱版以及同功能的其他包进同一项。
+# 没有对应工作流的能力（如首尾帧）不出现；语音没有工作流包，仍自动匹配模型。
+_WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
+    ("preset_t2i", "image", "文生图", "t2i"),
+    ("preset_i2i", "image", "单图编辑", "i2i_single"),
+    ("preset_i2i_multi", "image", "多图编辑", "i2i_multi"),
+    ("preset_outfit", "image", "换衣", "outfit_swap"),
+    ("preset_depth_pose", "image", "深度换姿", "depth_pose"),
+    ("preset_depth_gen", "image", "深度生图", "depth_gen"),
+    ("preset_color_grade", "image", "调色", "color_grade"),
+    ("preset_inpaint", "image", "蒙版", "inpaint"),
+    ("preset_upscale", "image", "放大修复", "upscale"),
+    ("preset_analysis", "image", "画面分析", "analysis"),
+    ("preset_t2v", "video", "文生视频", "t2v"),
+    ("preset_t2v_enhance", "video", "文生增强", "t2v_enhance"),
+    ("preset_i2v_first", "video", "图生视频", "i2v_first"),
+    ("preset_i2v_enhance", "video", "图生增强", "i2v_enhance"),
+    ("preset_v2v_ref", "video", "参考视频", "v2v_ref"),
+    ("preset_i2v_orbit", "video", "360全景", "i2v_orbit"),
+    ("preset_avatar", "video", "数字人口播", "avatar"),
+    ("preset_motion", "video", "动作迁移", "motion"),
+    ("preset_video_analysis", "video", "视频分析", "video_analysis"),
+)
+
+
+def _menu_item(
+    item_id: str,
+    category: str,
+    title: str,
+    sub: str,
+    *,
+    bind_mode: str = "auto",
+    targets: list[str] | None = None,
+    default_id: str | None = None,
+) -> dict[str, Any]:
+    manual = [
+        {"provider_id": None, "target_type": "workflow", "target_id": name} for name in (targets or [])
+    ]
+    default_target = None
+    if default_id:
+        default_target = {"provider_id": None, "target_type": "workflow", "target_id": default_id}
+    return {
+        "id": item_id,
+        "category": category,
+        "title": title,
+        "hint": "",
+        "sub_capability": sub,
+        "bind_mode": bind_mode,
+        "manual_targets": manual,
+        "default_target": default_target,
+        "enabled": True,
+    }
+
+
 def default_canvas_menu() -> list[dict[str, Any]]:
-    """出厂菜单：简称 2–8 字，默认按细分能力自动匹配。"""
-    rows = [
-        ("preset_tts", "speech", "文字转语音", "tts"),
-        ("preset_asr", "speech", "语音识别", "asr"),
-        ("preset_t2i", "image", "文生图", "t2i"),
-        ("preset_i2i", "image", "单图编辑", "i2i_single"),
-        ("preset_i2i_multi", "image", "多图编辑", "i2i_multi"),
-        ("preset_inpaint", "image", "局部重绘", "inpaint"),
-        ("preset_color_grade", "image", "摄影调色", "color_grade"),
-        ("preset_upscale", "image", "放大修复", "upscale"),
-        ("preset_analysis", "image", "画面分析", "analysis"),
-        ("preset_t2v", "video", "文生视频", "t2v"),
-        ("preset_t2v_enhance", "video", "文生增强", "t2v_enhance"),
-        ("preset_i2v_first", "video", "首帧生视频", "i2v_first"),
-        ("preset_i2v_flf", "video", "首尾帧视频", "i2v_flf"),
-        ("preset_v2v_ref", "video", "参考生视频", "v2v_ref"),
-        ("preset_i2v_orbit", "video", "360全景", "i2v_orbit"),
-        ("preset_i2v_enhance", "video", "图生增强", "i2v_enhance"),
-        ("preset_avatar", "video", "数字人口播", "avatar"),
-        ("preset_motion", "video", "动作迁移", "motion"),
-        ("preset_video_analysis", "video", "视频分析", "video_analysis"),
+    """出厂菜单。图像和视频按当前工作流的最小功能手动指定，有越狱包时默认越狱包。"""
+    from liberastra.services.workflows import list_packs
+
+    grouped: dict[str, list[str]] = {row[3]: [] for row in _WORKFLOW_MENU_ROWS}
+    for pack in list_packs():
+        image_count = sum(
+            1 for spec in pack.inputs.values() if isinstance(spec, dict) and spec.get("type") == "image"
+        )
+        sub = pack_sub_capability(pack.name, pack.capability, image_count)
+        if sub in grouped:
+            grouped[sub].append(pack.name)
+    items = [
+        _menu_item("preset_tts", "speech", "文字转语音", "tts"),
+        _menu_item("preset_asr", "speech", "语音识别", "asr"),
     ]
-    return [
-        {
-            "id": item_id,
-            "category": category,
-            "title": title,
-            "hint": (SUB_CAPABILITIES.get(sub) or {}).get("label", ""),
-            "sub_capability": sub,
-            "bind_mode": "auto",
-            "manual_targets": [],
-            "default_target": None,
-            "enabled": True,
-        }
-        for item_id, category, title, sub in rows
-    ]
+    for item_id, category, title, sub in _WORKFLOW_MENU_ROWS:
+        names = sorted(grouped[sub], key=lambda name: (0 if "uncensored" in name else 1, name))
+        if not names:
+            continue
+        default_id = next((name for name in names if "uncensored" in name), names[0])
+        items.append(
+            _menu_item(
+                item_id,
+                category,
+                title,
+                sub,
+                bind_mode="manual",
+                targets=names,
+                default_id=default_id,
+            )
+        )
+    return items
 
 
 def normalize_menu_item(raw: dict[str, Any]) -> dict[str, Any]:
     title = str(raw.get("title") or "").strip()
-    if not 2 <= len(title) <= 8:
-        raise ValueError(f"功能简称需为 2–8 个字：{title or '（空）'}")
+    if not 2 <= len(title) <= 10:
+        raise ValueError(f"功能简称需为 2–10 个字：{title or '（空）'}")
     category = str(raw.get("category") or "")
     if category not in {"speech", "image", "video"}:
         raise ValueError("菜单分类只能是语音、图像或视频")

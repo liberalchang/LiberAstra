@@ -62,12 +62,13 @@ inputs:
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
   prompt:
     node: '5'
     field: inputs.prompt
     type: str
     required: true
-    description: '编辑指令，按槽位指代图片，例如： 将 image 1 中的女性和 image 2 中的男性合成到同一张自然合影，统一光照与景深
+    description: '编辑指令，按槽位指代图片，例如：将 image 1 中的女性和 image 2 中的男性合成到同一张自然合影，统一光照与景深
 
       '
   negative_prompt:
@@ -75,6 +76,7 @@ inputs:
     field: inputs.negative_prompt
     type: str
     default: ''
+    description: 不希望出现的内容，可以留空。
   resolution:
     node: '5'
     field: inputs.resolution
@@ -90,11 +92,13 @@ inputs:
     default: 25
     min: 1
     max: 50
+    description: 采样步数。这个包默认 25 步。
   seed:
     node: '6'
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
 outputs:
   node: '8'
   key: images

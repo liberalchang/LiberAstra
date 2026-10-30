@@ -10,12 +10,14 @@ inputs:
     type: image
     required: true
     description: 原图，第 1 张上传
+    label: 原图
   mask:
     node: '11'
     field: inputs.image
     type: image
     required: true
     description: 蒙版，第 2 张上传。白色重画，黑色保留
+    label: 蒙版
   unet_name:
     node: '1'
     field: inputs.unet_name
@@ -23,6 +25,7 @@ inputs:
     default: qwen-image-2.1-UC-int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（UNET）
+    description: 默认越狱 UC-int8_convrot。可改回官方 int8 或 bf16，越狱效果会变弱。须为 safetensors。
   clip_name:
     node: '2'
     field: inputs.clip_name
@@ -30,6 +33,7 @@ inputs:
     default: qwen3vl_8b_int8_convrot.safetensors
     options_from: text_encoders
     label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b，CLIPLoader 的 type 保持 qwen_image。
   vae_name:
     node: '3'
     field: inputs.vae_name
@@ -37,6 +41,7 @@ inputs:
     default: qwen_image_2.1_vae_bf16.safetensors
     options_from: vae
     label: VAE
+    description: Qwen-Image 的 VAE。不要换成 FLUX 或 MiniMax 的 VAE。
   prompt:
     node: '5'
     field: inputs.prompt
@@ -48,6 +53,7 @@ inputs:
     field: inputs.negative_prompt
     type: str
     default: ''
+    description: 不希望出现的内容，可以留空。
   resolution:
     node: '5'
     field: inputs.resolution
@@ -55,6 +61,7 @@ inputs:
     default: 0
     min: 0
     max: 4096
+    description: 参考图边长，须为 32 的倍数。0 表示按原图尺寸
   grow:
     node: '15'
     field: inputs.expand
@@ -62,6 +69,7 @@ inputs:
     default: 12
     min: 0
     max: 256
+    description: 蒙版向外扩的像素，避免接缝留一圈旧内容
   steps:
     node: '6'
     field: inputs.steps
@@ -69,11 +77,13 @@ inputs:
     default: 20
     min: 1
     max: 50
+    description: 采样步数。这个包默认 20 步。
   seed:
     node: '6'
     field: inputs.seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
 outputs:
   node: '8'
   key: images

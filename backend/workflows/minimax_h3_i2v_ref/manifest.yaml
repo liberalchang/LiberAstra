@@ -2,7 +2,7 @@ name: minimax_h3_i2v_ref
 capability: i2v
 description: 'MiniMax H3 参考图生视频
 
-  上传的图片只提供外观，不锁第一帧。角色、服装和脸从参考图来，镜头和起始构图按提示词生成。可选 Turbo 加速。'
+  上传的图片只提供外观，不锁第一帧。角色、服装和脸从参考图来，提示词里写「参考图片」。镜头和起始构图按提示词生成。可选 Turbo 加速。'
 fps: 24
 inputs:
   image:
@@ -52,6 +52,7 @@ inputs:
     field: inputs.noise_seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   steps:
     node: '105:9'
     field: inputs.steps
@@ -59,12 +60,14 @@ inputs:
     default: 20
     min: 4
     max: 50
+    description: 采样步数。这个包默认 20 步。
   sampler_name:
     node: '105:17'
     field: inputs.sampler_name
     type: str
     default: res_multistep
     label: 采样器
+    description: 采样器。官方示例是 res_multistep，一般不用改。
   clip_name:
     node: '105:13'
     field: inputs.clip_name
@@ -72,6 +75,7 @@ inputs:
     default: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
     options_from: text_encoders
     label: 文本编码器
+    description: 官方文本编码器。可换成越狱版同族文件，type 仍为 minimax。
   unet_name:
     node: '105:6'
     field: inputs.unet_name
@@ -79,6 +83,7 @@ inputs:
     default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（FL2VA）
+    description: 主模型。须与文本编码器同属 MiniMax H3。
 outputs:
   node: '92'
   key: images

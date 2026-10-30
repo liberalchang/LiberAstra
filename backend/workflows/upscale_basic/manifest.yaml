@@ -10,6 +10,7 @@ inputs:
     type: image
     required: true
     description: 待放大图片
+    label: 原图
   model_name:
     node: '2'
     field: inputs.model_name
@@ -31,4 +32,4 @@ requirements:
   - upscale_models/RealESRGAN_x4.pth
 llm_note: '事实:通用修复放大,UpscaleModelLoader + ImageUpscaleWithModel,仅用 ComfyUI 核心节点;只提升分辨率不重绘内容。
 
-  写作指导:提示词为可选约束,写纹理清晰/边缘干净/减少伪影类要求,不要写新内容。'
+  写作指导:这个包没有提示词入口,用户写的文字不会进入工作流。'

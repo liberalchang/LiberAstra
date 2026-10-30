@@ -2,7 +2,7 @@ name: minimax_h3_motion
 capability: motion
 description: 'MiniMax H3 动作迁移（官方版）
 
-  给一张人物图和一段参考视频，让人物做出视频里的动作，生成新视频。提示词里用 <Picture 1> 指人物图、<Video 1> 指参考视频。单段最长约 5 秒，动作别写太满。可选
+  给一张人物图和一段参考视频，让人物做出视频里的动作，生成新视频。提示词里用「目标图片」指人物、「参考视频」指动作。单段最长约 5 秒，动作别写太满。可选
   Turbo 加速。'
 fps: 24
 inputs:
@@ -13,6 +13,7 @@ inputs:
     required: true
     label: 参考视频
     mention: "<Video 1>"
+    description: 要复刻的动作来源。提示词里写「参考视频」。
   image:
     node: '114'
     field: inputs.image
@@ -20,6 +21,7 @@ inputs:
     required: true
     label: 目标图片
     mention: "<Picture 1>"
+    description: 要保持外观的人物。提示词里写「目标图片」。
   image_2:
     node: '116'
     field: inputs.image
@@ -27,7 +29,7 @@ inputs:
     required: false
     label: 侧面参考
     mention: "<Picture 2>"
-    description: 可选。角色库会把侧面单人图放在这里，对应 <Picture 2>
+    description: 可选。同一人的侧面全身。提示词里写「侧面参考」
   image_3:
     node: '117'
     field: inputs.image
@@ -35,7 +37,7 @@ inputs:
     required: false
     label: 背面参考
     mention: "<Picture 3>"
-    description: 可选。角色库会把背面单人图放在这里，对应 <Picture 3>
+    description: 可选。同一人的背面全身。提示词里写「背面参考」
   prompt:
     node: 105:104
     field: inputs.prompt
@@ -74,6 +76,7 @@ inputs:
     field: inputs.noise_seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   steps:
     node: '105:9'
     field: inputs.steps
@@ -81,12 +84,14 @@ inputs:
     default: 20
     min: 4
     max: 50
+    description: 采样步数。这个包默认 20 步。
   sampler_name:
     node: '105:17'
     field: inputs.sampler_name
     type: str
     default: res_multistep
     label: 采样器
+    description: 采样器。官方示例是 res_multistep，一般不用改。
   clip_name:
     node: '105:13'
     field: inputs.clip_name
@@ -102,6 +107,7 @@ inputs:
     default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（FL2VA）
+    description: 主模型。须与文本编码器同属 MiniMax H3。
 outputs:
   node: '92'
   key: images

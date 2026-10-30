@@ -33,6 +33,7 @@ inputs:
     min: 64
     max: 4096
     label: 最大长度
+    description: 输出文字的上限。越大描述越细，也更慢。
 outputs:
   node: '6'
 requirements:

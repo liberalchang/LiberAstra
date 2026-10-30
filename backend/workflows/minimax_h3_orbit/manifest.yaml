@@ -63,6 +63,7 @@ inputs:
     field: inputs.noise_seed
     type: int
     default: -1
+    description: 随机种子。-1 表示每次随机。
   steps:
     node: '105:9'
     field: inputs.steps
@@ -71,12 +72,14 @@ inputs:
     min: 4
     max: 50
     label: 步数
+    description: 采样步数。这个包默认 28 步。
   sampler_name:
     node: '105:17'
     field: inputs.sampler_name
     type: str
     default: res_multistep
     label: 采样器
+    description: 采样器。官方示例是 res_multistep，一般不用改。
   lora_name:
     node: '116'
     field: inputs.lora_name
@@ -84,6 +87,7 @@ inputs:
     default: minimax_h3_flf2v_lora_v1.safetensors
     options_from: loras
     label: 环绕 LoRA
+    description: 360° 环绕 LoRA。不要换成加速用的 Turbo。
   lora_strength:
     node: '116'
     field: inputs.strength_model
@@ -92,6 +96,7 @@ inputs:
     min: 0
     max: 2
     label: LoRA 强度
+    description: 环绕 LoRA 强度。作者示例是 1，太低镜头几乎不动。
   clip_name:
     node: '105:13'
     field: inputs.clip_name
@@ -99,6 +104,7 @@ inputs:
     default: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
     options_from: text_encoders
     label: 文本编码器
+    description: 官方文本编码器。可换成越狱版同族文件，type 仍为 minimax。
   unet_name:
     node: '105:6'
     field: inputs.unet_name
@@ -106,6 +112,7 @@ inputs:
     default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
     label: 主模型（FL2VA）
+    description: 主模型。须与文本编码器同属 MiniMax H3。
   vae_name:
     node: '105:11'
     field: inputs.vae_name
