@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 
@@ -10,7 +11,15 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.media.thumbs import (
+    asset_thumb_path,
+    extract_video_thumb,
+    image_thumb_bytes,
+    remove_asset_thumb,
+    store_asset_thumb,
+)
 from liberastra.models import Asset, Job, User
+from liberastra.providers.base import ProviderError
 from liberastra.schemas.asset import AssetOut, AssetRenameIn
 from liberastra.storage import resolve
 
@@ -115,6 +124,36 @@ def asset_content(asset_id: int, user: CurrentUser, db: DbSession) -> FileRespon
     return FileResponse(path, media_type=record.mime, filename=_download_name(record))
 
 
+_THUMB_CACHE = {"Cache-Control": "private, max-age=31536000, immutable"}
+
+
+@router.get("/{asset_id}/thumb")
+async def asset_thumb(asset_id: int, user: CurrentUser, db: DbSession) -> FileResponse:
+    """列表和画布用的小图。图片和视频各一张 WebP，其它类型没有缩略图。"""
+    record = _get_owned(db, asset_id, user)
+    if record.kind not in ("image", "video"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="这个类型没有缩略图")
+    cached = asset_thumb_path(record.id)
+    if cached.exists() and cached.stat().st_size > 0:
+        return FileResponse(cached, media_type="image/webp", headers=_THUMB_CACHE)
+    try:
+        src = resolve(record.path)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
+    if not src.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件已丢失")
+    try:
+        if record.kind == "image":
+            data = await asyncio.to_thread(image_thumb_bytes, src)
+            dest = await asyncio.to_thread(store_asset_thumb, record.id, data)
+        else:
+            dest = cached
+            await asyncio.to_thread(extract_video_thumb, src, dest)
+    except ProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    return FileResponse(dest, media_type="image/webp", headers=_THUMB_CACHE)
+
+
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_asset(asset_id: int, user: CurrentUser, db: DbSession) -> None:
     record = _get_owned(db, asset_id, user)
@@ -122,5 +161,6 @@ def delete_asset(asset_id: int, user: CurrentUser, db: DbSession) -> None:
         resolve(record.path).unlink(missing_ok=True)
     except ValueError:
         pass
+    remove_asset_thumb(record.id)
     db.delete(record)
     db.commit()

@@ -732,7 +732,16 @@ export async function fetchAssetBlob(assetId: number): Promise<Blob> {
   return resp.blob();
 }
 
-/** 带鉴权获取模板预览图（渲染由后端 Playwright 完成，返回 jpeg）。 */
+/** 带鉴权获取列表用缩略图（480px WebP）。原文件仍走 fetchAssetBlob。 */
+export async function fetchAssetThumb(assetId: number): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(`/api/v1/assets/${assetId}/thumb`, { headers });
+  if (!resp.ok) throw new ApiError(resp.status, `缩略图失败: ${resp.statusText}`);
+  return resp.blob();
+}
+
+/** 带鉴权获取模板预览图（后端缓存的 480px WebP）。 */
 export async function fetchTemplatePreview(aspect: string, name: string): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);

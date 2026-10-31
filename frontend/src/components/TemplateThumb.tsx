@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { fetchTemplatePreview } from "@/api/client";
+import { useInView } from "@/components/MediaLightbox";
 import { useTx } from "@/i18n/tx";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ async function blobToDataUri(blob: Blob): Promise<string> {
   });
 }
 
-/** 模板预览缩略图：带鉴权拉取后端 Playwright 渲染的 jpeg，转 data URI 展示。 */
+/** 模板预览缩略图：进入视口后拉取后端缓存的 WebP，转 data URI 展示。 */
 export function TemplateThumb({
   aspect,
   name,
@@ -26,9 +27,11 @@ export function TemplateThumb({
   className?: string;
 }) {
   const tx = useTx();
+  const { ref, visible } = useInView();
   const { data, isError } = useQuery({
     queryKey: ["template-preview", aspect, name],
     queryFn: () => fetchTemplatePreview(aspect, name),
+    enabled: visible,
     staleTime: 300_000,
     retry: false,
   });
@@ -48,14 +51,15 @@ export function TemplateThumb({
   if (!src) {
     return (
       <div
+        ref={ref}
         className={cn(
           "grid place-items-center bg-muted text-xs text-muted-foreground",
           className,
         )}
       >
-        {isError ? tx("预览不可用") : tx("渲染中…")}
+        {visible ? (isError ? tx("预览不可用") : tx("渲染中…")) : null}
       </div>
     );
   }
-  return <img src={src} alt={name} className={cn("object-cover", className)} />;
+  return <img ref={ref} src={src} alt={name} className={cn("object-cover", className)} />;
 }

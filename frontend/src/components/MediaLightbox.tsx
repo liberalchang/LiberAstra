@@ -2,7 +2,7 @@ import { AudioLines, Download, FileText, ImageIcon, Loader2, Video, X } from "lu
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, fetchAssetBlob } from "@/api/client";
+import { api, fetchAssetBlob, fetchAssetThumb } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LightboxShell } from "@/components/ui/lightbox";
@@ -71,7 +71,7 @@ export async function downloadAssetById(assetId: number, filename: string) {
 }
 
 /** 元素进入视口（含 200px 提前量）后返回 true，用于缩略图懒加载。 */
-function useInView() {
+export function useInView() {
   const [el, setEl] = useState<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -97,7 +97,7 @@ function useInView() {
   return { ref: setEl, visible } as const;
 }
 
-/** 加载资产内容的 object URL；不可预览类型返回 null。 */
+/** 打开预览时加载原文件。列表缩略图不要用这个。 */
 function useAssetUrl(assetId: number | null, kind: string | null) {
   const [url, setUrl] = useState<string | null>(null);
 
@@ -115,6 +115,45 @@ function useAssetUrl(assetId: number | null, kind: string | null) {
       .catch(() => {
         /* 加载失败时保持占位图标 */
       });
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [assetId, kind]);
+
+  return url;
+}
+
+/** 列表用的小图。只有图片和视频会请求；音频、文本、字幕不发请求。 */
+function useAssetThumbUrl(assetId: number | null, kind: string | null) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (assetId == null || (kind !== "image" && kind !== "video")) return;
+    let revoked = false;
+    let objectUrl: string | null = null;
+    setUrl(null);
+    const load = async () => {
+      try {
+        const blob = await fetchAssetThumb(assetId);
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+        return;
+      } catch {
+        /* 缩略图失败时，图片退回原文件，保证列表还能看见 */
+      }
+      if (kind !== "image" || revoked) return;
+      try {
+        const blob = await fetchAssetBlob(assetId);
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      } catch {
+        /* 保持占位图标 */
+      }
+    };
+    void load();
     return () => {
       revoked = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -151,33 +190,31 @@ function useAssetText(assetId: number | null, kind: string | null) {
 }
 
 /**
- * 非交互式缩略预览：图片直接显示，视频取首帧，音频/文本显示图标。
- * 用于结果卡片与资产列表，点击交互由外层按钮负责（弹出 MediaLightbox）。
+ * 非交互式缩略预览：图片和视频都显示 480px WebP，视频角上有播放标记。
+ * 音频、文本、字幕只显示图标，不下载文件。点击后由 MediaLightbox 加载原文件。
  */
 export function MediaThumb({ assetId, kind, className }: { assetId: number; kind: string; className?: string }) {
   const tx = useTx();
-  // 进入视口才拉取文件内容，避免资产网格一次性下载全部图片/视频
   const { ref, visible } = useInView();
-  const url = useAssetUrl(visible ? assetId : null, visible ? kind : null);
+  const url = useAssetThumbUrl(visible ? assetId : null, visible ? kind : null);
   const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? FileText;
 
-  if (!url) {
-    return (
-      <div ref={ref} className={cn("grid place-items-center bg-muted/50", className)}>
-        <Icon className="size-10 text-muted-foreground/50" />
-      </div>
-    );
-  }
-  if (kind === "image")
+  if (url && kind === "image") {
     return <img ref={ref} src={url} alt={tx("预览")} loading="lazy" className={cn("object-cover", className)} />;
-  if (kind === "video") {
+  }
+  if (url && kind === "video") {
     return (
-      <video ref={ref} src={url} muted playsInline preload="metadata" className={cn("object-cover", className)} />
+      <div ref={ref} className={cn("relative", className)}>
+        <img src={url} alt={tx("预览")} loading="lazy" className="h-full w-full object-cover" />
+        <span className="absolute bottom-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-black/55 text-white">
+          <Video className="size-3.5" />
+        </span>
+      </div>
     );
   }
   return (
     <div ref={ref} className={cn("grid place-items-center bg-muted/50", className)}>
-      <AudioLines className="size-10 text-primary/70" />
+      <Icon className="size-10 text-muted-foreground/50" />
     </div>
   );
 }

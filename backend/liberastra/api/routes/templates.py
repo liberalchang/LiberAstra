@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 
 from liberastra.api.deps import CurrentUser
 from liberastra.media.htmlframe import render_html
+from liberastra.media.thumbs import clear_template_thumbs, template_thumb_path, webp_thumb_bytes
 from liberastra.providers.base import ProviderError
 from liberastra.services import templates as tpl_service
 from liberastra.services.templates import TemplateInfo
@@ -55,12 +57,25 @@ async def preview_template(aspect: str, name: str, user: CurrentUser) -> Respons
         tpl = tpl_service.get_template(name, aspect)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    cache = template_thumb_path(aspect, name, tpl.path.stat().st_mtime_ns)
+    if cache.exists() and cache.stat().st_size > 0:
+        return Response(
+            content=cache.read_bytes(),
+            media_type="image/webp",
+            headers={"Cache-Control": "private, max-age=86400"},
+        )
     html = tpl_service.render(tpl, SAMPLE_VALUES)
     try:
         jpeg = await render_html(html, width=tpl.width, height=tpl.height, fmt="jpeg")
+        webp = await asyncio.to_thread(webp_thumb_bytes, jpeg)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    return Response(content=jpeg, media_type="image/jpeg")
+    await asyncio.to_thread(_store_template_thumb, cache, webp, aspect, name)
+    return Response(
+        content=webp,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -70,9 +85,11 @@ async def upload_template(
     file: Annotated[UploadFile, File()],
 ) -> dict:
     try:
-        return _out(tpl_service.save_template(aspect, file.filename or "template.html", await file.read()))
+        saved = tpl_service.save_template(aspect, file.filename or "template.html", await file.read())
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    clear_template_thumbs(aspect, saved.name)
+    return _out(saved)
 
 
 @router.delete("/{aspect}/{name}", status_code=status.HTTP_204_NO_CONTENT)
@@ -81,3 +98,10 @@ def delete_template(aspect: str, name: str, user: CurrentUser) -> None:
         tpl_service.delete_template(name, aspect)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    clear_template_thumbs(aspect, name)
+
+
+def _store_template_thumb(cache, webp: bytes, aspect: str, name: str) -> None:  # noqa: ANN001
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_bytes(webp)
+    clear_template_thumbs(aspect, name, keep=cache)
