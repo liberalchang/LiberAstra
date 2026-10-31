@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Bot, ImageIcon, KeyRound, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
+import { AudioLines, Bot, ImageIcon, KeyRound, Layers, RefreshCw, Settings, Timer, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, ApiError, type SpeechCatalogModel } from "@/api/client";
@@ -76,6 +76,8 @@ export function SystemSettingsPage() {
   const [serialSameHost, setSerialSameHost] = useState(false);
   const [llmProviderId, setLlmProviderId] = useState(0);
   const [llmModel, setLlmModel] = useState("");
+  const [depthProviderId, setDepthProviderId] = useState(0);
+  const [depthModel, setDepthModel] = useState("");
   const [characterProviderId, setCharacterProviderId] = useState(0);
   const [characterWorkflow, setCharacterWorkflow] = useState("qwen_image_21");
   const [characterI2i, setCharacterI2i] = useState("qwen_image_21_edit");
@@ -113,6 +115,10 @@ export function SystemSettingsPage() {
     () => (providers ?? []).filter((p) => p.enabled && p.capabilities.includes("image")),
     [providers],
   );
+  const depthProviders = useMemo(
+    () => (providers ?? []).filter((p) => p.enabled && p.type === "liber_depth"),
+    [providers],
+  );
   const { data: workflows } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
   const t2iPacks = useMemo(
     () => (workflows ?? []).filter((pack) => pack.capability === "t2i"),
@@ -123,6 +129,12 @@ export function SystemSettingsPage() {
     [workflows],
   );
   const selectedLlm = llmProviders.find((p) => p.id === llmProviderId) ?? null;
+  const selectedDepth = depthProviders.find((p) => p.id === depthProviderId) ?? null;
+  const depthModelChoices = useMemo(() => {
+    const ids = selectedDepth?.models?.filter(Boolean) ?? [];
+    if (depthModel && !ids.includes(depthModel)) return [depthModel, ...ids];
+    return ids;
+  }, [selectedDepth, depthModel]);
   const fetchModels = useMutation({
     mutationFn: (id: number) => api.fetchProviderModels(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["providers"] }),
@@ -136,6 +148,8 @@ export function SystemSettingsPage() {
       setSerialSameHost(prefs.serial_same_host === 1);
       setLlmProviderId(prefs.default_llm_provider_id ?? 0);
       setLlmModel(prefs.default_llm_model ?? "");
+      setDepthProviderId(prefs.default_depth_provider_id ?? 0);
+      setDepthModel(prefs.default_depth_model ?? "");
       setCharacterProviderId(prefs.default_character_provider_id ?? 0);
       setCharacterWorkflow(prefs.default_character_workflow || "qwen_image_21");
       setCharacterI2i(prefs.default_character_i2i_workflow || "qwen_image_21_edit");
@@ -154,6 +168,8 @@ export function SystemSettingsPage() {
         serial_same_host: serialSameHost ? 1 : 0,
         default_llm_provider_id: llmProviderId,
         default_llm_model: llmModel,
+        default_depth_provider_id: depthProviderId,
+        default_depth_model: depthModel,
         default_character_provider_id: characterProviderId,
         default_character_workflow: characterWorkflow,
         default_character_i2i_workflow: characterI2i,
@@ -313,6 +329,85 @@ export function SystemSettingsPage() {
             {prefSaved && !savePrefs.isPending && (
               <span className="text-sm text-success">{tx("已保存。")}</span>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="size-4" /> {tx("深度图生成")}
+          </CardTitle>
+          <CardDescription>
+            {tx("画布生成深度图、深度图页面的默认服务商和模型。")}
+            {tx("未配置时仍使用第一个启用的深度服务，模型为 dpt_swin2_large_384。")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("深度服务商")} hint={tx("在「服务提供方」中添加 Liber Depth，或在插件页启用本机深度插件。")}>
+            <div className="flex gap-2">
+              <select
+                className={selectClass}
+                value={depthProviderId}
+                onChange={(e) => {
+                  setDepthProviderId(Number(e.target.value));
+                  setDepthModel("");
+                }}
+              >
+                <option value={0}>{tx("自动（第一个启用的深度服务）")}</option>
+                {depthProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title={tx("刷新模型列表")}
+                disabled={!selectedDepth || fetchModels.isPending}
+                onClick={() => selectedDepth && fetchModels.mutate(selectedDepth.id)}
+              >
+                <RefreshCw className={fetchModels.isPending ? "animate-spin" : undefined} />
+              </Button>
+            </div>
+          </Field>
+          <Field label={tx("默认模型")} hint={tx("留空则使用 dpt_swin2_large_384；或从列表选择、手填模型名。")}>
+            {depthModelChoices.length ? (
+              <select className={selectClass} value={depthModel} onChange={(e) => setDepthModel(e.target.value)}>
+                <option value="">{tx("自动（dpt_swin2_large_384）")}</option>
+                {depthModelChoices.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={depthModel}
+                placeholder={tx("留空则使用 dpt_swin2_large_384")}
+                onChange={(e) => setDepthModel(e.target.value)}
+              />
+            )}
+          </Field>
+          {depthProviders.length === 0 && (
+            <p className="text-sm text-warning sm:col-span-2">
+              {tx("尚未配置启用的深度服务。请到资源 → 插件启用，或在服务提供方添加 Liber Depth。")}
+            </p>
+          )}
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              disabled={savePrefs.isPending}
+              onClick={() => {
+                setPrefSaved(false);
+                savePrefs.mutate();
+              }}
+            >
+              {savePrefs.isPending ? tx("保存中…") : tx("保存")}
+            </Button>
+            {prefSaved && !savePrefs.isPending && <span className="text-sm text-success">{tx("已保存。")}</span>}
           </div>
         </CardContent>
       </Card>

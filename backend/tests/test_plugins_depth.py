@@ -119,6 +119,72 @@ def test_depth_requirements_leave_torch_for_the_gpu_index(tmp_path) -> None:
     assert "torch" not in text
 
 
+def test_depth_convert_uses_system_preference(
+    client: TestClient, auth_header: dict[str, str], monkeypatch
+) -> None:
+    """请求没带服务商和模型时走系统设置；显式参数优先。测完把偏好恢复成未配置。"""
+    created = client.post(
+        "/api/v1/providers",
+        json={"name": "深度偏好", "type": "liber_depth", "base_url": "http://127.0.0.1:9", "enabled": True},
+        headers=auth_header,
+    )
+    assert created.status_code == 201, created.text
+    provider_id = created.json()["id"]
+    captured: dict[str, str] = {}
+
+    class _Fake:
+        async def convert_depth(self, content: bytes, filename: str, *, model: str = "", device: str = ""):
+            captured["model"] = model
+            return "x.png", b"\x89PNG\r\n\x1a\n"
+
+    monkeypatch.setattr("liberastra.api.routes.images.build_adapter", lambda record, **kwargs: _Fake())
+    try:
+        plain = client.post(
+            "/api/v1/images/depth",
+            headers=auth_header,
+            files=[("images", ("photo.jpg", b"jpeg-bytes", "image/jpeg"))],
+        )
+        assert plain.status_code == 200, plain.text
+        assert captured["model"] == ""
+        assert plain.json()[0]["meta"]["model"] is None
+
+        patched = client.patch(
+            "/api/v1/system/preferences",
+            json={"default_depth_provider_id": provider_id, "default_depth_model": "dpt_beit_large_512"},
+            headers=auth_header,
+        )
+        assert patched.status_code == 200
+        assert patched.json()["default_depth_provider_id"] == provider_id
+        assert patched.json()["default_depth_model"] == "dpt_beit_large_512"
+
+        preferred = client.post(
+            "/api/v1/images/depth",
+            headers=auth_header,
+            files=[("images", ("photo.jpg", b"jpeg-bytes", "image/jpeg"))],
+        )
+        assert preferred.status_code == 200, preferred.text
+        body = preferred.json()[0]
+        assert captured["model"] == "dpt_beit_large_512"
+        assert body["meta"]["model"] == "dpt_beit_large_512"
+        assert body["meta"]["provider"] == "深度偏好"
+
+        explicit = client.post(
+            "/api/v1/images/depth",
+            headers=auth_header,
+            data={"provider_id": str(provider_id), "model": "dpt_hybrid_384"},
+            files=[("images", ("photo.jpg", b"jpeg-bytes", "image/jpeg"))],
+        )
+        assert explicit.status_code == 200, explicit.text
+        assert captured["model"] == "dpt_hybrid_384"
+    finally:
+        client.patch(
+            "/api/v1/system/preferences",
+            json={"default_depth_provider_id": 0, "default_depth_model": ""},
+            headers=auth_header,
+        )
+        client.delete(f"/api/v1/providers/{provider_id}", headers=auth_header)
+
+
 def test_shared_runtime_and_pip_progress() -> None:
     from liberastra.services.plugins import _parse_pip_fraction, shared_runtime_dir
 

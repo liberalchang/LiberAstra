@@ -1,7 +1,7 @@
 /** 图像 → 深度图生成：通过已启用的 liber_depth 批量转换。 */
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Layers, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api, fetchAssetBlob, type AssetOut } from "@/api/client";
 import { MediaLightbox, MediaThumb, type PreviewTarget } from "@/components/MediaLightbox";
@@ -62,6 +62,8 @@ export function ImageDepthPage() {
   useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
   const providers = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
+  const prefs = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
+  const prefsApplied = useRef(false);
   const history = useQuery({
     queryKey: ["assets", "image"],
     queryFn: () => api.listAssets("image"),
@@ -73,12 +75,30 @@ export function ImageDepthPage() {
   const selected = depthProviders.find((item) => item.id === providerId) ?? depthProviders[0];
   const modelOptions = useMemo(() => {
     const ids = selected?.models?.filter(Boolean) ?? [];
-    if (ids.length === 0) return [DEFAULT_MODEL];
-    return ids.includes(DEFAULT_MODEL) ? [DEFAULT_MODEL, ...ids.filter((id) => id !== DEFAULT_MODEL)] : ids;
-  }, [selected]);
+    const base =
+      ids.length === 0
+        ? [DEFAULT_MODEL]
+        : ids.includes(DEFAULT_MODEL)
+          ? [DEFAULT_MODEL, ...ids.filter((id) => id !== DEFAULT_MODEL)]
+          : ids;
+    const configured = (prefs.data?.default_depth_model ?? "").trim();
+    if (configured && !base.includes(configured)) return [configured, ...base];
+    return base;
+  }, [selected, prefs.data]);
   useEffect(() => {
+    if (prefs.isPending) return;
+    if (!prefsApplied.current) {
+      prefsApplied.current = true;
+      const configuredProvider = prefs.data?.default_depth_provider_id ?? 0;
+      const configuredModel = (prefs.data?.default_depth_model ?? "").trim();
+      if (configuredProvider) setProviderId(configuredProvider);
+      if (configuredModel) {
+        setModel(configuredModel);
+        return;
+      }
+    }
     if (!modelOptions.includes(model)) setModel(modelOptions[0] ?? DEFAULT_MODEL);
-  }, [model, modelOptions]);
+  }, [prefs.isPending, prefs.data, model, modelOptions]);
   const past = (history.data ?? []).filter((asset) => asset.meta?.op === "depth");
 
   const convert = useMutation({

@@ -241,6 +241,10 @@ export interface SystemPreferences {
   default_llm_provider_id: number;
   /** 默认 LLM 模型名；空则用 Provider.extra.model 或已拉取列表首项 */
   default_llm_model: string;
+  /** 深度图 Provider id；0=自动取第一个启用的 depth */
+  default_depth_provider_id: number;
+  /** 深度图模型名；空则由深度服务使用 dpt_swin2_large_384 */
+  default_depth_model: string;
   /** 角色定妆照图像 Provider id；0=自动取第一个启用的 image */
   default_character_provider_id: number;
   /** 角色四段式定妆照使用的文生图工作流包 */

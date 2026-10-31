@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
+from sqlalchemy.orm import Session
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.api.utils import wait_for_job
@@ -21,6 +22,7 @@ from liberastra.schemas.image import (
 from liberastra.schemas.job import JobOut
 from liberastra.services.image import optimize_prompt
 from liberastra.services.plugins import depth_output_name
+from liberastra.services.preferences import get_pref, get_str_pref
 from liberastra.services.providers import build_adapter, pick_provider
 from liberastra.storage import save_upload
 from liberastra.storage.local import create_asset, resolve, save_bytes
@@ -162,6 +164,21 @@ def _parse_asset_ids(raw: str) -> list[int]:
     return ids
 
 
+def _pick_depth_provider(db: Session, provider_id: int | None) -> Provider:
+    """请求指定了服务商就用它。没指定时读系统设置；设置无效则回到第一个启用的深度服务。"""
+    chosen = provider_id
+    if chosen is None:
+        pref_id = get_pref(db, "default_depth_provider_id")
+        if pref_id:
+            chosen = pref_id
+    try:
+        return pick_provider(db, "depth", chosen)
+    except HTTPException:
+        if provider_id is not None or chosen is None:
+            raise
+        return pick_provider(db, "depth", None)
+
+
 @router.post("/depth", response_model=list[AssetOut])
 async def convert_depth(
     user: CurrentUser,
@@ -194,7 +211,9 @@ async def convert_depth(
     if len(items) > 20:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="一次最多转换 20 张")
 
-    provider = pick_provider(db, "depth", provider_id)
+    provider = _pick_depth_provider(db, provider_id)
+    # 请求没带模型时才用系统设置；设置也空则留给深度服务的默认 dpt_swin2_large_384
+    chosen_model = model.strip() or get_str_pref(db, "default_depth_model").strip()
     adapter = build_adapter(provider)
     saved: list[Asset] = []
     for filename, content in items:
@@ -202,7 +221,7 @@ async def convert_depth(
             _remote_name, png = await adapter.convert_depth(
                 content,
                 filename,
-                model=model.strip(),
+                model=chosen_model,
                 device=wanted_device,
             )
         except ProviderError as exc:
@@ -220,7 +239,7 @@ async def convert_depth(
                     "op": "depth",
                     "source_name": out_name,
                     "name": Path(out_name).stem,
-                    "model": model.strip() or None,
+                    "model": chosen_model or None,
                     "provider": provider.name,
                 },
             )

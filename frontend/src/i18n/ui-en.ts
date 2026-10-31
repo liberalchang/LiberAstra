@@ -852,6 +852,20 @@ export const UI_EN: Record<string, string> = {
     "If none is selected, the first enabled LLM provider is used.",
   "自动（第一个启用的 LLM）": "Auto (first enabled LLM)",
   "自动（Provider 默认 / 列表首项）": "Auto (provider default / first in the list)",
+  "画布生成深度图、深度图页面的默认服务商和模型。":
+    "Default provider and model for canvas depth maps and the depth page.",
+  "未配置时仍使用第一个启用的深度服务，模型为 dpt_swin2_large_384。":
+    "When unset, the first enabled depth service is used and the model stays dpt_swin2_large_384.",
+  "深度服务商": "Depth provider",
+  "在「服务提供方」中添加 Liber Depth，或在插件页启用本机深度插件。":
+    "Add Liber Depth under Providers, or enable the local depth plugin.",
+  "自动（第一个启用的深度服务）": "Auto (first enabled depth service)",
+  "自动（dpt_swin2_large_384）": "Auto (dpt_swin2_large_384)",
+  "留空则使用 dpt_swin2_large_384；或从列表选择、手填模型名。":
+    "Leave empty to use dpt_swin2_large_384, or pick from the list or type a model name.",
+  "留空则使用 dpt_swin2_large_384": "Leave empty to use dpt_swin2_large_384",
+  "尚未配置启用的深度服务。请到资源 → 插件启用，或在服务提供方添加 Liber Depth。":
+    "No enabled depth service yet. Enable the plugin under Resources, or add Liber Depth under Providers.",
   "尚未配置启用的 LLM 服务商。请先到「服务提供方」添加。":
     "No enabled LLM provider. Add one on the Providers page.",
   "已保存。": "Saved.",
