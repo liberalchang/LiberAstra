@@ -471,6 +471,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
         selectionOnDrag={tool === "select"}
         zoomOnDoubleClick={false}
         deleteKeyCode={["Backspace", "Delete"]}
+        elevateEdgesOnSelect
         fitView={store.nodes.length === 0}
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
