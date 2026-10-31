@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.models.asset import ASSET_KINDS
+from liberastra.providers.comfyui.client import max_upload_bytes, upload_too_large_message
 from liberastra.storage import create_asset, save_upload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
@@ -31,9 +32,22 @@ async def upload(
     kind: str = "image",
     hidden: bool = False,
 ) -> UploadOut:
+    limit = max_upload_bytes()
+    # 已知体积时先拒绝，避免把超限文件整段读进内存再丢掉
+    declared = getattr(file, "size", None)
+    if declared is not None and declared > limit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=upload_too_large_message(file.filename or "文件", declared, limit),
+        )
     content = await file.read()
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="空文件")
+    if len(content) > limit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=upload_too_large_message(file.filename or "文件", len(content), limit),
+        )
     path = save_upload(file.filename or "upload.bin", content)
     asset_id: int | None = None
     if as_asset:

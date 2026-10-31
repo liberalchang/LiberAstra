@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from liberastra.providers.base import ProviderError
-from liberastra.providers.comfyui.client import ComfyClient
+from liberastra.providers.comfyui.client import ComfyClient, upload_too_large_message
 from liberastra.services.canvas_graph import translate_prompt_slots
 from liberastra.services.workflows import (
     WorkflowPack,
@@ -60,6 +60,10 @@ async def run_workflow_pack(
         local_path = resolve(str(node_inputs[key]))
         if not local_path.exists():
             raise ProviderError(f"输入文件不存在: {node_inputs[key]}")
+        size = local_path.stat().st_size
+        if size > client.max_upload_bytes:
+            # 超限时不读入内存、也不向 ComfyUI 发请求
+            raise ProviderError(upload_too_large_message(local_path.name, size, client.max_upload_bytes))
         comfy_name = await client.upload_image(local_path.name, local_path.read_bytes())
         inject_image_input(workflow, pack, key, comfy_name)
 

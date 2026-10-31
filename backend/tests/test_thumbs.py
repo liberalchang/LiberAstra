@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from liberastra.core.db import SessionLocal
-from liberastra.media.thumbs import asset_thumb_path
+from liberastra.media.thumbs import list_asset_thumbs
 from liberastra.models import User
 from liberastra.storage import create_asset, save_bytes
 
@@ -49,13 +49,33 @@ def test_image_thumb_is_webp_and_reused(client: TestClient, auth_header: dict[st
     with Image.open(BytesIO(first.content)) as image:
         assert max(image.size) <= 480
         assert image.size[0] == 480
-    cached = asset_thumb_path(asset_id)
-    assert cached.exists() and cached.stat().st_size > 0
+    cached_files = list_asset_thumbs(asset_id)
+    assert len(cached_files) == 1
+    cached = cached_files[0]
+    assert cached.stat().st_size > 0
     stamp = cached.stat().st_mtime_ns
     second = client.get(url, headers=auth_header)
     assert second.status_code == 200
     assert second.content == first.content
     assert cached.stat().st_mtime_ns == stamp
+
+
+def test_thumb_follows_replaced_file(client: TestClient, auth_header: dict[str, str]) -> None:
+    """源文件换成另一张图后，不能继续返回第一次缓存的缩略图。"""
+    asset_id = _image_asset("repaint")
+    url = f"/api/v1/assets/{asset_id}/thumb"
+    first = client.get(url, headers=auth_header)
+    assert first.status_code == 200
+    buf = BytesIO()
+    Image.new("RGB", (200, 200), (240, 10, 10)).save(buf, format="PNG")
+    save_bytes(buf.getvalue(), "outputs/thumbs/repaint.png")
+    second = client.get(url, headers=auth_header)
+    assert second.status_code == 200
+    assert second.content != first.content
+    with Image.open(BytesIO(second.content)) as image:
+        red, green, blue = image.getpixel((image.width // 2, image.height // 2))
+        assert red > 200 and green < 40 and blue < 40
+    assert len(list_asset_thumbs(asset_id)) == 1
 
 
 def test_non_visual_asset_has_no_thumb(client: TestClient, auth_header: dict[str, str]) -> None:
@@ -74,11 +94,10 @@ def test_non_visual_asset_has_no_thumb(client: TestClient, auth_header: dict[str
 def test_delete_asset_removes_thumb(client: TestClient, auth_header: dict[str, str]) -> None:
     asset_id = _image_asset("gone")
     assert client.get(f"/api/v1/assets/{asset_id}/thumb", headers=auth_header).status_code == 200
-    cached = asset_thumb_path(asset_id)
-    assert cached.exists()
+    assert list_asset_thumbs(asset_id)
     deleted = client.delete(f"/api/v1/assets/{asset_id}", headers=auth_header)
     assert deleted.status_code == 204
-    assert not cached.exists()
+    assert list_asset_thumbs(asset_id) == []
 
 
 def test_template_preview_hits_disk_cache(

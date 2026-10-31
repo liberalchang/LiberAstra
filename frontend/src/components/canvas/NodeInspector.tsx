@@ -341,6 +341,7 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [depthError, setDepthError] = useState<string | null>(null);
   const pluginQuery = useQuery({
@@ -440,6 +441,7 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
 
   const onUpload = async (file: File) => {
     setUploading(true);
+    setUploadError(null);
     try {
       const uploaded = await api.uploadFileAsAsset(file, kind);
       updateNodeData(node.id, {
@@ -449,6 +451,8 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
         // 换图即重开版本史:新图为唯一原始版
         versions: [{ assetId: uploaded.asset_id, label: tx("原始"), maskAssetId: null }],
       });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : tx("上传失败"));
     } finally {
       setUploading(false);
     }
@@ -521,6 +525,7 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
           </Button>
         )}
       </div>
+      {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
       {depthError && <p className="text-xs text-destructive">{depthError}</p>}
       {kind === "image" && d.maskAssetId && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5">

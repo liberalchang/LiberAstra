@@ -1,5 +1,15 @@
 import type { components } from "./types";
 
+/** 与后端 LIBERASTRA_COMFY_MAX_UPLOAD_MB 默认值一致（ComfyUI 默认 100MB）。超限时不发请求。 */
+const MAX_UPLOAD_MB = 100;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+function assertUploadSize(file: File) {
+  if (file.size <= MAX_UPLOAD_BYTES) return;
+  const mb = (file.size / (1024 * 1024)).toFixed(1);
+  throw new ApiError(400, `${file.name} 超过上传上限 ${MAX_UPLOAD_MB}MB（当前 ${mb}MB），已拒绝上传`);
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -664,6 +674,7 @@ export const api = {
   },
 
   uploadFile: (file: File) => {
+    assertUploadSize(file);
     const form = new FormData();
     form.set("file", file);
     return request<{ path: string; size: number }>("/api/v1/uploads", {
@@ -673,6 +684,7 @@ export const api = {
   },
   /** 上传并同时建档为资产（画布输入节点引用 assetId）;hidden=true 建档即隐藏(蒙版等中间产物) */
   uploadFileAsAsset: (file: File, kind: string, hidden = false) => {
+    assertUploadSize(file);
     const form = new FormData();
     form.set("file", file);
     return request<{ path: string; size: number; asset_id: number }>(
@@ -736,7 +748,8 @@ export async function fetchAssetBlob(assetId: number): Promise<Blob> {
 export async function fetchAssetThumb(assetId: number): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(`/api/v1/assets/${assetId}/thumb`, { headers });
+  // reload：避开之前 immutable 缓存下来的彩色缩略图
+  const resp = await fetch(`/api/v1/assets/${assetId}/thumb`, { headers, cache: "reload" });
   if (!resp.ok) throw new ApiError(resp.status, `缩略图失败: ${resp.statusText}`);
   return resp.blob();
 }

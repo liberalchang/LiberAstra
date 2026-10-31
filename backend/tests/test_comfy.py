@@ -4,6 +4,7 @@ import asyncio
 
 import httpx
 
+from liberastra.providers.base import ProviderError
 from liberastra.providers.comfyui.client import ComfyClient
 from liberastra.providers.image.comfyui import ComfyUIImage
 from liberastra.services.workflows import get_pack
@@ -83,6 +84,13 @@ def test_comfy_client_flow() -> None:
             assert await client.download("out.png") == b"PNG-BYTES"
             name = await client.upload_image("in.png", b"img")
             assert name == "uploaded.png"
+
+            limited = ComfyClient("http://comfy:8188", client=http, upload_limit=3)
+            try:
+                await limited.upload_image("big.mp4", b"1234")
+                raise AssertionError("超限上传应在请求前被拒绝")
+            except ProviderError as exc:
+                assert "已拒绝上传" in str(exc)
 
     asyncio.run(run())
 

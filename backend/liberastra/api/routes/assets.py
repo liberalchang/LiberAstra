@@ -124,7 +124,8 @@ def asset_content(asset_id: int, user: CurrentUser, db: DbSession) -> FileRespon
     return FileResponse(path, media_type=record.mime, filename=_download_name(record))
 
 
-_THUMB_CACHE = {"Cache-Control": "private, max-age=31536000, immutable"}
+# 不能用 immutable：浏览器会把第一次的彩色缩略图缓存一年，源文件换成深度图后小图不会更新。
+_THUMB_CACHE = {"Cache-Control": "private, no-cache"}
 
 
 @router.get("/{asset_id}/thumb")
@@ -133,24 +134,23 @@ async def asset_thumb(asset_id: int, user: CurrentUser, db: DbSession) -> FileRe
     record = _get_owned(db, asset_id, user)
     if record.kind not in ("image", "video"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="这个类型没有缩略图")
-    cached = asset_thumb_path(record.id)
-    if cached.exists() and cached.stat().st_size > 0:
-        return FileResponse(cached, media_type="image/webp", headers=_THUMB_CACHE)
     try:
         src = resolve(record.path)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
     if not src.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件已丢失")
-    try:
-        if record.kind == "image":
-            data = await asyncio.to_thread(image_thumb_bytes, src)
-            dest = await asyncio.to_thread(store_asset_thumb, record.id, data)
-        else:
-            dest = cached
-            await asyncio.to_thread(extract_video_thumb, src, dest)
-    except ProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    dest = asset_thumb_path(record.id, src)
+    if not (dest.exists() and dest.stat().st_size > 0):
+        try:
+            if record.kind == "image":
+                data = await asyncio.to_thread(image_thumb_bytes, src)
+                dest = await asyncio.to_thread(store_asset_thumb, record.id, data, src)
+            else:
+                await asyncio.to_thread(extract_video_thumb, src, dest)
+                await asyncio.to_thread(remove_asset_thumb, record.id, keep=dest)
+        except ProviderError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     return FileResponse(dest, media_type="image/webp", headers=_THUMB_CACHE)
 
 

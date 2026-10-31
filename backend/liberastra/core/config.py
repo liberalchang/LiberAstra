@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # 清理策略：已结束任务及其产物保留天数，0 = 不自动清理
     cleanup_retention_days: int = 0
 
+    # 单个媒体上传上限（MB），与 ComfyUI 默认 --max-upload-size 100 一致。超过则在发出请求前拒绝。
+    comfy_max_upload_mb: int = 100
+
     cors_origins: list[str] = ["http://127.0.0.1:5173"]
     # 自托管场景：允许局域网 IP、主机名以任意端口打开页面后调用 API
     cors_origin_regex: str = r"https?://.+"

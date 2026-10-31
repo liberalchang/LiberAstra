@@ -28,12 +28,30 @@ def thumbs_root() -> Path:
     return path
 
 
-def asset_thumb_path(asset_id: int) -> Path:
-    return thumbs_root() / "assets" / f"{asset_id}.webp"
+def asset_thumb_path(asset_id: int, source: Path | None = None) -> Path:
+    """缩略图路径。带上源文件时，文件名含大小和修改时间，源文件一换就会重新生成。"""
+    root = thumbs_root() / "assets"
+    if source is None:
+        return root / f"{asset_id}.webp"
+    stat = source.stat()
+    return root / f"{asset_id}_{stat.st_size}_{stat.st_mtime_ns}.webp"
 
 
-def remove_asset_thumb(asset_id: int) -> None:
-    asset_thumb_path(asset_id).unlink(missing_ok=True)
+def list_asset_thumbs(asset_id: int) -> list[Path]:
+    root = thumbs_root() / "assets"
+    if not root.exists():
+        return []
+    found = [root / f"{asset_id}.webp", *root.glob(f"{asset_id}_*.webp")]
+    return [path for path in found if path.is_file()]
+
+
+def remove_asset_thumb(asset_id: int, *, keep: Path | None = None) -> None:
+    """删掉这个资产的缩略图。keep 是刚按当前文件写成的那一张。"""
+    kept = keep.resolve() if keep is not None else None
+    for path in list_asset_thumbs(asset_id):
+        if kept is not None and path.resolve() == kept:
+            continue
+        path.unlink(missing_ok=True)
 
 
 def _encode_webp(image: Image.Image, max_side: int) -> bytes:
@@ -101,9 +119,10 @@ def _write_atomic(dest: Path, data: bytes) -> None:
     tmp.replace(dest)
 
 
-def store_asset_thumb(asset_id: int, data: bytes) -> Path:
-    dest = asset_thumb_path(asset_id)
+def store_asset_thumb(asset_id: int, data: bytes, source: Path | None = None) -> Path:
+    dest = asset_thumb_path(asset_id, source)
     _write_atomic(dest, data)
+    remove_asset_thumb(asset_id, keep=dest)
     return dest
 
 

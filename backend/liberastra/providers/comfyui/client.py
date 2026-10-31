@@ -17,9 +17,27 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from liberastra.core.config import get_settings
 from liberastra.providers.base import ProviderError
 
 ProgressCallback = Callable[[float], None]
+
+
+def max_upload_bytes() -> int:
+    """当前配置的单文件上传上限（字节）。"""
+    mb = get_settings().comfy_max_upload_mb
+    if mb < 1:
+        mb = 100
+    return mb * 1024 * 1024
+
+
+def upload_too_large_message(filename: str, size: int, limit: int) -> str:
+    """超限时的拒绝文案。此时还没有向 ComfyUI 发请求。"""
+    name = Path(filename).name or "文件"
+    return (
+        f"{name} 超过上传上限 {limit // (1024 * 1024)}MB"
+        f"（当前 {size / (1024 * 1024):.1f}MB），已拒绝上传"
+    )
 
 
 def _is_transient_comfy_error(exc: BaseException) -> bool:
@@ -82,11 +100,14 @@ class ComfyClient:
         *,
         client: httpx.AsyncClient | None = None,
         timeout: float = 120.0,
+        upload_limit: int | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.ws_url = self.base_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
         self._client = client
         self._timeout = timeout
+        # 显式传入便于测试；缺省跟应用配置，并与 ComfyUI --max-upload-size 对齐
+        self.max_upload_bytes = upload_limit if upload_limit is not None else max_upload_bytes()
 
     # ---- HTTP 基础 ----
 
@@ -195,6 +216,8 @@ class ComfyClient:
         return str(data["prompt_id"])
 
     async def upload_image(self, filename: str, content: bytes, *, overwrite: bool = True) -> str:
+        if len(content) > self.max_upload_bytes:
+            raise ProviderError(upload_too_large_message(filename, len(content), self.max_upload_bytes))
         data = await self._request(
             "POST",
             "/upload/image",
