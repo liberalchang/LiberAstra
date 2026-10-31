@@ -67,11 +67,11 @@ const NAV_GROUPS: {
   {
     labelKey: "group.video",
     items: [
-      { to: "/video/quick", icon: Clapperboard, key: "nav.videoQuick" },
       { to: "/video/assets", icon: Images, key: "nav.videoAssets" },
       { to: "/video/avatar", icon: UserRound, key: "nav.avatar" },
       { to: "/video/i2v", icon: Film, key: "nav.i2v" },
       { to: "/video/motion", icon: PersonStanding, key: "nav.motion" },
+      { to: "/video/quick", icon: Clapperboard, key: "nav.videoQuick" },
       { to: "/video/characters", icon: UsersRound, key: "nav.characters" },
       { to: "/video/templates", icon: LayoutTemplate, key: "nav.templates" },
     ],
