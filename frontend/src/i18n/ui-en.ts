@@ -1065,11 +1065,11 @@ export const UI_EN: Record<string, string> = {
     "The talking-head image. A saved character uses the face close-up from the sheet.",
   "目标人物。选了角色时用正面、侧面、背面三张全身图。":
     "The target person. A saved character uses the full-body front, side, and back.",
-  "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过约 15 秒会自动分段衔接。":
-    "A reference clip, a target image, and a prompt. Length follows the clip; past about 15 seconds it is split and joined.",
-  "动作来源。画面时长跟随参考视频，超过约 15 秒会自动分段衔接。":
-    "The motion source. Length follows the clip and splits past about 15 seconds.",
-  "超过约 15 秒会自动分段": "Splits automatically past about 15 seconds",
+  "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过单段上限会自动分段衔接。":
+    "A reference clip, a target image, and a prompt. Length follows the clip; past the per-clip limit it is split and joined.",
+  "动作来源。画面时长跟随参考视频，超过单段上限会自动分段衔接。":
+    "The motion source. Length follows the clip and splits past the per-clip limit.",
+  "超过单段上限会自动分段": "Splits automatically past the per-clip limit",
   "声音来源": "Audio source",
   "模型生成是画面自带的声音。参考视频原声会换成上传视频里的整条音轨。":
     "Model audio is generated with the picture. Reference audio replaces it with the uploaded clip's soundtrack.",

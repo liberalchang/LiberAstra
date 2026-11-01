@@ -66,7 +66,7 @@ const CONFIG: Record<
   },
   motion: {
     title: "动作迁移",
-    description: "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过约 15 秒会自动分段衔接。",
+    description: "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过单段上限会自动分段衔接。",
     packCaps: ["motion", "action", "action_transfer"],
     submit: api.submitVideoMotion,
   },
@@ -320,11 +320,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           )}
 
           {kind === "motion" && (
-            <Field label={tx("参考视频")} hint={tx("动作来源。画面时长跟随参考视频，超过约 15 秒会自动分段衔接。")}>
+            <Field label={tx("参考视频")} hint={tx("动作来源。画面时长跟随参考视频，超过单段上限会自动分段衔接。")}>
               <FileDrop
                 accept="video/*"
                 title={tx("点击或拖拽上传参考视频")}
-                subtitle={tx("超过约 15 秒会自动分段")}
+                subtitle={tx("超过单段上限会自动分段")}
                 names={videoFile ? [videoFile.name] : []}
                 onSelect={(fs) => setVideoFile(fs?.[0] ?? null)}
               />
