@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { api, type SpeechCatalogModel } from "@/api/client";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button, submitButtonClass } from "@/components/ui/button";
@@ -389,20 +390,21 @@ export function TtsPage() {
             />
           </Field>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <Button
+          <GenerateButton
             className={submitButtonClass}
-            onClick={() => submit.mutate()}
+            running={!!running}
+            jobId={job?.id}
+            progress={job?.progress}
             disabled={
               !text ||
               (isEdge && !voiceName) ||
               (isOpenAi && voiceRecordId === "" && !voiceName) ||
               (isComfy && !pack) ||
-              submit.isPending ||
-              !!running
+              submit.isPending
             }
-          >
-            {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
-          </Button>
+            onGenerate={() => submit.mutate()}
+            label={tx("开始合成")}
+          />
         </CardContent>
       </Card>
         }

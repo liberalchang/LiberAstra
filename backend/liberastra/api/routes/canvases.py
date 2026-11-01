@@ -16,6 +16,7 @@ from liberastra.schemas.canvas import (
     CanvasListOut,
     CanvasNodeRunOut,
     CanvasOut,
+    CanvasRunCancelOut,
     CanvasRunIn,
     CanvasRunOut,
     CanvasUpdateIn,
@@ -269,6 +270,19 @@ async def run_canvas(
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return CanvasRunOut(run_id=run_id, plan=plan)
+
+
+@router.post("/{canvas_id}/run/cancel", response_model=CanvasRunCancelOut)
+def cancel_canvas_run(
+    canvas_id: str, user: CurrentUser, db: DbSession, request: Request
+) -> CanvasRunCancelOut:
+    _get_owned(db, canvas_id, user)
+    result = canvas_run.cancel_run(request.app, canvas_id, db)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="当前没有正在执行的画布任务"
+        )
+    return CanvasRunCancelOut(**result)
 
 
 @router.post(

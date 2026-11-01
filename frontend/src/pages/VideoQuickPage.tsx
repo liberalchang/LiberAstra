@@ -1,4 +1,5 @@
 import { Clapperboard, FileText, Image as ImageIcon, RefreshCw, Volume2 } from "lucide-react";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -1144,9 +1145,15 @@ export function VideoQuickPage() {
                 {batchSubmit.isPending ? tx("提交中…") : tx("批量生成 {n} 个视频", { n: batchTopics.length })}
               </Button>
             ) : (
-              <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={submitDisabled}>
-                {running ? tx("进行中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始创作")}
-              </Button>
+              <GenerateButton
+                className={submitButtonClass}
+                running={!!running}
+                jobId={job?.id}
+                progress={job?.progress}
+                disabled={submitDisabled}
+                onGenerate={() => submit.mutate()}
+                label={tx("开始创作")}
+              />
             )}
           </div>
         }

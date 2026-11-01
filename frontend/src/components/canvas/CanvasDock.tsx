@@ -1,5 +1,5 @@
 /** 画布右上工具坞：命名、保存、执行。 */
-import { Loader2, Play, Save } from "lucide-react";
+import { Loader2, Play, Save, Square } from "lucide-react";
 import { Panel } from "@xyflow/react";
 
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,13 @@ export function CanvasDock({
   running,
   onSave,
   onRun,
+  onCancel,
 }: {
   saving: boolean;
   running: boolean;
   onSave: () => void;
   onRun: () => void;
+  onCancel: () => void;
 }) {
   const tx = useTx();
   const name = useCanvasStore((s) => s.name);
@@ -45,16 +47,18 @@ export function CanvasDock({
       </Button>
       <Button
         size="sm"
-        onClick={onRun}
-        disabled={running}
+        className={running ? "bg-danger text-white hover:bg-danger/90" : undefined}
+        onClick={running ? onCancel : onRun}
         title={
-          selectedCount > 0
-            ? tx("重跑选中节点（上游能复用则复用）")
-            : tx("强制重跑整张画布（全部节点忽略缓存，需确认）")
+          running
+            ? tx("停止当前执行，并中断 ComfyUI 任务")
+            : selectedCount > 0
+              ? tx("重跑选中节点（上游能复用则复用）")
+              : tx("强制重跑整张画布（全部节点忽略缓存，需确认）")
         }
       >
-        {running ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-        {selectedCount > 0 ? tx("执行选中") : tx("执行")}
+        {running ? <Square className="size-3.5 fill-current" /> : <Play className="size-4" />}
+        {running ? tx("停止") : selectedCount > 0 ? tx("执行选中") : tx("执行")}
       </Button>
     </Panel>
   );

@@ -37,6 +37,7 @@ import { QuickAddMenu, type QuickAddPick } from "@/components/canvas/QuickAddMen
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { MediaLightbox } from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LightboxShell } from "@/components/ui/lightbox";
 import { useTx } from "@/i18n/tx";
 import { useCanvasStore, nextVarName } from "@/stores/canvas";
@@ -98,6 +99,9 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const flashTimer = useRef<number | null>(null);
   const [exitAsk, setExitAsk] = useState(false);
   const [confirmRunAll, setConfirmRunAll] = useState(false);
+  const [confirmCancelRun, setConfirmCancelRun] = useState(false);
+  const [cancelingRun, setCancelingRun] = useState(false);
+  const [cancelRunError, setCancelRunError] = useState<string | null>(null);
   const navigate = useNavigate();
   const preview = useCanvasUiStore((s) => s.preview);
   const setPreview = useCanvasUiStore((s) => s.setPreview);
@@ -325,6 +329,20 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     if (preflight([])) void runNodes([], { forceAll: true });
   };
 
+  const cancelRun = async () => {
+    setCancelingRun(true);
+    setCancelRunError(null);
+    try {
+      await api.cancelCanvasRun(canvasId);
+      setConfirmCancelRun(false);
+      flash(tx("已请求停止当前执行，正在中断 ComfyUI 任务…"));
+    } catch (err) {
+      setCancelRunError(err instanceof Error ? err.message : tx("停止失败"));
+    } finally {
+      setCancelingRun(false);
+    }
+  };
+
   // 节点卡上的「重试」:保存后单独重跑该节点
   const retryNode = useCanvasUiStore((s) => s.retryNode);
   useEffect(() => {
@@ -535,6 +553,10 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           running={store.runActive}
           onSave={() => void save()}
           onRun={() => void run()}
+          onCancel={() => {
+            setCancelRunError(null);
+            setConfirmCancelRun(true);
+          }}
         />
         <CanvasFunctionMenu open={functionOpen} onOpenChange={setFunctionOpen} onPick={addFromMenu} />
         <CanvasBottomBar
@@ -632,6 +654,20 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
             </div>
           </div>
         </LightboxShell>
+      )}
+      {confirmCancelRun && (
+        <ConfirmDialog
+          title={tx("停止当前执行？")}
+          message={tx(
+            "会取消正在运行的后端任务，并向 ComfyUI 发送中断请求；未完成的节点不会再继续，已完成的结果会保留。",
+          )}
+          confirmLabel={tx("停止执行")}
+          danger
+          busy={cancelingRun}
+          error={cancelRunError}
+          onConfirm={() => void cancelRun()}
+          onClose={() => setConfirmCancelRun(false)}
+        />
       )}
       {exitAsk && (
         <LightboxShell onClose={() => setExitAsk(false)} ariaLabel={tx("退出确认")} className="max-w-xs">

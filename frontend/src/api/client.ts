@@ -453,6 +453,11 @@ export interface CanvasRunOut {
   plan: CanvasRunPlanItem[];
 }
 
+export interface CanvasRunCancelOut {
+  run_id: string | null;
+  canceled_jobs: string[];
+}
+
 /** 工作流包分组（所属）:组名 → 包名列表 */
 export type CanvasGroups = Record<string, string[]>;
 
@@ -873,6 +878,8 @@ export const api = {
   rerunCanvasNode: (id: string, nodeId: string) =>
     request<CanvasRunOut>(`/api/v1/canvases/${id}/nodes/${nodeId}/run`, { method: "POST" }),
   getCanvasRuns: (id: string) => request<CanvasRunOut>(`/api/v1/canvases/${id}/runs`),
+  cancelCanvasRun: (id: string) =>
+    request<CanvasRunCancelOut>(`/api/v1/canvases/${id}/run/cancel`, { method: "POST" }),
   getCanvasGroups: () => request<CanvasGroups>("/api/v1/canvases/groups"),
   putCanvasGroups: (groups: CanvasGroups) =>
     request<CanvasGroups>("/api/v1/canvases/groups", {

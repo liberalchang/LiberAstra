@@ -1,4 +1,5 @@
 import { Images, RefreshCw } from "lucide-react";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -836,9 +837,15 @@ export function VideoAssetsPage() {
                 {formatStepName(String(job.steps[job.steps.length - 1]?.name ?? ""))}
               </p>
             )}
-            <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? tx("合成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始合成")}
-            </Button>
+            <GenerateButton
+              className={submitButtonClass}
+              running={!!running}
+              jobId={job?.id}
+              progress={job?.progress}
+              disabled={!ready || submit.isPending}
+              onGenerate={() => submit.mutate()}
+              label={tx("开始合成")}
+            />
           </div>
         }
         right={

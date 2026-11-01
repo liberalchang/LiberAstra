@@ -1555,6 +1555,22 @@ export const UI_EN: Record<string, string> = {
   "描述你想做什么；输入 / 或 @ 引用画布节点":
     "Describe what you want; type / or @ to reference canvas nodes",
   "停止": "Stop",
+  "继续生成": "Keep generating",
+  "中断失败": "Could not interrupt the task",
+  "中断当前任务？": "Interrupt the current task?",
+  "后端会取消这个任务，并向 ComfyUI 发送中断请求。已经完成的结果会保留。":
+    "The backend will cancel this task and ask ComfyUI to interrupt it. Finished results are kept.",
+  "中断任务": "Interrupt task",
+  "生成中… {pct}%（点击中断）": "Generating… {pct}% (click to interrupt)",
+  "点击中断当前任务": "Click to interrupt the current task",
+  "已请求停止当前执行，正在中断 ComfyUI 任务…":
+    "Stop requested. Interrupting the ComfyUI task…",
+  "停止失败": "Could not stop the run",
+  "停止当前执行？": "Stop the current run?",
+  "会取消正在运行的后端任务，并向 ComfyUI 发送中断请求；未完成的节点不会再继续，已完成的结果会保留。":
+    "The running backend task will be canceled and ComfyUI will be interrupted. Remaining nodes will not start; finished results are kept.",
+  "停止执行": "Stop run",
+  "停止当前执行，并中断 ComfyUI 任务": "Stop the current run and interrupt ComfyUI",
   "发送": "Send",
   "选择资源": "Pick an asset",
   "管理技能": "Manage skills",

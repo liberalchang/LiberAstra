@@ -88,6 +88,64 @@ def test_chat_job_cancel_and_retry(
     assert _wait_status(client, retry.json()["id"], auth_header)["status"] == "succeeded"
 
 
+def test_cancel_running_job_interrupts_runner(
+    client: TestClient,
+    auth_header: dict[str, str],
+    llm_provider: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _SlowAdapter:
+        async def chat(self, *, model: str, messages: list, **params) -> str:
+            await asyncio.sleep(30)
+            return "不应到达"
+
+    _patch_adapter(monkeypatch, _SlowAdapter())
+    job = client.post(
+        "/api/v1/llm/chat",
+        json={"model": "m1", "messages": [{"role": "user", "content": "hi"}]},
+        headers=auth_header,
+    ).json()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        current = client.get(f"/api/v1/jobs/{job['id']}", headers=auth_header).json()
+        if current["status"] == "running":
+            break
+        time.sleep(0.05)
+    started = time.monotonic()
+    assert client.post(
+        f"/api/v1/jobs/{job['id']}/cancel", headers=auth_header
+    ).status_code == 200
+    final = _wait_status(client, job["id"], auth_header, timeout=5)
+    assert final["status"] == "canceled"
+    assert time.monotonic() - started < 5
+
+
+def test_recover_interrupted_jobs_marks_orphans_canceled(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    from liberastra.core.db import SessionLocal
+    from liberastra.jobs.manager import recover_interrupted_jobs
+    from liberastra.models import Job
+
+    db = SessionLocal()
+    job = Job(kind="test.interrupted", status="running", owner_id=1, params={})
+    db.add(job)
+    db.commit()
+    job_id = job.id
+    db.close()
+
+    assert recover_interrupted_jobs() >= 1
+
+    db = SessionLocal()
+    recovered = db.get(Job, job_id)
+    assert recovered is not None
+    assert recovered.status == "canceled"
+    assert "重启" in str(recovered.error or "")
+    db.delete(recovered)
+    db.commit()
+    db.close()
+
+
 def test_job_events_sse(
     client: TestClient,
     auth_header: dict[str, str],

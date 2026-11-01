@@ -10,6 +10,7 @@ import {
   hasAccel,
   type AccelState,
 } from "@/components/AccelControl";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import {
@@ -17,7 +18,7 @@ import {
   resolveEffectivePrompt,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
-import { Button, submitButtonClass } from "@/components/ui/button";
+import { submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
@@ -295,19 +296,20 @@ export function ImageEditPage({ capability, title, description }: Props) {
                     })}
               </p>
             )}
-            <Button
+            <GenerateButton
               className={submitButtonClass}
-              onClick={() => submit.mutate()}
+              running={!!running}
+              jobId={job?.id}
+              progress={job?.progress}
               disabled={
                 files.length < Math.max(requiredImageSlots, 1) ||
                 files.length > Math.max(imageSlots, 1) ||
                 (isComfy && !pack) ||
-                submit.isPending ||
-                !!running
+                submit.isPending
               }
-            >
-              {running ? tx("处理中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始")}
-            </Button>
+              onGenerate={() => submit.mutate()}
+              label={tx("开始")}
+            />
           </div>
         }
         right={

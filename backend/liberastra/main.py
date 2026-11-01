@@ -22,7 +22,7 @@ from liberastra.api import api_router, openai_audio, openai_compat
 from liberastra.core.config import get_settings
 from liberastra.core.db import run_migrations
 from liberastra.core.logging import setup_logging
-from liberastra.jobs.manager import JobManager
+from liberastra.jobs.manager import JobManager, recover_interrupted_jobs
 from liberastra.pipelines import register_video_jobs
 from liberastra.services.asr import register_asr_jobs
 from liberastra.services.canvas_node_job import register_canvas_jobs
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
         from liberastra.media.htmlframe import close_browser
 
         run_startup_cleanup()
+        recover_interrupted_jobs()
         from liberastra.services.prompts import ensure_prompt_store
 
         ensure_prompt_store()

@@ -65,6 +65,11 @@ class CanvasOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CanvasRunCancelOut(BaseModel):
+    run_id: str | None = None
+    canceled_jobs: list[str] = Field(default_factory=list)
+
+
 class CanvasListOut(BaseModel):
     id: str
     name: str

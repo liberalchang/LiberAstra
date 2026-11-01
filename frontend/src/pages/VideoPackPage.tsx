@@ -1,4 +1,5 @@
 import { Film, PersonStanding, RefreshCw, UserRound } from "lucide-react";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -608,9 +609,15 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!ready || submit.isPending || !!running}>
-              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始生成")}
-            </Button>
+            <GenerateButton
+              className={submitButtonClass}
+              running={!!running}
+              jobId={job?.id}
+              progress={job?.progress}
+              disabled={!ready || submit.isPending}
+              onGenerate={() => submit.mutate()}
+              label={tx("开始生成")}
+            />
           </div>
         }
         right={

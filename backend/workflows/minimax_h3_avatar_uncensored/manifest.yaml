@@ -95,7 +95,7 @@ outputs:
 accel:
   label: Turbo 加速
   family: minimax_h3
-  default_enabled: false
+  default_enabled: true
   node: 105:200
   bypass_input: model
   lora:

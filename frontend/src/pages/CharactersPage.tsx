@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api, type CharacterOut } from "@/api/client";
 import { CharacterViewer, presentSlots, useSlotUrls } from "@/components/CharacterViewer";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { PromptField, emptyPromptValue, resolveEffectivePrompt, type PromptFieldValue } from "@/components/PromptField";
 import { Button, submitButtonClass } from "@/components/ui/button";
@@ -212,11 +213,16 @@ export function CharactersPage() {
             </>
           )}
           {error && <p className="text-sm text-danger">{error}</p>}
-          {running && <p className="text-sm text-muted-foreground">{tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) })}</p>}
           {mode === "generate" ? (
-            <Button className={submitButtonClass} onClick={() => generate.mutate()} disabled={!name || (!appearance && refs.length === 0) || generate.isPending || !!running}>
-              {tx("生成角色定妆照")}
-            </Button>
+            <GenerateButton
+              className={submitButtonClass}
+              running={!!running}
+              jobId={job?.id}
+              progress={job?.progress}
+              disabled={!name || (!appearance && refs.length === 0) || generate.isPending}
+              onGenerate={() => generate.mutate()}
+              label={tx("生成角色定妆照")}
+            />
           ) : (
             <Button className={submitButtonClass} onClick={() => create.mutate()} disabled={!name || !turnaround || create.isPending}>
               {tx("保存并自动切分")}

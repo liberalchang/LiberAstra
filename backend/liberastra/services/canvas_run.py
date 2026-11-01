@@ -64,7 +64,13 @@ def start_run(
     task = asyncio.create_task(
         _orchestrate(app, run_id, canvas.id, owner_id, order, set(force_node_ids))
     )
-    runs[run_id] = {"canvas_id": canvas.id, "plan": plan, "task": task}
+    runs[run_id] = {
+        "run_id": run_id,
+        "canvas_id": canvas.id,
+        "plan": plan,
+        "task": task,
+        "canceled": False,
+    }
     return run_id, plan
 
 
@@ -75,6 +81,34 @@ def latest_plan(app, canvas_id: str) -> list[dict[str, Any]] | None:  # noqa: AN
         if state["canvas_id"] == canvas_id:
             return state["plan"]
     return None
+
+
+def cancel_run(app, canvas_id: str, db: Session) -> dict[str, Any] | None:  # noqa: ANN001
+    """停止该画布正在执行的编排：标记取消、取消当前运行任务，并停止后续节点。"""
+    runs = getattr(app.state, "canvas_runs", {}) or {}
+    state = None
+    for candidate in reversed(list(runs.values())):
+        if candidate["canvas_id"] == canvas_id and not candidate["task"].done():
+            state = candidate
+            break
+    if state is None:
+        return None
+    state["canceled"] = True
+    manager = app.state.jobs
+    canceled: list[str] = []
+    for item in state.get("plan") or []:
+        if item.get("status") not in ("pending", "running"):
+            continue
+        job_id = item.get("job_id")
+        if not job_id:
+            continue
+        job = db.get(Job, job_id)
+        if job is not None and manager.request_cancel(db, job):
+            canceled.append(job.id)
+    for item in state.get("plan") or []:
+        if item.get("status") == "pending":
+            item["status"] = "canceled"
+    return {"run_id": state.get("run_id"), "canceled_jobs": canceled}
 
 
 # ---- 节点执行 ----
@@ -907,6 +941,11 @@ async def _orchestrate(
         variables = _text_variables(nodes)
         runs: dict[str, CanvasNodeRun] = {}
         for node_id in order:
+            if state.get("canceled"):
+                for pending in plan.values():
+                    if pending["status"] in ("pending", "running"):
+                        pending["status"] = "canceled"
+                break
             node = nodes[node_id]
             item = plan[node_id]
             row = _run_row(db, canvas_id, node_id)

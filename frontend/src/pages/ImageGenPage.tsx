@@ -12,6 +12,7 @@ import {
   hasAccel,
   type AccelState,
 } from "@/components/AccelControl";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import {
@@ -291,9 +292,15 @@ export function ImageGenPage() {
         footer={
           <div className="flex flex-col gap-2">
             {error && <p className="text-sm text-danger">{error}</p>}
-            <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!effectivePrompt || submit.isPending || !!running}>
-              {running ? tx("生成中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("生成")}
-            </Button>
+            <GenerateButton
+              className={submitButtonClass}
+              running={!!running}
+              jobId={job?.id}
+              progress={job?.progress}
+              disabled={!effectivePrompt || submit.isPending}
+              onGenerate={() => submit.mutate()}
+              label={tx("生成")}
+            />
           </div>
         }
         right={

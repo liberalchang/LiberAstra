@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from liberastra.core.db import SessionLocal
-from liberastra.models import Asset, CanvasNodeRun
+from liberastra.models import Asset, CanvasNodeRun, Job
 from liberastra.providers.base import ProviderError
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
@@ -417,6 +417,53 @@ def test_binding_missing_variable_fails(
     }
     with SessionLocal() as db, pytest.raises(ProviderError, match="不存在"):
         _resolve_function_inputs(db, graph, fn, runs, {})
+
+
+def test_cancel_run_cancels_running_job_and_pending_nodes() -> None:
+    from types import SimpleNamespace
+
+    from liberastra.services.canvas_run import cancel_run
+
+    db = SessionLocal()
+    job = Job(kind="canvas.node", status="running", owner_id=1, params={})
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    plan = [
+        {"node_id": "running", "status": "running", "job_id": job.id},
+        {"node_id": "pending", "status": "pending", "job_id": None},
+    ]
+
+    class _Task:
+        def done(self) -> bool:
+            return False
+
+    requested: list[str] = []
+
+    class _Manager:
+        def request_cancel(self, _db, target) -> bool:  # noqa: ANN001
+            requested.append(target.id)
+            return True
+
+    state = {
+        "run_id": "run-1",
+        "canvas_id": "canvas-1",
+        "plan": plan,
+        "task": _Task(),
+        "canceled": False,
+    }
+    app = SimpleNamespace(
+        state=SimpleNamespace(canvas_runs={"run-1": state}, jobs=_Manager())
+    )
+    result = cancel_run(app, "canvas-1", db)
+    assert result == {"run_id": "run-1", "canceled_jobs": [job.id]}
+    assert state["canceled"] is True
+    assert plan[1]["status"] == "canceled"
+    assert requested == [job.id]
+
+    db.delete(job)
+    db.commit()
+    db.close()
 
 
 def test_run_text_only_chain(client: TestClient, auth_header: dict[str, str]) -> None:

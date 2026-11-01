@@ -3,6 +3,7 @@ import { Mic, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
+import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button, submitButtonClass } from "@/components/ui/button";
@@ -227,9 +228,15 @@ export function AsrPage() {
             />
           </Field>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <Button className={submitButtonClass} onClick={() => submit.mutate()} disabled={!file || submit.isPending || !!running}>
-            {running ? tx("转写中… {pct}%", { pct: Math.round((job?.progress ?? 0) * 100) }) : tx("开始转写")}
-          </Button>
+          <GenerateButton
+            className={submitButtonClass}
+            running={!!running}
+            jobId={job?.id}
+            progress={job?.progress}
+            disabled={!file || submit.isPending}
+            onGenerate={() => submit.mutate()}
+            label={tx("开始转写")}
+          />
         </CardContent>
       </Card>
         }

@@ -125,6 +125,37 @@ def test_comfy_history_timeout_retries_while_polling() -> None:
     asyncio.run(run())
 
 
+def test_comfy_cancel_wait_interrupts_prompt() -> None:
+    """任务被取消时 wait_result 必须调用 cancel_prompt，而不是把 Comfy 任务留在后台。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/history/"):
+            return httpx.Response(200, json={})
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = ComfyClient("http://comfy:8188", client=http)
+            canceled: list[str] = []
+
+            async def fake_cancel_prompt(prompt_id: str) -> None:
+                canceled.append(prompt_id)
+
+            client.cancel_prompt = fake_cancel_prompt  # type: ignore[method-assign]
+            task = asyncio.create_task(
+                client.wait_result("pid-cancel", use_ws=False, timeout=60.0)
+            )
+            await asyncio.sleep(0.05)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            assert canceled == ["pid-cancel"]
+
+    asyncio.run(run())
+
+
 def test_comfy_image_adapter_generate() -> None:
     async def run() -> None:
         async with httpx.AsyncClient(transport=_mock_comfy()) as http:

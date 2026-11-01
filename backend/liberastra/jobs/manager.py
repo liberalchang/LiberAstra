@@ -13,10 +13,11 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from liberastra.core.db import SessionLocal
-from liberastra.models import Job, Provider, utcnow
+from liberastra.models import CanvasNodeRun, Job, Provider, utcnow
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.schemas.job import JobOut
 from liberastra.services.preferences import get_pref
@@ -64,6 +65,7 @@ class JobManager:
         self._runners: dict[str, RunnerFactory] = {}
         self._worker_task: asyncio.Task | None = None
         self._running: dict[str, asyncio.Task] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     # ---- 注册与生命周期 ----
 
@@ -76,6 +78,7 @@ class JobManager:
 
     def start(self) -> None:
         if self._worker_task is None:
+            self._loop = asyncio.get_running_loop()
             self._global_sem = asyncio.Semaphore(self._global_concurrency)
             self._worker_task = asyncio.create_task(self._worker())
 
@@ -117,6 +120,10 @@ class JobManager:
             return True
         if job.status == "running":
             self._cancellations.add(job.id)
+            task = self._running.get(job.id)
+            if task is not None and not task.done() and self._loop is not None:
+                # 取消 asyncio 任务：ComfyUI 等待层捕获 CancelledError 后会删除队列并中断 prompt
+                self._loop.call_soon_threadsafe(task.cancel)
             return True
         return False
 
@@ -257,3 +264,32 @@ class JobManager:
             queues.discard(queue)
             if not queues:
                 self._subscribers.pop(job_id, None)
+
+
+def recover_interrupted_jobs() -> int:
+    """重启后内存队列已丢失，把上次进程遗留的未完成任务标记为取消，避免永久卡在运行中。"""
+    db = SessionLocal()
+    try:
+        now = utcnow()
+        jobs = db.scalars(
+            select(Job).where(Job.status.in_(("pending", "running")))
+        ).all()
+        for job in jobs:
+            job.status = "canceled"
+            job.error = "服务重启，任务已中断"
+            job.finished_at = now
+            job.updated_at = now
+        runs = db.scalars(
+            select(CanvasNodeRun).where(CanvasNodeRun.status.in_(("pending", "running")))
+        ).all()
+        for row in runs:
+            row.status = "canceled"
+            row.error = "服务重启，任务已中断"
+            row.updated_at = now
+        db.commit()
+        recovered = len(jobs) + len(runs)
+        if recovered:
+            logger.warning("已恢复 {} 个重启前未结束的任务", recovered)
+        return recovered
+    finally:
+        db.close()
