@@ -1,6 +1,7 @@
 """供应商目录、火山请求体、执行契约与画布菜单。pytest 直接收集本文件。"""
 
 import base64
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,9 +9,11 @@ from fastapi.testclient import TestClient
 from liberastra.providers.base import ProviderError
 from liberastra.providers.catalog import (
     classify_model_id,
+    classify_remote,
     default_canvas_menu,
     media_slots,
     merge_catalog,
+    model_caps,
     normalize_menu_item,
     pack_sub_capability,
 )
@@ -71,6 +74,42 @@ def test_provider_type_places_models_without_reading_the_name() -> None:
     voice = classify_remote("edge_tts", "zh-CN-XiaoxiaoNeural")
     assert voice is not None
     assert voice["sub_capabilities"] == ["tts"]
+
+
+def test_deepseek_chat_models_default_to_tools() -> None:
+    discovered = classify_remote("deepseek", "deepseek-flash")
+    assert discovered is not None
+    assert discovered["sub_capabilities"] == ["chat", "tools"]
+
+    provider = SimpleNamespace(
+        type="deepseek",
+        extra={
+            "model_catalog": [
+                {
+                    "id": "deepseek-flash",
+                    "category": "llm",
+                    "sub_capabilities": ["chat"],
+                    "enabled": True,
+                    "custom": False,
+                },
+                {
+                    "id": "custom-no-tools",
+                    "category": "llm",
+                    "sub_capabilities": ["chat"],
+                    "enabled": True,
+                    "custom": True,
+                },
+            ]
+        },
+    )
+    assert model_caps(provider, "deepseek-flash")["tools"] is True
+    assert model_caps(provider, "custom-no-tools")["tools"] is False
+
+    from liberastra.providers.catalog import read_catalog
+
+    catalog = {item["id"]: item for item in read_catalog(provider.extra, "deepseek")}
+    assert catalog["deepseek-flash"]["sub_capabilities"] == ["chat", "tools"]
+    assert catalog["custom-no-tools"]["sub_capabilities"] == ["chat"]
 
 
 def test_classify_prefixes() -> None:
@@ -361,9 +400,9 @@ def test_old_saved_menu_receives_later_factory_functions(
     """已经保存过的旧菜单，在读的时候补上后来新增的出厂功能。用户之后删掉的项保持删除。"""
     import json
 
-    from liberastra.api.routes.canvases import MENU_SETTING_KEY
     from liberastra.core.db import SessionLocal
     from liberastra.models import AppSetting
+    from liberastra.services.canvas_menu import MENU_SETTING_KEY
 
     dropped = {"color_grade", "i2v_orbit", "inpaint", "video_analysis"}
     old = [item for item in default_canvas_menu() if item["sub_capability"] not in dropped]
@@ -493,7 +532,7 @@ def test_capabilities_publish_model_profile(client: TestClient, auth_header: dic
     by_type = {item["type"]: item for item in body["provider_types"]}
     deepseek = by_type["deepseek"]
     assert deepseek["model_kinds"] == ["llm"]
-    assert deepseek["sub_capabilities_by_kind"] == {"llm": ["chat", "vision"]}
+    assert deepseek["sub_capabilities_by_kind"] == {"llm": ["chat", "vision", "tools"]}
     assert [field["key"] for field in deepseek["param_schemas"]["llm"]] == ["max_output"]
     ark = by_type["volcengine_ark"]
     assert ark["model_kinds"] == ["llm", "image", "video"]
@@ -521,7 +560,7 @@ def test_normalize_drops_unregistered_provider_params() -> None:
         },
         provider_type="deepseek",
     )
-    assert chat["sub_capabilities"] == ["chat"]
+    assert chat["sub_capabilities"] == ["chat", "tools"]
     assert chat["params"] == {"max_output": 4096}
 
     image = normalize_model_item(

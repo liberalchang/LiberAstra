@@ -96,6 +96,7 @@ export function applyMenuToNode(
   spec: ExecutionSpec | undefined,
   providers: ProviderOut[],
   packs: WorkflowPackOut[] = [],
+  initialBindings: Record<string, string> = {},
 ): number {
   const store = useCanvasStore.getState();
   const provider = spec ? providerForSpec(spec, providers) : undefined;
@@ -147,6 +148,7 @@ export function applyMenuToNode(
       outputKind: outputKind ?? null,
       values,
       ...(varName ? { varName } : {}),
+      ...(Object.keys(initialBindings).length ? { bindings: initialBindings } : {}),
       // 有工作流列表时写入加速默认值；没列表时不覆盖，避免把已有开关清掉。
       ...(packs.length ? { accel: accelOf(spec, packs) } : {}),
     });
@@ -167,8 +169,23 @@ function slotsFor(spec: ExecutionSpec | undefined, item: CanvasMenuItem) {
   return item.media_slots ?? [];
 }
 
-function ensureSlots(nodeId: string, mediaSlots: { required: boolean; type: string; input_kind?: string; multiple?: boolean }[]): number {
-  const required = mediaSlots.filter((slot) => slot.required && (MEDIA.has(slot.type) || slot.input_kind === "character"));
+function ensureSlots(
+  nodeId: string,
+  mediaSlots: { key?: string; required: boolean; type: string; input_kind?: string; multiple?: boolean }[],
+): number {
+  const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
+  if (!node) return 0;
+  const bindings =
+    node.data.kind === "function"
+      ? ((node.data as { bindings?: Record<string, string> }).bindings ?? {})
+      : {};
+  const required = mediaSlots.filter(
+    (slot) =>
+      slot.required &&
+      slot.type !== "text" &&
+      !(slot.key && bindings[slot.key]) &&
+      (MEDIA.has(slot.type) || slot.input_kind === "character"),
+  );
   const needed = new Map<string, number>();
   for (const slot of required) {
     const kind = slot.input_kind || slot.type;
@@ -179,8 +196,6 @@ function ensureSlots(nodeId: string, mediaSlots: { required: boolean; type: stri
     }
   }
   let created = 0;
-  const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
-  if (!node) return 0;
   for (const [mediaType, count] of needed) {
     const have = incomingCount(nodeId, mediaType as MediaKind);
     for (let index = have; index < count; index += 1) {
@@ -194,23 +209,6 @@ function ensureSlots(nodeId: string, mediaSlots: { required: boolean; type: stri
         sourceHandle: `out-${inputNode.id}`,
         targetHandle: `in-${nodeId}`,
       });
-      if (mediaType === "text") {
-        const createdNode = useCanvasStore.getState().nodes.find((item) => item.id === inputNode.id);
-        const varName = createdNode?.data.varName ?? "";
-        const target = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
-        const prompt =
-          target?.data.kind === "function"
-            ? target.data.prompt
-            : target?.data.kind === "speech"
-              ? (target.data.text ?? "")
-              : "";
-        if (varName && !prompt.trim()) {
-          useCanvasStore.getState().updateNodeData(
-            nodeId,
-            target?.data.kind === "speech" ? { text: `{{${varName}}}` } : { prompt: `{{${varName}}}` },
-          );
-        }
-      }
       created += 1;
     }
   }

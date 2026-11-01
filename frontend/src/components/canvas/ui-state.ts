@@ -20,6 +20,9 @@ interface CanvasUiState {
   /** 预检未通过的节点(红框提示);任何编辑后清空 */
   invalidNodes: ReadonlySet<string>;
   setInvalidNodes: (ids: ReadonlySet<string>) => void;
+  /** 节点右键「添加到导演台」的待插入节点(DirectorPanel 消费后清零) */
+  directorRefNode: string | null;
+  requestDirectorRef: (nodeId: string | null) => void;
 }
 
 export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
@@ -31,4 +34,6 @@ export const useCanvasUiStore = create<CanvasUiState>()((set) => ({
   requestRetry: (retryNode) => set({ retryNode }),
   invalidNodes: new Set<string>(),
   setInvalidNodes: (invalidNodes) => set({ invalidNodes }),
+  directorRefNode: null,
+  requestDirectorRef: (directorRefNode) => set({ directorRefNode }),
 }));

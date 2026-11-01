@@ -410,7 +410,7 @@ export interface CanvasNodeRunOut {
 export interface CanvasGraph {
   nodes: {
     id: string;
-    type: "input" | "function" | "concat";
+    type: "input" | "function" | "concat" | "speech";
     position: { x: number; y: number };
     data: Record<string, unknown>;
   }[];
@@ -457,6 +457,148 @@ export interface CanvasRunOut {
 export type CanvasGroups = Record<string, string[]>;
 
 export const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"];
+
+// ---- 导演台 ----
+
+export interface AgentSessionOut {
+  id: string;
+  canvas_id: string | null;
+  title: string;
+  provider_id: number | null;
+  model: string | null;
+  active_skill: string;
+  skill_state: Record<string, unknown>;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentMessageOut {
+  id: number;
+  role: "user" | "assistant" | "tool" | "event" | string;
+  content: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentSkillFileOut {
+  path: string;
+  size: number;
+  is_text: boolean;
+}
+
+export interface AgentSkillOut {
+  name: string;
+  description: string;
+  source: "builtin" | "user" | string;
+  builtin: boolean;
+  enabled: boolean;
+  version: number;
+  license?: string;
+  compatibility?: string;
+  allowed_tools?: string[];
+  file_count?: number;
+  has_scripts?: boolean;
+}
+
+export interface AgentAttachment {
+  asset_id: number;
+  kind: string;
+  name?: string;
+}
+
+export interface AgentRefAsset {
+  asset_id: number;
+  kind: string;
+}
+
+/** 浏览器解析 @变量 后提交给后端的节点引用。 */
+export interface AgentRef {
+  node_id: string;
+  var_name?: string;
+  title?: string;
+  kind?: string;
+  config?: Record<string, unknown>;
+  assets?: AgentRefAsset[];
+  asset_ids?: number[];
+  text?: string;
+}
+
+export interface AgentTurnInput {
+  text: string;
+  attachments: AgentAttachment[];
+  refs: AgentRef[];
+  provider_id?: number | null;
+  model?: string;
+  active_skill?: string | null;
+}
+
+export interface AgentSseEvent {
+  event: string;
+  data: Record<string, unknown>;
+}
+
+/** 浏览器端解析 SSE；原生 EventSource 带不上 Authorization 头。 */
+export async function streamAgentEvents(
+  path: string,
+  body: unknown,
+  onEvent: (event: AgentSseEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(path, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (resp.status === 401 && authToken && onUnauthorized) onUnauthorized();
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try {
+      const payload = await resp.json();
+      detail = payload.detail ?? detail;
+    } catch {
+      /* 非 JSON 响应 */
+    }
+    throw new ApiError(resp.status, String(detail));
+  }
+  if (!resp.body) return;
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (block: string) => {
+    let event = "message";
+    const data: string[] = [];
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+    }
+    if (!data.length) return;
+    const raw = data.join("\n");
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      parsed = { text: raw };
+    }
+    onEvent({ event, data: parsed });
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let index = buffer.indexOf("\n\n");
+    while (index >= 0) {
+      const block = buffer.slice(0, index);
+      buffer = buffer.slice(index + 2);
+      if (block.trim()) flush(block);
+      index = buffer.indexOf("\n\n");
+    }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) flush(buffer);
+}
 
 export const api = {
   authStatus: () => request<AuthStatus>("/api/v1/auth/status"),
@@ -737,6 +879,91 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(groups),
     }),
+
+  // ---- 导演台 ----
+  listAgentSessions: (canvasId?: string) =>
+    request<AgentSessionOut[]>(
+      `/api/v1/agent/sessions${canvasId ? `?canvas_id=${encodeURIComponent(canvasId)}` : ""}`,
+    ),
+  createAgentSession: (body: {
+    canvas_id?: string | null;
+    title?: string;
+    provider_id?: number | null;
+    model?: string;
+    active_skill?: string;
+  }) =>
+    request<AgentSessionOut>("/api/v1/agent/sessions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  patchAgentSession: (
+    id: string,
+    body: {
+      title?: string;
+      provider_id?: number | null;
+      model?: string;
+      active_skill?: string;
+      use_default?: boolean;
+    },
+  ) =>
+    request<AgentSessionOut>(`/api/v1/agent/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteAgentSession: (id: string) =>
+    request<void>(`/api/v1/agent/sessions/${id}`, { method: "DELETE" }),
+  listAgentMessages: (id: string) =>
+    request<AgentMessageOut[]>(`/api/v1/agent/sessions/${id}/messages`),
+  cancelAgentTurn: (id: string) =>
+    request<{ ok: boolean }>(`/api/v1/agent/sessions/${id}/cancel`, { method: "POST" }),
+  agentTurn: (
+    id: string,
+    body: AgentTurnInput,
+    onEvent: (event: AgentSseEvent) => void,
+    signal?: AbortSignal,
+  ) => streamAgentEvents(`/api/v1/agent/sessions/${id}/turns`, body, onEvent, signal),
+  agentToolResults: (
+    id: string,
+    body: {
+      results: Record<string, unknown>[];
+      approved?: boolean | null;
+      remember?: boolean;
+    },
+    onEvent: (event: AgentSseEvent) => void,
+    signal?: AbortSignal,
+  ) =>
+    streamAgentEvents(
+      `/api/v1/agent/sessions/${id}/tool-results`,
+      body,
+      onEvent,
+      signal,
+    ),
+  listAgentSkills: () => request<AgentSkillOut[]>("/api/v1/agent/skills"),
+  getAgentSkill: (name: string) =>
+    request<{
+      name: string;
+      description: string;
+      body: string;
+      license?: string;
+      compatibility?: string;
+      allowed_tools?: string[];
+      files?: AgentSkillFileOut[];
+    }>(`/api/v1/agent/skills/${encodeURIComponent(name)}`),
+  uploadAgentSkill: (file: File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return request<{ name: string }>("/api/v1/agent/skills", {
+      method: "POST",
+      body: form,
+    });
+  },
+  setAgentSkillEnabled: (name: string, enabled: boolean) =>
+    request<{ name: string; enabled: boolean }>(
+      `/api/v1/agent/skills/${encodeURIComponent(name)}/enabled?enabled=${enabled}`,
+      { method: "POST" },
+    ),
+  deleteAgentSkill: (name: string) =>
+    request<void>(`/api/v1/agent/skills/${encodeURIComponent(name)}`, { method: "DELETE" }),
 };
 
 /** 带鉴权下载资产内容为 Blob（audio 标签无法带 Authorization 头）。 */

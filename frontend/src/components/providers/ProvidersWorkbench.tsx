@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Settings,
   Trash2,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
@@ -44,6 +45,7 @@ const TABS = [
 const SUBS = [
   ["chat", "对话"],
   ["vision", "视觉"],
+  ["tools", "工具"],
   ["t2i", "文生图"],
   ["i2i_single", "单图编辑"],
   ["i2i_multi", "多图编辑"],
@@ -58,6 +60,7 @@ const SUBS = [
 const SUB_ICON: Record<string, LucideIcon> = {
   chat: MessageSquare,
   vision: Eye,
+  tools: Wrench,
   t2i: ImageIcon,
   i2i_single: ImagePlus,
   i2i_multi: Images,

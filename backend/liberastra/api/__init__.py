@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from liberastra.api.routes import (
+    agent,
     asr,
     assets,
     auth,
@@ -30,6 +31,7 @@ from liberastra.api.routes import (
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
+api_router.include_router(agent.router)
 api_router.include_router(tokens.router)
 api_router.include_router(providers.router)
 api_router.include_router(plugins.router)

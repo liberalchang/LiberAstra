@@ -11,6 +11,108 @@ import httpx
 from liberastra.providers.base import ProviderError
 from liberastra.providers.llm.openai_compatible import _json_request
 
+
+def _anthropic_content(content: Any) -> Any:
+    """OpenAI content（字符串或多模态片段）转 Anthropic content。"""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return str(content or "")
+    blocks: list[dict[str, Any]] = []
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") == "text":
+            blocks.append({"type": "text", "text": str(part.get("text") or "")})
+        elif part.get("type") == "image_url":
+            url = str((part.get("image_url") or {}).get("url") or "")
+            if not url.startswith("data:") or ";base64," not in url:
+                continue
+            header, data = url.split(";base64,", 1)
+            media_type = header[5:] or "image/png"
+            blocks.append(
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": media_type, "data": data},
+                }
+            )
+    return blocks
+
+
+def _anthropic_messages(messages: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
+    system_parts: list[str] = []
+    dialog: list[dict[str, Any]] = []
+
+    def append(role: str, blocks: list[dict[str, Any]]) -> None:
+        if dialog and dialog[-1]["role"] == role:
+            dialog[-1]["content"].extend(blocks)
+        else:
+            dialog.append({"role": role, "content": blocks})
+
+    for message in messages:
+        role = str(message.get("role") or "user")
+        content = message.get("content")
+        if role == "system":
+            if isinstance(content, str) and content.strip():
+                system_parts.append(content)
+            continue
+        if role == "tool":
+            payload = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+            append(
+                "user",
+                [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": str(message.get("tool_call_id") or ""),
+                        "content": payload,
+                    }
+                ],
+            )
+            continue
+        if role == "assistant":
+            blocks: list[dict[str, Any]] = []
+            text = content if isinstance(content, str) else ""
+            if text:
+                blocks.append({"type": "text", "text": text})
+            for call in message.get("tool_calls") or []:
+                function = call.get("function") or {}
+                try:
+                    arguments = json.loads(function.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    arguments = {}
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": str(call.get("id") or ""),
+                        "name": str(function.get("name") or ""),
+                        "input": arguments if isinstance(arguments, dict) else {},
+                    }
+                )
+            append("assistant", blocks or [{"type": "text", "text": ""}])
+            continue
+        converted = _anthropic_content(content)
+        if isinstance(converted, str):
+            append("user", [{"type": "text", "text": converted}])
+        else:
+            append("user", converted or [{"type": "text", "text": ""}])
+    return system_parts, dialog
+
+
+def _anthropic_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for tool in tools or []:
+        function = tool.get("function") if isinstance(tool, dict) else None
+        if not isinstance(function, dict):
+            continue
+        out.append(
+            {
+                "name": str(function.get("name") or ""),
+                "description": str(function.get("description") or ""),
+                "input_schema": function.get("parameters") or {"type": "object", "properties": {}},
+            }
+        )
+    return out
+
 # Messages API 长期接受的日期版本。控制台新示例可能更新，这个版本仍然有效。
 ANTHROPIC_VERSION = "2023-06-01"
 
@@ -123,6 +225,88 @@ class AnthropicLLM:
         finally:
             if own_client:
                 await http.aclose()
+
+    async def chat_full(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **params: Any,
+    ) -> AsyncIterator[tuple[str, Any]]:
+        """流式 Messages API，解析 text_delta 与 tool_use 输入。"""
+        system_parts, dialog = _anthropic_messages(messages)
+        body: dict[str, Any] = {
+            "model": model,
+            "max_tokens": int(params.pop("max_tokens", 4096)),
+            "messages": dialog,
+            "stream": True,
+        }
+        if system_parts:
+            body["system"] = "\n\n".join(system_parts)
+        converted_tools = _anthropic_tools(tools)
+        if converted_tools:
+            body["tools"] = converted_tools
+        params.pop("stream", None)
+        body.update(params)
+        own_client = self._client is None
+        http = self._client or httpx.AsyncClient(timeout=self._timeout)
+        url = f"{self.base_url}/v1/messages"
+        calls: list[dict[str, str]] = []
+        current: dict[str, str] | None = None
+        try:
+            async with http.stream("POST", url, headers=self._headers(), json=body) as resp:
+                if resp.status_code >= 400:
+                    err_text = (await resp.aread()).decode("utf-8", errors="replace")[:500]
+                    raise ProviderError(f"HTTP {resp.status_code}: {err_text}")
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload or payload == "[DONE]":
+                        continue
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    kind = chunk.get("type") if isinstance(chunk, dict) else None
+                    if kind == "content_block_start":
+                        block = chunk.get("content_block") or {}
+                        if block.get("type") == "tool_use":
+                            current = {
+                                "id": str(block.get("id") or ""),
+                                "name": str(block.get("name") or ""),
+                                "arguments": "",
+                            }
+                    elif kind == "content_block_delta":
+                        delta = chunk.get("delta") or {}
+                        if delta.get("type") == "text_delta":
+                            text = str(delta.get("text") or "")
+                            if text:
+                                yield ("text", text)
+                        elif delta.get("type") == "input_json_delta" and current is not None:
+                            current["arguments"] += str(delta.get("partial_json") or "")
+                    elif kind == "content_block_stop" and current is not None:
+                        calls.append(
+                            {
+                                "id": current["id"],
+                                "name": current["name"],
+                                "arguments": current["arguments"] or "{}",
+                            }
+                        )
+                        current = None
+                    elif kind == "message_stop":
+                        break
+        except ProviderError:
+            raise
+        except httpx.TimeoutException as exc:
+            raise ProviderError(f"请求超时 {url}（>{self._timeout:.0f}s）: {exc}") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"无法连接 {url}: {exc}") from exc
+        finally:
+            if own_client:
+                await http.aclose()
+        yield ("done", calls)
 
     async def list_models(self) -> list[str]:
         ids: list[str] = []

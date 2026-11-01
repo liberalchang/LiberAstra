@@ -14,6 +14,7 @@ import httpx
 
 from liberastra.providers.base import ProviderError
 from liberastra.providers.llm.openai_compatible import _json_request
+from liberastra.providers.llm.tool_stream import iter_openai_chat
 from liberastra.providers.vendors.volcengine.schemas import data_url, image_body, video_body
 
 DEFAULT_BASE = "https://ark.cn-beijing.volces.com/api/v3"
@@ -66,6 +67,28 @@ class VolcengineArk:
             return str(data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderError(f"火山方舟对话响应缺少文本: {str(data)[:300]}") from exc
+
+    async def chat_full(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **params: Any,
+    ) -> Any:
+        """流式对话，工具调用按 OpenAI 格式累积。"""
+        body: dict[str, Any] = {"model": model, "messages": messages, **params}
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+        async for event in iter_openai_chat(
+            self._client,
+            f"{self.base_url}/chat/completions",
+            self._headers(),
+            body,
+            timeout=self._timeout,
+        ):
+            yield event
 
     async def generate(
         self,

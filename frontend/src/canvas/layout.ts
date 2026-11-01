@@ -64,6 +64,26 @@ function connectedGroups(nodes: CanvasFlowNode[], edges: Edge[]): CanvasFlowNode
   return groups;
 }
 
+/** dagre 会把汇入同一节点的并行分支按入边顺序从下往上摆。
+ * 按源节点整理前的 y 降序加边，排完就能保持用户看到的从上到下顺序。
+ */
+function orderFanInEdges(edges: Edge[], nodeY: Map<string, number>): Edge[] {
+  const byTarget = new Map<string, Edge[]>();
+  for (const edge of edges) {
+    const list = byTarget.get(edge.target);
+    if (list) list.push(edge);
+    else byTarget.set(edge.target, [edge]);
+  }
+  const ordered: Edge[] = [];
+  for (const list of byTarget.values()) {
+    if (list.length > 1) {
+      list.sort((a, b) => (nodeY.get(b.source) ?? 0) - (nodeY.get(a.source) ?? 0));
+    }
+    ordered.push(...list);
+  }
+  return ordered;
+}
+
 function layoutGroup(group: CanvasFlowNode[], edges: Edge[]): Box[] {
   const graph = new Graph({ directed: true });
   graph.setGraph({
@@ -79,6 +99,7 @@ function layoutGroup(group: CanvasFlowNode[], edges: Edge[]): Box[] {
   graph.setDefaultEdgeLabel(() => ({}));
 
   const sorted = [...group].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+  const nodeY = new Map(sorted.map((node) => [node.id, node.position.y]));
   const sizes = new Map<string, { w: number; h: number }>();
   for (const node of sorted) {
     const size = nodeSize(node);
@@ -87,11 +108,15 @@ function layoutGroup(group: CanvasFlowNode[], edges: Edge[]): Box[] {
   }
   const ids = new Set(sorted.map((n) => n.id));
   const seenEdge = new Set<string>();
+  const graphEdges: Edge[] = [];
   for (const edge of edges) {
     if (!ids.has(edge.source) || !ids.has(edge.target) || edge.source === edge.target) continue;
     const key = `${edge.source}\0${edge.target}`;
     if (seenEdge.has(key)) continue;
     seenEdge.add(key);
+    graphEdges.push(edge);
+  }
+  for (const edge of orderFanInEdges(graphEdges, nodeY)) {
     graph.setEdge(edge.source, edge.target);
   }
   dagreLayout(graph);

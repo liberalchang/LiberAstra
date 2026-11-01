@@ -91,7 +91,7 @@ def model_profile(provider_type: str) -> dict[str, Any]:
     if provider_type in _LLM_PROVIDER_TYPES:
         return {
             "model_kinds": ["llm"],
-            "sub_capabilities_by_kind": {"llm": ["chat", "vision"]},
+            "sub_capabilities_by_kind": {"llm": ["chat", "vision", "tools"]},
             "param_schemas": {"llm": _llm_param_schema()},
         }
     if provider_type == "volcengine_ark":
@@ -151,6 +151,7 @@ def execution_fields(provider_type: str, sub_capability: str) -> dict[str, dict[
 SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "chat": {"menu": "speech", "category": "llm", "label": "对话", "slots": []},
     "vision": {"menu": "image", "category": "llm", "label": "视觉理解", "slots": []},
+    "tools": {"menu": "speech", "category": "llm", "label": "工具调用", "slots": []},
     "t2i": {
         "menu": "image",
         "category": "image",
@@ -562,6 +563,15 @@ def normalize_model_item(raw: dict[str, Any], *, provider_type: str = "") -> dic
             if category in {"tts", "asr"}:
                 allowed &= {category}
             subs = [item for item in subs if item in allowed]
+            # DeepSeek 官方对话接口支持工具调用；旧目录和远端条目没标 tools 时补上。
+            if (
+                provider_type == "deepseek"
+                and category == "llm"
+                and not raw.get("custom")
+                and "chat" in subs
+                and "tools" not in subs
+            ):
+                subs.append("tools")
         schema = [] if category == "unknown" else profile["param_schemas"].get(kind, [])
         params = {} if category == "unknown" else clean_model_params(raw.get("params"), schema)
     else:
@@ -648,6 +658,8 @@ def classify_remote(provider_type: str, model_id: str) -> dict[str, Any] | None:
     category, subs = kind
     if subs == ["chat"] and non_generative_model(name):
         return classify_model_id(name)
+    if provider_type == "deepseek" and category == "llm":
+        subs = ["chat", "tools"]
     return model_item(name, label=name, category=category, sub_capabilities=subs, enabled=False)
 
 
@@ -722,6 +734,22 @@ def read_catalog(extra: dict[str, Any] | None, provider_type: str = "") -> list[
             except ValueError:
                 continue
     return items
+
+
+def model_caps(provider, model_id: str) -> dict[str, bool]:  # noqa: ANN001
+    """模型目录里的视觉与原生工具调用标记。不在目录里的模型两者都为假。"""
+    wanted = str(model_id or "").strip()
+    caps = {"vision": False, "tools": False}
+    if not wanted:
+        return caps
+    for item in read_catalog(getattr(provider, "extra", None), getattr(provider, "type", "")):
+        if str(item.get("id") or "") != wanted:
+            continue
+        subs = set(item.get("sub_capabilities") or [])
+        caps["vision"] = "vision" in subs
+        caps["tools"] = "tools" in subs
+        break
+    return caps
 
 
 def pack_sub_capability(name: str, capability: str, image_input_count: int) -> str:

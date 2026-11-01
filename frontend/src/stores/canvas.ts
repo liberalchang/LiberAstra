@@ -44,7 +44,8 @@ export function nextVarName(nodes: CanvasFlowNode[], prefix: string): string {
 /** 建点时的变量名前缀:输入按媒体类型,合成按产物类型,语音按模式,功能等选包后再定。 */
 function varPrefixFor(kind: CanvasNodeKind, mediaKind?: MediaKind): string | null {
   if (kind === "input") return `input_${mediaKind ?? "text"}`;
-  if (kind === "concat") return `output_${mediaKind === "audio" ? "audio" : "video"}`;
+  if (kind === "concat")
+    return `output_${mediaKind === "audio" ? "audio" : mediaKind === "image" ? "image" : "video"}`;
   if (kind === "speech") return "output_audio"; // 默认 tts;asr 由调用方改 mode 时一并改
   return null; // function: 选包后按 outputKind 分配
 }
@@ -78,7 +79,10 @@ interface CanvasState {
     kind: CanvasNodeKind,
     mediaKind: MediaKind | undefined,
     position: { x: number; y: number },
+    opts?: { select?: boolean },
   ) => CanvasFlowNode;
+  /** 删除节点并连带删除相连的边（Agent 与页面共用）。 */
+  deleteNodes: (ids: string[]) => void;
   updateNodeData: (id: string, patch: Record<string, unknown>) => void;
   /** 用服务端 node_runs / 实时 plan 合并节点执行状态 */
   applyRuns: (
@@ -334,23 +338,44 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
 
   setViewport: (viewport) => set({ viewport }),
 
-  addNode: (kind, mediaKind, position) => {
+  addNode: (kind, mediaKind, position, opts) => {
     record();
     const data = createDefaultNodeData(kind, mediaKind);
     const prefix = varPrefixFor(kind, mediaKind);
     if (prefix) data.varName = nextVarName(get().nodes, prefix);
+    const select = opts?.select !== false;
     const node: CanvasFlowNode = {
       id: newNodeId(kind),
       type: kind,
       position,
       data,
-      selected: true,
+      selected: select,
     };
     set({
-      nodes: [...get().nodes.map((n) => ({ ...n, selected: false })), node],
+      nodes: [
+        ...(select ? get().nodes.map((n) => ({ ...n, selected: false })) : get().nodes),
+        node,
+      ],
       dirty: true,
     });
     return node;
+  },
+
+  deleteNodes: (ids) => {
+    const remove = new Set(ids);
+    if (remove.size === 0) return;
+    record();
+    const edges = get().edges.filter((e) => !remove.has(e.source) && !remove.has(e.target));
+    const nodes = get()
+      .nodes.filter((n) => !remove.has(n.id))
+      .map((n) => {
+        if (n.data.kind !== "concat") return n;
+        const order = n.data.order.filter((id) => !remove.has(id));
+        return order.length === n.data.order.length
+          ? n
+          : ({ ...n, data: { ...n.data, order } } as CanvasFlowNode);
+      });
+    set({ nodes, edges, dirty: true });
   },
 
   updateNodeData: (id, patch) => {

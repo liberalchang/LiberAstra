@@ -126,7 +126,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
   const d = node.data;
   if (d.kind === "function") return d.pack || tx("功能节点");
-  if (d.kind === "concat") return d.mediaKind === "audio" ? tx("音频合成") : tx("视频合成");
+  if (d.kind === "concat")
+    return d.mediaKind === "audio"
+      ? tx("音频合成")
+      : d.mediaKind === "image"
+        ? tx("图片合成")
+        : tx("视频合成");
   if (d.kind === "speech") return d.mode === "tts" ? tx("文字转语音") : tx("语音转文字");
   const titles: Record<string, string> = {
     image: tx("图片输入"),
@@ -268,8 +273,7 @@ function OutputVarCard({ node }: { node: CanvasFlowNode }) {
   );
 }
 
-/** 操作区:唯一的执行入口——强制执行(本节点+父链全部忽略复用重跑)。
- * 「只重跑本节点」由画布的「执行选中」承担(选中节点必真跑,上游复用)。 */
+/** 操作区：默认只重跑本节点，上游能复用则复用；包含上游的强制重跑必须显式选择。 */
 function RunActions({
   node,
   canvasId,
@@ -304,13 +308,26 @@ function RunActions({
     return false;
   };
 
-  const runNode = async () => {
+  const runNode = async (forceUpstream: boolean) => {
     if (!preflight()) return;
     if (!(await onRequestSave())) return;
     setBusy(true);
     try {
-      // 后端强制本节点及整条父链(忽略指纹复用)
-      await api.rerunCanvasNode(canvasId, node.id);
+      const result = forceUpstream
+        ? await api.rerunCanvasNode(canvasId, node.id)
+        : await api.runCanvas(canvasId, {
+            node_ids: [node.id],
+            force_node_ids: [node.id],
+          });
+      useCanvasStore.getState().applyRuns(
+        [],
+        result.plan.map((item) => ({
+          node_id: item.node_id,
+          status: item.status,
+          job_id: item.job_id,
+          reused: item.reused,
+        })),
+      );
       useCanvasStore.getState().setRunActive(true);
     } catch (err) {
       onFlash(err instanceof Error ? err.message : tx("执行失败"), { sticky: true });
@@ -323,11 +340,21 @@ function RunActions({
       <Button
         className="h-9 w-full"
         disabled={busy}
-        onClick={() => void runNode()}
-        title={tx("强制重跑此节点及其全部上游（忽略复用缓存）")}
+        onClick={() => void runNode(false)}
+        title={tx("只重跑本节点，上游未变的部分自动复用")}
       >
         <Play className="size-4" />
-        {tx("强制执行")}
+        {tx("重新执行此节点")}
+      </Button>
+      <Button
+        variant="outline"
+        className="h-9 w-full"
+        disabled={busy}
+        onClick={() => void runNode(true)}
+        title={tx("强制重跑此节点及其全部上游（忽略复用缓存）")}
+      >
+        <Zap className="size-4" />
+        {tx("强制执行含上游")}
       </Button>
     </section>
   );
@@ -1100,6 +1127,65 @@ function ConcatInspector({ node }: { node: CanvasFlowNode }) {
 
   return (
     <section className="flex flex-col gap-2">
+      {d.mediaKind === "image" && (
+        <>
+          <SectionLabel>{tx("拼图布局")}</SectionLabel>
+          <Field label={tx("排列方式")}>
+            <select
+              className={selectClass}
+              value={d.layout ?? "horizontal"}
+              onChange={(e) =>
+                updateNodeData(node.id, {
+                  layout: e.target.value as "horizontal" | "vertical" | "grid",
+                })
+              }
+            >
+              <option value="horizontal">{tx("横排")}</option>
+              <option value="vertical">{tx("竖排")}</option>
+              <option value="grid">{tx("网格")}</option>
+            </select>
+          </Field>
+          {(d.layout ?? "horizontal") === "grid" && (
+            <Field label={tx("列数")}>
+              <Input
+                type="number"
+                min={1}
+                max={6}
+                value={d.columns ?? 2}
+                onChange={(e) =>
+                  updateNodeData(node.id, {
+                    columns: Math.max(1, Math.min(6, Number(e.target.value) || 2)),
+                  })
+                }
+              />
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={tx("间隔（像素）")}>
+              <Input
+                type="number"
+                min={0}
+                max={200}
+                value={d.gap ?? 4}
+                onChange={(e) =>
+                  updateNodeData(node.id, {
+                    gap: Math.max(0, Math.min(200, Number(e.target.value) || 0)),
+                  })
+                }
+              />
+            </Field>
+            <Field label={tx("间隔颜色")}>
+              <input
+                type="color"
+                className="h-9 w-full cursor-pointer rounded-lg border border-border bg-card p-1"
+                value={d.gapColor ?? "#FFFFFF"}
+                onChange={(e) => updateNodeData(node.id, { gapColor: e.target.value })}
+              />
+            </Field>
+          </div>
+          <hr className="border-border" />
+        </>
+      )}
       <SectionLabel>{tx("合成顺序")}</SectionLabel>
       <p className="text-xs text-muted-foreground">
         {tx("按此顺序把连接的输入拼成整段；连线时自动追加")}

@@ -645,8 +645,16 @@ async def _execute_concat(
     node_id = str(node["id"])
     data = node.get("data") or {}
     media_kind = str(data.get("mediaKind") or "video")
-    if media_kind not in ("audio", "video"):
-        raise ProviderError(f"合成节点只支持音频/视频: {media_kind}")
+    if media_kind not in ("image", "audio", "video"):
+        raise ProviderError(f"合成节点只支持图片/音频/视频: {media_kind}")
+    layout_params: dict[str, Any] = {}
+    if media_kind == "image":
+        layout_params = {
+            "layout": str(data.get("layout") or "horizontal"),
+            "columns": max(1, int(data.get("columns") or 2)),
+            "gap": max(0, int(data.get("gap") if data.get("gap") is not None else 4)),
+            "gap_color": str(data.get("gapColor") or "#FFFFFF"),
+        }
 
     incoming = _incoming_sources(graph, node_id)
     ordered = [str(x) for x in (data.get("order") or [])]
@@ -666,7 +674,9 @@ async def _execute_concat(
     if not asset_ids:
         raise ProviderError(f"合成节点没有可用的{media_kind}输入")
 
-    fingerprint = canonical_fingerprint({"kind": media_kind, "asset_ids": asset_ids})
+    fingerprint = canonical_fingerprint(
+        {"kind": media_kind, "asset_ids": asset_ids, **layout_params}
+    )
     reusable = (
         node_id not in force
         and row.status == "succeeded"
@@ -690,6 +700,7 @@ async def _execute_concat(
             "node_id": node_id,
             "asset_ids": asset_ids,
             "kind": media_kind,
+            **layout_params,
             **_canvas_labels(db, canvas_id, node),
         },
     )

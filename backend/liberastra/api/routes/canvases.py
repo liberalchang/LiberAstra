@@ -22,6 +22,12 @@ from liberastra.schemas.canvas import (
 )
 from liberastra.services import canvas_run
 from liberastra.services.canvas_graph import detect_cycle, resolve_scope
+from liberastra.services.canvas_menu import (
+    MENU_REVISION,
+    load_menu_items,
+    present_menu,
+    store_menu,
+)
 from liberastra.services.workflows import list_packs
 
 router = APIRouter(prefix="/canvases", tags=["canvases"])
@@ -186,74 +192,11 @@ def put_groups(body: dict[str, list[str]], user: CurrentUser, db: DbSession) -> 
     return cleaned
 
 
-MENU_SETTING_KEY = "canvas_custom_menu"
-# 出厂菜单结构变化时加 1。低于这个版本的存档会按当前出厂菜单重做图像和视频，语音保留。
-# 用户在当前版本里删掉的项不再补回。
-MENU_REVISION = 4
-
-
-def _decode_menu(raw: str) -> tuple[list[dict], int]:
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return [], 1
-    if isinstance(data, dict) and isinstance(data.get("items"), list):
-        items = [item for item in data["items"] if isinstance(item, dict)]
-        return items, int(data.get("revision") or 1)
-    if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict)], 1
-    return [], 1
-
-
-def _merge_factory_items(items: list[dict]) -> list[dict]:
-    """旧菜单的图像和视频按当前工作流功能整表换掉。语音保留用户已经指定的模型。"""
-    from liberastra.providers.catalog import default_canvas_menu
-
-    factory = default_canvas_menu()
-    speech = [dict(item) for item in items if item.get("category") == "speech"]
-    if not speech:
-        speech = [item for item in factory if item.get("category") == "speech"]
-    workflow = [item for item in factory if item.get("category") != "speech"]
-    return speech + workflow
-
-
-def _present_menu(items: list[dict]) -> list[dict]:
-    """响应里带上该能力的默认媒体槽，没绑到具体模型时前端仍能补前置节点。"""
-    from liberastra.providers.catalog import media_slots
-
-    presented = []
-    for item in items:
-        row = dict(item)
-        row["enabled"] = bool(item.get("enabled", True))
-        row["media_slots"] = media_slots(str(item.get("sub_capability") or ""))
-        presented.append(row)
-    return presented
-
-
-def _store_menu(db: DbSession, items: list[dict], revision: int) -> None:
-    payload = json.dumps({"revision": revision, "items": items}, ensure_ascii=False)
-    row = db.get(AppSetting, MENU_SETTING_KEY)
-    if row is None:
-        db.add(AppSetting(key=MENU_SETTING_KEY, value=payload))
-    else:
-        row.value = payload
-    db.commit()
-
-
 @router.get("/menu")
 def get_canvas_menu(user: CurrentUser, db: DbSession) -> list[dict]:
     """画布快捷菜单。没有保存过时返回出厂默认项；旧存档补上后来新增的出厂功能。"""
     del user
-    from liberastra.providers.catalog import default_canvas_menu
-
-    row = db.get(AppSetting, MENU_SETTING_KEY)
-    if row is None:
-        return _present_menu(default_canvas_menu())
-    items, revision = _decode_menu(row.value)
-    if revision < MENU_REVISION:
-        items = _merge_factory_items(items)
-        _store_menu(db, items, MENU_REVISION)
-    return _present_menu(items)
+    return present_menu(load_menu_items(db))
 
 
 @router.put("/menu")
@@ -268,8 +211,8 @@ def put_canvas_menu(body: list[dict], user: CurrentUser, db: DbSession) -> list[
     ids = [item["id"] for item in cleaned]
     if len(set(ids)) != len(ids):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="菜单项 id 重复")
-    _store_menu(db, cleaned, MENU_REVISION)
-    return _present_menu(cleaned)
+    store_menu(db, cleaned, MENU_REVISION)
+    return present_menu(cleaned)
 
 
 @router.get("/{canvas_id}", response_model=CanvasOut)

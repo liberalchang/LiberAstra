@@ -19,6 +19,7 @@ export function applyPackToNode(
   nodeId: string,
   pack: WorkflowPackOut,
   currentValues: Record<string, string>,
+  initialBindings: Record<string, string> = {},
 ): number {
   const store = useCanvasStore.getState();
   const outKind = outputKindOfCapability(pack.capability);
@@ -52,12 +53,14 @@ export function applyPackToNode(
           }),
       ),
       accel: hasAccel(pack.accel) ? defaultAccelState(pack.accel) : null,
+      ...(Object.keys(initialBindings).length ? { bindings: initialBindings } : {}),
     });
 
     const node = useCanvasStore.getState().nodes.find((n) => n.id === nodeId);
     if (!node) return;
-    Object.entries(pack.inputs).forEach(([, spec], index) => {
+    Object.entries(pack.inputs).forEach(([key, spec], index) => {
       if (!MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]) || !spec.required) return;
+      if (initialBindings[key]) return;
       const specKind = spec.type as MediaKind;
       const current = useCanvasStore.getState();
       // 上游已能提供该媒体类型即不补建——不止输入节点,功能节点的产物输出也算数

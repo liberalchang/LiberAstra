@@ -9,13 +9,13 @@ ARK_PRESETS = [
         "doubao-seed-1-6-251015",
         label="Seed 1.6",
         category="llm",
-        sub_capabilities=["chat", "vision"],
+        sub_capabilities=["chat", "vision", "tools"],
     ),
     model_item(
         "doubao-seed-1-6-flash-250828",
         label="Seed 1.6 Flash",
         category="llm",
-        sub_capabilities=["chat", "vision"],
+        sub_capabilities=["chat", "vision", "tools"],
         enabled=False,
     ),
     model_item(

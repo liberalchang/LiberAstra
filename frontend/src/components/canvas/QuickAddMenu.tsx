@@ -35,6 +35,7 @@ const IO_ITEMS: { kind: CanvasNodeKind; mediaKind?: MediaKind; icon: typeof Imag
   { kind: "input", mediaKind: "video", icon: Video, label: "视频输入" },
   { kind: "input", mediaKind: "audio", icon: AudioLines, label: "音频输入" },
   { kind: "input", mediaKind: "text", icon: FileText, label: "文本输入" },
+  { kind: "concat", mediaKind: "image", icon: ImageIcon, label: "图片合成" },
   { kind: "concat", mediaKind: "video", icon: Clapperboard, label: "视频合成" },
   { kind: "concat", mediaKind: "audio", icon: AudioLines, label: "音频合成" },
 ];

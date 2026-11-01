@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from liberastra.providers.base import ProviderError
+from liberastra.providers.llm.tool_stream import iter_openai_chat
 
 
 async def _json_request(
@@ -126,6 +127,28 @@ class OpenAICompatibleLLM:
         finally:
             if own_client:
                 await http.aclose()
+
+    async def chat_full(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **params: Any,
+    ) -> AsyncIterator[tuple[str, Any]]:
+        """流式对话，保留原生 tool_calls。产出 ("text", str) 和 ("done", calls)。"""
+        body: dict[str, Any] = {"model": model, "messages": messages, **params}
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+        async for event in iter_openai_chat(
+            self._client,
+            f"{self.base_url}/chat/completions",
+            self._headers(),
+            body,
+            timeout=self._timeout,
+        ):
+            yield event
 
     async def list_models(self) -> list[str]:
         data = await _json_request(

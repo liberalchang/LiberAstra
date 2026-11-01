@@ -30,6 +30,7 @@ build/
 # Node
 node_modules/
 frontend/dist/
+frontend/.vite/
 # tsc 落到源码旁的 .js。Vite 会优先加载它，从而盖住同名 .tsx
 frontend/src/**/*.js
 frontend/vite.config.js

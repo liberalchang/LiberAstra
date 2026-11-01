@@ -15,8 +15,8 @@ CLOUD_TYPES = (
     "aliyun_bailian",
 )
 
-_CHAT = ["chat"]
-_CHAT_VISION = ["chat", "vision"]
+_CHAT = ["chat", "tools"]
+_CHAT_VISION = ["chat", "vision", "tools"]
 
 
 def _llm(model_id: str, label: str, *, subs: list[str] | None = None, enabled: bool = True) -> dict:

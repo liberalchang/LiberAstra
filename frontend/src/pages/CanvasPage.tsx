@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Background,
   BackgroundVariant,
-  Controls,
   MiniMap,
   Panel,
   ReactFlow,
@@ -27,6 +26,8 @@ import { applyPackToNode } from "@/canvas/applyPack";
 import { layeredLayout } from "@/canvas/layout";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { CanvasBottomBar, type CanvasTool } from "@/components/canvas/CanvasBottomBar";
+import { CanvasNodeContextMenu } from "@/components/canvas/CanvasNodeContextMenu";
+import { DirectorPanel } from "@/components/director/DirectorPanel";
 import { CanvasDock } from "@/components/canvas/CanvasDock";
 import { CanvasFunctionMenu } from "@/components/canvas/CanvasFunctionMenu";
 import { canvasEdgeTypes } from "@/components/canvas/CanvasEdge";
@@ -65,7 +66,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   const colorMode = useColorMode();
   const store = useCanvasStore();
   const queryClient = useQueryClient();
-  const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, flowToScreenPosition, fitView, zoomIn, zoomOut } =
+    useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   // 信号色从主题 token 读取,明暗主题切换时重算(小地图/状态点共用)
   const signal = useMemo(() => {
@@ -82,6 +84,12 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     };
   }, [colorMode]);
   const [quickAdd, setQuickAdd] = useState<QuickAddState | null>(null);
+  const [nodeMenu, setNodeMenu] = useState<{
+    x: number;
+    y: number;
+    id: string;
+    label: string;
+  } | null>(null);
   const [functionOpen, setFunctionOpen] = useState(false);
   const [tool, setTool] = useState<CanvasTool>("hand");
   const [saving, setSaving] = useState(false);
@@ -454,6 +462,21 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           else if (rejected === "concat-kind") flash(tx("合成节点只接受同类型媒体"));
           else if (rejected === "input-no-inlet") flash(tx("输入节点不能接受连线"));
         }}
+        onNodeContextMenu={(event, node) => {
+          event.preventDefault();
+          const rect = wrapRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          setQuickAdd(null);
+          setNodeMenu({
+            x: Math.max(8, Math.min(event.clientX - rect.left, rect.width - 220)),
+            y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 120)),
+            id: node.id,
+            label:
+              String((node.data as { varName?: string }).varName || "").trim() ||
+              node.id,
+          });
+        }}
+        onPaneClick={() => setNodeMenu(null)}
         onConnectEnd={(event, connectionState) => {
           // 连线落空：在落点弹快速建点，选中后自动接上
           if (connectionState.isValid) return;
@@ -495,7 +518,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
                       : signal.idle;
           }}
         />
-        <Controls showInteractive={false} />
         <Panel position="top-left">
           <Button
             variant="outline"
@@ -524,6 +546,9 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           }}
           onMenu={() => setFunctionOpen((current) => !current)}
           onLayout={layout}
+          onZoomIn={() => void zoomIn({ duration: 160 })}
+          onZoomOut={() => void zoomOut({ duration: 160 })}
+          onFit={() => void fitView({ padding: 0.2, duration: 220 })}
         />
         {store.nodes.length === 0 && !quickAdd && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -560,6 +585,23 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           />
         )}
       </ReactFlow>
+      {nodeMenu && (
+        <CanvasNodeContextMenu
+          x={nodeMenu.x}
+          y={nodeMenu.y}
+          label={nodeMenu.label}
+          onAddToDirector={() => {
+            useCanvasUiStore.getState().requestDirectorRef(nodeMenu.id);
+            setNodeMenu(null);
+          }}
+          onDelete={() => {
+            store.deleteNodes([nodeMenu.id]);
+            setNodeMenu(null);
+          }}
+          onClose={() => setNodeMenu(null)}
+        />
+      )}
+      <DirectorPanel canvasId={canvasId} onFlash={flash} />
       <NodeInspector
         node={selectedNode}
         canvasId={canvasId}

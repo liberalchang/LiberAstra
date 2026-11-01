@@ -1,7 +1,18 @@
 /** 画布底部工具栏（LibTv 风格）：添加节点 / 抓手-选择模式切换 / 整理 / 撤销重做。
  * 放在 bottom-center 悬浮 pill 里,让「怎么加节点、怎么移动画布」一眼可见。
  */
-import { Hand, LayoutGrid, Menu, MousePointer2, Plus, Redo2, Undo2 } from "lucide-react";
+import {
+  Hand,
+  LayoutGrid,
+  Maximize,
+  Menu,
+  MousePointer2,
+  Plus,
+  Redo2,
+  Undo2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { Panel } from "@xyflow/react";
 
 import { useTx } from "@/i18n/tx";
@@ -16,12 +27,18 @@ export function CanvasBottomBar({
   onAdd,
   onMenu,
   onLayout,
+  onZoomIn,
+  onZoomOut,
+  onFit,
 }: {
   tool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
   onAdd: (anchor: HTMLElement) => void;
   onMenu: () => void;
   onLayout: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFit: () => void;
 }) {
   const tx = useTx();
   const canUndo = useCanvasStore((s) => s.canUndo);
@@ -72,6 +89,16 @@ export function CanvasBottomBar({
       <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
       <button type="button" className={btn} title={tx("整理画布：按依赖分层自动排列")} aria-label={tx("整理画布")} onClick={onLayout}>
         <LayoutGrid className="size-4" />
+      </button>
+      <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+      <button type="button" className={btn} title={tx("缩小")} aria-label={tx("缩小")} onClick={onZoomOut}>
+        <ZoomOut className="size-4" />
+      </button>
+      <button type="button" className={btn} title={tx("放大")} aria-label={tx("放大")} onClick={onZoomIn}>
+        <ZoomIn className="size-4" />
+      </button>
+      <button type="button" className={btn} title={tx("适应视图")} aria-label={tx("适应视图")} onClick={onFit}>
+        <Maximize className="size-4" />
       </button>
     </Panel>
   );

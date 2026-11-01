@@ -15,13 +15,21 @@ _MIME_BY_EXT = {
     ".wav": "audio/wav",
     ".ogg": "audio/ogg",
     ".opus": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".flac": "audio/flac",
     ".srt": "application/x-subrip",
     ".vtt": "text/vtt",
     ".txt": "text/plain",
     ".json": "application/json",
     ".png": "image/png",
     ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
     ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".mkv": "video/x-matroska",
 }
 
 

@@ -7,7 +7,8 @@ import type { Edge, Node } from "@xyflow/react";
 
 export type MediaKind = "image" | "video" | "audio" | "text" | "character";
 export type CanvasNodeKind = "input" | "function" | "concat" | "speech";
-export type ConcatMediaKind = "audio" | "video";
+export type ConcatMediaKind = "image" | "audio" | "video";
+export type ImageConcatLayout = "horizontal" | "vertical" | "grid";
 export type SpeechMode = "tts" | "asr";
 
 export type NodeRunStatus =
@@ -102,6 +103,14 @@ export interface ConcatNodeData extends Record<string, unknown> {
   mediaKind: ConcatMediaKind;
   /** 上游节点 id 的合成顺序（连线时自动同步，属性面板可手调） */
   order: string[];
+  /** 图片合成布局：横排 / 竖排 / 网格 */
+  layout?: ImageConcatLayout;
+  /** 网格列数 */
+  columns?: number;
+  /** 图片间隔像素，默认 4 */
+  gap?: number;
+  /** 间隔颜色，默认 #FFFFFF */
+  gapColor?: string;
   /** 输出变量名;默认 output_{类型}_{n} */
   varName?: string;
   run: NodeRunState;
@@ -159,8 +168,13 @@ export function createDefaultNodeData(
   if (kind === "concat") {
     return {
       kind: "concat",
-      mediaKind: mediaKind === "audio" ? "audio" : "video",
+      mediaKind:
+        mediaKind === "audio" || mediaKind === "image" ? mediaKind : "video",
       order: [],
+      layout: "horizontal",
+      columns: 2,
+      gap: 4,
+      gapColor: "#FFFFFF",
       run: idleRun(),
     };
   }
@@ -223,10 +237,20 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
     };
   }
   if (kind === "concat") {
+    const layout =
+      data.layout === "vertical" || data.layout === "grid" ? data.layout : "horizontal";
     return {
       kind: "concat",
-      mediaKind: data.mediaKind === "audio" ? "audio" : "video",
+      mediaKind:
+        data.mediaKind === "audio" || data.mediaKind === "image" ? data.mediaKind : "video",
       order: Array.isArray(data.order) ? data.order.map(String) : [],
+      layout,
+      columns:
+        Number.isFinite(Number(data.columns)) && Number(data.columns) > 0
+          ? Number(data.columns)
+          : 2,
+      gap: Number.isFinite(Number(data.gap)) ? Math.max(0, Number(data.gap)) : 4,
+      gapColor: typeof data.gapColor === "string" ? data.gapColor : "#FFFFFF",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
     };

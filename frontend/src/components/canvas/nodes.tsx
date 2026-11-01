@@ -454,7 +454,12 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
   const d = data as ConcatNodeData;
   const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const nodes = useCanvasStore((s) => s.nodes);
-  const title = d.mediaKind === "audio" ? tx("音频合成") : tx("视频合成");
+  const title =
+    d.mediaKind === "audio"
+      ? tx("音频合成")
+      : d.mediaKind === "image"
+        ? tx("图片合成")
+        : tx("视频合成");
   return (
     <>
       <Handle type="target" position={Position.Left} id={`in-${id}`} className={handleClass} />

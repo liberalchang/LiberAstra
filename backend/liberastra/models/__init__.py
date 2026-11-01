@@ -15,6 +15,7 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+from liberastra.models.agent import AgentMessage, AgentSession, AgentSkill  # noqa: E402
 from liberastra.models.asset import Asset  # noqa: E402
 from liberastra.models.canvas import Canvas, CanvasNodeRun  # noqa: E402
 from liberastra.models.character import Character  # noqa: E402
@@ -26,6 +27,9 @@ from liberastra.models.user import User  # noqa: E402
 from liberastra.models.voice import Voice  # noqa: E402
 
 __all__ = [
+    "AgentMessage",
+    "AgentSession",
+    "AgentSkill",
     "ApiToken",
     "AppSetting",
     "Asset",
