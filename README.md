@@ -51,6 +51,12 @@ Windows：下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAst
 
 https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
+![画布](docs/images/canvas.webp)
+
+画布导演台演示：
+
+https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
+
 ## 和谁不同
 
 下面只区分职责，没有速度或画质对比。
@@ -107,12 +113,6 @@ https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 - **执行**：选中节点则重跑选中项、上游未变则复用；未选中时确认后整张画布强制重跑。右侧可强制重跑当前节点及其上游。
 - **结果**：功能、语音、合成节点的产物默认是中间结果，在预览上保存后进入资源库。资产页可勾选「含画布中间结果」查看未发布文件。输入节点上传的文件会直接进入资产库。
 - **变量**：文本用 `{{变量名}}` 引用，`/` 可插入已连接节点；媒体标签如 `<Picture 1>` 原样交给工作流。图片输入可标记、涂蒙版、裁剪，并保留版本。
-
-![画布](docs/images/canvas.webp)
-
-导演台演示：
-
-https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 
 ### 图像生成
 
@@ -321,6 +321,12 @@ Feature walkthrough, about 6 minutes:
 
 https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
+![Canvas](docs/images/canvas.webp)
+
+Canvas director demo:
+
+https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
+
 ### How it differs
 
 Roles only. There is no speed or quality benchmark.
@@ -360,12 +366,6 @@ Prompt fields share one control: raw and optimized drafts, scene presets, and an
 **Home.** Pick image, video, or speech and start from one line.
 
 **Canvas.** Workspace → Canvas. Connect inputs, workflow packs, speech, and concat, then run the graph. Groups are maintained under Settings → Workflow Packs. Unchanged upstream nodes are reused. Save a preview into the asset library when you want to keep it. Text references use `{{variable}}`; media tags such as `<Picture 1>` pass through to the workflow.
-
-![Canvas](docs/images/canvas.webp)
-
-Director demo:
-
-https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 
 **Images.** Text-to-image, including Qwen-Image 2.1 packs and classic checkpoints, plus online image APIs. Edit: full frame, up to four references, or inpaint with a mask. Upscale uses an upscale model.
 
