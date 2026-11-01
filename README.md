@@ -110,6 +110,10 @@ https://github.com/user-attachments/assets/7d134651-f796-43b1-8c5a-3a038228ca9d
 
 ![画布](docs/images/canvas.webp)
 
+导演台演示：
+
+https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
+
 ### 图像生成
 
 - **文生图**：选图像服务与 `t2i` 工作流包。内置 Qwen-Image 2.1（官方 / 越狱）与传统 checkpoint 包。参数区可换 UNET、文本编码器、VAE；越狱包可开关 Uncensored LoRA。也支持在线图像 API。
@@ -358,6 +362,10 @@ Prompt fields share one control: raw and optimized drafts, scene presets, and an
 **Canvas.** Workspace → Canvas. Connect inputs, workflow packs, speech, and concat, then run the graph. Groups are maintained under Settings → Workflow Packs. Unchanged upstream nodes are reused. Save a preview into the asset library when you want to keep it. Text references use `{{variable}}`; media tags such as `<Picture 1>` pass through to the workflow.
 
 ![Canvas](docs/images/canvas.webp)
+
+Director demo:
+
+https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 
 **Images.** Text-to-image, including Qwen-Image 2.1 packs and classic checkpoints, plus online image APIs. Edit: full frame, up to four references, or inpaint with a mask. Upscale uses an upscale model.
 
