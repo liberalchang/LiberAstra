@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Trash2, UsersRound, X } from "lucide-react";
+import { Trash2, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, type CharacterOut } from "@/api/client";
+import { CharacterViewer, presentSlots, useSlotUrls } from "@/components/CharacterViewer";
 import { PageHeader } from "@/components/PageShell";
 import { PromptField, emptyPromptValue, resolveEffectivePrompt, type PromptFieldValue } from "@/components/PromptField";
 import { Button, submitButtonClass } from "@/components/ui/button";
@@ -10,128 +11,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, areaClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
-import { LightboxShell } from "@/components/ui/lightbox";
 import { Segmented } from "@/components/ui/segmented";
 import { useTrackedJob } from "@/hooks/useJob";
 import { useTx } from "@/i18n/tx";
+import { viewLabel, type CharacterView } from "@/lib/characterPrompt";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
-
-const SLOTS = [
-  ["portrait", "面部特写"],
-  ["front", "正面全身"],
-  ["side", "侧面全身"],
-  ["back", "背面全身"],
-  ["turnaround", "定妆照"],
-] as const;
-
-type SlotKey = (typeof SLOTS)[number][0];
-
-function presentSlots(character: CharacterOut): SlotKey[] {
-  return SLOTS.filter(([slot]) => character[`${slot}_path`]).map(([slot]) => slot);
-}
-
-function useSlotUrls(id: number, slots: SlotKey[]) {
-  const [urls, setUrls] = useState<Partial<Record<SlotKey, string>>>({});
-  const key = slots.join(",");
-  useEffect(() => {
-    let active = true;
-    const created: string[] = [];
-    setUrls({});
-    for (const slot of key.split(",").filter(Boolean) as SlotKey[]) {
-      api.characterImage(id, slot).then((blob) => {
-        if (!active) return;
-        const objectUrl = URL.createObjectURL(blob);
-        created.push(objectUrl);
-        setUrls((prev) => ({ ...prev, [slot]: objectUrl }));
-      }).catch(() => undefined);
-    }
-    return () => {
-      active = false;
-      created.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
-    };
-  }, [id, key]);
-  return urls;
-}
-
-function CharacterViewer({
-  name,
-  slots,
-  urls,
-  current,
-  onChange,
-  onClose,
-}: {
-  name: string;
-  slots: { key: SlotKey; label: string }[];
-  urls: Partial<Record<SlotKey, string>>;
-  current: SlotKey;
-  onChange: (slot: SlotKey) => void;
-  onClose: () => void;
-}) {
-  const tx = useTx();
-  // 左右方向键切换槽位；Esc/滚动锁/焦点管理由 LightboxShell 负责
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const index = slots.findIndex((slot) => slot.key === current);
-      if (event.key === "ArrowLeft" && index > 0) onChange(slots[index - 1].key);
-      if (event.key === "ArrowRight" && index >= 0 && index < slots.length - 1) onChange(slots[index + 1].key);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [current, onChange, slots]);
-
-  const label = slots.find((slot) => slot.key === current)?.label ?? "";
-  const index = slots.findIndex((slot) => slot.key === current);
-  return (
-    <LightboxShell onClose={onClose} ariaLabel={tx("{name} · {label}", { name, label })}>
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name}</p>
-            <p className="text-xs text-muted-foreground">{label}</p>
-          </div>
-          <Button variant="outline" size="icon" className="rounded-full" onClick={onClose} title={tx("关闭 (Esc)")} aria-label={tx("关闭 (Esc)")}>
-            <X />
-          </Button>
-        </div>
-        <div className="grid min-h-64 flex-1 place-items-center bg-black/90">
-          {urls[current] ? (
-            <img src={urls[current]} alt={label} className="max-h-[72vh] w-full object-contain" />
-          ) : null}
-        </div>
-        <div className="flex items-center justify-center gap-2 px-4 py-3">
-          <Button variant="ghost" size="icon" disabled={index <= 0} onClick={() => onChange(slots[index - 1].key)} aria-label={tx("上一张")}>
-            <ChevronLeft />
-          </Button>
-          {slots.map((slot) => (
-            <button
-              key={slot.key}
-              type="button"
-              onClick={() => onChange(slot.key)}
-              className={`rounded-md px-2.5 py-1 text-xs ${slot.key === current ? "bg-muted font-medium" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {slot.label}
-            </button>
-          ))}
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={index < 0 || index >= slots.length - 1}
-            onClick={() => onChange(slots[index + 1].key)}
-            aria-label={tx("下一张")}
-          >
-            <ChevronRight />
-          </Button>
-        </div>
-    </LightboxShell>
-  );
-}
 
 function CharacterCard({ character, onDelete }: { character: CharacterOut; onDelete: () => void }) {
   const tx = useTx();
   const slots = presentSlots(character);
   const urls = useSlotUrls(character.id, slots);
-  const [viewing, setViewing] = useState<SlotKey | null>(null);
-  const labels = SLOTS.filter(([slot]) => slots.includes(slot)).map(([slot, label]) => ({ key: slot, label: tx(label) }));
+  const [viewing, setViewing] = useState<CharacterView | null>(null);
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
@@ -144,17 +34,17 @@ function CharacterCard({ character, onDelete }: { character: CharacterOut; onDel
         </Button>
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {labels.map((slot) =>
-          urls[slot.key] ? (
+        {slots.map((slot) =>
+          urls[slot] ? (
             <button
-              key={slot.key}
+              key={slot}
               type="button"
-              onClick={() => setViewing(slot.key)}
+              onClick={() => setViewing(slot)}
               className="flex flex-col gap-1 rounded-md text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
               title={tx("点击查看大图")}
             >
-              <img src={urls[slot.key]} alt={slot.label} className="h-28 w-full rounded-md object-contain bg-black/20" />
-              <span className="text-center text-xs text-muted-foreground">{slot.label}</span>
+              <img src={urls[slot]} alt={tx(viewLabel(slot))} className="h-28 w-full rounded-md object-contain bg-black/20" />
+              <span className="text-center text-xs text-muted-foreground">{tx(viewLabel(slot))}</span>
             </button>
           ) : null,
         )}
@@ -162,7 +52,7 @@ function CharacterCard({ character, onDelete }: { character: CharacterOut; onDel
       {viewing && (
         <CharacterViewer
           name={character.name}
-          slots={labels}
+          slots={slots}
           urls={urls}
           current={viewing}
           onChange={setViewing}

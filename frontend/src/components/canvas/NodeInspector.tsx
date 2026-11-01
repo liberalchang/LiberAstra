@@ -16,6 +16,7 @@ import {
   Mic,
   Play,
   Upload,
+  UsersRound,
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -371,6 +372,8 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [depthError, setDepthError] = useState<string | null>(null);
+  const [characterPickerOpen, setCharacterPickerOpen] = useState(false);
+  const [characterError, setCharacterError] = useState<string | null>(null);
   const pluginQuery = useQuery({
     queryKey: ["plugins"],
     queryFn: api.listPlugins,
@@ -502,6 +505,26 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
       maskAssetId: v.maskAssetId ?? null,
     });
 
+  const pickCharacterView = async (picked: {
+    characterId: number;
+    characterSlot: string;
+    characterName: string;
+  }) => {
+    setCharacterError(null);
+    try {
+      const asset = await api.registerCharacterAsset(picked.characterId, picked.characterSlot);
+      updateNodeData(node.id, {
+        assetId: asset.id,
+        assetName: `${picked.characterName} · ${tx(viewLabel(picked.characterSlot))}`,
+        maskAssetId: null,
+        versions: [{ assetId: asset.id, label: tx("原始"), maskAssetId: null }],
+      });
+      setCharacterPickerOpen(false);
+    } catch (err) {
+      setCharacterError(err instanceof Error ? err.message : tx("选择角色失败"));
+    }
+  };
+
   return (
     <section className="flex flex-col gap-2">
       <SectionLabel>{tx("文件")}</SectionLabel>
@@ -552,8 +575,20 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
           </Button>
         )}
       </div>
+      {kind === "image" && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => setCharacterPickerOpen(true)}
+        >
+          <UsersRound className="size-4" />
+          {tx("从角色库选择定妆照或视角")}
+        </Button>
+      )}
       {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
       {depthError && <p className="text-xs text-destructive">{depthError}</p>}
+      {characterError && <p className="text-xs text-destructive">{characterError}</p>}
       {kind === "image" && d.maskAssetId && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2 py-1.5">
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
@@ -618,6 +653,14 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
         }}
       />
       {pickerOpen && <AssetPicker kind={kind} onPick={onPick} onClose={() => setPickerOpen(false)} />}
+      {characterPickerOpen && (
+        <CharacterInputPicker
+          characterId={null}
+          slot="front"
+          onClose={() => setCharacterPickerOpen(false)}
+          onConfirm={(picked) => void pickCharacterView(picked)}
+        />
+      )}
       {editorOpen && d.assetId && (
         <ImagePaintEditor
           assetId={d.assetId}
@@ -679,8 +722,15 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
         const mediaKind = spec.type as MediaKind;
         const options = sources.filter((s) => nodeOutputKind(s) === mediaKind);
         const bound = d.bindings?.[key] ?? "";
+        const boundNode = bound
+          ? nodes.find((item) => String(item.data.varName ?? "") === bound)
+          : undefined;
+        const boundUpstream = Boolean(boundNode && sources.some((s) => s.id === boundNode.id));
         // 只有一个可用变量且未绑定时自动选中(与执行时的自动映射一致)
         const effective = bound || (options.length === 1 ? (options[0].data.varName ?? "") : "");
+        const value = options.some((s) => (s.data.varName ?? "") === effective)
+          ? effective
+          : "";
         return (
           <Field
             key={key}
@@ -690,7 +740,7 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
             <select
               className={selectClass}
               aria-label={spec.label ?? key}
-              value={effective}
+              value={value}
               onChange={(e) =>
                 updateNodeData(node.id, { bindings: { ...(d.bindings ?? {}), [key]: e.target.value } })
               }
@@ -714,6 +764,29 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
                 </>
               )}
             </select>
+            {bound && !boundUpstream && (
+              <p className="text-[11px] leading-relaxed text-warning">
+                {tx("已绑定 {name}，但它还不是上游节点。", { name: bound })}{" "}
+                {boundNode ? (
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-foreground"
+                    onClick={() =>
+                      useCanvasStore.getState().onConnect({
+                        source: boundNode.id,
+                        target: node.id,
+                        sourceHandle: `out-${boundNode.id}`,
+                        targetHandle: `in-${node.id}`,
+                      })
+                    }
+                  >
+                    {tx("补齐连线")}
+                  </button>
+                ) : (
+                  tx("这个变量不存在，请重新选择。")
+                )}
+              </p>
+            )}
           </Field>
         );
       })}

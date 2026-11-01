@@ -9,6 +9,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from liberastra.core.db import SessionLocal
+from liberastra.models import Asset, CanvasNodeRun
 from liberastra.providers.base import ProviderError
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
@@ -19,7 +21,12 @@ from liberastra.services.canvas_graph import (
     topo_order,
     translate_prompt_slots,
 )
-from liberastra.services.canvas_run import _canvas_soundtrack, _family_tokens, _image_keys_to_fill
+from liberastra.services.canvas_run import (
+    _canvas_soundtrack,
+    _family_tokens,
+    _image_keys_to_fill,
+    _resolve_function_inputs,
+)
 from liberastra.services.workflows import get_pack
 
 
@@ -320,6 +327,96 @@ def test_rename_asset(client: TestClient, auth_header: dict[str, str]) -> None:
     cleared = client.patch(f"/api/v1/assets/{asset_id}", json={"name": "  "}, headers=auth_header)
     assert cleared.status_code == 200, cleared.text
     assert "name" not in (cleared.json()["meta"] or {})
+
+
+def _binding_function_graph(binding: str, *, edge: bool) -> dict:
+    return _graph(
+        [
+            {
+                "id": "img",
+                "type": "input",
+                "position": {"x": 0, "y": 0},
+                "data": {
+                    "kind": "input",
+                    "mediaKind": "image",
+                    "varName": "input_image_ref",
+                    "assetId": 1,
+                },
+            },
+            {
+                "id": "fn",
+                "type": "function",
+                "position": {"x": 320, "y": 0},
+                "data": {
+                    "kind": "function",
+                    "pack": "qwen_image_21_edit_uncensored",
+                    "prompt": "把背景换成海边",
+                    "bindings": {"image": binding},
+                },
+            },
+        ],
+        [_edge("img", "fn")] if edge else [],
+    )
+
+
+def _uploaded_image(client: TestClient, auth_header: dict[str, str]) -> int:
+    resp = client.post(
+        "/api/v1/uploads?as_asset=true&kind=image",
+        files={"file": ("ref.png", b"\x89PNG\r\n\x1a\nfake", "image/png")},
+        headers=auth_header,
+    )
+    assert resp.status_code == 201, resp.text
+    return int(resp.json()["asset_id"])
+
+
+def test_binding_requires_direct_upstream(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    asset_id = _uploaded_image(client, auth_header)
+    graph = _binding_function_graph("input_image_ref", edge=False)
+    fn = next(node for node in graph["nodes"] if node["id"] == "fn")
+    runs = {
+        "img": CanvasNodeRun(
+            canvas_id="test", node_id="img", status="succeeded", asset_ids=[asset_id]
+        )
+    }
+    with SessionLocal() as db, pytest.raises(ProviderError, match="不是当前节点的上游"):
+        _resolve_function_inputs(db, graph, fn, runs, {})
+
+
+def test_binding_uses_direct_upstream_asset(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    asset_id = _uploaded_image(client, auth_header)
+    graph = _binding_function_graph("input_image_ref", edge=True)
+    fn = next(node for node in graph["nodes"] if node["id"] == "fn")
+    runs = {
+        "img": CanvasNodeRun(
+            canvas_id="test", node_id="img", status="succeeded", asset_ids=[asset_id]
+        )
+    }
+    with SessionLocal() as db:
+        asset = db.get(Asset, asset_id)
+        assert asset is not None
+        _pack, inputs, _fingerprint, _soundtrack = _resolve_function_inputs(
+            db, graph, fn, runs, {}
+        )
+        assert inputs["image"] == asset.path
+
+
+def test_binding_missing_variable_fails(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    asset_id = _uploaded_image(client, auth_header)
+    graph = _binding_function_graph("input_image_ghost", edge=True)
+    fn = next(node for node in graph["nodes"] if node["id"] == "fn")
+    runs = {
+        "img": CanvasNodeRun(
+            canvas_id="test", node_id="img", status="succeeded", asset_ids=[asset_id]
+        )
+    }
+    with SessionLocal() as db, pytest.raises(ProviderError, match="不存在"):
+        _resolve_function_inputs(db, graph, fn, runs, {})
 
 
 def test_run_text_only_chain(client: TestClient, auth_header: dict[str, str]) -> None:

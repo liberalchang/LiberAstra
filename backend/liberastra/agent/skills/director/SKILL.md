@@ -90,6 +90,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 2. `canvas_apply_menu` 套用菜单，让它解析到已启用工作流或支持模型。
 3. 没有合适菜单时 `list_workflows` + `canvas_apply_pack`；仍没有目标就问用户，不要猜包。
 4. 用 `canvas_get_node_schema` 读目标参数规格，写 prompt、变量名和 `bindings`。
+5. `bindings` 只决定多个上游如何填槽，媒体依赖仍必须有真实连线。`canvas_apply_menu` / `canvas_apply_pack` 会自动补边；返回的 `created_edges` 应包含参考变量。`missing_bindings` 非空时先 `canvas_connect` 补线，再继续。
 
 提交生成前先列出将执行的节点和数量。生成类工具会进入安全确认，不要自行绕过。
 
@@ -116,7 +117,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 3. 按分镜剧本估算时长：中文约 4 字/秒，英文约 2.5 词/秒，最短 3 秒。先列表给用户确认。
 4. 读目标规格：本地包常用 `length` 帧数，按 `fps`、`min`、`max`、`align_base`、`align_offset` 对齐；云端模型常用 `duration` 秒。不要写死参数名。
 5. 建 `output_video_<分镜>`：
-   - 套用菜单时就把首帧变量写进 `canvas_apply_menu` 的 `bindings`（键名以目标 inputs 为准，通常是 `image` 或 `first_frame`），并把视频提示词写进 `data.prompt`；这样不会自动补建空图片/文本输入节点；
+   - 套用菜单时把首帧变量写进 `canvas_apply_menu` 的 `bindings`（键名以目标 inputs 为准，通常是 `image` 或 `first_frame`），并把视频提示词写进 `data.prompt`；工具会自动补上游连线，检查返回的 `created_edges` / `missing_bindings`；
    - 目标只有一个图片槽：只绑首帧，尾帧不连；如果用户之前选了首尾帧，明确告诉用户尾帧不会用于这条视频，只保留在画布上；
    - 目标有两个图片槽：才绑首帧 + 尾帧，`bindings` 里同时给 `first_frame`/`last_frame`；
    - 先 `canvas_get_node_schema` 读完整 `values`，改时长后再整份写回。
@@ -141,6 +142,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
    - `bindings: {image: 合成图变量}`（槽名以目标 inputs 为准）；
    - `data.prompt: "{{input_text_group_<组号>}}"`，引用组文本，不要内联复制正文；
    - 时长设为该组总秒数并按目标规格对齐。
+   套用后确认 `created_edges` 包含合成图变量；缺边用 `canvas_connect` 补上。
 8. 确认后逐段执行；可选最后加视频合成节点。
 9. 把 `video.shots_per_composite` 和 `video.groups` 写入会话状态。
 
@@ -169,5 +171,5 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - 参考图首帧模式只有一行，第 i 张对应分镜 i；首尾帧模式才是 2 行 N 列，先连首帧再连尾帧。
 - 不要自动整理画布；整理会按依赖分层，视频节点可能混进分镜图。
 - 改 `values` 前先 `canvas_get_node_schema` 读完整值，整份写回，不要只传要改的键。
-- 套用菜单后如果自动补建了空文本输入节点，先把提示词写进这些输入节点，再把功能节点 `prompt` 改成 `{{变量名}}`；否则预检会报“文本输入为空”。
+- `bindings` 只决定槽位，不替代上游依赖；套用菜单或 `canvas_set_binding` 后检查 `created_edges` / `missing_bindings`，缺边用 `canvas_connect` 补上，否则预检会报“不是上游节点”。
 - 参考图模式的视频节点 `prompt` 必须用 `{{input_text_group_<组号>}}` 引用组文本，不要把正文内联复制；否则改组文本不会生效。

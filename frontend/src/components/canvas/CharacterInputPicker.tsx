@@ -73,34 +73,49 @@ export function CharacterInputPicker({
 
   return (
     <LightboxShell onClose={onClose} ariaLabel={tx("选择角色")} className="max-w-lg">
-      <div className="flex flex-col gap-4 p-4">
-        <h2 className="text-base font-medium">{tx("选择角色")}</h2>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="text-base font-medium">{tx("选择角色")}</h2>
+        </div>
         {!characters?.length ? (
-          <div className="flex flex-col gap-3 text-sm text-muted-foreground">
-            <p>{tx("角色库还是空的。")}</p>
-            <Link to="/video/characters" className="text-primary underline-offset-4 hover:underline" onClick={onClose}>
-              {tx("去角色库创建")}
-            </Link>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex flex-col gap-3 text-sm text-muted-foreground">
+              <p>{tx("角色库还是空的。")}</p>
+              <Link to="/video/characters" className="text-primary underline-offset-4 hover:underline" onClick={onClose}>
+                {tx("去角色库创建")}
+              </Link>
+            </div>
           </div>
         ) : (
           <>
-            <div className="flex max-h-40 flex-col gap-1 overflow-auto">
-              {characters.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-left text-sm",
-                    item.id === pickedId ? "border-primary/40 bg-primary/10" : "border-border",
-                  )}
-                  onClick={() => setPickedId(item.id)}
-                >
-                  {item.name}
-                </button>
-              ))}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex max-h-40 flex-col gap-1 overflow-auto">
+                  {characters.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left text-sm",
+                        item.id === pickedId ? "border-primary/40 bg-primary/10" : "border-border",
+                      )}
+                      onClick={() => setPickedId(item.id)}
+                    >
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+                {current && (
+                  <ViewTiles
+                    character={current}
+                    slot={pickedSlot}
+                    thumbs={thumbs}
+                    onPick={setPickedSlot}
+                  />
+                )}
+              </div>
             </div>
-            {current && <ViewTiles character={current} slot={pickedSlot} thumbs={thumbs} onPick={setPickedSlot} />}
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
               <Button variant="outline" onClick={onClose}>
                 {tx("取消")}
               </Button>
@@ -135,6 +150,7 @@ function ViewTiles({
     <div className="grid grid-cols-2 gap-2">
       {CHARACTER_VIEWS.map(([key, label]) => {
         const ready = hasView(character, key);
+        const wide = key === "turnaround";
         return (
           <button
             key={key}
@@ -142,16 +158,28 @@ function ViewTiles({
             disabled={!ready}
             className={cn(
               "overflow-hidden rounded-lg border text-left text-xs",
-              key === "turnaround" && "col-span-2",
+              wide && "col-span-2",
               slot === key ? "border-primary/40 bg-primary/10" : "border-border",
               !ready && "opacity-60",
             )}
             onClick={() => onPick(key)}
           >
             {thumbs[key] ? (
-              <img src={thumbs[key]} alt="" className="aspect-video w-full object-cover" />
+              <img
+                src={thumbs[key]}
+                alt=""
+                className={cn(
+                  "w-full bg-black/20 object-contain",
+                  wide ? "aspect-[16/9]" : "aspect-[3/4]",
+                )}
+              />
             ) : (
-              <div className="grid aspect-video place-items-center bg-muted/40 text-muted-foreground">
+              <div
+                className={cn(
+                  "grid place-items-center bg-muted/40 text-muted-foreground",
+                  wide ? "aspect-[16/9]" : "aspect-[3/4]",
+                )}
+              >
                 {ready ? tx("加载中") : tx("尚未生成")}
               </div>
             )}

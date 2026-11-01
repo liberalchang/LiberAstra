@@ -30,9 +30,11 @@ import type {
   NodeRunStatus,
   SpeechNodeData,
 } from "@/canvas/types";
+import { CharacterViewer, presentSlots, useSlotUrls } from "@/components/CharacterViewer";
 import { MediaThumb } from "@/components/MediaLightbox";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { useTx } from "@/i18n/tx";
+import type { CharacterView } from "@/lib/characterPrompt";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/stores/canvas";
 
@@ -293,11 +295,42 @@ function PlusHandle({ nodeId, id }: { nodeId: string; id: string }) {
   );
 }
 
+const CHARACTER_VIEW_KEYS = new Set<CharacterView>([
+  "portrait",
+  "front",
+  "side",
+  "back",
+  "turnaround",
+]);
+
 /** 角色节点展示所选视角的图片，不把角色名和视角写成正文。 */
-function CharacterSlotPreview({ characterId, slot }: { characterId: number; slot: string }) {
+function CharacterSlotPreview({
+  characterId,
+  slot,
+  name,
+}: {
+  characterId: number;
+  slot: string;
+  name?: string;
+}) {
   const tx = useTx();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [viewing, setViewing] = useState(false);
+  const initialSlot: CharacterView = CHARACTER_VIEW_KEYS.has(slot as CharacterView)
+    ? (slot as CharacterView)
+    : "front";
+  const [currentSlot, setCurrentSlot] = useState<CharacterView>(initialSlot);
+  const characters = useQuery({
+    queryKey: ["characters"],
+    queryFn: api.listCharacters,
+    enabled: viewing,
+  });
+  const character = characters.data?.find((item) => item.id === characterId);
+  const available = character ? presentSlots(character) : [];
+  const slots = available.length ? available : [initialSlot];
+  const urls = useSlotUrls(characterId, slots);
+
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
@@ -319,13 +352,37 @@ function CharacterSlotPreview({ characterId, slot }: { characterId: number; slot
     };
   }, [characterId, slot]);
 
-  if (url) {
-    return <img src={url} alt="" className="h-24 w-full rounded-lg bg-muted/40 object-contain" />;
+  if (!url) {
+    return (
+      <div className="grid h-24 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">
+        {failed ? tx("预览加载失败") : tx("加载中")}
+      </div>
+    );
   }
   return (
-    <div className="grid h-24 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">
-      {failed ? tx("预览加载失败") : tx("加载中")}
-    </div>
+    <>
+      <button
+        type="button"
+        className="nodrag relative block h-24 w-full overflow-hidden rounded-lg"
+        title={tx("点击查看大图")}
+        onClick={() => {
+          setCurrentSlot(initialSlot);
+          setViewing(true);
+        }}
+      >
+        <img src={url} alt="" className="h-24 w-full rounded-lg bg-muted/40 object-contain" />
+      </button>
+      {viewing && (
+        <CharacterViewer
+          name={name || character?.name || tx("角色")}
+          slots={slots}
+          urls={urls}
+          current={currentSlot}
+          onChange={setCurrentSlot}
+          onClose={() => setViewing(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -358,7 +415,11 @@ export function InputNodeCard({ id, data, selected }: NodeProps) {
           </p>
         ) : d.mediaKind === "character" ? (
           d.characterId != null ? (
-            <CharacterSlotPreview characterId={d.characterId} slot={d.characterSlot || "front"} />
+            <CharacterSlotPreview
+              characterId={d.characterId}
+              slot={d.characterSlot || "front"}
+              name={d.characterName}
+            />
           ) : (
             <div className="grid h-24 place-items-center rounded-lg bg-muted/40 px-2 text-center text-xs text-muted-foreground">
               {tx("未选择角色")}

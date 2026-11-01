@@ -6,13 +6,14 @@
 import type { Edge } from "@xyflow/react";
 
 import type { WorkflowPackOut } from "@/api/client";
+import { findNodeByVar } from "./bindings.ts";
 import {
   nodeOutputKind,
   type CanvasFlowNode,
   type FunctionNodeData,
   type InputNodeData,
   type SpeechNodeData,
-} from "@/canvas/types";
+} from "./types.ts";
 
 export interface PreflightIssue {
   nodeId: string;
@@ -74,8 +75,29 @@ export function validateCanvas(
       }
       const pack = packByName.get(f.pack);
       if (!pack) continue; // 包清单未加载时不误判
+      const invalidBindings = new Set<string>();
+      for (const [key, rawVar] of Object.entries(f.bindings ?? {})) {
+        const spec = pack.inputs[key];
+        if (!spec || !["image", "video", "audio"].includes(spec.type)) continue;
+        const boundVar = String(rawVar ?? "").trim();
+        if (!boundVar) continue;
+        const source = findNodeByVar(nodes, boundVar);
+        if (!source) {
+          issues.push({ nodeId: node.id, message: `绑定变量 ${boundVar} 不存在` });
+          invalidBindings.add(key);
+          continue;
+        }
+        if (!edges.some((edge) => edge.source === source.id && edge.target === node.id)) {
+          issues.push({
+            nodeId: node.id,
+            message: `绑定变量 ${boundVar} 不是上游节点，请先连线`,
+          });
+          invalidBindings.add(key);
+        }
+      }
       for (const [key, spec] of Object.entries(pack.inputs)) {
         if (!["image", "video", "audio"].includes(spec.type) || !spec.required) continue;
+        if (invalidBindings.has(key)) continue;
         const bound = Boolean(f.bindings?.[key]);
         // 蒙版键:名字是 mask 或说明含「蒙版」——要看上游图片输入节点是否挂了蒙版资产
         const isMask =

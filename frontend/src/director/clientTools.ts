@@ -10,6 +10,7 @@ import {
 } from "@/api/client";
 import { applyMenuToNode, resolveSpec } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
+import { bindingSources, findNodeByVar } from "@/canvas/bindings";
 import { layeredLayout } from "@/canvas/layout";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import type { CanvasNodeKind, MediaKind } from "@/canvas/types";
@@ -93,6 +94,46 @@ function bindingsOf(args: Record<string, unknown>): Record<string, string> {
       .map(([key, value]) => [String(key), String(value ?? "").trim()])
       .filter(([, value]) => value),
   );
+}
+
+interface BindingConnections {
+  created: string[];
+  missing: string[];
+  rejected: { varName: string; reason: string }[];
+}
+
+/** 绑定只选槽：媒体变量必须有真实上游连线，缺边时补上。文本变量用 {{var}}，不建边。 */
+function connectBindingSources(
+  nodeId: string,
+  bindings: Record<string, string>,
+): BindingConnections {
+  const result: BindingConnections = { created: [], missing: [], rejected: [] };
+  for (const source of bindingSources(useCanvasStore.getState().nodes, bindings)) {
+    const sourceNode = source.node;
+    if (!sourceNode) {
+      result.missing.push(source.varName);
+      continue;
+    }
+    if (!source.mediaKind) continue;
+    const store = useCanvasStore.getState();
+    if (store.edges.some((edge) => edge.source === sourceNode.id && edge.target === nodeId)) {
+      continue;
+    }
+    const outcome: { reason: string | null } = { reason: null };
+    store.batch(() => {
+      outcome.reason = useCanvasStore.getState().onConnect({
+        source: sourceNode.id,
+        target: nodeId,
+        sourceHandle: `out-${sourceNode.id}`,
+        targetHandle: `in-${nodeId}`,
+      });
+    });
+    if (outcome.reason === null) result.created.push(source.varName);
+    else if (outcome.reason !== "duplicate") {
+      result.rejected.push({ varName: source.varName, reason: outcome.reason });
+    }
+  }
+  return result;
 }
 
 function nodeIdOf(args: Record<string, unknown>): string {
@@ -452,6 +493,7 @@ export async function executeClientTool(
           useCanvasStore.getState().updateNodeData(node.id, extra);
         }
       });
+      const connections = connectBindingSources(node.id, bindings);
       return ok({
         node_id: node.id,
         menu_id: item.id,
@@ -459,6 +501,9 @@ export async function executeClientTool(
         target_type: spec?.target_type ?? "",
         target_id: spec?.target_id ?? "",
         created_inputs: created,
+        created_edges: connections.created,
+        missing_bindings: connections.missing,
+        rejected_edges: connections.rejected,
         note: spec ? "" : "当前没有已启用的工作流或模型，节点保持未绑定，先让用户选择目标。",
       });
     }
@@ -485,10 +530,14 @@ export async function executeClientTool(
           useCanvasStore.getState().updateNodeData(node.id, extra);
         }
       });
+      const connections = connectBindingSources(node.id, bindings);
       return ok({
         node_id: node.id,
         pack: pack.name,
         created_inputs: created,
+        created_edges: connections.created,
+        missing_bindings: connections.missing,
+        rejected_edges: connections.rejected,
       });
     }
 
@@ -508,7 +557,20 @@ export async function executeClientTool(
         );
       }
       store.batch(() => useCanvasStore.getState().updateNodeData(nodeId, safe));
-      return ok({ node_id: nodeId, updated: Object.keys(safe) });
+      const connections = isRecord(safe.bindings)
+        ? connectBindingSources(nodeId, bindingsOf({ bindings: safe.bindings }))
+        : null;
+      return ok({
+        node_id: nodeId,
+        updated: Object.keys(safe),
+        ...(connections
+          ? {
+              created_edges: connections.created,
+              missing_bindings: connections.missing,
+              rejected_edges: connections.rejected,
+            }
+          : {}),
+      });
     }
 
     case "canvas_connect": {
@@ -594,12 +656,30 @@ export async function executeClientTool(
       const slot = String(args.slot ?? "");
       const source = String(args.source ?? "");
       if (!slot || !source) return fail("slot 和 source 不能为空");
+      if (!findNodeByVar(store.nodes, source)) {
+        return fail(`绑定变量 ${source} 不存在；先创建对应节点再连线`);
+      }
+      const previous = node.data.bindings ?? {};
       store.batch(() =>
         useCanvasStore.getState().updateNodeData(nodeId, {
-          bindings: { ...(node.data.bindings ?? {}), [slot]: source },
+          bindings: { ...previous, [slot]: source },
         }),
       );
-      return ok({ node_id: nodeId, slot, source });
+      const connections = connectBindingSources(nodeId, { [slot]: source });
+      if (connections.rejected.length) {
+        const reason = connections.rejected[0].reason;
+        store.batch(() =>
+          useCanvasStore.getState().updateNodeData(nodeId, { bindings: previous }),
+        );
+        return fail(`绑定未生效：连线被拒绝（${reason}）`);
+      }
+      return ok({
+        node_id: nodeId,
+        slot,
+        source,
+        created_edges: connections.created,
+        missing_bindings: connections.missing,
+      });
     }
 
     case "canvas_layout": {

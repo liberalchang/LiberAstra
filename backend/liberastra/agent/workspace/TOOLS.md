@@ -5,9 +5,9 @@
 - `canvas_get_graph` / `canvas_get_node`：读取画布结构。改之前先读。
 - `canvas_get_node_schema`：读取节点当前数据、执行目标、输入槽和参数规格。改属性前先读，避免猜字段名。
 - `canvas_add_node`：加输入、功能、合成或语音节点。常用参数 `kind`、`media_kind`、`x`、`y`。
-- `canvas_update_node`：改节点 data 字段，例如 `prompt`、`varName`、`text`、`values`、`bindings`。
+- `canvas_update_node`：改节点 data 字段，例如 `prompt`、`varName`、`text`、`values`、`bindings`。`bindings` 只选槽，媒体依赖仍必须连线；工具会自动补上游边。
 - `canvas_connect` / `canvas_disconnect`：连线与断线。
-- `canvas_set_binding`：把功能节点的输入槽绑定到某个上游变量名。
+- `canvas_set_binding`：把功能节点的输入槽绑定到直接上游变量名；变量必须已存在，工具会自动补边。
 - `canvas_layout`：自动整理布局。
 - `canvas_delete_nodes`：删除节点（需确认）。
 - `canvas_run_nodes`：保存并提交生成任务（需确认，占用 GPU）。

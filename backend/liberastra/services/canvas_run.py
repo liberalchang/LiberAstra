@@ -434,12 +434,19 @@ def _resolve_function_inputs(
         if not inputs.get(key):
             inputs[key] = path
 
-    # 槽位绑定:bindings 里指定的变量覆盖自动映射
+    # 槽位绑定:bindings 只覆盖槽位选择,媒体来源仍必须是直接连入的上游节点
     bindings = data.get("bindings") or {}
     if bindings:
         by_var: dict[str, list[Asset]] = {}
         nodes = node_map(graph)
-        for nid, source_node in nodes.items():
+        incoming = set(_incoming_sources(graph, str(node["id"])))
+        var_owner = {
+            str((source_node.get("data") or {}).get("varName") or ""): nid
+            for nid, source_node in nodes.items()
+            if (source_node.get("data") or {}).get("varName")
+        }
+        for nid in incoming:
+            source_node = nodes.get(nid) or {}
             var = str((source_node.get("data") or {}).get("varName") or "")
             run = runs.get(nid)
             if not var or run is None or run.status != "succeeded":
@@ -457,10 +464,23 @@ def _resolve_function_inputs(
             bound_var = str(bindings.get(key) or "").strip()
             if not bound_var:
                 continue
+            label = spec.get("label") or key
+            owner = var_owner.get(bound_var)
+            if bound_var not in by_var:
+                if owner is None:
+                    raise ProviderError(
+                        f"输入「{label}」绑定的变量 {bound_var} 不存在"
+                    )
+                if owner not in incoming:
+                    raise ProviderError(
+                        f"输入「{label}」绑定的变量 {bound_var} 不是当前节点的上游，请先连线"
+                    )
+                raise ProviderError(
+                    f"输入「{label}」绑定的上游节点尚未成功执行"
+                )
             preferred = by_var.get(f"{bound_var}::__primary") or []
             candidates = preferred or [a for a in by_var.get(bound_var, []) if a.kind == spec["type"]]
             if not candidates:
-                label = spec.get("label") or key
                 raise ProviderError(
                     f"输入「{label}」绑定的变量 {bound_var} 没有可用的{spec['type']}产物"
                 )

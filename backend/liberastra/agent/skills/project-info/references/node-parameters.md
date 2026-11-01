@@ -14,7 +14,7 @@
 | `targetType` / `targetId` / `providerId` | 当前执行目标 |
 | `values` | 工作流参数，键值都是字符串；整份替换 |
 | `prompt` | 提示词，支持 `{{变量名}}` 和 `<Picture n>` |
-| `bindings` | 输入槽 → 上游变量名，如 `{"first_frame": "output_image_kf_1_1"}` |
+| `bindings` | 输入槽 → 直接上游变量名，如 `{"first_frame": "output_image_kf_1_1"}`；必须先连线 |
 | `varName` | 输出变量名，全画布唯一 |
 | `audioMode` | 数字人/动作迁移的声音来源 |
 | `bgmPath` / `bgmVolume` | 背景音乐，`bgm/<文件名>`，音量 0–1 |

@@ -16,7 +16,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 1. `canvas_get_graph` 看现状，确认已有节点、变量名和连线。
 2. 需要功能入口时 `list_canvas_menu`，看用户菜单里启用项、可用目标和默认目标；需要工作流槽位时 `list_workflows`。
 3. 功能节点先保持空白创建：`canvas_add_node` 的 `kind=function`，不要传 `pack`、`outputKind` 或 `menu`。
-4. 优先用 `canvas_apply_menu` 套用功能菜单项（例如 `preset_t2i`、`preset_i2i`），它会自动解析到已启用的工作流或支持模型。已经有上游节点时，把槽位→变量名写进 `bindings`，避免自动补建空输入节点。
+4. 优先用 `canvas_apply_menu` 套用功能菜单项（例如 `preset_t2i`、`preset_i2i`），它会自动解析到已启用的工作流或支持模型。已经有上游节点时，把槽位→变量名写进 `bindings`；工具会自动补上游连线，并返回 `created_edges` / `missing_bindings`。`bindings` 只选槽，不能替代连线。
 5. 没有合适功能菜单时，再用 `list_workflows` 找包名，并用 `canvas_apply_pack` 绑定工作流。仍没有目标时问用户，不要猜一个包。
 6. 套好目标后先用 `canvas_get_node_schema` 读输入槽、参数规格和完整 `values`，再 `canvas_update_node` 写 prompt、变量名、`bindings` 和整份 `values`，然后 `canvas_connect`。
 7. 生成前说明会跑哪些节点，等用户确认后 `canvas_run_nodes`。
@@ -56,7 +56,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 图片网格是行优先：要 2 行 N 列（每列一个分镜的首尾帧），先连全部首帧，再连全部尾帧，`columns=N`。
 - 图生视频 / 图生增强目标只有一个图片槽时只接首帧；尾帧不要硬连。图生增强节点内部会优化提示词，不要再写一份增强提示词。
 - `canvas_update_node` 的 `values` 是整份替换；先读完整值，改目标键后再整份写回。
-- 套用菜单时优先用 `bindings` 绑定已有上游，避免自动补建空输入节点；自动补建的空文本输入把正文写进输入节点后再让功能节点引用 `{{变量名}}`。
+- `bindings` 只决定槽位，媒体依赖仍必须连到上游；工具会自动补边，`missing_bindings` 非空时先 `canvas_connect`。自动补建的空文本输入把正文写进输入节点后再让功能节点引用 `{{变量名}}`。
 - 功能节点要引用文本输入时，`prompt` 只写 `{{变量名}}`；不要把正文复制进去，否则修改文本节点不会同步。
 - 删除节点、提交生成、运行脚本会经过安全确认；失败时向用户说明，不要靠重复建点绕过。
 - 改完画布提醒用户保存；不要假设未保存的节点会持久化。
