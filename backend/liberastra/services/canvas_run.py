@@ -106,7 +106,7 @@ def cancel_run(app, canvas_id: str, db: Session) -> dict[str, Any] | None:  # no
         if job is not None and manager.request_cancel(db, job):
             canceled.append(job.id)
     for item in state.get("plan") or []:
-        if item.get("status") == "pending":
+        if item.get("status") in ("pending", "running"):
             item["status"] = "canceled"
     return {"run_id": state.get("run_id"), "canceled_jobs": canceled}
 

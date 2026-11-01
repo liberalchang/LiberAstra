@@ -335,6 +335,11 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
     try {
       await api.cancelCanvasRun(canvasId);
       setConfirmCancelRun(false);
+      const [detail, runState] = await Promise.all([
+        api.getCanvas(canvasId),
+        api.getCanvasRuns(canvasId),
+      ]);
+      useCanvasStore.getState().applyRuns(detail.node_runs, runState?.plan ?? []);
       flash(tx("已请求停止当前执行，正在中断 ComfyUI 任务…"));
     } catch (err) {
       setCancelRunError(err instanceof Error ? err.message : tx("停止失败"));

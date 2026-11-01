@@ -24,6 +24,7 @@ import {
   type MediaKind,
   type NodeRunState,
 } from "@/canvas/types";
+import { hasActiveRun, settleStaleRuns } from "@/canvas/runState";
 import { checkConnection } from "@/canvas/validation";
 
 let seq = 0;
@@ -424,12 +425,8 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
       if (run === n.data.run) return n;
       return { ...n, data: { ...n.data, run } } as CanvasFlowNode;
     });
-    set({
-      nodes,
-      runActive:
-        (plan ?? []).some((p) => ["pending", "running"].includes(p.status)) ||
-        nodes.some((n) => ["pending", "running"].includes(n.data.run.status)),
-    });
+    const active = hasActiveRun(plan, runs);
+    set({ nodes: settleStaleRuns(nodes, active), runActive: active });
   },
 
   setRunActive: (active) => set({ runActive: active }),
