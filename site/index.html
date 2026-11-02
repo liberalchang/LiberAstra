@@ -8,23 +8,23 @@
   <link rel="canonical" href="https://github.com/liberalchang/LiberAstra" />
   <meta property="og:title" content="LiberAstra — orchestration desk · 只编排，不推理" />
   <meta property="og:description" content="自托管 AIGC 编排台：ComfyUI / Ollama / 语音 / OpenAI 兼容 /v1。不是 liberastra.com.br。" />
-  <meta property="og:image" content="/assets/images/social-preview.png" />
+  <meta property="og:image" content="https://liberalchang.github.io/LiberAstra/assets/images/social-preview.png" />
   <meta name="theme-color" content="#0d0c10" />
-  <link rel="preload" as="image" href="/assets/images/home.webp" />
-  <link rel="stylesheet" href="/assets/styles.css" />
-  <script defer src="/assets/main.js"></script>
+  <link rel="preload" as="image" href="assets/images/home.webp" />
+  <link rel="stylesheet" href="assets/styles.css" />
+  <script defer src="assets/main.js"></script>
 </head>
 <body>
   <!-- 顶部导航 -->
   <header class="site-header">
     <div class="container nav" role="navigation" aria-label="Primary">
-      <a class="brand" href="/">
+      <a class="brand" href=".">
         <span class="logo" aria-hidden="true"></span>
         <span> LiberAstra </span>
       </a>
       <nav class="nav-links" aria-label="Links">
         <a class="btn" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn" href="/docs/">Docs / 文档</a>
+        <a class="btn" href="docs/">Docs / 文档</a>
         <div class="nav-actions">
           <button class="toggle btn" onclick="LA.toggleLang()" aria-label="语言 Language">中文 / EN</button>
           <button class="toggle btn" onclick="LA.toggleTheme()" aria-label="主题 Theme">☀︎ / ☾</button>
@@ -35,8 +35,8 @@
   </header>
 
   <main>
-    <!-- Hero -->
-    <section class="hero container">
+    <!-- Hero（书页式展开） -->
+    <section class="hero chapter chapter-paper container">
       <p class="eyebrow">
         <span class="zh">LiberAstra 编排台 · orchestration desk</span>
         <span class="en">LiberAstra — self-hosted AIGC orchestration desk</span>
@@ -46,10 +46,10 @@
       <p class="kicker en">One desk for ComfyUI, Ollama, and speech (Web / CLI / MCP / OpenAI <code>/v1</code>). Models stay where they run; this project orchestrates them.</p>
       <div class="hero-actions">
         <a class="btn-primary" href="#start">部署 Deploy</a>
-        <a class="btn" href="/docs/">查看文档 Read Docs</a>
+        <a class="btn" href="docs/">查看文档 Read Docs</a>
       </div>
       <div class="hero-media">
-        <img src="/assets/images/home.webp" alt="LiberAstra Web UI screenshot" loading="eager" />
+        <img src="assets/images/home.webp" alt="LiberAstra Web UI screenshot" loading="eager" />
       </div>
       <p class="muted" style="margin-top:12px;">
         <span class="zh">注意：<a href="https://liberastra.com.br/">liberastra.com.br</a> 是另外的指导网站，与本项目无关。</span>
@@ -57,8 +57,8 @@
       </p>
     </section>
 
-    <!-- Why / Purpose -->
-    <section class="section why container" id="why">
+    <!-- Why / Purpose（纸面章节） -->
+    <section class="section chapter chapter-paper why container" id="why">
       <h2>为什么是编排台 · Why</h2>
       <div class="grid cols-3">
         <div class="card">
@@ -82,55 +82,54 @@
       </div>
     </section>
 
-    <!-- Feature showcase -->
-    <section class="section showcase container" id="features">
+    <!-- Feature showcase（暗色陈列页） -->
+    <section class="section chapter chapter-dark showcase container" id="features">
       <h2>功能掠影 · Feature showcase</h2>
+      <!-- 主打大图 -->
+      <figure class="feature-hero card shot">
+        <img src="assets/images/canvas.webp" data-lightbox="assets/images/canvas.webp" alt="Canvas" />
+        <figcaption>Canvas</figcaption>
+      </figure>
       <div class="grid cols-3">
         <div class="card shot">
           <figure>
-            <img src="/assets/images/home.webp" data-lightbox="/assets/images/home.webp" alt="Home" />
+            <img src="assets/images/home.webp" data-lightbox="assets/images/home.webp" alt="Home" />
             <figcaption>Home</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/image-generate.webp" data-lightbox="/assets/images/image-generate.webp" alt="Image · Generate" />
+            <img src="assets/images/image-generate.webp" data-lightbox="assets/images/image-generate.webp" alt="Image · Generate" />
             <figcaption>Image · Generate</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/image-edit.webp" data-lightbox="/assets/images/image-edit.webp" alt="Image · Edit" />
+            <img src="assets/images/image-edit.webp" data-lightbox="assets/images/image-edit.webp" alt="Image · Edit" />
             <figcaption>Image · Edit</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/video-quick.webp" data-lightbox="/assets/images/video-quick.webp" alt="Video · Quick" />
+            <img src="assets/images/video-quick.webp" data-lightbox="assets/images/video-quick.webp" alt="Video · Quick" />
             <figcaption>Video · Quick</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/video-i2v.webp" data-lightbox="/assets/images/video-i2v.webp" alt="Video · I2V" />
+            <img src="assets/images/video-i2v.webp" data-lightbox="assets/images/video-i2v.webp" alt="Video · I2V" />
             <figcaption>Video · I2V</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/speech-tts.webp" data-lightbox="/assets/images/speech-tts.webp" alt="Speech · TTS" />
+            <img src="assets/images/speech-tts.webp" data-lightbox="assets/images/speech-tts.webp" alt="Speech · TTS" />
             <figcaption>Speech · TTS</figcaption>
           </figure>
         </div>
         <div class="card shot">
           <figure>
-            <img src="/assets/images/canvas.webp" data-lightbox="/assets/images/canvas.webp" alt="Canvas" />
-            <figcaption>Canvas</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="/assets/images/video-assets.webp" data-lightbox="/assets/images/video-assets.webp" alt="Video Assets" />
+            <img src="assets/images/video-assets.webp" data-lightbox="assets/images/video-assets.webp" alt="Video Assets" />
             <figcaption>Video Assets</figcaption>
           </figure>
         </div>
@@ -138,8 +137,8 @@
       <div class="lightbox" aria-hidden="true"><img alt="" /></div>
     </section>
 
-    <!-- Works / Gallery placeholder -->
-    <section class="section gallery container" id="works">
+    <!-- Works / Gallery placeholder（纸面章节） -->
+    <section class="section chapter chapter-paper gallery container" id="works">
       <h2>作品集 · Works</h2>
       <p class="muted zh">以下为占位（不造数据）。欢迎在 PR 中替换为真实作品。</p>
       <p class="muted en">Placeholders only. Replace with real works later.</p>
@@ -150,38 +149,32 @@
       </div>
     </section>
 
-    <!-- Three-act flow -->
-    <section class="section flow container" id="flow">
+    <!-- Three-act flow（强调色章节） -->
+    <section class="section chapter chapter-accent flow container" id="flow">
       <h2>三段式流程 · Three-act flow</h2>
-      <div class="grid cols-3">
-        <div class="card step">
-          <div>
-            <div class="tag">Before</div>
-            <strong>Providers</strong>
-            <div class="muted">ComfyUI / Ollama / Speech</div>
-          </div>
+      <div class="flow-rail">
+        <div class="step card">
+          <div class="tag">01 · Before</div>
+          <strong>Providers</strong>
+          <div class="muted">ComfyUI / Ollama / Speech</div>
         </div>
-        <div class="arrow">→</div>
-        <div class="card step">
-          <div>
-            <div class="tag">During</div>
-            <strong>PromptField → Tasks</strong>
-            <div class="muted">Web / CLI / MCP / <code>/v1</code></div>
-          </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="step card">
+          <div class="tag">02 · During</div>
+          <strong>PromptField → Tasks</strong>
+          <div class="muted">Web / CLI / MCP / <code>/v1</code></div>
         </div>
-        <div class="arrow">→</div>
-        <div class="card step">
-          <div>
-            <div class="tag">After</div>
-            <strong>作品 Works</strong>
-            <div class="muted">图像 / 视频 / 语音</div>
-          </div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div class="step card">
+          <div class="tag">03 · After</div>
+          <strong>作品 Works</strong>
+          <div class="muted">图像 / 视频 / 语音</div>
         </div>
       </div>
     </section>
 
-    <!-- Start -->
-    <section class="section container" id="start">
+    <!-- Start（纸面章节） -->
+    <section class="section chapter chapter-paper container" id="start">
       <h2>开始 · Start</h2>
       <div class="card">
         <p class="muted zh">在仓库根目录运行：</p>
@@ -200,8 +193,8 @@
       <div>
         <span>MIT</span> ·
         <a href="https://github.com/liberalchang/LiberAstra">GitHub</a> ·
-        <a href="/docs/">Docs</a> ·
-        <a href="/docs/about.html">About</a>
+        <a href="docs/">Docs</a> ·
+        <a href="docs/about.html">About</a>
       </div>
       <div>
         <span>中文 / English</span> ·

@@ -3,7 +3,8 @@ export default {
   title: 'LiberAstra',
   description:
     'LiberAstra 编排台：自托管 AIGC 编排，对接 ComfyUI、Ollama 与 OpenAI 兼容 API。只编排，不推理。',
-  base: '/docs/',
+  // GitHub Project Pages 位于 /LiberAstra/ 前缀下
+  base: '/LiberAstra/docs/',
   cleanUrls: true,
   // 从 docs-src 根目录出发，输出到上级的 site/docs
   outDir: '../docs',
