@@ -50,6 +50,9 @@ astra = "liberastra.cli.main:main"
 [tool.hatch.build.targets.wheel]
 packages = ["liberastra"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"prompts" = "liberastra/prompts"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 110

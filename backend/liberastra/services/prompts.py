@@ -1,14 +1,16 @@
-"""提示词库与优化：内置 backend/prompts/ → 用户 data/prompts/；按 task/scene/workflow 组装 system。"""
+"""提示词库与优化：内置 prompts/（随包或仓库）→ 用户 data/prompts/；按 task/scene/workflow 组装 system。"""
 
 from __future__ import annotations
 
-import shutil
+import hashlib
+import json
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
 import yaml
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from liberastra.core.config import get_settings
@@ -21,6 +23,10 @@ from liberastra.services.workflows import get_pack
 
 
 def _builtin_dir() -> Path:
+    """优先读随包分发的内置目录；源码/可编辑安装回落到仓库 prompts/。"""
+    packaged = Path(__file__).resolve().parent.parent / "prompts"
+    if (packaged / "tasks.yaml").exists() and (packaged / "scenes.yaml").exists():
+        return packaged
     return Path(__file__).resolve().parents[2] / "prompts"
 
 
@@ -28,16 +34,61 @@ def _user_dir() -> Path:
     return get_settings().data_dir / "prompts"
 
 
+_MISSING_BUILTIN_WARNED = False
+_PRUNED_DATA_DIR: Path | None = None
+# 1.0.8 及更早版本首次启动会把内置文件整份复制到 data/prompts。
+# 这些条目与当时的默认内容完全相同，升级时清掉，避免旧默认遮住新模板。
+_LEGACY_TASK_HASHES = {
+    "t2i": "bf8ac28ab8104b283108df3934b8a4a8afc8bacf03762f8912cc417d47b1a914",
+    "i2i": "25e7bee4b9f83b8d1cdb12c1f2db0f67b88c7d4a71b815142dfda9e15f42e618",
+    "upscale": "50c193b132a9b8218d7aafefd5b819c188684b9318668a0abbba6a9b26f9fd93",
+    "i2v": "d98514ffab8b974815ef86750d7e068bcccdb14606d985c01c24cb4d7ce7257e",
+    "t2v": "dc7a6aa3dbe3d091b8e57ccb09124e6360643e8019e3e90ff360e89d00890568",
+    "quick_visual": "c60638b7b53074bb429c6392ae7b3e3d2d8a477354adae05480879a39376d11e",
+    "motion": "c28fdb4b724c3d048d80afb87743d83d9b647326beaeb06228df56b8c37f1ff3",
+    "quick_topic": "a4cc9aa734925ad0bd8a6612448a9cc2ee0f5aec11da13986cfaabdc4c53de86",
+    "assets_topic": "8b0fc25fd4b2679db37bfe8b3e0ce487032af260d2c2f4c195d81187a04a0cc7",
+    "character_sheet": "17e94c856481fd472b344d378584e296bcf8a56d59ecb2ee3a1a5c7ce06de3be",
+}
+_LEGACY_SCENE_HASHES = {
+    "auto": "19d7fe3f3b6d3844f3033de95b509dacbde8ebdbb67c8429e3d381f251223ee4",
+    "photo": "9cf75d9a57a868b1b3aa3173f15cabf7abdada7414d72a2f771ff64c60024d17",
+    "poster": "e1be6cc4cc5c246b0102c74bd744589f121055711b775df35292e1be9c5dc249",
+    "illustration": "3e013ad19b5a013b0a20dc1e78aa79582dd4fcbd420e1e184cc36db37c55566c",
+    "product": "e93c1a6478ebf454a24967cf37191251effa0c7463e93dd339ca1befe9e09959",
+    "character": "de3f2b4d388412898270ff5c7e9635077c1356a423fbd6fa384b9669841a7e4a",
+    "infographic": "7276872616ed5409ee2d63850c7a0ea610ce24656f93c80d4846464e329e674f",
+    "architecture": "988150a55bcb82729ec3ba385728a3ef5377ceef3ac1c5a9fc55b5f0886fd269",
+    "cinematic_video": "9f73bac06ae3d17cabe474f8ec80b8e115e5dea8ae5f30eec050595bff243e6f",
+}
+
+
 def ensure_prompt_store() -> Path:
-    """确保 data/prompts 存在；缺失时从内置目录复制种子文件。"""
+    """确保 data/prompts 存在；新装只建空覆盖层，内置条目仍从内置目录读取。"""
+    global _MISSING_BUILTIN_WARNED
     user = _user_dir()
     user.mkdir(parents=True, exist_ok=True)
     builtin = _builtin_dir()
-    for name in ("tasks.yaml", "scenes.yaml"):
+    available = (builtin / "tasks.yaml").exists() and (builtin / "scenes.yaml").exists()
+    if not available and not _MISSING_BUILTIN_WARNED:
+        logger.warning("内置提示词目录缺失，恢复默认将拒绝删除用户副本: {}", builtin)
+        _MISSING_BUILTIN_WARNED = True
+    elif available:
+        _MISSING_BUILTIN_WARNED = False
+    for name, section in (("tasks.yaml", "tasks"), ("scenes.yaml", "scenes")):
         dest = user / name
-        src = builtin / name
-        if not dest.exists() and src.exists():
-            shutil.copy2(src, dest)
+        if dest.exists():
+            continue
+        dest.write_text(
+            yaml.safe_dump(
+                {"version": 1, section: {}},
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+    if available:
+        _prune_legacy_overrides()
     return user
 
 
@@ -51,58 +102,172 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _section(filename: str, section_key: str) -> dict[str, Any]:
+    data = _load_yaml(_builtin_dir() / filename)
+    section = data.get(section_key) or {}
+    return section if isinstance(section, dict) else {}
+
+
+def _user_section(filename: str, section_key: str) -> dict[str, Any]:
+    ensure_prompt_store()
+    data = _load_yaml(_user_dir() / filename)
+    section = data.get(section_key) or {}
+    return section if isinstance(section, dict) else {}
+
+
 def _merged_section(filename: str, section_key: str) -> dict[str, Any]:
     """内置为底，用户文件同名条目覆盖。"""
-    ensure_prompt_store()
-    builtin = _load_yaml(_builtin_dir() / filename)
-    user = _load_yaml(_user_dir() / filename)
-    base = dict(builtin.get(section_key) or {})
-    override = user.get(section_key) or {}
-    if isinstance(override, dict):
-        base.update(override)
+    base = dict(_section(filename, section_key))
+    base.update(_user_section(filename, section_key))
     return base
 
 
-def _user_section_keys(filename: str, section_key: str) -> set[str]:
-    """用户覆盖文件里实际存在的条目 id(用于「已自定义」标记)。"""
-    ensure_prompt_store()
-    user = _load_yaml(_user_dir() / filename)
-    section = user.get(section_key) or {}
-    return set(section) if isinstance(section, dict) else set()
+def _task_signature(task_id: str, spec: Any) -> tuple[str, tuple[str, ...], str]:
+    if not isinstance(spec, dict):
+        return ("", (), "")
+    caps = spec.get("capabilities") or []
+    if not isinstance(caps, (list, tuple, set)):
+        caps = []
+    return (
+        str(spec.get("name") or task_id).strip(),
+        tuple(sorted({str(item).strip() for item in caps if str(item).strip()})),
+        str(spec.get("system") or "").strip(),
+    )
+
+
+def _scene_signature(scene_id: str, spec: Any) -> tuple[str, str]:
+    if not isinstance(spec, dict):
+        return ("", "")
+    return (
+        str(spec.get("name") or scene_id).strip(),
+        str(spec.get("append") or "").strip(),
+    )
+
+
+def _signature_hash(signature: tuple[Any, ...]) -> str:
+    payload = json.dumps(signature, ensure_ascii=False).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _is_legacy_task(task_id: str, spec: Any) -> bool:
+    return _LEGACY_TASK_HASHES.get(task_id) == _signature_hash(
+        _task_signature(task_id, spec)
+    )
+
+
+def _is_legacy_scene(scene_id: str, spec: Any) -> bool:
+    return _LEGACY_SCENE_HASHES.get(scene_id) == _signature_hash(
+        _scene_signature(scene_id, spec)
+    )
+
+
+def _prune_legacy_overrides() -> None:
+    global _PRUNED_DATA_DIR
+    user = _user_dir()
+    if _PRUNED_DATA_DIR == user:
+        return
+    _PRUNED_DATA_DIR = user
+    groups = (
+        ("tasks.yaml", "tasks", _LEGACY_TASK_HASHES, _task_signature),
+        ("scenes.yaml", "scenes", _LEGACY_SCENE_HASHES, _scene_signature),
+    )
+    for filename, section_key, legacy_hashes, signature in groups:
+        path = user / filename
+        if not path.exists():
+            continue
+        data = _load_yaml(path)
+        section = dict(data.get(section_key) or {})
+        removed = [
+            entry_id
+            for entry_id, spec in section.items()
+            if legacy_hashes.get(entry_id)
+            and legacy_hashes[entry_id] == _signature_hash(signature(entry_id, spec))
+        ]
+        if not removed:
+            continue
+        for entry_id in removed:
+            del section[entry_id]
+        data[section_key] = section
+        path.write_text(
+            yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        )
+        logger.info(
+            "已清理旧版内置副本 {}: {}", filename, ", ".join(str(item) for item in removed)
+        )
+
+
+def _task_origin(
+    task_id: str, user: dict[str, Any], builtin: dict[str, Any]
+) -> str:
+    if task_id not in user:
+        return "builtin"
+    if task_id not in builtin:
+        return "user"
+    if _is_legacy_task(task_id, user[task_id]):
+        return "builtin"
+    return (
+        "customized"
+        if _task_signature(task_id, user[task_id])
+        != _task_signature(task_id, builtin[task_id])
+        else "builtin"
+    )
+
+
+def _scene_origin(
+    scene_id: str, user: dict[str, Any], builtin: dict[str, Any]
+) -> str:
+    if scene_id not in user:
+        return "builtin"
+    if scene_id not in builtin:
+        return "user"
+    if _is_legacy_scene(scene_id, user[scene_id]):
+        return "builtin"
+    return (
+        "customized"
+        if _scene_signature(scene_id, user[scene_id])
+        != _scene_signature(scene_id, builtin[scene_id])
+        else "builtin"
+    )
 
 
 def list_tasks() -> list[dict[str, Any]]:
-    custom = _user_section_keys("tasks.yaml", "tasks")
-    tasks = _merged_section("tasks.yaml", "tasks")
+    builtin = _section("tasks.yaml", "tasks")
+    user = _user_section("tasks.yaml", "tasks")
+    tasks = {**builtin, **user}
     out: list[dict[str, Any]] = []
     for tid, spec in tasks.items():
         if not isinstance(spec, dict):
             continue
+        origin = _task_origin(tid, user, builtin)
         out.append(
             {
                 "id": tid,
                 "name": spec.get("name", tid),
                 "capabilities": list(spec.get("capabilities") or []),
                 "system": str(spec.get("system") or ""),
-                "custom": tid in custom,
+                "custom": origin != "builtin",
+                "origin": origin,
             }
         )
     return out
 
 
 def list_scenes() -> list[dict[str, Any]]:
-    custom = _user_section_keys("scenes.yaml", "scenes")
-    scenes = _merged_section("scenes.yaml", "scenes")
+    builtin = _section("scenes.yaml", "scenes")
+    user = _user_section("scenes.yaml", "scenes")
+    scenes = {**builtin, **user}
     out: list[dict[str, Any]] = []
     for sid, spec in scenes.items():
         if not isinstance(spec, dict):
             continue
+        origin = _scene_origin(sid, user, builtin)
         out.append(
             {
                 "id": sid,
                 "name": spec.get("name", sid),
                 "append": str(spec.get("append") or ""),
-                "custom": sid in custom,
+                "custom": origin != "builtin",
+                "origin": origin,
             }
         )
     return out
@@ -130,81 +295,142 @@ def get_scene_append(scene: str | None) -> str:
     return str(spec.get("append") or "").strip()
 
 
-def upsert_task(task_id: str, *, name: str, system: str, capabilities: list[str] | None = None) -> None:
+def _set_user_entry(
+    filename: str, section_key: str, entry_id: str, spec: dict[str, Any]
+) -> None:
     ensure_prompt_store()
-    path = _user_dir() / "tasks.yaml"
+    path = _user_dir() / filename
     data = _load_yaml(path)
-    tasks = dict(data.get("tasks") or {})
-    tasks[task_id] = {
-        "name": name,
-        "capabilities": capabilities or [],
-        "system": system,
-    }
+    section = dict(data.get(section_key) or {})
+    section[entry_id] = spec
     data["version"] = data.get("version", 1)
-    data["tasks"] = tasks
+    data[section_key] = section
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
-def upsert_scene(scene_id: str, *, name: str, append: str) -> None:
-    ensure_prompt_store()
-    path = _user_dir() / "scenes.yaml"
-    data = _load_yaml(path)
-    scenes = dict(data.get("scenes") or {})
-    scenes[scene_id] = {"name": name, "append": append}
-    data["version"] = data.get("version", 1)
-    data["scenes"] = scenes
-    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
-
-
-def _delete_override(filename: str, section_key: str, entry_id: str, kind_label: str) -> None:
-    """删除用户覆盖条目(= 恢复默认)。内置条目本身不可删:未被自定义时报错。"""
+def _remove_user_entry(filename: str, section_key: str, entry_id: str) -> bool:
     ensure_prompt_store()
     path = _user_dir() / filename
     data = _load_yaml(path)
     section = dict(data.get(section_key) or {})
     if entry_id not in section:
-        raise ProviderError(f"{kind_label} {entry_id} 未被自定义，内置模板不可删除")
+        return False
     del section[entry_id]
     data[section_key] = section
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return True
 
 
-def delete_task_override(task_id: str) -> None:
-    _delete_override("tasks.yaml", "tasks", task_id, "功能模板")
+def upsert_task(
+    task_id: str, *, name: str, system: str, capabilities: list[str] | None = None
+) -> str:
+    """写入用户覆盖；与内置一致时不写覆盖，返回 builtin/customized/user。"""
+    ensure_prompt_store()
+    raw_caps: Any = capabilities or []
+    if isinstance(raw_caps, str):
+        raw_caps = [raw_caps]
+    cleaned_caps = [str(item).strip() for item in raw_caps if str(item).strip()]
+    spec = {"name": name, "capabilities": cleaned_caps, "system": system}
+    builtin = _section("tasks.yaml", "tasks")
+    user = _user_section("tasks.yaml", "tasks")
+    is_builtin = task_id in builtin
+    same_as_builtin = is_builtin and _task_signature(task_id, spec) == _task_signature(
+        task_id, builtin[task_id]
+    )
+    if same_as_builtin:
+        _remove_user_entry("tasks.yaml", "tasks", task_id)
+        return "builtin"
+    origin = _task_origin(task_id, user, builtin)
+    if task_id in user and _task_signature(task_id, spec) == _task_signature(
+        task_id, user[task_id]
+    ):
+        return origin
+    _set_user_entry("tasks.yaml", "tasks", task_id, spec)
+    return "user" if not is_builtin else "customized"
 
 
-def delete_scene_override(scene_id: str) -> None:
-    _delete_override("scenes.yaml", "scenes", scene_id, "场景预设")
+def upsert_scene(scene_id: str, *, name: str, append: str) -> str:
+    """写入用户覆盖；与内置一致时不写覆盖，返回 builtin/customized/user。"""
+    ensure_prompt_store()
+    spec = {"name": name, "append": append}
+    builtin = _section("scenes.yaml", "scenes")
+    user = _user_section("scenes.yaml", "scenes")
+    is_builtin = scene_id in builtin
+    same_as_builtin = is_builtin and _scene_signature(
+        scene_id, spec
+    ) == _scene_signature(scene_id, builtin[scene_id])
+    if same_as_builtin:
+        _remove_user_entry("scenes.yaml", "scenes", scene_id)
+        return "builtin"
+    origin = _scene_origin(scene_id, user, builtin)
+    if scene_id in user and _scene_signature(
+        scene_id, spec
+    ) == _scene_signature(scene_id, user[scene_id]):
+        return origin
+    _set_user_entry("scenes.yaml", "scenes", scene_id, spec)
+    return "user" if not is_builtin else "customized"
+
+
+def _delete_override(
+    filename: str,
+    section_key: str,
+    entry_id: str,
+    kind_label: str,
+    *,
+    mode: str = "reset",
+) -> None:
+    """reset 删除内置覆盖；delete 删除用户自建项。两种操作严格分开。"""
+    if mode not in ("reset", "delete"):
+        raise ProviderError("未知的模板删除模式")
+    ensure_prompt_store()
+    builtin = _section(filename, section_key)
+    user = _user_section(filename, section_key)
+    if entry_id not in user:
+        raise ProviderError(f"{kind_label} {entry_id} 未被自定义")
+    if mode == "reset" and entry_id not in builtin:
+        raise ProviderError(
+            f"{kind_label} {entry_id} 不是内置模板，恢复默认会删除用户副本；请使用删除"
+        )
+    if mode == "delete" and entry_id in builtin:
+        raise ProviderError(
+            f"{kind_label} {entry_id} 是内置模板，不能删除；请使用恢复默认"
+        )
+    _remove_user_entry(filename, section_key, entry_id)
+
+
+def delete_task_override(task_id: str, *, mode: str = "reset") -> None:
+    _delete_override("tasks.yaml", "tasks", task_id, "功能模板", mode=mode)
+
+
+def delete_scene_override(scene_id: str, *, mode: str = "reset") -> None:
+    _delete_override("scenes.yaml", "scenes", scene_id, "场景预设", mode=mode)
 
 
 def import_prompts(payload: dict[str, Any]) -> dict[str, int]:
-    """导入 YAML/JSON 结构：{tasks: {...}, scenes: {...}}。"""
+    """导入 YAML/JSON 结构：{tasks: {...}, scenes: {...}}。与内置一致的不写覆盖。"""
     ensure_prompt_store()
     n_tasks = n_scenes = 0
     tasks = payload.get("tasks")
     if isinstance(tasks, dict):
-        path = _user_dir() / "tasks.yaml"
-        data = _load_yaml(path)
-        merged = dict(data.get("tasks") or {})
         for tid, spec in tasks.items():
             if isinstance(spec, dict) and spec.get("system"):
-                merged[str(tid)] = spec
+                upsert_task(
+                    str(tid),
+                    name=str(spec.get("name") or tid),
+                    system=str(spec["system"]),
+                    capabilities=spec.get("capabilities") or [],
+                )
                 n_tasks += 1
-        data["tasks"] = merged
-        data["version"] = data.get("version", 1)
-        path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
     scenes = payload.get("scenes")
     if isinstance(scenes, dict):
-        path = _user_dir() / "scenes.yaml"
-        data = _load_yaml(path)
-        merged = dict(data.get("scenes") or {})
         for sid, spec in scenes.items():
             if isinstance(spec, dict):
-                merged[str(sid)] = spec
+                upsert_scene(
+                    str(sid),
+                    name=str(spec.get("name") or sid),
+                    append=str(spec.get("append") or ""),
+                )
                 n_scenes += 1
-        data["scenes"] = merged
-        data["version"] = data.get("version", 1)
-        path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return {"tasks": n_tasks, "scenes": n_scenes}
 
 

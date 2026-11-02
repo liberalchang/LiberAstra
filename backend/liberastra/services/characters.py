@@ -30,12 +30,13 @@ _SLOT_ATTR = {
 
 # 16:9 四段式定妆照。未点提示词优化时，拼在用户外观描述后面。
 SHEET_PROMPT = (
-    "16:9横版角色设定图，浅灰纯色影棚背景，四段使用同一浅灰背景，段与段之间留出空白间隔，"
+    "16:9横版角色设定图，浅灰纯色影棚背景，四段使用同一背景，段与段之间留出空白间隔，"
     "头发、披帛和手臂不要伸进间隔或其他栏。"
     "画面从左到右依次展示完整全身正面、完整全身侧面、"
     "完整全身背面、右侧超大面部半身特写，四个视角保持同一人物、同一脸型、同一发型、同一服装与配饰。"
-    "人物全身完整入镜，不裁脚，正面自然站立；右侧特写正面看向镜头，可带轻微俏皮眨眼表情。"
-    "写实真人质感，柔和棚拍光，皮肤细腻通透，发丝清晰，服装面料真实，高级时尚Lookbook质感，8K超高清。"
+    "人物全身完整入镜，不裁脚；正面站姿按用户描述，未指定时自然站立。"
+    "右侧特写展示面部，表情和视线按用户描述，未指定时中性自然；不要主动添加具体表情。"
+    "写实真人质感，柔和棚拍光，皮肤细腻通透，发丝清晰，服装面料真实，高级人像质感，8K超高清。"
 )
 SHEET_WIDTH = 1536
 SHEET_HEIGHT = 864
@@ -57,6 +58,7 @@ _LAYOUT_MARKERS = (
     "Lookbook",
     "8K",
     "写实真人质感",
+    "高级人像质感",
     "柔和棚拍光",
 )
 _LAYOUT_PHRASES = (
@@ -65,6 +67,13 @@ _LAYOUT_PHRASES = (
     "四段式角色设定图",
     "四段式定妆照",
     "角色定妆照",
+)
+_SHEET_LAYOUT_MARKERS = (
+    "横版角色设定",
+    "四段式角色",
+    "画面从左到右",
+    "四个视角",
+    "完整全身正面",
 )
 
 
@@ -281,7 +290,7 @@ def sheet_prompt(text: str, *, references: int = 0) -> str:
         anchor = ""
     if anchor:
         body = f"{anchor}{body}" if body else anchor
-    if "完整全身正面" in body or "16:9" in body:
+    if any(marker in body for marker in _SHEET_LAYOUT_MARKERS):
         return body
     if body.endswith("。"):
         return body + SHEET_PROMPT

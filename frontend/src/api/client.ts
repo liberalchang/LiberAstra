@@ -275,13 +275,16 @@ export interface SpeechModelCatalog {
   default_asr_model: string;
 }
 
+export type PromptOrigin = "builtin" | "customized" | "user";
+
 export interface PromptTaskOut {
   id: string;
   name: string;
   capabilities: string[];
   system: string;
-  /** 是否有用户覆盖(true=已自定义,可恢复默认) */
+  /** 是否有用户覆盖(true=已自定义或用户自建) */
   custom?: boolean;
+  origin?: PromptOrigin;
 }
 
 export interface PromptSceneOut {
@@ -289,6 +292,7 @@ export interface PromptSceneOut {
   name: string;
   append: string;
   custom?: boolean;
+  origin?: PromptOrigin;
 }
 
 export interface PromptOptimizeInput {
@@ -794,21 +798,33 @@ export const api = {
     request<PluginOut>(`/api/v1/plugins/${id}/disable`, { method: "POST" }),
   listPrompts: () =>
     request<{ tasks: PromptTaskOut[]; scenes: PromptSceneOut[] }>("/api/v1/prompts"),
-  /** 覆盖/新建功能模板;删除 = 恢复默认(删用户覆盖层) */
+  /** 覆盖/新建功能模板；与内置一致时后端保持默认。 */
   putPromptTask: (id: string, body: { name: string; system: string; capabilities?: string[] }) =>
-    request<{ status: string }>(`/api/v1/prompts/tasks/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-  deletePromptTask: (id: string) =>
-    request<void>(`/api/v1/prompts/tasks/${id}`, { method: "DELETE" }),
+    request<{ status: string; id: string; origin: PromptOrigin }>(
+      `/api/v1/prompts/tasks/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+      },
+    ),
+  deletePromptTask: (id: string, mode: "reset" | "delete" = "reset") =>
+    request<void>(
+      `/api/v1/prompts/tasks/${encodeURIComponent(id)}?mode=${mode}`,
+      { method: "DELETE" },
+    ),
   putPromptScene: (id: string, body: { name: string; append: string }) =>
-    request<{ status: string }>(`/api/v1/prompts/scenes/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-  deletePromptScene: (id: string) =>
-    request<void>(`/api/v1/prompts/scenes/${id}`, { method: "DELETE" }),
+    request<{ status: string; id: string; origin: PromptOrigin }>(
+      `/api/v1/prompts/scenes/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(body),
+      },
+    ),
+  deletePromptScene: (id: string, mode: "reset" | "delete" = "reset") =>
+    request<void>(
+      `/api/v1/prompts/scenes/${encodeURIComponent(id)}?mode=${mode}`,
+      { method: "DELETE" },
+    ),
   importPrompts: (body: Record<string, unknown>) =>
     request<{ tasks: number; scenes: number }>("/api/v1/prompts/import", {
       method: "POST",

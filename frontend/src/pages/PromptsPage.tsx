@@ -1,15 +1,22 @@
 /** 提示词模板库:功能模板(task)与场景预设(scene)的增删改。
  *
- * 合并机制是「内置为底、用户覆盖」:保存=写覆盖层,恢复默认=删覆盖层(回落内置)。
+ * 合并机制是「内置为底、用户覆盖」:保存=写覆盖层(与内置一致则保持默认),
+ * 内置覆盖可恢复默认,用户自建条目可删除。
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, RotateCcw, Save, ScrollText, Upload } from "lucide-react";
+import { Download, Plus, RotateCcw, Save, ScrollText, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { api, type PromptSceneOut, type PromptTaskOut } from "@/api/client";
+import {
+  api,
+  type PromptOrigin,
+  type PromptSceneOut,
+  type PromptTaskOut,
+} from "@/api/client";
 import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field, areaClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LightboxShell } from "@/components/ui/lightbox";
@@ -47,6 +54,31 @@ interface SceneDraft {
 const emptyTask: TaskDraft = { id: "", name: "", capabilities: "", system: "" };
 const emptyScene: SceneDraft = { id: "", name: "", append: "" };
 
+type ConfirmAction = {
+  kind: "task" | "scene";
+  mode: "reset" | "delete";
+  id: string;
+  name: string;
+};
+
+const capsKey = (caps: string[] | undefined) =>
+  (caps ?? [])
+    .map((cap) => cap.trim())
+    .filter(Boolean)
+    .sort()
+    .join(",");
+
+const draftCapsKey = (value: string) =>
+  value
+    .split(",")
+    .map((cap) => cap.trim())
+    .filter(Boolean)
+    .sort()
+    .join(",");
+
+const originOf = (item: { custom?: boolean; origin?: PromptOrigin } | undefined) =>
+  item?.origin ?? (item?.custom ? "customized" : "builtin");
+
 export function PromptsPage() {
   const tx = useTx();
   const queryClient = useQueryClient();
@@ -59,6 +91,7 @@ export function PromptsPage() {
   const [importText, setImportText] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   const { data } = useQuery({ queryKey: ["prompts-catalog"], queryFn: api.listPrompts });
   const tasks = data?.tasks ?? [];
@@ -118,8 +151,12 @@ export function PromptsPage() {
           .map((c) => c.trim())
           .filter(Boolean),
       }),
-    onSuccess: () => {
-      setNotice(tx("已保存"));
+    onSuccess: (result) => {
+      setNotice(
+        result.origin === "builtin"
+          ? tx("模板已保存（与默认一致）")
+          : tx("模板已保存"),
+      );
       setError(null);
       setIsNew(false);
       setSelectedId(taskDraft.id.trim());
@@ -136,8 +173,12 @@ export function PromptsPage() {
         name: sceneDraft.name.trim(),
         append: sceneDraft.append,
       }),
-    onSuccess: () => {
-      setNotice(tx("已保存"));
+    onSuccess: (result) => {
+      setNotice(
+        result.origin === "builtin"
+          ? tx("模板已保存（与默认一致）")
+          : tx("模板已保存"),
+      );
       setError(null);
       setIsNew(false);
       setSelectedId(sceneDraft.id.trim());
@@ -150,20 +191,87 @@ export function PromptsPage() {
   });
 
   const resetTask = useMutation({
-    mutationFn: (id: string) => api.deletePromptTask(id),
-    onSuccess: () => {
+    mutationFn: async (id: string) => {
+      await api.deletePromptTask(id, "reset");
+      return { id, catalog: await api.listPrompts() };
+    },
+    onSuccess: ({ id, catalog }) => {
+      queryClient.setQueryData(["prompts-catalog"], catalog);
+      const restored = catalog.tasks.find((item) => item.id === id);
+      if (restored) {
+        setTaskDraft({
+          id: restored.id,
+          name: restored.name,
+          capabilities: restored.capabilities.join(","),
+          system: restored.system,
+        });
+      }
       setNotice(tx("已恢复默认"));
+      setError(null);
+      setConfirmAction(null);
       void invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      setError(err.message);
+      setNotice(null);
+      setConfirmAction(null);
+    },
   });
   const resetScene = useMutation({
-    mutationFn: (id: string) => api.deletePromptScene(id),
-    onSuccess: () => {
+    mutationFn: async (id: string) => {
+      await api.deletePromptScene(id, "reset");
+      return { id, catalog: await api.listPrompts() };
+    },
+    onSuccess: ({ id, catalog }) => {
+      queryClient.setQueryData(["prompts-catalog"], catalog);
+      const restored = catalog.scenes.find((item) => item.id === id);
+      if (restored) {
+        setSceneDraft({
+          id: restored.id,
+          name: restored.name,
+          append: restored.append,
+        });
+      }
       setNotice(tx("已恢复默认"));
+      setError(null);
+      setConfirmAction(null);
       void invalidate();
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      setError(err.message);
+      setNotice(null);
+      setConfirmAction(null);
+    },
+  });
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => api.deletePromptTask(id, "delete"),
+    onSuccess: () => {
+      setNotice(tx("已删除"));
+      setError(null);
+      setSelectedId(null);
+      setConfirmAction(null);
+      void invalidate();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setNotice(null);
+      setConfirmAction(null);
+    },
+  });
+  const deleteScene = useMutation({
+    mutationFn: (id: string) => api.deletePromptScene(id, "delete"),
+    onSuccess: () => {
+      setNotice(tx("已删除"));
+      setError(null);
+      setSelectedId(null);
+      setConfirmAction(null);
+      void invalidate();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setNotice(null);
+      setConfirmAction(null);
+    },
   });
 
   const importMut = useMutation({
@@ -193,6 +301,46 @@ export function PromptsPage() {
   const currentTask = tasks.find((t) => t.id === selectedId);
   const currentScene = scenes.find((s) => s.id === selectedId);
   const list = tab === "tasks" ? tasks : scenes;
+  const taskOrigin = originOf(currentTask);
+  const sceneOrigin = originOf(currentScene);
+  const taskDirty = isNew
+    ? Boolean(
+        taskDraft.id.trim() ||
+          taskDraft.name.trim() ||
+          taskDraft.system.trim() ||
+          taskDraft.capabilities.trim(),
+      )
+    : Boolean(
+        currentTask &&
+          (taskDraft.name !== currentTask.name ||
+            taskDraft.system !== currentTask.system ||
+            draftCapsKey(taskDraft.capabilities) !== capsKey(currentTask.capabilities)),
+      );
+  const sceneDirty = isNew
+    ? Boolean(sceneDraft.id.trim() || sceneDraft.name.trim() || sceneDraft.append.trim())
+    : Boolean(
+        currentScene &&
+          (sceneDraft.name !== currentScene.name || sceneDraft.append !== currentScene.append),
+      );
+  const confirmBusy =
+    confirmAction?.kind === "task"
+      ? confirmAction.mode === "reset"
+        ? resetTask.isPending
+        : deleteTask.isPending
+      : confirmAction?.mode === "reset"
+        ? resetScene.isPending
+        : deleteScene.isPending;
+
+  const runConfirm = () => {
+    if (!confirmAction) return;
+    if (confirmAction.kind === "task") {
+      if (confirmAction.mode === "reset") resetTask.mutate(confirmAction.id);
+      else deleteTask.mutate(confirmAction.id);
+      return;
+    }
+    if (confirmAction.mode === "reset") resetScene.mutate(confirmAction.id);
+    else deleteScene.mutate(confirmAction.id);
+  };
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -254,9 +402,11 @@ export function PromptsPage() {
               )}
             >
               <span className="min-w-0 flex-1 truncate">{item.name}</span>
-              {item.custom && (
+              {(item.origin === "user" || item.custom) && (
                 <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                  {tx("已自定义")}
+                  {item.origin === "user"
+                    ? tx(tab === "tasks" ? "我的模板" : "我的预设")
+                    : tx("已自定义")}
                 </span>
               )}
             </button>
@@ -310,19 +460,49 @@ export function PromptsPage() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    disabled={!taskDraft.id.trim() || !taskDraft.name.trim() || !taskDraft.system.trim() || saveTask.isPending}
+                    disabled={
+                      !taskDraft.id.trim() ||
+                      !taskDraft.name.trim() ||
+                      !taskDraft.system.trim() ||
+                      !taskDirty ||
+                      saveTask.isPending
+                    }
                     onClick={() => saveTask.mutate()}
                   >
                     <Save /> {saveTask.isPending ? tx("保存中…") : tx("保存")}
                   </Button>
-                  {currentTask?.custom && !isNew && (
+                  {!isNew && taskOrigin === "customized" && currentTask && (
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={resetTask.isPending}
-                      onClick={() => resetTask.mutate(currentTask.id)}
+                      onClick={() =>
+                        setConfirmAction({
+                          kind: "task",
+                          mode: "reset",
+                          id: currentTask.id,
+                          name: currentTask.name,
+                        })
+                      }
                     >
                       <RotateCcw /> {tx("恢复默认")}
+                    </Button>
+                  )}
+                  {!isNew && taskOrigin === "user" && currentTask && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={deleteTask.isPending}
+                      onClick={() =>
+                        setConfirmAction({
+                          kind: "task",
+                          mode: "delete",
+                          id: currentTask.id,
+                          name: currentTask.name,
+                        })
+                      }
+                    >
+                      <Trash2 /> {tx("删除")}
                     </Button>
                   )}
                 </div>
@@ -355,19 +535,48 @@ export function PromptsPage() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    disabled={!sceneDraft.id.trim() || !sceneDraft.name.trim() || saveScene.isPending}
+                    disabled={
+                      !sceneDraft.id.trim() ||
+                      !sceneDraft.name.trim() ||
+                      !sceneDirty ||
+                      saveScene.isPending
+                    }
                     onClick={() => saveScene.mutate()}
                   >
                     <Save /> {saveScene.isPending ? tx("保存中…") : tx("保存")}
                   </Button>
-                  {currentScene?.custom && !isNew && (
+                  {!isNew && sceneOrigin === "customized" && currentScene && (
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={resetScene.isPending}
-                      onClick={() => resetScene.mutate(currentScene.id)}
+                      onClick={() =>
+                        setConfirmAction({
+                          kind: "scene",
+                          mode: "reset",
+                          id: currentScene.id,
+                          name: currentScene.name,
+                        })
+                      }
                     >
                       <RotateCcw /> {tx("恢复默认")}
+                    </Button>
+                  )}
+                  {!isNew && sceneOrigin === "user" && currentScene && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={deleteScene.isPending}
+                      onClick={() =>
+                        setConfirmAction({
+                          kind: "scene",
+                          mode: "delete",
+                          id: currentScene.id,
+                          name: currentScene.name,
+                        })
+                      }
+                    >
+                      <Trash2 /> {tx("删除")}
                     </Button>
                   )}
                 </div>
@@ -382,7 +591,7 @@ export function PromptsPage() {
           <div className="flex flex-col gap-3 p-4">
             <p className="text-sm font-medium">{tx("导入提示词模板")}</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              {tx('粘贴 { "tasks": {...} } 或 { "scenes": {...} } 结构的 JSON;同名条目覆盖为自定义。')}
+              {tx('粘贴 { "tasks": {...} } 或 { "scenes": {...} } 结构的 JSON;同名条目覆盖为自定义，与内置一致时保持默认。')}
             </p>
             <textarea
               className={`${areaClass} min-h-32 font-mono text-xs`}
@@ -400,6 +609,28 @@ export function PromptsPage() {
             </div>
           </div>
         </LightboxShell>
+      )}
+
+      {confirmAction && (
+        <ConfirmDialog
+          title={
+            confirmAction.mode === "delete"
+              ? tx("删除「{name}」？", { name: confirmAction.name })
+              : tx("恢复默认「{name}」？", { name: confirmAction.name })
+          }
+          message={
+            confirmAction.mode === "delete"
+              ? tx("删除后无法恢复；只影响用户创建的模板，内置模板不会被删除。")
+              : tx("将删除你对这个模板的修改，恢复为内置内容。")
+          }
+          confirmLabel={
+            confirmAction.mode === "delete" ? tx("删除") : tx("恢复默认")
+          }
+          danger={confirmAction.mode === "delete"}
+          busy={confirmBusy}
+          onConfirm={runConfirm}
+          onClose={() => setConfirmAction(null)}
+        />
       )}
     </div>
   );

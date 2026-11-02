@@ -17,6 +17,7 @@ const LAYOUT_MARKERS = [
   "Lookbook",
   "8K",
   "写实真人质感",
+  "高级人像质感",
   "柔和棚拍光",
 ];
 

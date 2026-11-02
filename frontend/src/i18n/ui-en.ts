@@ -1392,6 +1392,16 @@ export const UI_EN: Record<string, string> = {
   "场景预设": "Scene presets",
   "模板类型": "Template type",
   "已自定义": "Customized",
+  "我的模板": "My template",
+  "我的预设": "My preset",
+  "模板已保存": "Template saved",
+  "模板已保存（与默认一致）": "Template saved (matches default)",
+  "删除「{name}」？": "Delete “{name}”?",
+  "恢复默认「{name}」？": "Restore “{name}” to default?",
+  "删除后无法恢复；只影响用户创建的模板，内置模板不会被删除。":
+    "This cannot be undone. Only user-created templates are deleted; builtin templates are not.",
+  "将删除你对这个模板的修改，恢复为内置内容。":
+    "Your changes to this template will be removed and the builtin content restored.",
   "已恢复默认": "Restored to default",
   "模板 ID": "Template ID",
   "预设 ID": "Preset ID",
@@ -1411,6 +1421,8 @@ export const UI_EN: Record<string, string> = {
   "导入提示词模板": "Import prompt templates",
   "粘贴 { \"tasks\": {...} } 或 { \"scenes\": {...} } 结构的 JSON;同名条目覆盖为自定义。":
     "Paste JSON of { \"tasks\": {...} } or { \"scenes\": {...} }; same-name entries become custom overrides.",
+  "粘贴 { \"tasks\": {...} } 或 { \"scenes\": {...} } 结构的 JSON;同名条目覆盖为自定义，与内置一致时保持默认。":
+    "Paste JSON of { \"tasks\": {...} } or { \"scenes\": {...} }; same-name entries become custom overrides, while content matching a builtin stays default.",
   "导入中…": "Importing…",
   "已导入 {t} 个功能模板、{s} 个场景预设": "Imported {t} task template(s) and {s} scene preset(s)",
   "优化器说明": "Optimizer note",

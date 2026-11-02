@@ -595,7 +595,7 @@ def avatar_segment_prompt(text: str, custom: str) -> str:
         return f"{custom} {line}"
     if custom:
         return custom
-    base = "正面人物面对镜头自然说话，口型与语音同步，面部表情生动自然。"
+    base = "人物自然说话，口型与语音同步；表情与语气匹配，自然不夸张。"
     return f"{base}{line}" if line else base
 
 

@@ -132,6 +132,33 @@ def test_clean_appearance_drops_sheet_layout() -> None:
     assert "完整全身正面" in anchored
 
 
+def test_sheet_prompt_does_not_force_expression() -> None:
+    prompt = sheet_prompt("20岁，黑长发，闭眼，冷峻表情")
+    assert "闭眼" in prompt
+    assert "冷峻表情" in prompt
+    assert "眨眼" not in prompt
+    assert "俏皮" not in prompt
+
+
+def test_sheet_prompt_keeps_layout_for_aspect_only() -> None:
+    """用户只写 16:9 电影感，不等于已经写了四段式排版。"""
+    prompt = sheet_prompt("20岁，黑长发，16:9 电影感")
+    assert "16:9" in prompt
+    assert "完整全身正面" in prompt
+    assert "右侧超大面部" in prompt
+    assert "眨眼" not in prompt
+    assert "俏皮" not in prompt
+
+
+def test_character_sheet_task_does_not_force_expression() -> None:
+    from liberastra.services.prompts import build_system_prompt
+
+    text = build_system_prompt("character_sheet", user_prompt="20岁，黑长发，闭眼")
+    assert "眨眼" not in text
+    assert "俏皮" not in text
+    assert "用户未指定时" in text
+
+
 def test_reference_views_follow_slot_count() -> None:
     assert reference_views("i2v", 1, "side") == ["side"]
     assert reference_views("motion", 3, "portrait") == ["front", "side", "back"]

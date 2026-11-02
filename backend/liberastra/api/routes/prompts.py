@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -65,31 +65,39 @@ def list_prompts(user: CurrentUser) -> dict[str, Any]:
 
 @router.put("/tasks/{task_id}")
 def put_task(task_id: str, body: TaskUpsert, user: CurrentUser) -> dict[str, str]:
-    prompt_service.upsert_task(
+    origin = prompt_service.upsert_task(
         task_id, name=body.name, system=body.system, capabilities=body.capabilities
     )
-    return {"status": "ok", "id": task_id}
+    return {"status": "ok", "id": task_id, "origin": origin}
 
 
 @router.put("/scenes/{scene_id}")
 def put_scene(scene_id: str, body: SceneUpsert, user: CurrentUser) -> dict[str, str]:
-    prompt_service.upsert_scene(scene_id, name=body.name, append=body.append)
-    return {"status": "ok", "id": scene_id}
+    origin = prompt_service.upsert_scene(scene_id, name=body.name, append=body.append)
+    return {"status": "ok", "id": scene_id, "origin": origin}
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_task(task_id: str, user: CurrentUser) -> None:
-    """删除用户覆盖(= 恢复默认);内置模板本身不可删。"""
+def delete_task(
+    task_id: str,
+    user: CurrentUser,
+    mode: Literal["reset", "delete"] = "reset",
+) -> None:
+    """mode=reset 恢复内置默认；mode=delete 删除用户自建模板。"""
     try:
-        prompt_service.delete_task_override(task_id)
+        prompt_service.delete_task_override(task_id, mode=mode)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/scenes/{scene_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_scene(scene_id: str, user: CurrentUser) -> None:
+def delete_scene(
+    scene_id: str,
+    user: CurrentUser,
+    mode: Literal["reset", "delete"] = "reset",
+) -> None:
     try:
-        prompt_service.delete_scene_override(scene_id)
+        prompt_service.delete_scene_override(scene_id, mode=mode)
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

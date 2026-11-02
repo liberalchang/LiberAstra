@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from liberastra.core.config import get_settings
 from liberastra.core.db import SessionLocal
+from liberastra.providers.base import ProviderError
+from liberastra.services import prompts as prompt_service
 from liberastra.services.preferences import all_prefs, set_pref, set_str_pref
 from liberastra.services.prompts import (
     build_system_prompt,
+    delete_task_override,
     ensure_prompt_store,
     list_scenes,
     list_tasks,
@@ -63,6 +68,17 @@ def test_build_system_prompt_auto_keeps_task() -> None:
     assert "English" in text or "英文" in text or "跟随" in text
 
 
+def test_templates_do_not_force_user_content() -> None:
+    edit = build_system_prompt("i2i", user_prompt="把姿势改成坐着")
+    assert "必须保持什么不变" not in edit
+    assert "不要默认全部锁死" in edit
+    video = build_system_prompt("t2v", user_prompt="空镜，静止")
+    assert "固定镜头是合法选择" in video
+    assert "不要硬加人物" in video
+    product = build_system_prompt("t2i", scene="product", user_prompt="一只杯子")
+    assert "不要凭空编造卖点" in product
+
+
 def test_list_prompts_api(client: TestClient, auth_header: dict[str, str]) -> None:
     r = client.get("/api/v1/prompts", headers=auth_header)
     assert r.status_code == 200
@@ -107,6 +123,168 @@ def test_prompt_template_override_roundtrip(client: TestClient, auth_header: dic
     assert client.delete("/api/v1/prompts/scenes/photo", headers=auth_header).status_code == 204
     body = client.get("/api/v1/prompts", headers=auth_header).json()
     assert next(s for s in body["scenes"] if s["id"] == "photo")["custom"] is False
+
+
+def test_seeded_catalog_is_builtin_not_custom(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    """首次启动只建空覆盖层；内置条目不能被误标成自定义。"""
+    monkeypatch.setenv("LIBERASTRA_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    ensure_prompt_store()
+    tasks = list_tasks()
+    scenes = list_scenes()
+    assert tasks and scenes
+    assert all(t["origin"] == "builtin" and not t["custom"] for t in tasks)
+    assert all(s["origin"] == "builtin" and not s["custom"] for s in scenes)
+    get_settings.cache_clear()
+
+
+def test_saving_identical_builtin_does_not_create_override(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    task = next(t for t in body["tasks"] if t["id"] == "t2i")
+    saved = client.put(
+        "/api/v1/prompts/tasks/t2i",
+        json={
+            "name": task["name"],
+            "system": task["system"],
+            "capabilities": task["capabilities"],
+        },
+        headers=auth_header,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["origin"] == "builtin"
+
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    task = next(t for t in body["tasks"] if t["id"] == "t2i")
+    assert task["custom"] is False
+    assert task["origin"] == "builtin"
+
+
+def test_user_template_requires_delete_not_reset(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    task_id = "test_user_template"
+    saved = client.put(
+        f"/api/v1/prompts/tasks/{task_id}",
+        json={"name": "我的模板", "system": "只属于用户的模板"},
+        headers=auth_header,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["origin"] == "user"
+
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    task = next(t for t in body["tasks"] if t["id"] == task_id)
+    assert task["custom"] is True
+    assert task["origin"] == "user"
+
+    reset = client.delete(
+        f"/api/v1/prompts/tasks/{task_id}?mode=reset", headers=auth_header
+    )
+    assert reset.status_code == 400
+    still_there = client.get("/api/v1/prompts", headers=auth_header).json()
+    assert any(t["id"] == task_id for t in still_there["tasks"])
+
+    deleted = client.delete(
+        f"/api/v1/prompts/tasks/{task_id}?mode=delete", headers=auth_header
+    )
+    assert deleted.status_code == 204
+    body = client.get("/api/v1/prompts", headers=auth_header).json()
+    assert all(t["id"] != task_id for t in body["tasks"])
+
+
+def test_builtin_template_requires_reset_not_delete(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    deleted = client.delete("/api/v1/prompts/tasks/t2i?mode=delete", headers=auth_header)
+    assert deleted.status_code == 400
+
+
+def test_legacy_seeded_copy_is_pruned(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    """旧版首次启动复制的整份默认内容，升级时应自动清掉。"""
+    monkeypatch.setenv("LIBERASTRA_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    old_spec = {"name": "旧默认", "system": "旧版内置正文"}
+    legacy_hash = prompt_service._signature_hash(
+        prompt_service._task_signature("legacy_task", old_spec)
+    )
+    monkeypatch.setitem(prompt_service._LEGACY_TASK_HASHES, "legacy_task", legacy_hash)
+    monkeypatch.setattr(prompt_service, "_PRUNED_DATA_DIR", None)
+    user = tmp_path / "prompts"
+    user.mkdir()
+    (user / "tasks.yaml").write_text(
+        yaml.safe_dump(
+            {"version": 1, "tasks": {"legacy_task": old_spec}},
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    ensure_prompt_store()
+    data = yaml.safe_load((user / "tasks.yaml").read_text(encoding="utf-8"))
+    assert "legacy_task" not in (data.get("tasks") or {})
+    get_settings.cache_clear()
+
+
+def test_missing_builtin_does_not_prune_legacy_user_copy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """内置目录缺失时连迁移清理也不能动用户副本。"""
+    monkeypatch.setenv("LIBERASTRA_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    old_spec = {"name": "旧默认", "system": "旧版内置正文"}
+    legacy_hash = prompt_service._signature_hash(
+        prompt_service._task_signature("legacy_task", old_spec)
+    )
+    monkeypatch.setitem(prompt_service._LEGACY_TASK_HASHES, "legacy_task", legacy_hash)
+    monkeypatch.setattr(prompt_service, "_PRUNED_DATA_DIR", None)
+    empty_builtin = tmp_path / "empty_builtin"
+    empty_builtin.mkdir()
+    monkeypatch.setattr(prompt_service, "_builtin_dir", lambda: empty_builtin)
+    user = tmp_path / "prompts"
+    user.mkdir()
+    (user / "tasks.yaml").write_text(
+        yaml.safe_dump(
+            {"version": 1, "tasks": {"legacy_task": old_spec}},
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    ensure_prompt_store()
+    data = yaml.safe_load((user / "tasks.yaml").read_text(encoding="utf-8"))
+    assert "legacy_task" in (data.get("tasks") or {})
+    get_settings.cache_clear()
+
+
+def test_reset_without_builtin_refuses_to_drop_user_copy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """内置目录缺失时，恢复默认不能把唯一一份用户副本删掉。"""
+    monkeypatch.setenv("LIBERASTRA_DATA_DIR", str(tmp_path))
+    get_settings.cache_clear()
+    ensure_prompt_store()
+    user_file = tmp_path / "prompts" / "tasks.yaml"
+    user_file.write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "tasks": {"t2i": {"name": "文生图", "system": "用户副本"}},
+            },
+            allow_unicode=True,
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    empty_builtin = tmp_path / "empty_builtin"
+    empty_builtin.mkdir()
+    monkeypatch.setattr(prompt_service, "_builtin_dir", lambda: empty_builtin)
+
+    with pytest.raises(ProviderError):
+        delete_task_override("t2i", mode="reset")
+
+    assert any(t["id"] == "t2i" for t in list_tasks())
+    get_settings.cache_clear()
 
 
 def test_preferences_default_llm(client: TestClient, auth_header: dict[str, str]) -> None:
