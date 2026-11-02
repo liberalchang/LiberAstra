@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "@/api/client";
+import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -81,8 +82,8 @@ export function AuthPage() {
         {/* 品牌光斑:签名元素,落在磨砂卡上 */}
         <div aria-hidden className="pointer-events-none absolute -top-10 right-6 size-28 rounded-full bg-primary/20 blur-3xl sm:-top-14 sm:size-40" />
         <div className="relative mb-8 flex items-center gap-3.5">
-          <span className="grid size-11 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
-            L
+          <span className="grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <BrandMark className="size-7" />
           </span>
           <div>
             <h1 className="text-2xl font-semibold leading-tight tracking-tight">LiberAstra</h1>

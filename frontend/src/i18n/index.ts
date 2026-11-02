@@ -4,14 +4,17 @@ import { initReactI18next } from "react-i18next";
 
 const zh = {
   group: {
-    workbench: "工作台",
     speech: "语音",
     image: "图像",
     video: "视频",
     assets: "资源",
     jobs: "任务中心",
     settings: "设置",
-    developer: "开发者",
+    reading: "阅读",
+  },
+  section: {
+    videoGenerate: "生成",
+    videoAssets: "素材与模板",
   },
   nav: {
     dashboard: "总览",
@@ -46,7 +49,8 @@ const zh = {
     logout: "退出登录",
     theme: "切换主题",
     language: "切换语言",
-    settings: "系统设置",
+    mainNav: "主导航",
+    opensInNewTab: "在新窗口打开",
     collapse: "收起侧栏",
     expand: "展开侧栏",
     cancel: "取消",
@@ -141,14 +145,17 @@ const zh = {
 
 const en: typeof zh = {
   group: {
-    workbench: "Workspace",
     speech: "Speech",
     image: "Image",
     video: "Video",
     assets: "Resources",
     jobs: "Jobs",
     settings: "Settings",
-    developer: "Developer",
+    reading: "Docs",
+  },
+  section: {
+    videoGenerate: "Generate",
+    videoAssets: "Assets & Templates",
   },
   nav: {
     dashboard: "Overview",
@@ -183,7 +190,8 @@ const en: typeof zh = {
     logout: "Sign out",
     theme: "Toggle theme",
     language: "Switch language",
-    settings: "Settings",
+    mainNav: "Main navigation",
+    opensInNewTab: "Opens in a new tab",
     collapse: "Collapse sidebar",
     expand: "Expand sidebar",
     cancel: "Cancel",
