@@ -8,6 +8,8 @@
   --accent-strong: #a78bfa;
   --border: #26242c;
   --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
+    "Times New Roman", "Songti SC", "Hiragino Mincho ProN", serif;
   color-scheme: dark;
 }
 
@@ -27,7 +29,8 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Hiragino Sans GB", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Hiragino Sans GB", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
@@ -108,9 +111,40 @@ body {
   cursor: pointer;
 }
 
+/* 章节（chapter）配色：纸面 / 强调 / 暗色 */
+.chapter { padding: 72px 0 36px; }
+.chapter-paper {
+  --bg: #f7f3ea;
+  --card: #ffffff;
+  --text: #1a1612;
+  --muted: #6f675f;
+  --border: #e7e0d5;
+  background: var(--bg);
+  color: var(--text);
+}
+.chapter-paper .card { background: var(--card); border-color: var(--border); color: var(--text); }
+.chapter-paper .muted { color: var(--muted); }
+
+.chapter-accent {
+  --bg: #14323a;
+  --card: #1b3d46;
+  --text: #eef6f7;
+  --muted: #a8c2c6;
+  --border: #25515b;
+  background: var(--bg);
+  color: var(--text);
+}
+.chapter-accent .card { background: color-mix(in oklab, var(--bg) 86%, white 14%); border-color: var(--border); }
+.chapter-accent .muted { color: var(--muted); }
+
+.chapter-dark { background: var(--bg); color: var(--text); }
+
 /* Hero */
 .hero {
-  padding: 72px 0 36px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 28px;
+  align-items: center;
 }
 .eyebrow {
   color: var(--accent);
@@ -122,6 +156,7 @@ body {
   line-height: 1.1;
   letter-spacing: -0.03em;
   margin: 0 0 14px;
+  font-family: var(--display);
 }
 .hero .kicker {
   color: var(--muted);
@@ -155,6 +190,7 @@ body {
   font-size: clamp(22px, 3.2vw, 32px);
   letter-spacing: -0.02em;
   margin: 0 0 18px;
+  font-family: var(--display);
 }
 .muted { color: var(--muted); }
 .card {
@@ -177,6 +213,7 @@ body {
 @media (max-width: 860px) {
   .grid.cols-3 { grid-template-columns: 1fr; }
   .grid.cols-2 { grid-template-columns: 1fr; }
+  .hero { grid-template-columns: 1fr; }
 }
 
 /* 编号卡片 */
@@ -228,6 +265,8 @@ body {
   border-radius: 12px;
   box-shadow: var(--shadow);
 }
+.feature-hero { margin-bottom: 14px; }
+.feature-hero img { display:block; width:100%; height:auto; }
 
 /* 作品占位 */
 .gallery .placeholder {
@@ -241,21 +280,11 @@ body {
   border-radius: 16px;
 }
 
-/* 三段式流程 */
-.flow .step {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.flow .step .tag {
-  font-size: 12px;
-  color: var(--muted);
-}
-.flow .arrow {
-  text-align: center;
-  color: var(--muted);
-  font-size: 18px;
-}
+/* 三段式流程（水平不换行） */
+.flow-rail { display: flex; gap: 12px; align-items: stretch; }
+.flow-rail .step { flex: 1 1 0; display: grid; gap: 6px; align-content: start; }
+.flow-rail .arrow { display: grid; place-items: center; padding: 0 6px; color: var(--muted); }
+.flow .tag { font-size: 12px; color: var(--muted); }
 
 /* 起步代码卡片 */
 pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
