@@ -106,7 +106,7 @@ https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 
 ### 画布
 
-侧栏「工作台 → 画布」。在无限画布上把输入、工作流包、语音和合成连成流程图，按节点执行。
+侧栏「画布」。在无限画布上把输入、工作流包、语音和合成连成流程图，按节点执行。
 
 - **节点**：图片 / 视频 / 音频 / 文本输入，功能节点（按「所属」选一组工作流包），文字转语音 / 语音转文字，视频或音频合成。
 - **分组**：功能节点的「所属」在「设置 → 工作流包 → 画布分组」里维护，也可按图像 / 视频 / 语音一键建默认组。选包后会按必填媒体自动补建输入节点。
@@ -365,7 +365,7 @@ Prompt fields share one control: raw and optimized drafts, scene presets, and an
 
 **Home.** Pick image, video, or speech and start from one line.
 
-**Canvas.** Workspace → Canvas. Connect inputs, workflow packs, speech, and concat, then run the graph. Groups are maintained under Settings → Workflow Packs. Unchanged upstream nodes are reused. Save a preview into the asset library when you want to keep it. Text references use `{{variable}}`; media tags such as `<Picture 1>` pass through to the workflow.
+**Canvas.** Open Canvas in the sidebar. Connect inputs, workflow packs, speech, and concat, then run the graph. Groups are maintained under Settings → Workflow Packs. Unchanged upstream nodes are reused. Save a preview into the asset library when you want to keep it. Text references use `{{variable}}`; media tags such as `<Picture 1>` pass through to the workflow.
 
 **Images.** Text-to-image, including Qwen-Image 2.1 packs and classic checkpoints, plus online image APIs. Edit: full frame, up to four references, or inpaint with a mask. Upscale uses an upscale model.
 
