@@ -1,6 +1,7 @@
 {
   "name": "liberastra-docs",
   "private": true,
+  "type": "module",
   "version": "0.1.0",
   "description": "LiberAstra docs (VitePress skeleton)",
   "scripts": {

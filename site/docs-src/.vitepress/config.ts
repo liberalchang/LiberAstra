@@ -1,10 +1,13 @@
-// 中文为主，提供简要英文骨架。构建输出到 site/docs，以 /docs/ 为 base。
-export default {
+import { defineConfig } from 'vitepress';
+
+// 中文为主，提供简要英文骨架。构建输出到 site/docs。
+// 本地预览用 DOCS_BASE=/docs/；GitHub Project Pages 默认 /LiberAstra/docs/。
+export default defineConfig({
   title: 'LiberAstra',
   description:
     'LiberAstra 编排台：自托管 AIGC 编排，对接 ComfyUI、Ollama 与 OpenAI 兼容 API。只编排，不推理。',
   // GitHub Project Pages 位于 /LiberAstra/ 前缀下
-  base: '/LiberAstra/docs/',
+  base: process.env.DOCS_BASE || '/LiberAstra/docs/',
   cleanUrls: true,
   // 从 docs-src 根目录出发，输出到上级的 site/docs
   outDir: '../docs',

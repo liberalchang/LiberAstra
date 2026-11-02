@@ -1,207 +1,740 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-lang="zh" data-theme="dark">
+<html lang="zh-CN" data-lang="zh" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LiberAstra — orchestration desk · 只编排，不推理</title>
+  <title>LiberAstra — 只编排，不推理</title>
   <meta name="description" content="LiberAstra 编排台：自托管 AIGC 编排台，一张桌面接 ComfyUI、Ollama、语音与 OpenAI 兼容 API。只编排，不推理。" />
   <link rel="canonical" href="https://github.com/liberalchang/LiberAstra" />
-  <meta property="og:title" content="LiberAstra — orchestration desk · 只编排，不推理" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="LiberAstra — 只编排，不推理" />
   <meta property="og:description" content="自托管 AIGC 编排台：ComfyUI / Ollama / 语音 / OpenAI 兼容 /v1。不是 liberastra.com.br。" />
   <meta property="og:image" content="https://liberalchang.github.io/LiberAstra/assets/images/social-preview.png" />
-  <meta name="theme-color" content="#0d0c10" />
-  <link rel="preload" as="image" href="assets/images/home.webp" />
+  <meta name="theme-color" content="#f8f4e9" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='2' fill='%2324262a'/%3E%3Cpath d='M16 5l2.6 8.4L27 16l-8.4 2.6L16 27l-2.6-8.4L5 16l8.4-2.6z' fill='%23f8f4e9'/%3E%3C/svg%3E" />
+  <link rel="preload" as="image" href="assets/images/light/dashboard.webp" />
   <link rel="stylesheet" href="assets/styles.css" />
+  <script>
+    (function () {
+      try {
+        var lang = localStorage.getItem('la_lang');
+        if (lang) document.documentElement.setAttribute('data-lang', lang);
+        var theme = localStorage.getItem('la_theme');
+        if (theme) document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.add('book-early');
+        var releaseBook = function () {
+          if (!document.body || !document.body.classList.contains('is-book')) {
+            document.documentElement.classList.remove('book-early');
+          }
+        };
+        window.setTimeout(releaseBook, 12000);
+        window.addEventListener('load', releaseBook);
+      } catch (e) {}
+    })();
+  </script>
   <script defer src="assets/main.js"></script>
 </head>
 <body>
-  <!-- 顶部导航 -->
-  <header class="site-header">
-    <div class="container nav" role="navigation" aria-label="Primary">
-      <a class="brand" href=".">
-        <span class="logo" aria-hidden="true"></span>
-        <span> LiberAstra </span>
+  <a class="skip" href="#book">跳过导航 · Skip to content</a>
+
+  <div class="book-frame" id="book">
+    <div class="book-band" data-band="purpose" aria-hidden="true">
+      <svg class="band-art" viewBox="0 0 1440 28" preserveAspectRatio="none" focusable="false">
+        <defs>
+          <path id="band-star4" d="M0 -5 L1.4 -1.4 L5 0 L1.4 1.4 L0 5 L-1.4 1.4 L-5 0 L-1.4 -1.4 Z" />
+          <pattern id="band-stars" width="96" height="28" patternUnits="userSpaceOnUse">
+            <use href="#band-star4" x="18" y="9" class="solid" opacity=".7" />
+            <use href="#band-star4" x="66" y="19" class="solid" opacity=".5" />
+            <path d="M46 9 l2 3 3 2 -3 2 -2 3 -2 -3 -3 -2 3 -2 z" class="accent-fill" opacity=".45" />
+          </pattern>
+          <pattern id="band-dots" width="32" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="16" cy="14" r="1" class="solid" opacity=".42" />
+          </pattern>
+          <pattern id="band-grid" width="48" height="28" patternUnits="userSpaceOnUse">
+            <path d="M0 0 V28 M48 0 V28 M0 14 H48" opacity=".46" />
+            <rect x="34" y="22" width="2" height="6" class="accent-fill" opacity=".35" />
+          </pattern>
+          <pattern id="band-ruler" width="24" height="28" patternUnits="userSpaceOnUse">
+            <path d="M0 28 V23" opacity=".6" />
+            <path d="M12 28 V25" opacity=".42" />
+          </pattern>
+          <pattern id="band-frames" width="72" height="28" patternUnits="userSpaceOnUse">
+            <rect x="6" y="6" width="54" height="16" rx="1" opacity=".55" />
+            <rect x="13" y="10" width="10" height="8" class="accent-fill" opacity=".5" />
+            <path d="M27 17 h27" class="accent" opacity=".8" />
+            <path d="M27 10 h27" opacity=".32" />
+          </pattern>
+          <pattern id="band-perf" width="32" height="28" patternUnits="userSpaceOnUse">
+            <rect x="6" y="3" width="14" height="4" rx="1" class="solid" opacity=".5" />
+            <rect x="6" y="21" width="14" height="4" rx="1" class="solid" opacity=".5" />
+            <path d="M23 10 L29 14 L23 18 Z" class="accent-fill" opacity=".55" />
+          </pattern>
+          <pattern id="band-wave" width="36" height="28" patternUnits="userSpaceOnUse">
+            <path d="M6 14 v-4 M12 14 v-9 M18 14 v-6 M24 14 v-2 M30 14 v-7" opacity=".68" />
+            <rect x="0" y="9" width="2" height="10" class="accent-fill" opacity=".5" />
+          </pattern>
+          <pattern id="band-chev" width="80" height="28" patternUnits="userSpaceOnUse">
+            <path d="M12 10 l4 4 -4 4 M22 18 h12" opacity=".58" />
+            <rect x="42" y="12" width="6" height="6" class="accent-fill" opacity=".5" />
+          </pattern>
+          <pattern id="band-nodes" width="120" height="28" patternUnits="userSpaceOnUse">
+            <path d="M20 9 L60 19 L100 9" opacity=".3" />
+            <circle cx="20" cy="9" r="2" class="solid" opacity=".45" />
+            <circle cx="60" cy="19" r="2" class="solid" opacity=".45" />
+            <circle cx="100" cy="9" r="2" class="solid" opacity=".45" />
+            <circle cx="100" cy="9" r="2.8" class="accent-fill" opacity=".45" />
+          </pattern>
+          <pattern id="band-cards" width="160" height="28" patternUnits="userSpaceOnUse">
+            <rect x="10" y="6" width="46" height="16" rx="2" opacity=".3" />
+            <rect x="20" y="9" width="46" height="16" rx="2" opacity=".2" />
+            <rect x="12" y="8" width="9" height="3" class="accent-fill" opacity=".55" />
+          </pattern>
+          <pattern id="band-arrows" width="120" height="28" patternUnits="userSpaceOnUse">
+            <path d="M10 20 L40 8 M30 8 h10 v10" opacity=".4" />
+            <path d="M40 8 L34 8 L38 12 Z" class="accent-fill" opacity=".55" />
+          </pattern>
+          <pattern id="band-profiles" width="140" height="28" patternUnits="userSpaceOnUse">
+            <rect x="8" y="7" width="22" height="14" rx="7" opacity=".3" />
+            <circle cx="19" cy="12" r="3" class="solid" opacity=".5" />
+            <rect x="38" y="9" width="30" height="10" rx="2" opacity=".25" />
+            <rect x="74" y="9" width="30" height="10" rx="2" opacity=".18" />
+            <rect x="86" y="10" width="6" height="2" class="accent-fill" opacity=".5" />
+          </pattern>
+          <pattern id="band-toggles" width="120" height="28" patternUnits="userSpaceOnUse">
+            <rect x="10" y="8" width="28" height="12" rx="6" opacity=".3" />
+            <circle cx="32" cy="14" r="4" class="solid" opacity=".55" />
+            <circle cx="56" cy="14" r="4" class="accent-fill" opacity=".55" />
+            <rect x="66" y="12" width="34" height="4" rx="2" opacity=".2" />
+            <rect x="88" y="10" width="4" height="8" opacity=".45" />
+          </pattern>
+        </defs>
+
+        <g class="band-motif" data-band-motif="purpose">
+          <rect width="1440" height="28" fill="url(#band-stars)" opacity=".55" />
+          <path d="M0 21 H1440" opacity=".3" />
+          <path d="M0 14 C 180 14, 250 8, 380 8 S 560 21, 720 21 S 920 7, 1080 7 S 1280 20, 1440 20" opacity=".5" />
+          <use href="#band-star4" x="150" y="7" class="solid" opacity=".7" />
+          <use href="#band-star4" x="330" y="19" class="solid" opacity=".5" />
+          <use href="#band-star4" x="510" y="9" class="solid" opacity=".65" />
+          <use href="#band-star4" x="930" y="18" class="solid" opacity=".55" />
+          <use href="#band-star4" x="1110" y="8" class="solid" opacity=".7" />
+          <use href="#band-star4" x="1290" y="17" class="solid" opacity=".5" />
+          <rect x="690" y="9" width="10" height="10" class="accent-fill" opacity=".9" />
+          <path d="M712 14 H800" class="accent" opacity=".75" />
+        </g>
+
+        <g class="band-motif" data-band-motif="desk">
+          <rect width="1440" height="28" fill="url(#band-grid)" opacity=".5" />
+          <path d="M120 9 H1320 M120 14 H1320 M120 19 H1320" opacity=".28" />
+          <circle cx="360" cy="9" r="3" class="solid" opacity=".75" />
+          <circle cx="820" cy="14" r="3" class="accent-fill" />
+          <circle cx="1160" cy="19" r="3" class="solid" opacity=".75" />
+          <rect y="20" width="1440" height="8" fill="url(#band-ruler)" opacity=".7" />
+        </g>
+
+        <g class="band-motif" data-band-motif="image">
+          <rect width="1440" height="28" fill="url(#band-frames)" />
+          <path d="M0 5 V23 M1440 5 V23" class="accent" opacity=".6" />
+          <path d="M18 0 V28 M1422 0 V28" opacity=".3" />
+        </g>
+
+        <g class="band-motif" data-band-motif="video">
+          <rect width="1440" height="28" fill="url(#band-perf)" />
+          <path d="M0 7 H1440 M0 21 H1440" opacity=".32" />
+          <path d="M360 7 V21 M720 7 V21 M1080 7 V21" opacity=".32" />
+          <path d="M690 10 L706 14 L690 18 Z" class="accent-fill" opacity=".85" />
+        </g>
+
+        <g class="band-motif" data-band-motif="speech">
+          <rect width="1440" height="28" fill="url(#band-wave)" />
+          <path d="M0 14 H1440" opacity=".22" />
+          <path d="M720 14 v-9 M722 14 v-7" class="accent" opacity=".9" />
+          <path d="M1260 14 v-9" opacity=".55" />
+        </g>
+
+        <g class="band-motif" data-band-motif="canvas">
+          <rect width="1440" height="28" fill="url(#band-dots)" />
+          <rect width="1440" height="28" fill="url(#band-nodes)" opacity=".8" />
+          <path d="M180 14 L360 8 L540 20 L720 12 L900 20 L1080 9 L1260 17" opacity=".45" />
+          <circle cx="180" cy="14" r="3" class="solid" opacity=".8" />
+          <circle cx="360" cy="8" r="3" class="solid" opacity=".8" />
+          <circle cx="540" cy="20" r="3" class="solid" opacity=".8" />
+          <circle cx="900" cy="20" r="3" class="solid" opacity=".8" />
+          <circle cx="1080" cy="9" r="3" class="solid" opacity=".8" />
+          <circle cx="1260" cy="17" r="3" class="solid" opacity=".8" />
+          <circle cx="720" cy="12" r="4" class="accent-fill" />
+        </g>
+
+        <g class="band-motif" data-band-motif="works">
+          <rect width="1440" height="28" fill="url(#band-cards)" opacity=".85" />
+          <rect x="360" y="4" width="130" height="20" rx="2" opacity=".35" />
+          <rect x="560" y="4" width="130" height="20" rx="2" transform="rotate(-4 625 14)" opacity=".45" />
+          <rect x="760" y="4" width="130" height="20" rx="2" transform="rotate(3 825 14)" opacity=".55" />
+          <path d="M890 4 l9 9 h-9 z" class="accent-fill" opacity=".75" />
+          <path d="M1040 9 H1260 M1040 14 H1210 M1040 19 H1160" opacity=".32" />
+        </g>
+
+        <g class="band-motif" data-band-motif="access">
+          <rect width="1440" height="28" fill="url(#band-chev)" />
+          <path d="M1200 8 l-6 6 6 6 M1240 8 l6 6 -6 6" class="accent" opacity=".7" />
+          <path d="M1280 18 h48" opacity=".45" />
+        </g>
+
+        <g class="band-motif" data-band-motif="start">
+          <rect width="1440" height="28" fill="url(#band-arrows)" opacity=".6" />
+          <path d="M0 22 H1440" opacity=".35" />
+          <path d="M100 22 v-4 M140 22 v-7 M180 22 v-10" opacity=".35" />
+          <path d="M200 20 C 500 20, 900 16, 1230 7" class="accent" opacity=".8" />
+          <path d="M1210 6 l22 1 -13 15" class="accent" opacity=".8" />
+          <circle cx="1230" cy="7" r="3" class="accent-fill" />
+        </g>
+
+        <g class="band-motif" data-band-motif="library">
+          <rect width="1440" height="28" fill="url(#band-profiles)" opacity=".8" />
+          <rect x="600" y="6" width="120" height="16" rx="3" opacity=".5" />
+          <circle cx="618" cy="14" r="4" class="accent-fill" opacity=".6" />
+          <path d="M630 12 h72 M630 17 h54" opacity=".4" />
+        </g>
+
+        <g class="band-motif" data-band-motif="settings">
+          <rect width="1440" height="28" fill="url(#band-toggles)" opacity=".85" />
+          <path d="M620 9 H780 M620 14 H760 M620 19 H800" opacity=".35" />
+          <circle cx="700" cy="9" r="3" class="accent-fill" opacity=".6" />
+          <circle cx="740" cy="19" r="3" class="solid" opacity=".6" />
+        </g>
+      </svg>
+    </div>
+
+    <header class="book-top">
+      <a class="brand" href="#purpose" data-page-link>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 2l2.1 7.9L22 12l-7.9 2.1L12 22l-2.1-7.9L2 12l7.9-2.1z"/></svg>
+        </span>
+        <span class="brand-name">LiberAstra</span>
+        <span class="brand-tag">编排台</span>
       </a>
-      <nav class="nav-links" aria-label="Links">
-        <a class="btn" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn" href="docs/">Docs / 文档</a>
-        <div class="nav-actions">
-          <button class="toggle btn" onclick="LA.toggleLang()" aria-label="语言 Language">中文 / EN</button>
-          <button class="toggle btn" onclick="LA.toggleTheme()" aria-label="主题 Theme">☀︎ / ☾</button>
-          <a class="btn-primary btn" href="#start">Deploy 部署</a>
+
+      <div class="top-tools">
+        <details class="contents" id="contents">
+          <summary>
+            <span class="zh">目录</span><span class="en">Contents</span>
+            <span class="summary-lines" aria-hidden="true"><i></i><i></i><i></i></span>
+          </summary>
+          <nav class="contents-panel" aria-label="章节目录 / Chapters">
+            <div class="contents-head">
+              <span class="kicker">LIBERASTRA / INDEX</span>
+              <span class="contents-count zh">十一章</span><span class="contents-count en">Eleven chapters</span>
+            </div>
+            <a href="#purpose" data-page-link data-chapter-link="purpose">
+              <span class="c-idx">01</span>
+              <span class="c-copy"><strong><span class="zh">目的</span><span class="en">Purpose</span></strong><em><span class="zh">为什么是指挥台</span><span class="en">Why a command desk</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#desk" data-page-link data-chapter-link="desk">
+              <span class="c-idx">02</span>
+              <span class="c-copy"><strong><span class="zh">指挥台</span><span class="en">Desk</span></strong><em><span class="zh">意图 · 工具 · 任务</span><span class="en">Intent · tools · jobs</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#image" data-page-link data-chapter-link="image">
+              <span class="c-idx">03</span>
+              <span class="c-copy"><strong><span class="zh">图像</span><span class="en">Image</span></strong><em><span class="zh">生成 · 编辑 · 放大 · 深度</span><span class="en">Generate · edit · upscale · depth</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#video" data-page-link data-chapter-link="video">
+              <span class="c-idx">04</span>
+              <span class="c-copy"><strong><span class="zh">视频</span><span class="en">Video</span></strong><em><span class="zh">快速 · 口播 · 图生视频 · 动作</span><span class="en">Quick · avatar · I2V · motion</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#speech" data-page-link data-chapter-link="speech">
+              <span class="c-idx">05</span>
+              <span class="c-copy"><strong><span class="zh">语音</span><span class="en">Speech</span></strong><em><span class="zh">TTS · ASR · 音色 · 音乐</span><span class="en">TTS · ASR · voices · music</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#canvas" data-page-link data-chapter-link="canvas">
+              <span class="c-idx">06</span>
+              <span class="c-copy"><strong><span class="zh">画布</span><span class="en">Canvas</span></strong><em><span class="zh">节点 · 绑定 · 预检 · 导演</span><span class="en">Nodes · bindings · preflight · director</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#library" data-page-link data-chapter-link="library">
+              <span class="c-idx">07</span>
+              <span class="c-copy"><strong><span class="zh">素材与角色</span><span class="en">Library</span></strong><em><span class="zh">角色 · 资产 · 模板</span><span class="en">Characters · assets · templates</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#works" data-page-link data-chapter-link="works">
+              <span class="c-idx">08</span>
+              <span class="c-copy"><strong><span class="zh">作品与任务</span><span class="en">Works &amp; jobs</span></strong><em><span class="zh">队列 · 作品 · 来源</span><span class="en">Queue · works · lineage</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#settings" data-page-link data-chapter-link="settings">
+              <span class="c-idx">09</span>
+              <span class="c-copy"><strong><span class="zh">设置与提示词</span><span class="en">Settings</span></strong><em><span class="zh">Provider · 工作流 · 提示词</span><span class="en">Providers · workflows · prompts</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#access" data-page-link data-chapter-link="access">
+              <span class="c-idx">10</span>
+              <span class="c-copy"><strong><span class="zh">接入</span><span class="en">Access</span></strong><em><span class="zh">Web / CLI / MCP / API</span><span class="en">Web / CLI / MCP / API</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <a href="#start" data-page-link data-chapter-link="start">
+              <span class="c-idx">11</span>
+              <span class="c-copy"><strong><span class="zh">开始</span><span class="en">Start</span></strong><em><span class="zh">一条命令跑起来</span><span class="en">One command to run</span></em></span>
+              <span class="c-arrow" aria-hidden="true">↗</span>
+            </a>
+            <div class="contents-links">
+              <a href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+              <a data-docs-zh="docs/" data-docs-en="docs/en/" href="docs/"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a>
+            </div>
+            <button type="button" class="contents-motion" data-motion-toggle aria-pressed="false">
+              <span class="cm-icon" aria-hidden="true">
+                <svg class="motion-pause" viewBox="0 0 16 16"><path d="M4.5 3.5h2.4v9H4.5zM9.1 3.5h2.4v9H9.1z"/></svg>
+                <svg class="motion-play" viewBox="0 0 16 16"><path d="M5 3.2l7.2 4.8L5 12.8z"/></svg>
+              </span>
+              <span class="cm-copy"><strong><span class="zh">暂停动效</span><span class="en">Pause motion</span></strong><em><span class="zh">翻页与封面过渡</span><span class="en">Page turns and cover</span></em></span>
+            </button>
+          </nav>
+        </details>
+
+        <a class="top-link" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+        <a class="top-link" data-docs-zh="docs/" data-docs-en="docs/en/" href="docs/"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a>
+        <button type="button" class="top-lang" data-lang-toggle data-current="zh" aria-label="中文/EN · 切换语言 / Switch language">
+          <span data-lang-label="zh">中文</span><span class="lang-sep">/</span><span data-lang-label="en">EN</span>
+        </button>
+        <button type="button" class="top-theme" data-theme-toggle aria-label="切换主题 / Switch theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.4A8.2 8.2 0 0 1 9.6 3.8 8.6 8.6 0 1 0 20.2 14.4z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="book-stage" id="stage">
+      <!-- 01 · Purpose -->
+      <section class="leaf leaf-purpose is-active" id="purpose" data-chapter="purpose" data-title-zh="目的" data-title-en="Purpose" aria-label="目的 · Purpose" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="purpose-grid">
+            <div class="purpose-copy">
+              <p class="kicker">01 / PURPOSE</p>
+              <h1 class="display">
+                <span class="zh">只编排，<br />不推理。</span>
+                <span class="en">Orchestrate.<br />Don't infer.</span>
+              </h1>
+              <p class="lede">
+                <span class="zh">LiberAstra 把 ComfyUI、Ollama、语音服务与 OpenAI 兼容 API 收进同一张桌面。模型留在各自的机器里，这里负责把提示词、脚本和素材编排成作品。</span>
+                <span class="en">LiberAstra gathers ComfyUI, Ollama, speech services, and OpenAI-compatible APIs onto one desk. Models stay on their own machines; this desk turns prompts, scripts, and assets into works.</span>
+              </p>
+              <ol class="principles">
+                <li><span class="p-num">01</span><span class="p-copy"><strong><span class="zh">本地优先</span><span class="en">Local first</span></strong><em><span class="zh">模型跑在你的机器或局域网里；平台本身不运行模型。</span><span class="en">Models run on your machines or LAN; the platform itself does not run them.</span></em></span></li>
+                <li><span class="p-num">02</span><span class="p-copy"><strong><span class="zh">编排透明</span><span class="en">Transparent orchestration</span></strong><em><span class="zh">每个任务都知道由哪个服务执行、进行到哪一步。</span><span class="en">Every job knows which service runs it and where it stands.</span></em></span></li>
+                <li><span class="p-num">03</span><span class="p-copy"><strong><span class="zh">多入口</span><span class="en">Many doors</span></strong><em><span class="zh">Web、CLI、MCP 与 OpenAI /v1 共用同一套编排。</span><span class="en">Web, CLI, MCP, and OpenAI /v1 share one orchestration.</span></em></span></li>
+              </ol>
+              <div class="purpose-actions">
+                <button type="button" class="btn-ink" data-cover-open><span class="zh">翻开封面</span><span class="en">Lift the cover</span><span aria-hidden="true">→</span></button>
+                <a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+                <a class="link-arrow" data-docs-zh="docs/" data-docs-en="docs/en/" href="docs/"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a>
+              </div>
+            </div>
+
+            <div class="purpose-demo">
+              <div class="cover-scene" id="cover-scene">
+                <figure class="cover-preview">
+                  <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000</span></div>
+                  <img src="assets/images/light/dashboard.webp" data-theme-img="dashboard.webp" alt="LiberAstra 指挥台截图" width="1200" height="750" loading="eager" decoding="async" />
+                  <figcaption><span class="zh">封面之后：指挥台</span><span class="en">Behind the cover: the command desk</span></figcaption>
+                </figure>
+                <div class="cover-meta">
+                  <span class="cover-status"><i aria-hidden="true"></i><span class="zh">编排层就绪</span><span class="en">Orchestration ready</span></span>
+                  <button type="button" class="cover-replay" data-cover-replay hidden><span aria-hidden="true">↻</span><span class="zh">重新合上</span><span class="en">Replay cover</span></button>
+                </div>
+              </div>
+
+              <button type="button" class="book-cover" data-cover-open aria-expanded="false" aria-controls="cover-scene">
+                <span class="cover-seal" aria-hidden="true">编排台</span>
+                <span class="cover-word">LiberAstra</span>
+                <span class="cover-rule" aria-hidden="true"></span>
+                <span class="cover-sub">SELF-HOSTED AIGC<br />ORCHESTRATION DESK</span>
+                <span class="cover-imprint">L/A · 2026</span>
+                <span class="cover-cue"><span class="cue-rule" aria-hidden="true"></span><span class="zh">翻开封面</span><span class="en">Lift the cover</span><span aria-hidden="true">→</span></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 01</span>
+            <span class="foot-links">
+              <a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+              <a class="link-arrow" data-docs-zh="docs/" data-docs-en="docs/en/" href="docs/"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a>
+            </span>
+          </div>
         </div>
-      </nav>
+      </section>
+
+      <!-- 02 · Desk -->
+      <section class="leaf" id="desk" data-chapter="desk" data-title-zh="指挥台" data-title-en="Desk" aria-label="指挥台 · Desk" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">02 / DESK</p>
+              <h2 class="display-2"><span class="zh">一张桌面，<br />接住全部。</span><span class="en">One desk,<br />everything connected.</span></h2>
+              <p class="lede"><span class="zh">在指挥台写下一句创作意图，选择图像、视频或语音，进入对应工作室；任务、素材与作品仍回到同一张桌面。</span><span class="en">Write an intent on the command desk, choose image, video, or speech, and enter the right studio; jobs, assets, and works return to the same desk.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="dashboard.webp" data-caption-zh="创作意图 · 三种模式" data-caption-en="Intent · three modes" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">创作意图</span><span class="en">Creative intent</span></strong><em><span class="zh">一句描述，选择图像、视频或语音；提示词会带入对应工作室。</span><span class="en">One brief, then image, video, or speech; the prompt travels into the studio.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="dashboard.webp" data-caption-zh="常用工具 · 按能力分组" data-caption-en="Common tools · grouped by capability" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">常用工具</span><span class="en">Common tools</span></strong><em><span class="zh">图像 4 项、视频 4 项、语音 4 项，一屏直达。</span><span class="en">Four image, four video, and four speech tools, one screen away.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="jobs.webp" data-caption-zh="画布与任务 · 同一条链路" data-caption-en="Canvas and jobs · one chain" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">画布与任务</span><span class="en">Canvas and jobs</span></strong><em><span class="zh">画布是一级入口；任务中心跟踪进度、失败与重试。</span><span class="en">Canvas is first-class; the job center tracks progress, failures, and retries.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="providers.webp" data-caption-zh="外部服务 · 模型留在你的机器" data-caption-en="External services · models stay yours" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">外部服务</span><span class="en">External services</span></strong><em><span class="zh">Provider、模型与工作流在设置里；推理仍在你的机器或局域网。</span><span class="en">Providers, models, and workflows live in settings; inference stays on your machine or LAN.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/dashboard</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/dashboard.webp" data-theme-img="dashboard.webp" alt="LiberAstra 指挥台" width="1200" height="750" loading="eager" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>创作意图 · 三种模式</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 02</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/quickstart.html" data-docs-en="docs/en/quickstart.html" href="docs/quickstart.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 03 · Image -->
+      <section class="leaf" id="image" data-chapter="image" data-title-zh="图像" data-title-en="Image" aria-label="图像 · Image" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">03 / IMAGE</p>
+              <h2 class="display-2"><span class="zh">从一句话，<br />到一张图。</span><span class="en">From a line<br />to a frame.</span></h2>
+              <p class="lede"><span class="zh">文生图、图生图 / 局部重绘、修复放大、深度图，共用 Provider 与工作流包。</span><span class="en">Text to image, edit and inpaint, restore and upscale, and depth maps share providers and workflow packs.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="image-generate.webp" data-caption-zh="文生图 · 提示词与工作流" data-caption-en="Text to image · prompt and workflow" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">文生图</span><span class="en">Text to image</span></strong><em><span class="zh">提示词优化、工作流包、画幅、种子与历史作品。</span><span class="en">Prompt refinement, workflow pack, aspect, seed, and history.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="image-edit.webp" data-caption-zh="图生图 / 局部重绘 · 参考图按序绑定" data-caption-en="Edit / inpaint · references bind in order" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">图生图 / 局部重绘</span><span class="en">Edit / inpaint</span></strong><em><span class="zh">原图、多张参考图，提示词里用 image 1 / image 2 引用。</span><span class="en">A source plus references, cited as image 1 / image 2 in the prompt.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="image-upscale.webp" data-caption-zh="修复与放大 · RealESRGAN 4×" data-caption-en="Restore / upscale · RealESRGAN 4×" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">修复与放大</span><span class="en">Restore and upscale</span></strong><em><span class="zh">上传低清图，用 RealESRGAN 放大 4 倍；模型放在 upscale_models。</span><span class="en">Upscale low-res images 4× with RealESRGAN; models live in upscale_models.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="image-depth.webp" data-caption-zh="深度图 · 批量提取" data-caption-en="Depth maps · batch extraction" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">深度图</span><span class="en">Depth maps</span></strong><em><span class="zh">Liber Depth + dpt_swin2_large，一次多张，越亮越近。</span><span class="en">Liber Depth with dpt_swin2_large, batch input; brighter means closer.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/image/generate</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/image-generate.webp" data-theme-img="image-generate.webp" alt="LiberAstra 文生图" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>文生图 · 提示词与工作流</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 03</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/guides/image.html" data-docs-en="docs/en/guides/image.html" href="docs/guides/image.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 04 · Video -->
+      <section class="leaf" id="video" data-chapter="video" data-title-zh="视频" data-title-en="Video" aria-label="视频 · Video" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">04 / VIDEO</p>
+              <h2 class="display-2"><span class="zh">一句话，<br />出成片。</span><span class="en">A sentence,<br />a final cut.</span></h2>
+              <p class="lede"><span class="zh">快速创作、数字人口播、图生视频与动作迁移；模板、素材与角色回到同一个视频库。</span><span class="en">Quick creation, digital presenters, image-to-video, and motion transfer; templates, assets, and characters return to one video library.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="video-quick.webp" data-caption-zh="快速创作 · 脚本到成片" data-caption-en="Quick creation · script to final cut" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">快速创作</span><span class="en">Quick creation</span></strong><em><span class="zh">AI / 固定文案 / 批量；分镜、配音、字幕、拼接一条链路。</span><span class="en">AI, fixed script, or batch; storyboard, voice, subtitles, and stitching in one chain.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="video-avatar.webp" data-caption-zh="数字人口播 · 人物图 + 口播文案" data-caption-en="Digital presenter · portrait plus narration" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">数字人口播</span><span class="en">Digital presenter</span></strong><em><span class="zh">人物图 + 文案 → TTS → avatar 工作流；超长自动分段衔接。</span><span class="en">Portrait plus script → TTS → avatar workflow; long takes split and join.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="video-i2v.webp" data-caption-zh="图生视频 · 首帧 + 提示词" data-caption-en="Image to video · first frame plus prompt" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">图生视频</span><span class="en">Image to video</span></strong><em><span class="zh">首帧图和提示词进入 i2v；长视频自动分段并保持尾帧衔接。</span><span class="en">A still and prompt enter i2v; long clips split and keep frame continuity.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="video-motion.webp" data-caption-zh="动作迁移 · 参考视频驱动" data-caption-en="Motion transfer · driven by a reference clip" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">动作迁移</span><span class="en">Motion transfer</span></strong><em><span class="zh">参考视频 + 目标图片 + 提示词 → motion；时长跟随参考视频。</span><span class="en">Reference clip, target image, and prompt → motion; length follows the clip.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/video/quick</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/video-quick.webp" data-theme-img="video-quick.webp" alt="LiberAstra 视频快速创作" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>快速创作 · 脚本到成片</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 04</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/guides/video.html" data-docs-en="docs/en/guides/video.html" href="docs/guides/video.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 05 · Speech -->
+      <section class="leaf" id="speech" data-chapter="speech" data-title-zh="语音" data-title-en="Speech" aria-label="语音 · Speech" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">05 / SPEECH</p>
+              <h2 class="display-2"><span class="zh">文字与声音<br />之间。</span><span class="en">Between text<br />and voice.</span></h2>
+              <p class="lede"><span class="zh">TTS、ASR、音色库与音乐库，接到本地语音服务、edge-tts 或克隆音色。</span><span class="en">TTS, ASR, voices, and music, connected to local speech services, edge-tts, or cloned voices.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="speech-tts.webp" data-caption-zh="文字转语音 · 音色、语言、格式" data-caption-en="Text to speech · voice, language, format" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">文字转语音</span><span class="en">Text to speech</span></strong><em><span class="zh">Provider、音色、语言与 mp3/wav/ogg；历史直接试听。</span><span class="en">Provider, voice, language, and mp3/wav/ogg; preview from history.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="speech-asr.webp" data-caption-zh="语音转文字 · 文本、JSON、SRT、VTT" data-caption-en="Speech to text · text, JSON, SRT, VTT" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">语音转文字</span><span class="en">Speech to text</span></strong><em><span class="zh">自动检测语言，按优先级输出文本、JSON、SRT 或 VTT。</span><span class="en">Auto language detection; output text, JSON, SRT, or VTT in priority order.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="speech-voices.webp" data-caption-zh="音色库 · 参考音频与 voice_id" data-caption-en="Voice library · reference audio and voice_id" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">音色库</span><span class="en">Voice library</span></strong><em><span class="zh">保存参考音频、原文和标签；本地克隆或云端 voice_id。</span><span class="en">Store reference audio, transcript, and tags; local clone or cloud voice_id.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="speech-music.webp" data-caption-zh="音乐库 · 视频的背景音乐" data-caption-en="Music library · background music for video" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">音乐库</span><span class="en">Music library</span></strong><em><span class="zh">上传 MP3/WAV/M4A/OGG/FLAC/AAC，快速创作直接选用。</span><span class="en">Upload MP3/WAV/M4A/OGG/FLAC/AAC and pick it in Quick Create.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/speech/tts</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/speech-tts.webp" data-theme-img="speech-tts.webp" alt="LiberAstra 文字转语音" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>文字转语音 · 音色、语言、格式</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 05</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/guides/speech.html" data-docs-en="docs/en/guides/speech.html" href="docs/guides/speech.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 06 · Canvas -->
+      <section class="leaf" id="canvas" data-chapter="canvas" data-title-zh="画布" data-title-en="Canvas" aria-label="画布 · Canvas" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">06 / CANVAS</p>
+              <h2 class="display-2"><span class="zh">把工作流<br />摊开。</span><span class="en">Lay the workflow<br />out.</span></h2>
+              <p class="lede"><span class="zh">画布把节点、变量绑定、预检和运行状态放在一张图上；导演台用对话推进分镜与节点。</span><span class="en">The canvas puts nodes, bindings, preflight, and run state on one surface; the director panel moves shots and nodes through conversation.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="canvas.webp" data-caption-zh="节点画布 · 一级入口" data-caption-en="Node canvas · first-class entry" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">节点画布</span><span class="en">Node canvas</span></strong><em><span class="zh">在总览之后直接进入；拖拽、连线、复用节点。</span><span class="en">A first-class entry after the overview; drag, connect, and reuse nodes.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="canvas.webp" data-caption-zh="变量绑定 · 媒体类型校验" data-caption-en="Bindings · media type checks" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">变量绑定</span><span class="en">Bindings</span></strong><em><span class="zh">源变量 → 槽位；媒体类型不匹配时明确报错。</span><span class="en">Source variable to slot, with explicit media-type errors.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="canvas.webp" data-caption-zh="预检与运行 · 状态在画布上" data-caption-en="Preflight and run · state on the canvas" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">预检与运行</span><span class="en">Preflight and run</span></strong><em><span class="zh">preflight、运行状态、失败定位都在画布上。</span><span class="en">Preflight, run state, and failure location on the canvas.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="canvas.webp" data-caption-zh="导演台与文件 · 对话、导入导出" data-caption-en="Director and files · chat, import, export" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">导演台与文件</span><span class="en">Director and files</span></strong><em><span class="zh">用对话推进分镜；导入 / 导出画布 JSON 或 ComfyUI 格式。</span><span class="en">Move shots through chat; import or export canvas JSON and ComfyUI formats.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/canvas</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/canvas.webp" data-theme-img="canvas.webp" alt="LiberAstra 画布与导演台" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>节点画布 · 一级入口</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 06</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/" data-docs-en="docs/en/" href="docs/"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 07 · Library -->
+      <section class="leaf" id="library" data-chapter="library" data-title-zh="素材与角色" data-title-en="Library" aria-label="素材与角色 · Library" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">07 / LIBRARY</p>
+              <h2 class="display-2"><span class="zh">素材、角色与模板，<br />随取随用。</span><span class="en">Assets, characters,<br />and templates, ready.</span></h2>
+              <p class="lede"><span class="zh">角色库保存外观和四段式定妆照；资产库归档图像、视频、音频、字幕；模板管理快速创作的画面样式。</span><span class="en">The character library keeps looks and four-view sheets; assets archive images, video, audio, and subtitles; templates set the look of Quick Create.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="characters.webp" data-caption-zh="角色库 · 外观与四段式定妆照" data-caption-en="Characters · looks and four-view sheets" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">角色库</span><span class="en">Characters</span></strong><em><span class="zh">面部、正面、侧面、背面和定妆照；视频任务按镜头取单张。</span><span class="en">Face, front, side, back, and contact sheet; video shots use a single view.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="assets.webp" data-caption-zh="资产库 · 图像、音频、视频、字幕、文本" data-caption-en="Assets · image, audio, video, subtitle, text" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">资产库</span><span class="en">Asset library</span></strong><em><span class="zh">搜索、筛选、预览、下载；所有产物按类型归档。</span><span class="en">Search, filter, preview, and download; every output archived by type.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="templates.webp" data-caption-zh="模板管理 · 9:16 / 1:1 / 16:9" data-caption-en="Templates · 9:16 / 1:1 / 16:9" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">模板管理</span><span class="en">Templates</span></strong><em><span class="zh">HTML 占位符模板，静态 / 插图 / 视频开头，按画幅归档。</span><span class="en">HTML templates with placeholders, static / image / video prefixes, grouped by aspect.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/video/characters</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/characters.webp" data-theme-img="characters.webp" alt="LiberAstra 角色库" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>角色库 · 外观与四段式定妆照</span><span class="demo-count"><span data-demo-index>01</span> / 03</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 07</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/guides/works.html" data-docs-en="docs/en/guides/works.html" href="docs/guides/works.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 08 · Works -->
+      <section class="leaf" id="works" data-chapter="works" data-title-zh="作品与任务" data-title-en="Works & jobs" aria-label="作品与任务 · Works & jobs" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">08 / WORKS</p>
+              <h2 class="display-2"><span class="zh">作品与任务，<br />留在手边。</span><span class="en">Works and jobs,<br />within reach.</span></h2>
+              <p class="lede"><span class="zh">任务中心跟踪进度、取消与重试；资产库保存图像、视频、音频、字幕和文本，产物与任务互相关联。</span><span class="en">The job center tracks progress, cancellation, and retries; assets hold image, video, audio, subtitle, and text, linked back to their jobs.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="jobs.webp" data-caption-zh="任务中心 · 进度、取消、重试" data-caption-en="Job center · progress, cancel, retry" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">任务中心</span><span class="en">Job center</span></strong><em><span class="zh">全部 / 进行中 / 失败 / 已完成；失败可沿用原参数重试。</span><span class="en">All / running / failed / done; retry a failure with the same parameters.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="assets.webp" data-caption-zh="资产库 · 按类型筛选与下载" data-caption-en="Asset library · filter and download" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">资产库</span><span class="en">Asset library</span></strong><em><span class="zh">图像、音频、视频、字幕、文本；搜索、预览、下载、删除。</span><span class="en">Image, audio, video, subtitle, and text; search, preview, download, delete.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="jobs.webp" data-caption-zh="参数与来源 · 每个产物都能追溯" data-caption-en="Parameters and lineage · every output traceable" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">参数与来源</span><span class="en">Parameters and lineage</span></strong><em><span class="zh">每个成品都关联任务、Provider、工作流和原始参数。</span><span class="en">Every result links to its job, provider, workflow, and original parameters.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="assets.webp" data-caption-zh="本地文件 · 留在自己的磁盘" data-caption-en="Local files · stay on your disk" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">本地文件</span><span class="en">Local files</span></strong><em><span class="zh">文件保存在自己的磁盘，随时预览、下载或删除。</span><span class="en">Files live on your disk; preview, download, or delete at any time.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/jobs</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/jobs.webp" data-theme-img="jobs.webp" alt="LiberAstra 任务中心" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>任务中心 · 进度、取消、重试</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 08</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/guides/works.html" data-docs-en="docs/en/guides/works.html" href="docs/guides/works.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 09 · Settings -->
+      <section class="leaf" id="settings" data-chapter="settings" data-title-zh="设置与提示词" data-title-en="Settings" aria-label="设置与提示词 · Settings" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="feature-grid">
+            <div class="feature-copy">
+              <p class="kicker">09 / SETTINGS</p>
+              <h2 class="display-2"><span class="zh">把编排<br />调成你的。</span><span class="en">Tune the<br />orchestration.</span></h2>
+              <p class="lede"><span class="zh">服务提供方、工作流包、提示词模板与系统设置都在同一处；保存后下一次任务立即生效。</span><span class="en">Providers, workflow packs, prompt templates, and system settings in one place; changes apply to the next job.</span></p>
+              <div class="row-list" data-demo-list>
+                <button type="button" class="row is-active" data-img="providers.webp" data-caption-zh="服务提供方 · 能力与密钥" data-caption-en="Providers · capabilities and keys" aria-pressed="true"><span class="row-num">01</span><span class="row-copy"><strong><span class="zh">服务提供方</span><span class="en">Providers</span></strong><em><span class="zh">DeepSeek、Ollama、ComfyUI、Edge TTS、Liber Speech / Depth；按能力启用。</span><span class="en">DeepSeek, Ollama, ComfyUI, Edge TTS, Liber Speech / Depth; enable by capability.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="workflows.webp" data-caption-zh="工作流包 · LiberAstra / ComfyUI / 画布 JSON" data-caption-en="Workflow packs · LiberAstra / ComfyUI / canvas JSON" aria-pressed="false"><span class="row-num">02</span><span class="row-copy"><strong><span class="zh">工作流包</span><span class="en">Workflow packs</span></strong><em><span class="zh">导入 LiberAstra 包、ComfyUI API Format 或画布 JSON；参数逐项可查。</span><span class="en">Import LiberAstra packs, ComfyUI API Format, or canvas JSON; parameters stay visible.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="prompts.webp" data-caption-zh="提示词模板 · 功能模板与场景预设" data-caption-en="Prompt templates · function and scene presets" aria-pressed="false"><span class="row-num">03</span><span class="row-copy"><strong><span class="zh">提示词模板</span><span class="en">Prompt templates</span></strong><em><span class="zh">编辑系统提示词与场景预设；保存后下一次优化立即采用。</span><span class="en">Edit system prompts and scene presets; the next optimization picks them up.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" class="row" data-img="system.webp" data-caption-zh="系统设置 · 账户与默认 LLM" data-caption-en="System · account and default LLM" aria-pressed="false"><span class="row-num">04</span><span class="row-copy"><strong><span class="zh">系统设置</span><span class="en">System</span></strong><em><span class="zh">账户与密码、默认 LLM；提示词优化和脚本共用一处配置。</span><span class="en">Account, password, and default LLM shared by prompt optimization and scripts.</span></em></span><span class="row-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <figure class="demo">
+              <div class="demo-frame">
+                <div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>localhost:8000/settings</span><span class="demo-tag">DEMO</span></div>
+                <img data-demo-image src="assets/images/light/providers.webp" data-theme-img="providers.webp" alt="LiberAstra 服务提供方" width="1200" height="750" loading="lazy" decoding="async" />
+              </div>
+              <figcaption><span data-demo-caption>服务提供方 · 能力与密钥</span><span class="demo-count"><span data-demo-index>01</span> / 04</span></figcaption>
+              <button type="button" class="demo-zoom" data-lightbox-open><span class="zh">查看大图</span><span class="en">View screenshot</span><span aria-hidden="true">↗</span></button>
+            </figure>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 09</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/quickstart.html" data-docs-en="docs/en/quickstart.html" href="docs/quickstart.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 · Access -->
+      <section class="leaf" id="access" data-chapter="access" data-title-zh="接入" data-title-en="Access" aria-label="接入 · Access" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="access-grid">
+            <div class="access-copy">
+              <p class="kicker">10 / ACCESS</p>
+              <h2 class="display-2"><span class="zh">四个入口，<br />一套编排。</span><span class="en">Four doors,<br />one orchestration.</span></h2>
+              <p class="lede"><span class="zh">浏览器、终端、Agent 或 OpenAI 兼容接口，调用同一套 Provider、工作流与任务队列。</span><span class="en">Browser, terminal, agent, or OpenAI-compatible API: the same providers, workflows, and job queue underneath.</span></p>
+              <div class="access-tabs" role="tablist" aria-label="接入方式 / Access methods" aria-orientation="vertical">
+                <button type="button" class="access-tab is-active" id="access-tab-0" role="tab" aria-selected="true" aria-controls="access-panel-0" tabindex="0" data-access-tab="0"><span class="a-num">01</span><strong>WEB</strong><em><span class="zh">自托管工作台</span><span class="en">Self-hosted desk</span></em></button>
+                <button type="button" class="access-tab" id="access-tab-1" role="tab" aria-selected="false" aria-controls="access-panel-1" tabindex="-1" data-access-tab="1"><span class="a-num">02</span><strong>CLI</strong><em><span class="zh">终端里的 astra</span><span class="en">astra in terminal</span></em></button>
+                <button type="button" class="access-tab" id="access-tab-2" role="tab" aria-selected="false" aria-controls="access-panel-2" tabindex="-1" data-access-tab="2"><span class="a-num">03</span><strong>MCP</strong><em><span class="zh">交给 Agent</span><span class="en">Hand it to agents</span></em></button>
+                <button type="button" class="access-tab" id="access-tab-3" role="tab" aria-selected="false" aria-controls="access-panel-3" tabindex="-1" data-access-tab="3"><span class="a-num">04</span><strong>API</strong><em>OpenAI /v1</em></button>
+              </div>
+            </div>
+
+            <div class="access-panels">
+              <div class="access-panel is-active" id="access-panel-0" role="tabpanel" aria-labelledby="access-tab-0" data-access-panel="0">
+                <div class="panel-head"><span class="panel-tag">WEB</span><h3><span class="zh">打开就工作。</span><span class="en">Open and work.</span></h3><p><span class="zh">中英文、明暗主题、任务进度与作品库都在同一个浏览器页面里。</span><span class="en">Bilingual, light and dark, job progress, and the works library in one browser page.</span></p></div>
+                <div class="browser-frame"><div class="demo-bar" aria-hidden="true"><i></i><i></i><i></i><span>http://localhost:8000/dashboard</span><span class="demo-tag">DEMO</span></div><img src="assets/images/light/dashboard.webp" data-theme-img="dashboard.webp" alt="LiberAstra Web 指挥台" width="1200" height="750" loading="lazy" decoding="async" /></div>
+                <a class="panel-doc link-arrow" data-docs-zh="docs/quickstart.html" data-docs-en="docs/en/quickstart.html" href="docs/quickstart.html"><span class="zh">快速开始</span><span class="en">Quick start</span> <span aria-hidden="true">↗</span></a>
+              </div>
+              <div class="access-panel" id="access-panel-1" role="tabpanel" aria-labelledby="access-tab-1" data-access-panel="1">
+                <div class="panel-head"><span class="panel-tag">CLI</span><h3><span class="zh">终端里的一行。</span><span class="en">One line in the terminal.</span></h3><p><span class="zh">登录一次，之后用同一套命令出图、出声、出视频，或查询任务。</span><span class="en">Log in once, then generate images, audio, video, or inspect jobs with one command set.</span></p></div>
+                <div class="code-card"><div class="code-head"><span>bash</span><button type="button" class="copy-btn" data-copy-target="code-cli"><span class="zh">复制</span><span class="en">Copy</span></button></div><pre id="code-cli"><code>astra login --server http://127.0.0.1:8000
+astra image gen --prompt "一只橘猫" --workflow qwen_image_21 -o ./out
+astra tts "你好" --voice zh-CN-XiaoxiaoNeural -o hello.mp3
+astra job list --limit 20</code></pre></div>
+                <a class="panel-doc link-arrow" data-docs-zh="docs/integration/cli.html" data-docs-en="docs/en/integration/cli.html" href="docs/integration/cli.html">CLI Docs <span aria-hidden="true">↗</span></a>
+              </div>
+              <div class="access-panel" id="access-panel-2" role="tabpanel" aria-labelledby="access-tab-2" data-access-panel="2">
+                <div class="panel-head"><span class="panel-tag">MCP</span><h3><span class="zh">把五个工具交给 Agent。</span><span class="en">Five tools for your agent.</span></h3><p><span class="zh">generate_image、synthesize_speech、transcribe、create_video、get_job，通过 stdio 暴露。</span><span class="en">generate_image, synthesize_speech, transcribe, create_video, and get_job over stdio.</span></p></div>
+                <div class="code-card"><div class="code-head"><span>mcp.json</span><button type="button" class="copy-btn" data-copy-target="code-mcp"><span class="zh">复制</span><span class="en">Copy</span></button></div><pre id="code-mcp"><code>{
+  "mcpServers": {
+    "liberastra": {
+      "command": "astra",
+      "args": ["mcp"],
+      "env": {
+        "LIBERASTRA_SERVER": "http://127.0.0.1:8000",
+        "LIBERASTRA_TOKEN": "astra_..."
+      }
+    }
+  }
+}</code></pre></div>
+                <a class="panel-doc link-arrow" data-docs-zh="docs/integration/mcp.html" data-docs-en="docs/en/integration/mcp.html" href="docs/integration/mcp.html">MCP Docs <span aria-hidden="true">↗</span></a>
+              </div>
+              <div class="access-panel" id="access-panel-3" role="tabpanel" aria-labelledby="access-tab-3" data-access-panel="3">
+                <div class="panel-head"><span class="panel-tag">API</span><h3><span class="zh">OpenAI 兼容，换一个地址。</span><span class="en">OpenAI-compatible, one base URL.</span></h3><p><span class="zh">chat / audio / images 走同一个 <code>/v1</code>；<code>model</code> 对应你接好的提供方。</span><span class="en">chat, audio, and images share one <code>/v1</code>; <code>model</code> names the provider you connected.</span></p></div>
+                <div class="code-card"><div class="code-head"><span>curl</span><button type="button" class="copy-btn" data-copy-target="code-api"><span class="zh">复制</span><span class="en">Copy</span></button></div><pre id="code-api"><code>curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer &lt;YOUR_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-provider:your-model",
+    "messages": [{"role": "user", "content": "hi"}]
+  }'</code></pre></div>
+                <a class="panel-doc link-arrow" data-docs-zh="docs/integration/api.html" data-docs-en="docs/en/integration/api.html" href="docs/integration/api.html">API Docs <span aria-hidden="true">↗</span></a>
+              </div>
+            </div>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 10</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/integration/cli.html" data-docs-en="docs/en/integration/cli.html" href="docs/integration/cli.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11 · Start -->
+      <section class="leaf" id="start" data-chapter="start" data-title-zh="开始" data-title-en="Start" aria-label="开始 · Start" tabindex="-1">
+        <div class="leaf-inner">
+          <div class="start-grid">
+            <div class="start-copy">
+              <p class="kicker">11 / START</p>
+              <h2 class="display-2"><span class="zh">把它跑起来。</span><span class="en">Bring it up.</span></h2>
+              <p class="lede"><span class="zh">默认 Docker 单机部署；模型仍在 ComfyUI、Ollama 与语音服务里。</span><span class="en">Docker on one machine by default; models stay in ComfyUI, Ollama, and speech services.</span></p>
+              <ol class="start-steps">
+                <li><span class="s-num">01</span><span><strong><span class="zh">启动服务</span><span class="en">Start the stack</span></strong><em><span class="zh">在仓库根目录执行部署命令。</span><span class="en">Run the deploy command at the repo root.</span></em></span></li>
+                <li><span class="s-num">02</span><span><strong><span class="zh">创建管理员</span><span class="en">Create the admin</span></strong><em><span class="zh">打开 localhost:8000，首次进入即引导。</span><span class="en">Open localhost:8000; first run walks you through it.</span></em></span></li>
+                <li><span class="s-num">03</span><span><strong><span class="zh">填 Provider</span><span class="en">Add providers</span></strong><em><span class="zh">设置 → 服务提供方，填地址与密钥。</span><span class="en">Settings → Providers, then add addresses and keys.</span></em></span></li>
+                <li><span class="s-num">04</span><span><strong><span class="zh">开始出活</span><span class="en">Make something</span></strong><em><span class="zh">从提示词到图像、视频、语音。</span><span class="en">Prompts become image, video, and speech.</span></em></span></li>
+              </ol>
+            </div>
+            <div class="start-side">
+              <div class="terminal-card">
+                <div class="terminal-head"><span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>docker compose</span><span class="terminal-status">READY</span></div>
+                <div class="terminal-body"><p class="terminal-line"><span class="prompt" aria-hidden="true">$</span> <code id="code-start">docker compose up -d --build</code></p><p class="terminal-note"><span class="zh">默认监听 http://localhost:8000</span><span class="en">Listens on http://localhost:8000 by default</span></p></div>
+                <button type="button" class="copy-btn terminal-copy" data-copy-target="code-start"><span class="zh">复制命令</span><span class="en">Copy command</span></button>
+              </div>
+              <div class="start-links">
+                <a class="start-link" href="https://github.com/liberalchang/LiberAstra/releases" target="_blank" rel="noopener"><span class="s-icon" aria-hidden="true">↓</span><span><strong><span class="zh">Windows 安装包</span><span class="en">Windows installer</span></strong><em>GitHub Releases</em></span><span class="s-arrow" aria-hidden="true">↗</span></a>
+                <a class="start-link" data-docs-zh="docs/install.html" data-docs-en="docs/en/install.html" href="docs/install.html"><span class="s-icon" aria-hidden="true">□</span><span><strong><span class="zh">安装文档</span><span class="en">Install docs</span></strong><em>Docker · split deploy</em></span><span class="s-arrow" aria-hidden="true">↗</span></a>
+                <a class="start-link" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener"><span class="s-icon" aria-hidden="true">◆</span><span><strong>GitHub</strong><em><span class="zh">源码 · Issues · 版本</span><span class="en">Source · issues · releases</span></em></span><span class="s-arrow" aria-hidden="true">↗</span></a>
+              </div>
+              <p class="start-note"><span class="zh">模型在你的机器里。LiberAstra 只负责编排。另：liberastra.com.br 是无关的导师网站。</span><span class="en">Models stay on your machines; LiberAstra only orchestrates. Note: liberastra.com.br is an unrelated mentorship site.</span></p>
+            </div>
+          </div>
+          <div class="page-foot">
+            <span class="foot-meta">LIBERASTRA · 11</span>
+            <span class="foot-links"><a class="link-arrow" href="https://github.com/liberalchang/LiberAstra" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a><a class="link-arrow" data-docs-zh="docs/install.html" data-docs-en="docs/en/install.html" href="docs/install.html"><span class="zh">文档</span><span class="en">Docs</span> <span aria-hidden="true">↗</span></a><button type="button" class="foot-top" data-page-link data-goto="purpose"><span class="zh">回到封面</span><span class="en">Back to cover</span> ↑</button></span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="book-controls" aria-label="书页导航 / Book pages">
+      <button type="button" class="reader-btn" data-prev aria-label="上一页 / Previous" disabled><span class="reader-arrow" aria-hidden="true">←</span><span class="zh">上一页</span><span class="en">Previous</span></button>
+      <div class="page-picker">
+        <label for="page-select"><span class="zh">页码</span><span class="en">Page</span></label>
+        <select id="page-select" aria-label="选择页码 / Go to page"></select>
+        <span class="sr-only" data-status aria-live="polite"></span>
+      </div>
+      <button type="button" class="reader-btn reader-next" data-next aria-label="下一页 / Next"><span class="zh">下一页</span><span class="en">Next</span><span class="reader-arrow" aria-hidden="true">→</span></button>
+    </nav>
+  </div>
+
+  <dialog class="lightbox" id="lightbox" aria-label="截图放大 / Screenshot zoom">
+    <div class="lightbox-inner">
+      <button type="button" class="lightbox-close" data-lightbox-close aria-label="关闭 / Close">×</button>
+      <button type="button" class="lightbox-nav lightbox-prev" data-lightbox-prev aria-label="上一张 / Previous">←</button>
+      <figure><img src="assets/images/light/dashboard.webp" data-theme-img="dashboard.webp" alt="" width="1200" height="750" data-lightbox-image /><figcaption data-lightbox-caption></figcaption></figure>
+      <button type="button" class="lightbox-nav lightbox-next" data-lightbox-next aria-label="下一张 / Next">→</button>
     </div>
-  </header>
-
-  <main>
-    <!-- Hero（书页式展开） -->
-    <section class="hero chapter chapter-paper container">
-      <p class="eyebrow">
-        <span class="zh">LiberAstra 编排台 · orchestration desk</span>
-        <span class="en">LiberAstra — self-hosted AIGC orchestration desk</span>
-      </p>
-      <h1>只编排，不推理</h1>
-      <p class="kicker zh">把 ComfyUI、Ollama 和语音接到一张桌面（Web / CLI / MCP / OpenAI <code>/v1</code>）。模型在你的机器里，本项目只负责编排。</p>
-      <p class="kicker en">One desk for ComfyUI, Ollama, and speech (Web / CLI / MCP / OpenAI <code>/v1</code>). Models stay where they run; this project orchestrates them.</p>
-      <div class="hero-actions">
-        <a class="btn-primary" href="#start">部署 Deploy</a>
-        <a class="btn" href="docs/">查看文档 Read Docs</a>
-      </div>
-      <div class="hero-media">
-        <img src="assets/images/home.webp" alt="LiberAstra Web UI screenshot" loading="eager" />
-      </div>
-      <p class="muted" style="margin-top:12px;">
-        <span class="zh">注意：<a href="https://liberastra.com.br/">liberastra.com.br</a> 是另外的指导网站，与本项目无关。</span>
-        <span class="en">Note: <a href="https://liberastra.com.br/">liberastra.com.br</a> is unrelated (mentorship site).</span>
-      </p>
-    </section>
-
-    <!-- Why / Purpose（纸面章节） -->
-    <section class="section chapter chapter-paper why container" id="why">
-      <h2>为什么是编排台 · Why</h2>
-      <div class="grid cols-3">
-        <div class="card">
-          <div class="num">01</div>
-          <h3 class="zh">一张桌面：图像 / 视频 / 语音</h3>
-          <h3 class="en">One desk: image / video / speech</h3>
-          <p>PromptField → 任务队列，跨模态工作流在同一处管理。</p>
-        </div>
-        <div class="card">
-          <div class="num">02</div>
-          <h3 class="zh">模型在你的机器上运行</h3>
-          <h3 class="en">Models run on your machines</h3>
-          <p>对接 ComfyUI / Ollama / 语音服务；本项目不推理（不运行模型）。</p>
-        </div>
-        <div class="card">
-          <div class="num">03</div>
-          <h3 class="zh">多入口接入</h3>
-          <h3 class="en">Multiple access points</h3>
-          <p>Web UI、<code>astra</code> CLI、MCP、OpenAI 兼容 <code>/v1</code>。</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature showcase（暗色陈列页） -->
-    <section class="section chapter chapter-dark showcase container" id="features">
-      <h2>功能掠影 · Feature showcase</h2>
-      <!-- 主打大图 -->
-      <figure class="feature-hero card shot">
-        <img src="assets/images/canvas.webp" data-lightbox="assets/images/canvas.webp" alt="Canvas" />
-        <figcaption>Canvas</figcaption>
-      </figure>
-      <div class="grid cols-3">
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/home.webp" data-lightbox="assets/images/home.webp" alt="Home" />
-            <figcaption>Home</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/image-generate.webp" data-lightbox="assets/images/image-generate.webp" alt="Image · Generate" />
-            <figcaption>Image · Generate</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/image-edit.webp" data-lightbox="assets/images/image-edit.webp" alt="Image · Edit" />
-            <figcaption>Image · Edit</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/video-quick.webp" data-lightbox="assets/images/video-quick.webp" alt="Video · Quick" />
-            <figcaption>Video · Quick</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/video-i2v.webp" data-lightbox="assets/images/video-i2v.webp" alt="Video · I2V" />
-            <figcaption>Video · I2V</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/speech-tts.webp" data-lightbox="assets/images/speech-tts.webp" alt="Speech · TTS" />
-            <figcaption>Speech · TTS</figcaption>
-          </figure>
-        </div>
-        <div class="card shot">
-          <figure>
-            <img src="assets/images/video-assets.webp" data-lightbox="assets/images/video-assets.webp" alt="Video Assets" />
-            <figcaption>Video Assets</figcaption>
-          </figure>
-        </div>
-      </div>
-      <div class="lightbox" aria-hidden="true"><img alt="" /></div>
-    </section>
-
-    <!-- Works / Gallery placeholder（纸面章节） -->
-    <section class="section chapter chapter-paper gallery container" id="works">
-      <h2>作品集 · Works</h2>
-      <p class="muted zh">以下为占位（不造数据）。欢迎在 PR 中替换为真实作品。</p>
-      <p class="muted en">Placeholders only. Replace with real works later.</p>
-      <div class="grid cols-3">
-        <div class="placeholder card">「作品占位 · 待补充」</div>
-        <div class="placeholder card">「作品占位 · 待补充」</div>
-        <div class="placeholder card">「作品占位 · 待补充」</div>
-      </div>
-    </section>
-
-    <!-- Three-act flow（强调色章节） -->
-    <section class="section chapter chapter-accent flow container" id="flow">
-      <h2>三段式流程 · Three-act flow</h2>
-      <div class="flow-rail">
-        <div class="step card">
-          <div class="tag">01 · Before</div>
-          <strong>Providers</strong>
-          <div class="muted">ComfyUI / Ollama / Speech</div>
-        </div>
-        <div class="arrow" aria-hidden="true">→</div>
-        <div class="step card">
-          <div class="tag">02 · During</div>
-          <strong>PromptField → Tasks</strong>
-          <div class="muted">Web / CLI / MCP / <code>/v1</code></div>
-        </div>
-        <div class="arrow" aria-hidden="true">→</div>
-        <div class="step card">
-          <div class="tag">03 · After</div>
-          <strong>作品 Works</strong>
-          <div class="muted">图像 / 视频 / 语音</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Start（纸面章节） -->
-    <section class="section chapter chapter-paper container" id="start">
-      <h2>开始 · Start</h2>
-      <div class="card">
-        <p class="muted zh">在仓库根目录运行：</p>
-        <p class="muted en">In the repo root:</p>
-        <pre class="code"><code>docker compose up -d --build</code></pre>
-        <p class="muted zh">打开 <code>http://localhost:8000</code>，首次创建管理员 → 「设置 → 服务提供方」配置地址。模型运行在 ComfyUI / Ollama，不在本项目内。</p>
-        <p class="muted en">Open <code>http://localhost:8000</code>, create admin → “Settings → Providers”. Models run in ComfyUI / Ollama, not here.</p>
-        <p><a class="btn" href="https://github.com/liberalchang/LiberAstra/releases">Windows 安装包 · Releases</a></p>
-      </div>
-    </section>
-  </main>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="container row">
-      <div>
-        <span>MIT</span> ·
-        <a href="https://github.com/liberalchang/LiberAstra">GitHub</a> ·
-        <a href="docs/">Docs</a> ·
-        <a href="docs/about.html">About</a>
-      </div>
-      <div>
-        <span>中文 / English</span> ·
-        <span>品牌：深浅色并重 · honest tool-like</span> ·
-        <span>非 <a href="https://liberastra.com.br/">liberastra.com.br</a></span>
-      </div>
-    </div>
-  </footer>
+  </dialog>
 </body>
 </html>
