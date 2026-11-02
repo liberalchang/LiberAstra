@@ -1,14 +1,12 @@
-import { defineConfig } from 'vitepress';
-import path from 'node:path';
-
 // 中文为主，提供简要英文骨架。构建输出到 site/docs，以 /docs/ 为 base。
-export default defineConfig({
+export default {
   title: 'LiberAstra',
   description:
     'LiberAstra 编排台：自托管 AIGC 编排，对接 ComfyUI、Ollama 与 OpenAI 兼容 API。只编排，不推理。',
   base: '/docs/',
   cleanUrls: true,
-  outDir: path.resolve(__dirname, '../../docs'),
+  // 从 docs-src 根目录出发，输出到上级的 site/docs
+  outDir: '../docs',
   locales: {
     root: {
       label: '简体中文',
@@ -126,4 +124,4 @@ export default defineConfig({
       }
     }
   }
-});
+};
