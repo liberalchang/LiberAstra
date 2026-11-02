@@ -284,6 +284,6 @@ pre.code {
 .site-footer a:hover { color: var(--accent); }
 
 /* 语言可视性 */
-[data-lang=\"zh\"] .en { display: none; }
-[data-lang=\"en\"] .zh { display: none; }
+[data-lang="zh"] .en { display: none; }
+[data-lang="en"] .zh { display: none; }
 
