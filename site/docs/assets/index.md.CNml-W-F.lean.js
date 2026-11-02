@@ -1,0 +1,1 @@
+import{_ as e,o as r,c as t,a0 as i}from"./chunks/framework.DQkYKI_5.js";const u=JSON.parse('{"title":"介绍","description":"","frontmatter":{"title":"介绍"},"headers":[],"relativePath":"index.md","filePath":"index.md"}'),l={name:"index.md"};function o(n,a,s,c,d,h){return r(),t("div",null,[...a[0]||(a[0]=[i("",10)])])}const p=e(l,[["render",o]]);export{u as __pageData,p as default};
