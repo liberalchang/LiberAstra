@@ -1,0 +1,289 @@
+/* 站点基础样式（深浅色并重） — 中文为主，保留英文段落。 */
+:root {
+  --bg: #0d0c10;
+  --card: #18171d;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --accent: #c4b5fd;
+  --accent-strong: #a78bfa;
+  --border: #26242c;
+  --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  color-scheme: dark;
+}
+
+/* 亮色主题变量 */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --card: #f5f5f7;
+  --text: #0b0b0f;
+  --muted: #64646b;
+  --accent: #6b5bd6;
+  --accent-strong: #5547c7;
+  --border: #e8e8ee;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Hiragino Sans GB", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* 顶部导航 */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: saturate(180%) blur(8px);
+  background: color-mix(in oklab, var(--bg) 86%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand .logo {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 4px 18px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.nav-links {
+  display: flex;
+  gap: 14px;
+}
+.nav-links a, .nav-actions button, .nav-actions a.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 8px 12px;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+.nav-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn, .btn-primary {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #0b0b0f;
+  border: none;
+}
+.btn:hover { border-color: color-mix(in oklab, var(--border) 60%, var(--accent) 40%); }
+.btn-primary:hover { filter: brightness(0.96); }
+.toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Hero */
+.hero {
+  padding: 72px 0 36px;
+}
+.eyebrow {
+  color: var(--accent);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+.hero h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin: 0 0 14px;
+}
+.hero .kicker {
+  color: var(--muted);
+  font-size: 16px;
+  margin-bottom: 22px;
+}
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.hero-media {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.hero-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 通用卡片与分区 */
+.section {
+  padding: 54px 0;
+}
+.section h2 {
+  font-size: clamp(22px, 3.2vw, 32px);
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+}
+.muted { color: var(--muted); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.grid {
+  display: grid;
+  gap: 16px;
+}
+.grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 860px) {
+  .grid.cols-3 { grid-template-columns: 1fr; }
+  .grid.cols-2 { grid-template-columns: 1fr; }
+}
+
+/* 编号卡片 */
+.num {
+  font-feature-settings: "tnum" on, "lnum" on;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--accent);
+  font-size: 14px;
+}
+.why .card h3 {
+  margin: 6px 0 6px;
+  font-size: 18px;
+}
+.why .card p { color: var(--muted); margin: 0; }
+
+/* 截图格与灯箱 */
+.showcase .shot {
+  overflow: hidden;
+  padding: 0;
+}
+.shot figure {
+  margin: 0;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: zoom-in;
+}
+.shot figcaption {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.lightbox.open { display: flex; }
+.lightbox img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+/* 作品占位 */
+.gallery .placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  background:
+    linear-gradient(145deg, color-mix(in oklab, var(--card) 92%, transparent), transparent);
+  border-radius: 16px;
+}
+
+/* 三段式流程 */
+.flow .step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.flow .step .tag {
+  font-size: 12px;
+  color: var(--muted);
+}
+.flow .arrow {
+  text-align: center;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+/* 起步代码卡片 */
+pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+pre.code {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 14px;
+  border-radius: 12px;
+  overflow: auto;
+}
+
+/* 页脚 */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 26px 0 46px;
+  color: var(--muted);
+}
+.site-footer .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  justify-content: space-between;
+}
+.site-footer a { color: var(--muted); text-decoration: none; }
+.site-footer a:hover { color: var(--accent); }
+
+/* 语言可视性 */
+[data-lang=\"zh\"] .en { display: none; }
+[data-lang=\"en\"] .zh { display: none; }
+

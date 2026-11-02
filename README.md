@@ -13,6 +13,9 @@
 
 仓库：<https://github.com/liberalchang/LiberAstra>
 
+> GitHub Pages 主页：<https://liberalchang.github.io/LiberAstra/>  
+> - 首页为产品落地页；文档骨架位于 `/docs/`（示例：`https://liberalchang.github.io/LiberAstra/docs/`）
+
 搜索这个名字时，[liberastra.com.br](https://liberastra.com.br/) 是另一个项目。这里是开源的自托管 AIGC 编排台。
 
 <a id="中文"></a>
@@ -262,7 +265,7 @@ astra mcp
 - `packaging/windows/`、`packaging/speech/` — Windows 主程序与语音插件的构建脚本
 - `skills/liberastra/` — Agent Skill
 - `docs/` — 使用与部署；研发笔记在 `docs/internal/`
-- `site/` — 一页落地，尚未发布到 GitHub Pages
+- `site/` — GitHub Pages 站点（产品落地页 + VitePress 文档输出）
 - `.github/workflows/ci.yml` — lint、测试、前端构建、镜像构建
 
 ## 参考项目

@@ -1,0 +1,14 @@
+{
+  "name": "liberastra-docs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LiberAstra docs (VitePress skeleton)",
+  "scripts": {
+    "build": "vitepress build",
+    "dev": "vitepress dev --open",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.3.4"
+  }
+}

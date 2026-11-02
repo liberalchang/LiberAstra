@@ -1,8 +1,13 @@
-# 手动发布 site/index.html。未在仓库 Settings 里打开 Pages 时不要在 push 上自动跑，避免 CI 变红。
+# GitHub Pages: 构建并发布 `site/`（包含静态首页与 VitePress 文档输出）
 name: Pages
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
 
 permissions:
   contents: read
@@ -20,10 +25,32 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: site/docs-src/package.json
+
+      - name: Install docs deps
+        working-directory: site/docs-src
+        run: npm install --no-audit --no-fund
+
+      - name: Build docs (VitePress → site/docs)
+        working-directory: site/docs-src
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
+
       - id: deployment
+        name: Deploy to Pages
         uses: actions/deploy-pages@v4
