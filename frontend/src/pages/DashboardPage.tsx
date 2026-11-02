@@ -113,7 +113,7 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:gap-8">
-      <header className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 md:p-8">
+      <header className="surface-bevel relative overflow-hidden rounded-3xl border border-border bg-card p-6 md:p-8">
         <div aria-hidden className="pointer-events-none absolute -top-24 right-10 size-56 rounded-full bg-primary/15 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-24 right-44 size-40 rounded-full bg-primary/10 blur-3xl" />
         <BrandMark className="pointer-events-none absolute right-8 top-1/2 hidden size-24 -translate-y-1/2 text-primary/10 md:block" />
@@ -127,7 +127,7 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <section className="rounded-2xl border border-border bg-card p-4 md:p-6">
+      <section className="surface-bevel relative rounded-2xl border border-border bg-card p-4 ring-1 ring-primary/10 ring-inset md:p-6">
         <div className="grid gap-4 md:grid-cols-[260px_minmax(0,1fr)] md:gap-6">
           <div role="group" aria-label={t("studio.mode")} className="grid grid-cols-3 gap-2 md:flex md:flex-col">
             {MODES.map((value) => {
@@ -142,14 +142,14 @@ export function DashboardPage() {
                   className={cn(
                     "flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-colors md:items-start md:gap-3 md:p-3",
                     active
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-primary/40 bg-primary/10 text-primary ring-1 ring-primary/15 ring-inset"
                       : "border-transparent bg-background/50 text-foreground/80 hover:bg-muted",
                   )}
                 >
                   <span
                     className={cn(
-                      "grid size-8 shrink-0 place-items-center rounded-lg md:size-9",
-                      active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                      "grid size-8 shrink-0 place-items-center rounded-lg shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-border/60 md:size-9",
+                      active ? "bg-primary/15 text-primary ring-primary/20" : "bg-muted text-muted-foreground",
                     )}
                   >
                     <NavIcon name={item.icon} className="size-4" />
@@ -203,16 +203,18 @@ export function DashboardPage() {
 
         <div className="grid gap-3 md:grid-cols-3">
           {TOOL_GROUPS.map((group) => (
-            <div key={group.mode} className="rounded-2xl border border-border bg-card p-2">
+            <div key={group.mode} className="surface-bevel relative rounded-2xl border border-border bg-card p-2">
               <div className="flex items-center gap-2 px-2.5 py-2">
-                <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-primary/15">
                   <NavIcon name={group.icon} className="size-3.5" />
                 </span>
                 <h3 className="text-sm font-semibold text-foreground">{t(group.labelKey)}</h3>
-                <span className="ml-auto text-xs text-muted-foreground">{group.tools.length}</span>
+                <span className="ml-auto min-w-5 rounded-full bg-foreground/[0.04] px-1.5 py-0.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground ring-1 ring-border/60">
+                  {group.tools.length}
+                </span>
               </div>
 
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col divide-y divide-border/50">
                 {group.tools.map((tool) => (
                   <Link
                     key={tool.to}
@@ -221,7 +223,7 @@ export function DashboardPage() {
                     title={t(tool.hintKey)}
                     className="group flex items-center gap-3 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-primary/15 transition-colors group-hover:bg-primary/15">
                       <NavIcon name={tool.icon} className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -230,7 +232,7 @@ export function DashboardPage() {
                     </span>
                     <ArrowUpRight
                       aria-hidden
-                      className="size-3.5 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary"
+                      className="size-3.5 shrink-0 text-muted-foreground/50 transition-[color,transform] duration-150 group-hover:translate-x-0.5 group-hover:text-primary motion-reduce:transition-none"
                     />
                   </Link>
                 ))}

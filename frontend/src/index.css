@@ -23,6 +23,11 @@
   --danger: #dc2626;
   --warning: #b45309;
   --info: #2563eb;
+  /* 控件/卡片的 1px 材质边缘，不做外阴影 */
+  --edge-highlight: rgb(255 255 255 / 0.75);
+  --edge-shadow: rgb(0 0 0 / 0.05);
+  --control-highlight: rgb(255 255 255 / 0.18);
+  --control-shadow: rgb(0 0 0 / 0.16);
 }
 
 .dark {
@@ -47,6 +52,10 @@
   --danger: #f87171;
   --warning: #fbbf24;
   --info: #60a5fa;
+  --edge-highlight: rgb(255 255 255 / 0.06);
+  --edge-shadow: rgb(0 0 0 / 0.28);
+  --control-highlight: rgb(255 255 255 / 0.14);
+  --control-shadow: rgb(0 0 0 / 0.28);
 }
 
 @theme {
@@ -78,6 +87,18 @@
   --radius-md: var(--radius);
   /* 下拉框 chevron（selectClass 引用） */
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* 仪器面板质感：只加 1px 内高光/底边，不做外阴影；调用方需有定位上下文 */
+.surface-bevel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 var(--edge-highlight),
+    inset 0 -1px 0 var(--edge-shadow);
 }
 
 /* 进度条扫光动画（生成中状态） */

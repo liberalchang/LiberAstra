@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NavFlyout } from "./NavFlyout";
 import { NavLeafLink } from "./NavLeafLink";
-import { navRowClass } from "./navStyles";
+import { navIconWellClass, navRowClass } from "./navStyles";
 
 type NavDirectEntry = Extract<NavEntry, { kind: "link" }>;
 
@@ -70,8 +70,17 @@ export function SidebarNav({
       title={mini ? t(entry.labelKey) : undefined}
       onClick={() => onNavigate?.()}
     >
-      <NavIcon name={entry.icon} className="size-4 shrink-0" />
-      {!mini && <span className="truncate">{t(entry.labelKey)}</span>}
+      {({ isActive }) => (
+        <>
+          <span className={navIconWellClass(isActive)}>
+            <NavIcon name={entry.icon} className="size-4" />
+          </span>
+          {!mini && <span className="flex-1 truncate">{t(entry.labelKey)}</span>}
+          {!mini && isActive && (
+            <span className="size-1.5 shrink-0 rounded-full bg-primary ring-2 ring-primary/15" aria-hidden />
+          )}
+        </>
+      )}
     </NavLink>
   );
 
@@ -102,8 +111,13 @@ export function SidebarNav({
             }
           }}
         >
-          <NavIcon name={entry.icon} className="size-4 shrink-0" />
+          <span className={navIconWellClass(active)}>
+            <NavIcon name={entry.icon} className="size-4" />
+          </span>
           {!mini && <span className="flex-1 truncate text-left">{t(entry.labelKey)}</span>}
+          {!mini && active && (
+            <span className="size-1.5 shrink-0 rounded-full bg-primary ring-2 ring-primary/15" aria-hidden />
+          )}
           {!mini && (
             <ChevronRight
               aria-hidden
@@ -176,7 +190,13 @@ export function SidebarNav({
       {NAV_ENTRIES.map((entry) => (
         <div key={entry.id} className="flex flex-col">
           {entry.dividerBefore && (
-            <div className={cn("my-1 h-px bg-border", mini ? "mx-auto w-6" : "mx-3")} aria-hidden />
+            <div
+              className={cn(
+                "my-1 h-px bg-gradient-to-r from-transparent via-border to-transparent",
+                mini ? "mx-auto w-6" : "mx-3",
+              )}
+              aria-hidden
+            />
           )}
           {entry.kind === "link" ? renderDirect(entry) : renderGroup(entry)}
         </div>

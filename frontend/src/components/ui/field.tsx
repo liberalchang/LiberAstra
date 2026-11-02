@@ -36,13 +36,13 @@ export function Field({
 const CHEVRON_BG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
 
 export const selectClass = cn(
-  "h-11 w-full appearance-none rounded-[10px] border border-border bg-field px-3 pr-9 text-sm text-foreground",
+  "h-11 w-full appearance-none rounded-[10px] border border-border bg-field px-3 pr-9 text-sm text-foreground shadow-[inset_0_1px_0_var(--edge-highlight)]",
   "bg-no-repeat bg-[right_0.75rem_center] bg-[length:16px]",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   `bg-[image:var(--select-chevron)]`,
 );
 
 export const areaClass =
-  "w-full rounded-[10px] border border-border bg-field p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "w-full rounded-[10px] border border-border bg-field p-3 text-sm text-foreground shadow-[inset_0_1px_0_var(--edge-highlight)] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export { CHEVRON_BG };

@@ -97,12 +97,12 @@ export function PageHeader({
   return (
     <header
       data-kind={kind}
-      className="relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border bg-card p-4 md:p-5"
+      className="surface-bevel relative flex items-center gap-4 overflow-hidden rounded-3xl border border-border bg-card p-4 md:p-5"
     >
       {/* 装饰性渐变光斑，纯 CSS、随主题色变化 */}
       <div aria-hidden className="pointer-events-none absolute -top-16 right-8 size-44 rounded-full bg-primary/15 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -bottom-20 right-32 size-36 rounded-full bg-primary/10 blur-3xl" />
-      <div className="relative grid size-16 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/20">
+      <div className="relative grid size-16 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-primary/20 ring-inset">
         <Icon className="size-8" strokeWidth={1.75} />
       </div>
       <div className="relative min-w-0 flex-1">

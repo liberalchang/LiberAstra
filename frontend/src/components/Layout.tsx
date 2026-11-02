@@ -51,38 +51,45 @@ export function Layout() {
           mini && "flex-col items-center px-2",
         )}
       >
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
-          title={t("common.language")}
-          aria-label={t("common.language")}
+        <div
+          className={cn(
+            "flex items-center gap-0.5 rounded-xl bg-foreground/[0.03] p-0.5 shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-border/60",
+            mini && "flex-col",
+          )}
         >
-          <Languages />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setDark((v) => !v)}
-          title={t("common.theme")}
-          aria-label={t("common.theme")}
-        >
-          {dark ? <Sun /> : <Moon />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={signOut}
-          title={t("common.logout")}
-          aria-label={t("common.logout")}
-        >
-          <LogOut />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => i18n.changeLanguage(i18n.language.startsWith("zh") ? "en" : "zh")}
+            title={t("common.language")}
+            aria-label={t("common.language")}
+          >
+            <Languages />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDark((v) => !v)}
+            title={t("common.theme")}
+            aria-label={t("common.theme")}
+          >
+            {dark ? <Sun /> : <Moon />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={signOut}
+            title={t("common.logout")}
+            aria-label={t("common.logout")}
+          >
+            <LogOut />
+          </Button>
+        </div>
         {!mobile && (
           <Button
             variant="ghost"
             size="icon"
-            className={mini ? "" : "ml-auto"}
+            className={mini ? "mt-1" : "ml-auto"}
             onClick={() => setCollapsed((v) => !v)}
             title={mini ? t("common.expand") : t("common.collapse")}
             aria-label={mini ? t("common.expand") : t("common.collapse")}

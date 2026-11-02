@@ -6,9 +6,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 
 import { NavIcon } from "@/nav/icons";
-import type { NavGroupEntry } from "@/nav/model";
+import { isGroupActive, type NavGroupEntry } from "@/nav/model";
 import { cn } from "@/lib/utils";
 import { NavLeafLink } from "./NavLeafLink";
 
@@ -27,6 +28,8 @@ export function NavFlyout({
   onNavigate?: () => void;
 }) {
   const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const groupActive = isGroupActive(location.pathname, group);
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
@@ -140,24 +143,28 @@ export function NavFlyout({
         maxHeight: "calc(100vh - 24px)",
       }}
       className={cn(
-        "nav-scroll fixed z-40 overflow-y-auto rounded-2xl border border-border bg-card shadow-lg",
+        "surface-bevel nav-scroll fixed z-40 overflow-y-auto rounded-2xl border border-border bg-card shadow-lg",
         !position && "invisible",
       )}
     >
       <div className="sticky top-0 z-10 flex h-9 items-center gap-2 border-b border-border bg-card px-3 text-xs font-medium text-muted-foreground">
         <NavIcon name={group.icon} className="size-3.5 shrink-0" />
         <span className="truncate">{t(group.labelKey)}</span>
+        {groupActive && (
+          <span className="ml-auto size-1.5 shrink-0 rounded-full bg-primary ring-2 ring-primary/15" aria-hidden />
+        )}
       </div>
       <div className="p-1.5">
         {group.sections.map((section, sectionIndex) => (
           <div key={section.labelKey ?? sectionIndex}>
-            {section.labelKey ? (
+            {sectionIndex > 0 && (
               <div
-                className={cn(
-                  "px-2.5 pb-1 pt-2 text-[11px] font-medium text-muted-foreground",
-                  sectionIndex > 0 && "mt-1 border-t border-border",
-                )}
-              >
+                className="mx-2 mt-1 h-px bg-gradient-to-r from-transparent via-border to-transparent"
+                aria-hidden
+              />
+            )}
+            {section.labelKey ? (
+              <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">
                 {t(section.labelKey)}
               </div>
             ) : null}
