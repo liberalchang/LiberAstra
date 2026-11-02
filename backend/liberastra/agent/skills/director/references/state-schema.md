@@ -24,32 +24,29 @@
   "shots": [
     {"id": 1, "summary": "雨夜街头停下", "prompt": "已确认的分镜提示词"}
   ],
-  "keyframe_mode": "first",
+  "route": "storyboard",
+  "keyframe_count": 2,
   "keyframes": {
-    "1": ["首帧"]
+    "1": ["output_image_kf_1_1", "output_image_kf_1_2"]
   },
-  "video": {
-    "mode": "i2v",
-    "stage": "mode",
-    "shot_durations": {"1": 5, "2": 5},
-    "videos": [
-      {"shot": 1, "video_var": "output_video_1"},
-      {"shot": 2, "video_var": "output_video_2"}
-    ],
-    "shots_per_composite": 3,
-    "groups": [
-      {
-        "id": 1,
-        "shots": [1, 2, 3],
-        "duration_s": 15,
-        "concat_var": "output_image_storyboard_group_1",
-        "text_var": "input_text_group_1",
-        "video_var": "output_video_group_1"
-      }
-    ],
-    "final_video_var": null
+  "reference_images": {
+    "1": "output_image_ref_1"
   },
-  "confirmed": ["主题", "角色", "剧本", "分镜数量", "关键帧方式"]
+  "segments": [
+    {
+      "id": 1,
+      "shots": [1, 2, 3],
+      "duration_s": 15,
+      "composite_var": "output_image_ref_group_1"
+    }
+  ],
+  "videos": [
+    {"shot": 1, "video_var": "output_video_1"},
+    {"shot": 2, "video_var": "output_video_2"}
+  ],
+  "single_video_var": null,
+  "final_video_var": null,
+  "confirmed": ["主题", "角色", "剧本", "分镜数量", "创作路线"]
 }
 ```
 
@@ -59,13 +56,14 @@
 - 整段替换时显式传 `merge=false`。
 - `step` 用数字，表示下一次从哪里继续。
 - `confirmed` 记录用户已经点头的步骤。
-- `keyframe_mode`：`first` = 每镜只生成首帧；`first_last` = 每镜生成首帧和尾帧。
-- `video.mode`：`i2v` = 每个分镜各自一个图生视频节点；`reference` = 先把多个分镜合成参考图，再建参考视频节点。具体工作流/目标按画布菜单当前配置解析，不要写进状态。
-- `video.stage`：`mode` 选方式、`plan` 算时长/分组、`concat` 跑合成图、`videos` 跑视频、`final` 收尾。
-- `video.shot_durations` 用秒存；参考图分组的总时长用原始秒数相加，再按目标规格对齐一次。
-- `video.videos` 只在 `i2v` 模式使用，记录分镜号和视频节点变量名。
-- `video.groups` 只在 `reference` 模式使用，每项记录该组分镜号、总时长、合成图/文本/视频节点变量名。
-- 用户改关键帧方式或分镜后，清空后续 `video` 状态，避免沿用旧的合成图或视频节点。
+- `route`：`storyboard` = 分镜视频，每镜关键帧 + 逐镜视频 + 合并；`single_video` = 一段视频，分镜参考图 + 参考图生成视频。
+- `keyframe_count`、`keyframes`：只在 `storyboard` 使用。每镜可以有 1～N 张关键帧，变量名按 `output_image_kf_<分镜>_<序号>` 记录。
+- `reference_images`、`segments`：只在 `single_video` 使用。`reference_images` 记录每镜参考图；`segments` 记录每段分镜号、总时长和合成图变量。
+- `videos`：只在 `storyboard` 使用，记录分镜号和视频节点变量名。
+- `single_video_var`：`single_video` 且总时长不超过单段上限时使用。
+- `final_video_var`：最终成片变量；分镜视频是合成节点产物，长视频是 Extender 产物。
+- 具体工作流/目标按画布菜单当前配置解析，不要写进状态。
+- 用户改路线、关键帧数量或分镜后，清空后续视频状态，避免沿用旧的参考图或视频节点。
 - 不要把完整剧本、完整提示词反复塞进状态；只存摘要和画布变量名，正文放画布文本节点。
 - 安全策略由系统保存在 `safety`，`update_session_state` 会自动保留，不要覆盖。
 

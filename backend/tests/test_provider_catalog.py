@@ -250,7 +250,7 @@ def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:
             assert item["manual_targets"] == []
             continue
         assert item["bind_mode"] == "manual"
-        assert 2 <= len(item["title"]) <= 5
+        assert 2 <= len(item["title"]) <= 12
         ids = [target["target_id"] for target in item["manual_targets"]]
         assert ids
         assert all(target["target_type"] == "workflow" for target in item["manual_targets"])
@@ -258,7 +258,6 @@ def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:
         if any("uncensored" in name for name in ids):
             assert "uncensored" in item["default_target"]["target_id"]
         seen.extend(ids)
-    assert len(seen) == len(set(seen))
     assert {pack.name for pack in list_packs()} == set(seen)
 
 
@@ -271,12 +270,34 @@ def test_every_workflow_pack_has_a_menu_function() -> None:
         image_count = sum(
             1 for spec in pack.inputs.values() if isinstance(spec, dict) and spec.get("type") == "image"
         )
-        sub = pack_sub_capability(pack.name, pack.capability, image_count)
+        required_image_count = sum(
+            1
+            for spec in pack.inputs.values()
+            if isinstance(spec, dict)
+            and spec.get("type") == "image"
+            and spec.get("required", True)
+        )
+        sub = pack_sub_capability(
+            pack.name, pack.capability, image_count, required_image_count
+        )
         if sub not in menu_subs:
             missing.append(f"{pack.name}:{sub}")
     assert missing == []
     slots = media_slots("t2i")
     assert any(slot["type"] == "text" and slot["required"] for slot in slots)
+
+
+def test_reference_video_and_storyboard_menus() -> None:
+    menu = {item["id"]: item for item in default_canvas_menu()}
+    assert menu["preset_v2v_ref"]["title"] == "参考图生视频"
+    assert menu["preset_storyboard"]["title"] == "分镜视频"
+    assert menu["preset_v2v_ref_long"]["title"] == "参考图生成视频（长）"
+    storyboard = {target["target_id"] for target in menu["preset_storyboard"]["manual_targets"]}
+    long_video = {
+        target["target_id"] for target in menu["preset_v2v_ref_long"]["manual_targets"]
+    }
+    assert "minimax_h3_i2v_ref" in storyboard
+    assert "minimax_h3_extender" in long_video
 
 
 def test_manual_bind_returns_only_checked_targets() -> None:

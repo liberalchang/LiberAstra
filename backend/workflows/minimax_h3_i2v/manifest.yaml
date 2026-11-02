@@ -2,7 +2,7 @@ name: minimax_h3_i2v
 capability: i2v
 description: 'MiniMax H3 图生视频（官方版）
 
-  上传一张首帧图并描述动作，生成带同步音效的短视频。可选 Turbo 加速。'
+  上传一张首帧图，可选再传一张尾帧图，生成带同步音效的短视频。只传首帧时等同普通图生视频；传两张时锁首尾帧。可选 Turbo 加速。'
 fps: 24
 inputs:
   image:
@@ -12,6 +12,13 @@ inputs:
     required: true
     label: 首帧图片
     description: 作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。
+  last_frame:
+    node: '115'
+    field: inputs.image
+    type: image
+    required: false
+    label: 尾帧图片（可选）
+    description: 可选。只传首帧时忽略；传尾帧时固定在视频最后一帧。
   prompt:
     node: 105:104
     field: inputs.prompt
@@ -117,6 +124,6 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: '事实:MiniMax H3 图生视频,首帧图驱动;官方 TE;输出带同步音效;可选 Turbo LoRA。
+llm_note: '事实:MiniMax H3 图生视频,首帧必填,尾帧可选;官方 TE;输出带同步音效;可选 Turbo LoRA。
 
-  写作指导:结构为「画面主体与环境 + 镜头运动 + 时序动作 + 同步环境音/音效/对白」——音视频联合生成,声音描写不可省略。'
+  写作指导:结构为「画面主体与环境 + 镜头运动 + 时序动作 + 同步环境音/音效/对白」——音视频联合生成,声音描写不可省略。只有同时给出首尾帧时才写到达尾帧的过渡。'

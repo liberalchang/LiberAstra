@@ -52,7 +52,8 @@ const SUBS = [
   ["t2v", "文生视频"],
   ["i2v_first", "首帧"],
   ["i2v_flf", "首尾帧"],
-  ["v2v_ref", "参考视频"],
+  ["v2v_ref", "参考图生视频"],
+  ["v2v_ref_long", "参考图生成视频（长）"],
   ["tts", "文字转语音"],
   ["asr", "语音转文字"],
 ] as const;
@@ -68,6 +69,7 @@ const SUB_ICON: Record<string, LucideIcon> = {
   i2v_first: GalleryHorizontalEnd,
   i2v_flf: GalleryHorizontal,
   v2v_ref: Film,
+  v2v_ref_long: Film,
   tts: AudioLines,
   asr: Mic,
 };

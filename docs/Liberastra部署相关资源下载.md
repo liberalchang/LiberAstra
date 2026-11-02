@@ -89,12 +89,15 @@ FLUX.3 Klein 工作流需要 ComfyUI 0.41 或更高版本。
 
 | 文件 | 目录 |
 | --- | --- |
-| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models/` |
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models/`。首帧/首尾帧、文生视频、数字人 |
+| `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `diffusion_models/`。参考图/参考视频、动作迁移、长视频 |
 | `minimax_h3_video_vae_fp16.safetensors` | `vae/` |
 | `minimax_h3_video_vae_int8_convrot.safetensors` | `vae/`。仅 `minimax_h3_orbit` 默认使用，其它 H3 包仍用上一行的 fp16 |
 | `minimax_h3_audio_vae_fp32.safetensors` | `vae/` |
 
-主模型不要换成 `minimax_h3_ref2va_*`。图像用的 `qwen3vl_8b*` 和视频用的 `qwen3vl_32b*` 不能混用。
+FL2VA 和 Ref2VA 是两套权重，不要在同一条工作流里混用。图像用的 `qwen3vl_8b*` 和视频用的 `qwen3vl_32b*` 不能混用。
+
+RTX 3090 / Ampere 优先用 Comfy-Org 的 `minimax_h3_ref2va_pruned_int8_convrot.safetensors`。社区 NVFP4 权重面向 Blackwell；非 Blackwell 卡上 NVFP4 走模拟，速度和兼容性都不保证。
 
 ## 6. Speech 模型
 

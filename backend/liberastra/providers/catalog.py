@@ -306,6 +306,20 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "v2v_ref_long": {
+        "menu": "video",
+        "category": "video",
+        "label": "参考图生成视频（长）",
+        "slots": [
+            {
+                "key": "reference_image",
+                "type": "image",
+                "label": "参考图片",
+                "required": False,
+                "multiple": True,
+            },
+        ],
+    },
     "avatar": {
         "menu": "video",
         "category": "video",
@@ -752,9 +766,21 @@ def model_caps(provider, model_id: str) -> dict[str, bool]:  # noqa: ANN001
     return caps
 
 
-def pack_sub_capability(name: str, capability: str, image_input_count: int) -> str:
+def pack_sub_capability(
+    name: str,
+    capability: str,
+    image_input_count: int,
+    required_image_input_count: int | None = None,
+) -> str:
     """按包名里的用途区分功能。粗能力只作兜底，避免环绕和调色被并进别的功能。"""
+    required_images = (
+        image_input_count
+        if required_image_input_count is None
+        else required_image_input_count
+    )
     lowered = name.lower()
+    if "extender" in lowered:
+        return "v2v_ref_long"
     if "color_grade" in lowered:
         return "color_grade"
     if "inpaint" in lowered:
@@ -777,7 +803,7 @@ def pack_sub_capability(name: str, capability: str, image_input_count: int) -> s
         return "v2v_ref"
     if capability == "i2i" and ("multi" in lowered or image_input_count >= 2):
         return "i2i_multi"
-    if capability == "i2v" and image_input_count >= 2:
+    if capability == "i2v" and required_images >= 2:
         return "i2v_flf"
     return PACK_CAPABILITY_SUB.get(capability, capability)
 
@@ -821,7 +847,9 @@ _WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("preset_t2v_enhance", "video", "文生增强", "t2v_enhance"),
     ("preset_i2v_first", "video", "图生视频", "i2v_first"),
     ("preset_i2v_enhance", "video", "图生增强", "i2v_enhance"),
-    ("preset_v2v_ref", "video", "参考视频", "v2v_ref"),
+    ("preset_v2v_ref", "video", "参考图生视频", "v2v_ref"),
+    ("preset_storyboard", "video", "分镜视频", "v2v_ref"),
+    ("preset_v2v_ref_long", "video", "参考图生成视频（长）", "v2v_ref_long"),
     ("preset_i2v_orbit", "video", "360全景", "i2v_orbit"),
     ("preset_avatar", "video", "数字人口播", "avatar"),
     ("preset_motion", "video", "动作迁移", "motion"),
@@ -867,7 +895,16 @@ def default_canvas_menu() -> list[dict[str, Any]]:
         image_count = sum(
             1 for spec in pack.inputs.values() if isinstance(spec, dict) and spec.get("type") == "image"
         )
-        sub = pack_sub_capability(pack.name, pack.capability, image_count)
+        required_image_count = sum(
+            1
+            for spec in pack.inputs.values()
+            if isinstance(spec, dict)
+            and spec.get("type") == "image"
+            and spec.get("required", True)
+        )
+        sub = pack_sub_capability(
+            pack.name, pack.capability, image_count, required_image_count
+        )
         if sub in grouped:
             grouped[sub].append(pack.name)
     items = [

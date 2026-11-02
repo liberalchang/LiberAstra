@@ -992,11 +992,13 @@ def test_director_skill_confirms_video_mode_before_creating_nodes(client, auth_h
     detail = client.get("/api/v1/agent/skills/director", headers=auth_header)
     assert detail.status_code == 200
     body = detail.json()["body"]
-    assert "创建视频节点前必须确认" in body
+    assert "选择创作路线" in body
+    assert "分镜视频" in body
+    assert "一段视频" in body
+    assert "参考图生成视频（长）" in body
     assert "用户确认前不要创建任何 `output_video_*` 节点" in body
-    assert "图生视频节点" in body
-    assert "参考视频节点" in body
-    assert "按目标的实际图片槽绑定" in body
+    assert "subject_definitions" in body
+    assert "clips_json" in body
 
 
 def _run_turn_with_calls(db, session, user, calls):

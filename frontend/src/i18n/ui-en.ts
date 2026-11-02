@@ -547,6 +547,9 @@ export const UI_EN: Record<string, string> = {
   "标题": "Title",
 
   "图生视频": "Image to Video",
+  "参考图生视频": "Reference image to video",
+  "分镜视频": "Storyboard shots",
+  "参考图生成视频（长）": "Long reference-image video",
   "上传首帧图片 + 提示词，交给 i2v 工作流。": "A first frame plus a prompt, sent to an image-to-video workflow.",
   "数字人口播": "Digital Human",
   "人物图 + 口播文案 → TTS → avatar 工作流。": "A portrait plus narration → TTS → an avatar workflow.",

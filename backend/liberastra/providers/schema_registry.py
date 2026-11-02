@@ -102,7 +102,16 @@ def workflow_specs(packs: list[Any]) -> list[ExecutionSpec]:
             for spec in pack.inputs.values()
             if isinstance(spec, dict) and spec.get("type") == "image"
         )
-        sub = pack_sub_capability(pack.name, pack.capability, image_count)
+        required_image_count = sum(
+            1
+            for spec in pack.inputs.values()
+            if isinstance(spec, dict)
+            and spec.get("type") == "image"
+            and spec.get("required", True)
+        )
+        sub = pack_sub_capability(
+            pack.name, pack.capability, image_count, required_image_count
+        )
         slots = slots_from_pack(pack.capability, pack.inputs)
         if pack.capability in {"t2i", "i2i", "upscale"}:
             category = "image"

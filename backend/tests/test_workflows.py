@@ -912,3 +912,73 @@ def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
         {"image": "uploads/a.png", "video": "uploads/b.mp4", "prompt": "让目标图片复刻参考视频"},
     )
     assert named["prompt"] == "让<Picture 1>复刻<Video 1>"
+
+
+def test_reference_to_video_packs_default_to_ref2va() -> None:
+    for name in (
+        "minimax_h3_i2v_ref",
+        "minimax_h3_motion",
+        "minimax_h3_motion_uncensored",
+        "minimax_h3_extender",
+    ):
+        pack = get_pack(name)
+        assert pack.inputs["unet_name"]["default"].startswith("minimax_h3_ref2va_"), name
+
+
+def test_minimax_h3_i2v_optional_last_frame_keeps_first_frame_menu() -> None:
+    from liberastra.providers.catalog import pack_sub_capability
+
+    pack = get_pack("minimax_h3_i2v")
+    assert pack.inputs["last_frame"]["required"] is False
+    assert pack.workflow["105:104"]["inputs"]["last_frame"] == ["115", 0]
+    assert pack_sub_capability(pack.name, pack.capability, 2, 1) == "i2v_first"
+    validate_pack(pack)
+
+
+def test_minimax_h3_i2v_ref_exposes_nine_multi_reference_slots() -> None:
+    from liberastra.providers.catalog import pack_sub_capability
+
+    pack = get_pack("minimax_h3_i2v_ref")
+    node = pack.workflow["105:104"]
+    for i in range(9):
+        assert f"ref_images.ref_image_{i}" in node["inputs"]
+    for key in ("image_2", "image_3", "image_4", "image_5", "image_6", "image_7", "image_8", "image_9"):
+        assert pack.inputs[key]["required"] is False
+    assert pack.inputs["image_9"]["node"] == "122"
+    assert pack_sub_capability(pack.name, pack.capability, 9, 1) == "v2v_ref"
+    validate_pack(pack)
+
+
+def test_minimax_h3_extender_pack() -> None:
+    from liberastra.providers.catalog import pack_sub_capability
+
+    pack = get_pack("minimax_h3_extender")
+    assert pack.capability == "i2v"
+    assert pack.workflow["20"]["class_type"] == "MiniMaxH3Extender"
+    assert pack.workflow["19"]["class_type"] == "MiniMaxH3ReferencePackBridge"
+    assert pack.workflow["30"]["class_type"] == "MiniMaxH3MotionContextDiskFinalDecode"
+    assert pack.workflow["31"]["class_type"] == "SaveVideo"
+    assert pack.inputs["clips_json"]["node"] == "20"
+    assert pack.inputs["ref_1"]["required"] is True
+    assert pack.inputs["ref_9"]["required"] is False
+    assert pack_sub_capability(pack.name, pack.capability, 9, 1) == "v2v_ref_long"
+    validate_pack(pack)
+
+
+def test_minimax_h3_extender_detaches_unused_reference_slots() -> None:
+    from liberastra.providers.comfyui.workflow import _detach_unused_media_links
+    from liberastra.services.workflows import apply_inputs
+
+    pack = get_pack("minimax_h3_extender")
+    workflow = apply_inputs(
+        pack,
+        {
+            "ref_1": "a.png",
+            "clips_json": pack.inputs["clips_json"]["default"],
+        },
+    )
+    _detach_unused_media_links(workflow, pack, {"ref_1": "a.png"})
+    bridge = workflow["19"]["inputs"]
+    assert bridge["ref_1"] == ["10", 0]
+    for i in range(2, 10):
+        assert f"ref_{i}" not in bridge

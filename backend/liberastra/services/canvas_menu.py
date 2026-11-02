@@ -20,7 +20,7 @@ from liberastra.services.workflows import list_packs
 MENU_SETTING_KEY = "canvas_custom_menu"
 # 出厂菜单结构变化时加 1。低于这个版本的存档会按当前出厂菜单重做图像和视频，语音保留。
 # 用户在当前版本里删掉的项不再补回。
-MENU_REVISION = 4
+MENU_REVISION = 5
 
 
 def decode_menu(raw: str) -> tuple[list[dict], int]:

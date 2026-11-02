@@ -1,0 +1,197 @@
+name: minimax_h3_extender
+capability: i2v
+description: 'MiniMax H3 参考图生成视频（长）
+
+  用 Extender 时间线一次生成多段连续视频，段间保持运动、构图和音频连续。每段一个 prompt 和时长，参考图通过 Reference Pack 传入。适合 15 秒以上的连续长镜头。'
+fps: 24
+inputs:
+  clips_json:
+    node: '20'
+    field: inputs.clips_json
+    type: str
+    required: true
+    label: 时间线 JSON
+    description: Extender 的 clips 数组。每段包含 prompt、duration、seed；由导演按分镜生成。
+    default: '{"version":2,"generation_mode":"ref2va","motion_context":true,"clips":[{"id":"clip_1","prompt":"A continuous cinematic shot.","duration":10,"seed":123456789,"seed_mode":"fixed","validated":false}]}'
+  ref_1:
+    node: '10'
+    field: inputs.image
+    type: image
+    required: true
+    label: 参考图 1
+    description: 第一段的分镜参考图，或角色/场景主参考。提示词里用 <Picture 1>。
+  ref_2:
+    node: '11'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 2
+    description: 可选。第二段分镜参考图或角色/场景参考。
+  ref_3:
+    node: '12'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 3
+    description: 可选。第三段分镜参考图或角色/场景参考。
+  ref_4:
+    node: '13'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 4
+    description: 可选。第四段分镜参考图或角色/场景参考。
+  ref_5:
+    node: '14'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 5
+    description: 可选。角色或场景参考。
+  ref_6:
+    node: '15'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 6
+    description: 可选。角色或场景参考。
+  ref_7:
+    node: '16'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 7
+    description: 可选。额外参考。
+  ref_8:
+    node: '17'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 8
+    description: 可选。额外参考。
+  ref_9:
+    node: '18'
+    field: inputs.image
+    type: image
+    required: false
+    label: 参考图 9
+    description: 可选。额外参考。
+  width:
+    node: '20'
+    field: inputs.width
+    type: int
+    default: 896
+    min: 512
+    max: 1920
+    multiple: 32
+  height:
+    node: '20'
+    field: inputs.height
+    type: int
+    default: 576
+    min: 512
+    max: 1920
+    multiple: 32
+  steps:
+    node: '20'
+    field: inputs.steps
+    type: int
+    default: 4
+    min: 1
+    max: 50
+    description: 采样步数。默认配合 4 步 Turbo LoRA。
+  sampler_name:
+    node: '20'
+    field: inputs.sampler_name
+    type: str
+    default: euler
+    label: 采样器
+  scheduler:
+    node: '20'
+    field: inputs.scheduler
+    type: str
+    default: simple
+    label: 调度器
+  ref_image_size:
+    node: '20'
+    field: inputs.ref_image_size
+    type: str
+    default: match
+    label: 参考图尺寸
+    description: match 更快；max 保留更高身份细节，但参考 token 成本更高。
+  context_length:
+    node: '20'
+    field: inputs.context_length
+    type: str
+    default: '22'
+    label: 运动上下文长度
+    description: 运动上下文档位，常用 22。
+  audio_context_length:
+    node: '20'
+    field: inputs.audio_context_length
+    type: int
+    default: 0
+    min: 0
+    max: 240
+    label: 音频上下文长度
+  run_mode:
+    node: '20'
+    field: inputs.run_mode
+    type: str
+    default: full_batch
+    label: 运行模式
+    description: full_batch 一次跑完整条时间线；clip_by_clip 适合逐段确认。
+  unet_name:
+    node: '1'
+    field: inputs.unet_name
+    type: str
+    default: minimax_h3_ref2va_pruned_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（Ref2VA）
+    description: 参考图长视频使用 Ref2VA 主模型。须与文本编码器同属 MiniMax H3。
+  clip_name:
+    node: '3'
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: 官方文本编码器。可换成越狱版同族文件，type 仍为 minimax。
+outputs:
+  node: '31'
+  key: images
+accel:
+  label: Turbo 加速
+  family: minimax_h3
+  default_enabled: true
+  node: '2'
+  bypass_input: model
+  lora:
+    field: inputs.lora_name
+    options_from: loras
+    match: _ema
+    recommended: minimax_h3_turbo_v4_step600_ema.safetensors
+  strength:
+    field: inputs.strength
+    default: 1.0
+    min: 0.5
+    max: 1.5
+  preset:
+    steps: 4
+    sampler_name: euler
+requirements:
+  nodes:
+  - MiniMaxH3Extender
+  - MiniMaxH3MotionContextDiskFinalDecode
+  - MiniMaxH3ReferencePackBridge
+  - MiniMaxH3TurboLoRA
+  - SaveVideo
+  models:
+  - diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors
+  - text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  - vae/minimax_h3_video_vae_fp16.safetensors
+  - vae/minimax_h3_audio_vae_fp32.safetensors
+  - loras/minimax_h3_turbo_v4_step600_ema.safetensors
+llm_note: '事实:MiniMax H3 Extender 长视频。clips_json 里每段有 prompt、duration、seed；motion_context=true 时段间共享运动上下文；参考图通过 ref_1..ref_9 传入，提示词用 <Picture N>。每段建议不超过 15 秒。输出一条带音轨的连续成片。
+
+  写作指导:按时间线写每段 prompt，段间重复上一段结尾的动作和镜头方向；每段只引用本段对应的参考图。不要假设视频可以单次超过 H3 的 15 秒上限。'

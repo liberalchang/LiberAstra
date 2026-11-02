@@ -5,10 +5,58 @@
       "image": "example.png"
     }
   },
+  "115": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "116": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "117": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "118": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "119": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "120": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "121": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "122": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
   "105:6": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
       "weight_dtype": "default"
     }
   },
@@ -52,7 +100,15 @@
       "height": 768,
       "length": 124,
       "ref_image_size": "match",
-      "ref_images.ref_image_0": ["114", 0]
+      "ref_images.ref_image_0": ["114", 0],
+      "ref_images.ref_image_1": ["115", 0],
+      "ref_images.ref_image_2": ["116", 0],
+      "ref_images.ref_image_3": ["117", 0],
+      "ref_images.ref_image_4": ["118", 0],
+      "ref_images.ref_image_5": ["119", 0],
+      "ref_images.ref_image_6": ["120", 0],
+      "ref_images.ref_image_7": ["121", 0],
+      "ref_images.ref_image_8": ["122", 0]
     }
   },
   "105:15": {

@@ -2,7 +2,7 @@ name: minimax_h3_i2v_ref
 capability: i2v
 description: 'MiniMax H3 参考图生视频
 
-  上传的图片只提供外观，不锁第一帧。角色、服装和脸从参考图来，提示词里写「参考图片」。镜头和起始构图按提示词生成。可选 Turbo 加速。'
+  上传的图片只提供外观，不锁第一帧。支持多张参考图：角色三视图、场景和当前关键帧可同时传入。角色、服装和脸从参考图来，提示词里用 <Picture N> 指代。镜头和起始构图按提示词生成。可选 Turbo 加速。'
 fps: 24
 inputs:
   image:
@@ -13,6 +13,62 @@ inputs:
     label: 参考图片
     mention: "<Picture 1>"
     description: 只借用外观。可以是一张照片，也可以是整张定妆照。不会被当成视频第一帧。
+  image_2:
+    node: '115'
+    field: inputs.image
+    type: image
+    required: false
+    label: 角色正面
+    description: 可选。同一角色的正面全身参考。实际 <Picture N> 按已填槽位顺序编号。
+  image_3:
+    node: '116'
+    field: inputs.image
+    type: image
+    required: false
+    label: 角色侧面
+    description: 可选。同一角色的侧面全身参考。实际 <Picture N> 按已填槽位顺序编号。
+  image_4:
+    node: '117'
+    field: inputs.image
+    type: image
+    required: false
+    label: 角色背面
+    description: 可选。同一角色的背面全身参考。实际 <Picture N> 按已填槽位顺序编号。
+  image_5:
+    node: '118'
+    field: inputs.image
+    type: image
+    required: false
+    label: 角色面部
+    description: 可选。角色面部特写参考。实际 <Picture N> 按已填槽位顺序编号。
+  image_6:
+    node: '119'
+    field: inputs.image
+    type: image
+    required: false
+    label: 场景参考
+    description: 可选。场景、光线或环境参考。实际 <Picture N> 按已填槽位顺序编号。
+  image_7:
+    node: '120'
+    field: inputs.image
+    type: image
+    required: false
+    label: 额外参考 1
+    description: 可选。额外外观、道具或风格参考。
+  image_8:
+    node: '121'
+    field: inputs.image
+    type: image
+    required: false
+    label: 额外参考 2
+    description: 可选。额外外观、道具或风格参考。
+  image_9:
+    node: '122'
+    field: inputs.image
+    type: image
+    required: false
+    label: 额外参考 3
+    description: 可选。额外外观、道具或风格参考。
   prompt:
     node: 105:104
     field: inputs.prompt
@@ -80,10 +136,10 @@ inputs:
     node: '105:6'
     field: inputs.unet_name
     type: str
-    default: minimax_h3_fl2va_pruned_int8_convrot.safetensors
+    default: minimax_h3_ref2va_pruned_int8_convrot.safetensors
     options_from: diffusion_models
-    label: 主模型（FL2VA）
-    description: 主模型。须与文本编码器同属 MiniMax H3。
+    label: 主模型（Ref2VA）
+    description: 参考图生视频使用 Ref2VA 主模型。须与文本编码器同属 MiniMax H3。
 outputs:
   node: '92'
   key: images
@@ -114,11 +170,11 @@ requirements:
   - SaveVideo
   - CreateVideo
   models:
-  - diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+  - diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors
   - text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: '事实:MiniMax H3 参考图生视频。图片进 MiniMaxH3ReferenceToVideo 的 ref_images，ref_image_size 为 match。没有 first_frame，参考图不锁第一帧。官方 TE；输出带同步音效；可选 Turbo LoRA。
+llm_note: '事实:MiniMax H3 参考图生视频。图片进 MiniMaxH3ReferenceToVideo 的 ref_images，最多 9 张，ref_image_size 为 match。没有 first_frame，参考图不锁第一帧。官方 TE；输出带同步音效；可选 Turbo LoRA。
 
-  写作指导:必须保留 <Picture 1> 指代参考图。写镜头、动作、环境和同步声音。不要把参考图写成视频开头的定格画面。'
+  写作指导:按实际已填槽位顺序使用 <Picture 1>、<Picture 2> 等指代参考图，先写 subject_definitions 对应关系。写镜头、动作、环境和同步声音。不要把参考图写成视频开头的定格画面。'
