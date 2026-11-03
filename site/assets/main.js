@@ -472,10 +472,7 @@
   if (replayBtn) {
     replayBtn.addEventListener('click', function () {
       openCover(false);
-      window.setTimeout(function () {
-        openCover(true);
-        replayBtn.focus({ preventScroll: true });
-      }, 170);
+      if (coverBtn) coverBtn.focus({ preventScroll: true });
     });
   }
 
