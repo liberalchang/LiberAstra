@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from liberastra import __version__
 from liberastra.core.db import SessionLocal
 from liberastra.models import Asset, Job, User
 from liberastra.services.maintenance import cleanup_old_data
@@ -52,7 +53,7 @@ def test_cleanup_old_data(client: TestClient, auth_header: dict[str, str]) -> No
 
 def test_system_info_and_backup(client: TestClient, auth_header: dict[str, str]) -> None:
     info = client.get("/api/v1/system/info", headers=auth_header).json()
-    assert info["version"] == "1.0.8"
+    assert info["version"] == __version__
     assert info["counts"]["users"] >= 1
 
     resp = client.get("/api/v1/system/backup", headers=auth_header)
