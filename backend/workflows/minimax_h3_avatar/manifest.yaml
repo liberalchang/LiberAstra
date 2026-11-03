@@ -1,6 +1,6 @@
 name: minimax_h3_avatar
 capability: avatar
-description: 'MiniMax H3 数字人口播（官方版）
+description: 'MiniMax H3 数字人口播
 
   上传一张人物照片和一段口播语音，生成人物开口说话的口播视频。可选 Turbo 加速。'
 fps: 24

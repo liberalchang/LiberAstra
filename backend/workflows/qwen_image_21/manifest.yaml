@@ -1,6 +1,6 @@
 name: qwen_image_21
 capability: t2i
-description: 'Qwen-Image 2.1 文生图（官方版，INT8）
+description: 'Qwen-Image 2.1 文生图
 
   输入画面描述，生成一张图片。参数区可换主模型/文本编码器/VAE（如越狱 UC 版）；模型请选 .safetensors 格式，勿选 GGUF。'
 inputs:

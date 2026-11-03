@@ -1,6 +1,6 @@
 name: minimax_h3_i2v
 capability: i2v
-description: 'MiniMax H3 图生视频（官方版）
+description: 'MiniMax H3 图生视频
 
   上传一张首帧图，可选再传一张尾帧图，生成带同步音效的短视频。只传首帧时等同普通图生视频；传两张时锁首尾帧。可选 Turbo 加速。'
 fps: 24

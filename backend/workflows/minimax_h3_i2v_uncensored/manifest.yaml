@@ -1,6 +1,6 @@
 name: minimax_h3_i2v_uncensored
 capability: i2v
-description: 'MiniMax H3 图生视频（越狱版，NVFP4）
+description: 'MiniMax H3 图生视频（越狱）
 
   上传一张首帧图并描述动作，生成带同步音效的短视频。可选 EMA Turbo 加速。'
 fps: 24

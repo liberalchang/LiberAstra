@@ -1,6 +1,6 @@
 name: flux3_klein
 capability: t2i
-description: 'FLUX.3 Klein 文生图（蒸馏版，INT8）
+description: 'FLUX.3 Klein 文生图（蒸馏）
 
   输入画面描述，生成一张图片。自带提示词扩展器（默认开），会把短描述自动扩写成长描述。官方推荐 16 步，页面可改。'
 inputs:

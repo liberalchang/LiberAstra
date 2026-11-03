@@ -1,6 +1,6 @@
 name: minimax_h3_extender
 capability: i2v
-description: 'MiniMax H3 参考图生成视频（长）
+description: 'MiniMax H3 参考图生视频（长）
 
   用 Extender 时间线一次生成多段连续视频，段间保持运动、构图和音频连续。每段一个 prompt 和时长，参考图通过 Reference Pack 传入。适合 15 秒以上的连续长镜头。'
 fps: 24

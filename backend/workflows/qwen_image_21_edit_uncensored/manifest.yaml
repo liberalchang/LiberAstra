@@ -1,6 +1,6 @@
 name: qwen_image_21_edit_uncensored
 capability: i2i
-description: 'Qwen-Image 2.1 整图编辑（越狱版，UC INT8）
+description: 'Qwen-Image 2.1 整图编辑（越狱）
 
   上传 1 张图，写清要改什么，得到编辑后的图。可开关 Uncensored LoRA。'
 inputs:

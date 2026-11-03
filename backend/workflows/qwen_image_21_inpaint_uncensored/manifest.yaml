@@ -1,6 +1,6 @@
 name: qwen_image_21_inpaint_uncensored
 capability: i2i
-description: 'Qwen-Image 2.1 局部重绘（越狱版，UC INT8）
+description: 'Qwen-Image 2.1 局部重绘（越狱）
 
   蒙版白色区域重画，黑色区域保持原样。可开关 Uncensored LoRA。'
 inputs:

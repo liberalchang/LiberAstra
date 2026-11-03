@@ -1,6 +1,6 @@
 name: qwen_image_21_edit_multi_uncensored
 capability: i2i
-description: 'Qwen-Image 2.1 多图编辑（越狱版，UC INT8）
+description: 'Qwen-Image 2.1 多图编辑（越狱）
 
   最多 4 张：第 1 张是主图，第 2~4 张是参考；提示词用 image 1 / image 2 … 指代。可开关 Uncensored LoRA。'
 inputs:

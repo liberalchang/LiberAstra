@@ -1,6 +1,6 @@
 name: qwen_image_21_posestudio_gen
 capability: i2i
-description: 'Qwen-Image 2.1 + VNCCS PoseStudio V1.1：只上传线稿或深度图，按提示词生成该姿势的人物。
+description: 'Qwen 2.1 PoseStudio 姿势生图
 
   不保留指定人物身份，脸和服装由提示词决定。线稿会自动裁掉白边，输出画幅跟随姿势参考图。需安装 PoseStudio LoRA 到 loras/。'
 inputs:

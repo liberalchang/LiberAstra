@@ -145,12 +145,13 @@ export function PackSelect({
   const tx = useTx();
   const options: SearchOption[] = (packs ?? []).map((pack) => {
     const capability = PACK_CAPABILITY[pack.capability] ?? pack.capability;
-    // 只认「官方版 / 越狱版」和包名里的 uncensored。正文里的「官方推荐」「可换越狱」不算版本。
+    // 版本标签只作兜底：短描述优先，越狱包在第一行写「（越狱）」；正文里的版本词不算。
     const text = `${pack.name} ${pack.description}`;
     const edition = /越狱版|uncensored/i.test(text) ? tx("越狱版") : /官方版/.test(text) ? tx("官方版") : "";
     const first = pack.description.split("\n")[0]?.trim() ?? "";
-    const short = !edition && first && first.length <= 24 && first !== pack.name ? first : "";
-    const detail = edition || short;
+    // 短描述优先：官方包保留功能名，越狱包也能显示“功能名（越狱）”；没有短描述时才退回版本标签。
+    const short = first && first.length <= 24 && first !== pack.name ? first : "";
+    const detail = short || edition;
     return {
       value: pack.name,
       label: detail ? `${tx(capability)} · ${detail}` : tx(capability) || pack.name,

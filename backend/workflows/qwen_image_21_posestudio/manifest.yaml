@@ -1,6 +1,6 @@
 name: qwen_image_21_posestudio
 capability: i2i
-description: 'Qwen-Image 2.1 + VNCCS PoseStudio V1.1：人物照保留身份，线稿或深度图决定姿势。
+description: 'Qwen 2.1 PoseStudio 姿势换姿
 
   线稿会自动裁掉白边，输出画幅跟随姿势参考图。需安装 ComfyUI 节点 TextEncodeQwenImage21、QwenImage21Cache、GetImageSize，并把 PoseStudio LoRA 放到 loras/。'
 inputs:

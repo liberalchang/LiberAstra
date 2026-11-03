@@ -1,6 +1,6 @@
 name: qwen_image_21_outfit_swap
 capability: i2i
-description: 'Qwen-Image 2.1 换衣（Outfit Swap Consistency LoRA）
+description: 'Qwen-Image 2.1 换衣
 
   第一张是人物照，第二张是衣服。脸、头发、手、姿势和背景保持不变，只换衣服。
 

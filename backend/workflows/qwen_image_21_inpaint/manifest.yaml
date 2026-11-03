@@ -1,6 +1,6 @@
 name: qwen_image_21_inpaint
 capability: i2i
-description: 'Qwen-Image 2.1 局部重绘（官方版，INT8）
+description: 'Qwen-Image 2.1 局部重绘
 
   上传原图和蒙版：蒙版白色区域重画，黑色区域保持原图像素。参数区可换模型三件套；请选 .safetensors 格式。'
 inputs:

@@ -1,6 +1,6 @@
 name: flux3_klein_edit
 capability: i2i
-description: 'FLUX.3 Klein 单图编辑（INT8）
+description: 'FLUX.3 Klein 单图编辑
 
   上传 1 张图，提示词写清要改什么，得到改好的图。输出尺寸跟随原图；提示词扩展器默认开。'
 inputs:

@@ -1,6 +1,6 @@
 name: flux3_klein_edit_multi
 capability: i2i
-description: 'FLUX.3 Klein 多图编辑（INT8）
+description: 'FLUX.3 Klein 多图编辑
 
   上传 2~4 张参考图，提示词按上传顺序指代（第一张、第二张），得到合成编辑结果。输出尺寸跟随第一张。'
 inputs:

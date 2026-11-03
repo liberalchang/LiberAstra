@@ -1,8 +1,8 @@
 name: minimax_h3_i2v_enhancer
 capability: i2v
-description: 'MiniMax H3 图生视频 + 提示词增强（默认越狱 TE）
+description: 'MiniMax H3 图生视频增强
 
-  上传首帧图并写简短描述，内置增强器自动补全画面细节，生成带音效的短视频。可选 Turbo 加速；需配套 Guide 节点包。'
+  上传首帧图并写简短描述，内置增强器自动补全画面细节，生成带音效的短视频。默认使用越狱 TE。可选 Turbo 加速；需配套 Guide 节点包。'
 fps: 24
 inputs:
   image:
