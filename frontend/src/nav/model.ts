@@ -138,12 +138,12 @@ export const NAV_ENTRIES: NavEntry[] = [
           { to: "/video/avatar", labelKey: "nav.avatar", icon: "avatar" },
           { to: "/video/i2v", labelKey: "nav.i2v", icon: "i2v" },
           { to: "/video/motion", labelKey: "nav.motion", icon: "motion" },
+          { to: "/video/assets", labelKey: "nav.videoAssets", icon: "videoAssets" },
         ],
       },
       {
         labelKey: "section.videoAssets",
         items: [
-          { to: "/video/assets", labelKey: "nav.videoAssets", icon: "videoAssets" },
           { to: "/video/templates", labelKey: "nav.templates", icon: "templates" },
           { to: "/video/characters", labelKey: "nav.characters", icon: "characters" },
         ],

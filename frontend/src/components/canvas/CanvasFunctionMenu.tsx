@@ -3,7 +3,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { Panel } from "@xyflow/react";
 import { ImageIcon, Mic, Search, Video, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -69,21 +68,21 @@ export function CanvasFunctionMenu({
 
   if (!open) {
     return (
-      <Panel position="top-center" className="mt-14">
+      <div className="pointer-events-none absolute inset-x-0 top-4 z-40 flex justify-center">
         <button
           type="button"
-          className="rounded-full border border-border bg-card/95 px-4 py-1.5 text-sm shadow-md hover:bg-muted"
+          className="pointer-events-auto rounded-full border border-border bg-card/95 px-4 py-1.5 text-sm shadow-md hover:bg-muted"
           onClick={() => onOpenChange(true)}
         >
           {tx("全部功能")}
         </button>
-      </Panel>
+      </div>
     );
   }
 
   return (
-    <Panel position="top-center" className="mt-14">
-      <div className="w-[min(52rem,88vw)] rounded-2xl border border-border bg-card/95 p-4 shadow-xl">
+    <div className="pointer-events-none absolute inset-x-0 top-4 z-40 flex justify-center">
+      <div className="pointer-events-auto w-[min(52rem,88vw)] rounded-2xl border border-border bg-card/95 p-4 shadow-xl">
         <div className="mb-3 flex items-center gap-2">
           <h2 className="shrink-0 text-sm font-medium">{tx("全部功能")}</h2>
           <label className="relative min-w-0 flex-1">
@@ -129,7 +128,7 @@ export function CanvasFunctionMenu({
         })}
         {items.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">{tx("没有匹配的功能")}</p>}
       </div>
-    </Panel>
+    </div>
   );
 }
 

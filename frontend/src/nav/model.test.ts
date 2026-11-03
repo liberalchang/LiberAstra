@@ -79,6 +79,18 @@ test("画布是一级直达项，紧跟在总览之后", () => {
   assert.equal(NAV_ENTRIES[1].kind, "link");
 });
 
+test("视频生成组中自定义素材排在动作迁移之后", () => {
+  const video = findGroup("video");
+  assert.deepEqual(
+    video.sections[0].items.map((item) => item.to),
+    ["/video/quick", "/video/avatar", "/video/i2v", "/video/motion", "/video/assets"],
+  );
+  assert.deepEqual(
+    video.sections[1].items.map((item) => item.to),
+    ["/video/templates", "/video/characters"],
+  );
+});
+
 test("阅读组顺序为使用文档、API 文档、CLI 文档", () => {
   const reading = findGroup("reading");
   assert.deepEqual(

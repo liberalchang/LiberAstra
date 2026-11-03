@@ -563,7 +563,6 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
             setConfirmCancelRun(true);
           }}
         />
-        <CanvasFunctionMenu open={functionOpen} onOpenChange={setFunctionOpen} onPick={addFromMenu} />
         <CanvasBottomBar
           tool={tool}
           onToolChange={setTool}
@@ -612,6 +611,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           />
         )}
       </ReactFlow>
+      <CanvasFunctionMenu open={functionOpen} onOpenChange={setFunctionOpen} onPick={addFromMenu} />
       {nodeMenu && (
         <CanvasNodeContextMenu
           x={nodeMenu.x}
