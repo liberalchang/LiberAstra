@@ -166,7 +166,7 @@ export function validateCanvas(
 
     if (d.kind === "concat") {
       if (incoming(node.id).length < 2) {
-        issues.push({ nodeId: node.id, message: "合成至少需要两路输入" });
+        issues.push({ nodeId: node.id, message: "拼接至少需要两路输入" });
       }
     }
   }

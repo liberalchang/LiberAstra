@@ -1164,7 +1164,7 @@ export const UI_EN: Record<string, string> = {
   "只读 hi。功能页的语言下拉只保留这一项。": "Hindi only. Feature pages show just this language.",
   // ---- 无限画布 ----
   "画布": "Canvas",
-  "把输入、生成与合成编排成可视化流程；节点结果可保存到资源库。":
+  "把输入、生成与拼接编排成可视化流程；节点结果可保存到资源库。":
     "Compose inputs, generation and composition as a visual flow; save node results to the library.",
   "新建画布": "New Canvas",
   "还没有画布，点击右上角新建": "No canvases yet — create one from the top right",
@@ -1191,7 +1191,7 @@ export const UI_EN: Record<string, string> = {
   "画布加载失败": "Failed to load canvas",
   "不能形成环形依赖": "Circular dependencies are not allowed",
   "两个节点已连接": "These nodes are already connected",
-  "合成节点只接受同类型媒体": "Concat nodes accept only matching media types",
+  "拼接节点只接受同类型媒体": "Concat nodes accept only matching media types",
   "输入节点不能接受连线": "Input nodes cannot receive connections",
   "点击删除连线": "Click to delete this connection",
   "输入": "Input",
@@ -1202,13 +1202,11 @@ export const UI_EN: Record<string, string> = {
   "音频输入": "Audio input",
   "文本输入": "Text input",
   "功能节点": "Function node",
-  "视频合成": "Video concat",
-  "音频合成": "Audio concat",
-  "合成": "Concat",
   "选择所属…": "Select group…",
   "所属（一批工作流包）；在右侧属性面板选择具体包":
     "Group (a set of packs); pick the pack in the inspector",
   "尚未执行": "Not run yet",
+  "拼接至少需要两路输入": "Concat needs at least two inputs",
   "已复用": "Reused",
   "已保存": "Published",
   "保存到资源库": "Save to library",
@@ -1234,7 +1232,6 @@ export const UI_EN: Record<string, string> = {
   "在右侧属性面板输入文本…": "Enter text in the inspector…",
   "连接多段输入后在此排序": "Connect inputs, then order them here",
   "输入节点": "Input node",
-  "合成节点": "Concat node",
   "文本内容": "Text content",
   "输入文本…": "Enter text…",
   "变量名": "Variable name",
@@ -1271,7 +1268,6 @@ export const UI_EN: Record<string, string> = {
   "已用优化结果替换提示词": "Prompt replaced with the optimized version",
   "正在优化提示词…": "Optimizing prompt…",
   "强制重跑此节点": "Force re-run this node",
-  "合成顺序": "Concat order",
   "按此顺序把连接的输入拼成整段；连线时自动追加":
     "Inputs are joined in this order; connections append automatically",
   "还没有连接输入": "No inputs connected",
@@ -1293,7 +1289,7 @@ export const UI_EN: Record<string, string> = {
   "选择：左键框选节点（中/右键仍可拖动画布）": "Select: left-drag box-selects (middle/right still pans)",
   "双击画布或点下方 + 添加节点；拖动节点右侧圆点连线":
     "Double-click the canvas or press + below to add nodes; drag from a node's right dot to connect",
-  "点下方 +，向右选择输入、合成或功能；也可以从上方「全部功能」添加":
+  "点下方 +，向右选择输入、拼接或功能；也可以从上方「全部功能」添加":
     "Press + below, then choose input, concat, or a function from the menu on the right. You can also add from All functions above.",
   "这一类还没有功能": "Nothing in this category yet",
   "工作流包与画布分组（所属）在「设置 → 工作流包」里管理":
@@ -1584,6 +1580,7 @@ export const UI_EN: Record<string, string> = {
   "已有产出": "Has output",
   "跟随系统默认模型": "Use system default model",
   "工具": "Tools",
+  "拼接": "Concat",
   "无视觉": "No vision",
   "文本协议工具": "Text-protocol tools",
   "上传附件": "Upload attachment",
@@ -1648,7 +1645,6 @@ export const UI_EN: Record<string, string> = {
   "上传失败": "Upload failed",
   "上传技能失败": "Could not upload the skill",
   "读取技能失败": "Could not read the skill",
-  "图片合成": "Image composition",
   "拼图布局": "Layout",
   "排列方式": "Arrangement",
   "横排": "Horizontal",

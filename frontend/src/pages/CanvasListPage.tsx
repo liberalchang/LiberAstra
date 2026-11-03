@@ -88,7 +88,7 @@ export function CanvasListPage() {
         kind="canvas"
         icon={Waypoints}
         title={tx("画布")}
-        description={tx("把输入、生成与合成编排成可视化流程；节点结果可保存到资源库。")}
+        description={tx("把输入、生成与拼接编排成可视化流程；节点结果可保存到资源库。")}
       />
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg bg-muted p-1 text-sm">

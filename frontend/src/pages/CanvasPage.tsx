@@ -507,7 +507,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           const rejected = store.onConnect(conn);
           if (rejected === "cycle") flash(tx("不能形成环形依赖"));
           else if (rejected === "duplicate") flash(tx("两个节点已连接"));
-          else if (rejected === "concat-kind") flash(tx("合成节点只接受同类型媒体"));
+          else if (rejected === "concat-kind") flash(tx("拼接节点只接受同类型媒体"));
           else if (rejected === "input-no-inlet") flash(tx("输入节点不能接受连线"));
         }}
         onNodeContextMenu={(event, node) => {
@@ -604,7 +604,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
         {store.nodes.length === 0 && !quickAdd && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
             <p className="rounded-xl border border-dashed border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground">
-              {tx("点下方 +，向右选择输入、合成或功能；也可以从上方「全部功能」添加")}
+              {tx("点下方 +，向右选择输入、拼接或功能；也可以从上方「全部功能」添加")}
             </p>
           </div>
         )}

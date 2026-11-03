@@ -28,10 +28,10 @@ function nodeTitle(node: CanvasFlowNode): string {
   }
   if (data.kind === "concat") {
     return data.mediaKind === "image"
-      ? "图片合成"
+      ? "图片拼接"
       : data.mediaKind === "audio"
-        ? "音频合成"
-        : "视频合成";
+        ? "音频拼接"
+        : "视频拼接";
   }
   if (data.kind === "speech") return data.mode === "tts" ? "文字转语音" : "语音转文字";
   const input = data as InputNodeData;

@@ -517,17 +517,17 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
   const nodes = useCanvasStore((s) => s.nodes);
   const title =
     d.mediaKind === "audio"
-      ? tx("音频合成")
+      ? tx("音频拼接")
       : d.mediaKind === "image"
-        ? tx("图片合成")
-        : tx("视频合成");
+        ? tx("图片拼接")
+        : tx("视频拼接");
   return (
     <>
       <Handle type="target" position={Position.Left} id={`in-${id}`} className={handleClass} />
       <NodeShell
         icon={<Clapperboard className="size-3.5" />}
         title={title}
-        badge={tx("合成")}
+        badge={tx("工具")}
         status={d.run.status}
         selected={selected}
         invalid={invalid}
@@ -543,7 +543,7 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
                 source?.data.kind === "input"
                   ? tx("输入")
                   : source?.data.kind === "concat"
-                    ? tx("合成")
+                    ? tx("拼接")
                     : (source?.data as FunctionNodeData | undefined)?.pack || tx("节点");
               return (
                 <span
