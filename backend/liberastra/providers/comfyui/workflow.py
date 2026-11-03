@@ -8,6 +8,7 @@ from typing import Any
 from liberastra.providers.base import ProviderError
 from liberastra.providers.comfyui.client import ComfyClient, upload_too_large_message
 from liberastra.services.canvas_graph import translate_prompt_slots
+from liberastra.services.pose_image import prepare_pose_control
 from liberastra.services.workflows import (
     WorkflowPack,
     apply_accel,
@@ -64,7 +65,11 @@ async def run_workflow_pack(
         if size > client.max_upload_bytes:
             # 超限时不读入内存、也不向 ComfyUI 发请求
             raise ProviderError(upload_too_large_message(local_path.name, size, client.max_upload_bytes))
-        comfy_name = await client.upload_image(local_path.name, local_path.read_bytes())
+        content = local_path.read_bytes()
+        upload_name = local_path.name
+        if spec.get("preprocess") == "pose_control":
+            content, upload_name = prepare_pose_control(content, upload_name)
+        comfy_name = await client.upload_image(upload_name, content)
         inject_image_input(workflow, pack, key, comfy_name)
 
     prompt_id = await client.queue_prompt(workflow)

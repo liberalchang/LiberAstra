@@ -1,0 +1,99 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["1", 0],
+      "lora_name": "VNCCS_QI2_PoseStudioV1.1.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "3": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": ["2", 0],
+      "device": "gpu",
+      "dtype": "int8"
+    }
+  },
+  "4": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "5": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "8": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": ["4", 0],
+      "prompt": "A photorealistic full-body studio portrait of one person wearing a plain white t-shirt, dark trousers and dark shoes, natural skin texture, soft lighting, sharp focus.",
+      "negative_prompt": "",
+      "resolution": 1024,
+      "images.image_1": ["6", 0],
+      "vae": ["5", 0]
+    }
+  },
+  "9": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": ["6", 0]
+    }
+  },
+  "10": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": ["9", 0],
+      "height": ["9", 1],
+      "batch_size": 1
+    }
+  },
+  "11": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": ["3", 0],
+      "positive": ["8", 0],
+      "negative": ["8", 1],
+      "latent_image": ["10", 0]
+    }
+  },
+  "12": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["11", 0],
+      "vae": ["5", 0]
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "qwen21-posestudio-gen",
+      "images": ["12", 0]
+    }
+  }
+}

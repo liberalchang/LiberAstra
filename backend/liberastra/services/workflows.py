@@ -41,6 +41,9 @@ class WorkflowPack:
 
 
 def _builtin_dir() -> Path:
+    packaged = Path(__file__).resolve().parent.parent / "workflows"
+    if packaged.is_dir():
+        return packaged
     return Path(__file__).resolve().parents[2] / "workflows"
 
 

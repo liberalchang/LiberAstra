@@ -1,0 +1,123 @@
+name: qwen_image_21_posestudio
+capability: i2i
+description: 'Qwen-Image 2.1 + VNCCS PoseStudio V1.1：人物照保留身份，线稿或深度图决定姿势。
+
+  线稿会自动裁掉白边，输出画幅跟随姿势参考图。需安装 ComfyUI 节点 TextEncodeQwenImage21、QwenImage21Cache、GetImageSize，并把 PoseStudio LoRA 放到 loras/。'
+inputs:
+  image:
+    node: '7'
+    field: inputs.image
+    type: image
+    required: true
+    label: 人物照
+    description: 要保留脸、发型、服装和背景的人。身份由这张图提供
+  image_2:
+    node: '6'
+    field: inputs.image
+    type: image
+    required: true
+    label: 姿势参考图
+    preprocess: pose_control
+    description: 线稿或深度图。线稿自动裁掉白边；输出宽高比跟随这张图
+  unet_name:
+    node: '1'
+    field: inputs.unet_name
+    type: str
+    default: qwen_image_2.1_int8_convrot.safetensors
+    options_from: diffusion_models
+    label: 主模型（UNET）
+    description: PoseStudio V1.1 在官方 qwen_image_2.1_int8_convrot 上验证；换 UC 版需自行对比
+  lora_name:
+    node: '2'
+    field: inputs.lora_name
+    type: str
+    default: VNCCS_QI2_PoseStudioV1.1.safetensors
+    options_from: loras
+    label: PoseStudio LoRA
+    description: 必须放在 ComfyUI 的 loras/ 目录。默认 V1.1
+  lora_strength:
+    node: '2'
+    field: inputs.strength_model
+    type: float
+    default: 1.0
+    min: 0
+    max: 2
+    label: LoRA 强度
+    description: 官方工作流为 1.0。姿势跟不紧可略升，身份漂移可略降
+  clip_name:
+    node: '4'
+    field: inputs.clip_name
+    type: str
+    default: qwen3vl_8b_int8_convrot.safetensors
+    options_from: text_encoders
+    label: 文本编码器
+    description: Qwen-Image 用 qwen3vl_8b；CLIPLoader type 保持 qwen_image
+  vae_name:
+    node: '5'
+    field: inputs.vae_name
+    type: str
+    default: qwen_image_2.1_vae_bf16.safetensors
+    options_from: vae
+    label: VAE
+    description: Qwen-Image 2.1 的 VAE，不要换成 FLUX 或 MiniMax 的 VAE
+  prompt:
+    node: '8'
+    field: inputs.prompt
+    type: str
+    default: Draw character from image2
+    label: 提示词
+    description: 官方默认句。可补充服装、场景和光线；不要在提示词里重复姿势
+  negative_prompt:
+    node: '8'
+    field: inputs.negative_prompt
+    type: str
+    default: ''
+    label: 负面提示词
+    description: 不希望出现的内容，可以留空
+  resolution:
+    node: '8'
+    field: inputs.resolution
+    type: int
+    default: 1024
+    min: 256
+    max: 4096
+    description: 参考图编码边长，须为 32 的倍数
+  steps:
+    node: '11'
+    field: inputs.steps
+    type: int
+    default: 25
+    min: 1
+    max: 50
+    description: 官方示例为 25 步。CFG 固定为 1
+  seed:
+    node: '11'
+    field: inputs.seed
+    type: int
+    default: -1
+    description: 随机种子。-1 表示每次随机
+outputs:
+  node: '13'
+  key: images
+requirements:
+  nodes:
+  - UNETLoader
+  - LoraLoaderModelOnly
+  - QwenImage21Cache
+  - CLIPLoader
+  - VAELoader
+  - LoadImage
+  - TextEncodeQwenImage21
+  - GetImageSize
+  - EmptyLatentImage
+  - KSampler
+  - VAEDecode
+  - SaveImage
+  models:
+  - diffusion_models/qwen_image_2.1_int8_convrot.safetensors
+  - loras/VNCCS_QI2_PoseStudioV1.1.safetensors
+  - text_encoders/qwen3vl_8b_int8_convrot.safetensors
+  - vae/qwen_image_2.1_vae_bf16.safetensors
+llm_note: '事实:Qwen-Image 2.1 + VNCCS PoseStudio V1.1 姿势迁移。image_1 是姿势参考图，image_2 是人物照；提示词默认 Draw character from image2。输出 latent 由 GetImageSize 读取姿势图尺寸后交给 EmptyLatentImage，画幅跟随姿势图。线稿输入会先自动裁掉白边。PoseStudio 官方工作流为 25 步、CFG 1、euler/simple、denoise 1、LoRA 强度 1。
+
+  写作指导:强调保留人物身份、脸、发型、服装和背景；姿势交给参考图，不要在提示词里重复描述肢体动作。'

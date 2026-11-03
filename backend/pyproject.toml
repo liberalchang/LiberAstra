@@ -52,6 +52,7 @@ packages = ["liberastra"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "prompts" = "liberastra/prompts"
+"workflows" = "liberastra/workflows"
 
 [tool.ruff]
 target-version = "py311"

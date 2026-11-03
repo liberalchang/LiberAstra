@@ -57,6 +57,8 @@ export const UI_EN: Record<string, string> = {
   "换衣": "Change outfit",
   "深度换姿": "Pose from depth",
   "深度生图": "Generate from depth",
+  "姿势换姿": "Pose transfer",
+  "姿势生图": "Generate from pose",
   "深度图换动作": "Pose from depth",
   "重绘": "Inpaint",
   "识别": "Transcribe",

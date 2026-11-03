@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir ./backend \
     && site=$(python -c "import liberastra, pathlib; print(pathlib.Path(liberastra.__file__).resolve().parents[1])") \
     && cp -a backend/templates "$site/templates" \
     && cp -a backend/prompts "$site/prompts" \
+    && cp -a backend/workflows "$site/workflows" \
     && playwright install --with-deps chromium \
     && rm -rf ./backend /var/lib/apt/lists/*
 

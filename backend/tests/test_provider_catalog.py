@@ -229,13 +229,20 @@ def test_workflow_packs_keep_their_own_functions() -> None:
     assert pack_sub_capability("qwen_image_21_outfit_swap", "i2i", 2) == "outfit_swap"
     assert pack_sub_capability("qwen_image_21_union_reference", "i2i", 2) == "depth_pose"
     assert pack_sub_capability("qwen_image_21_union_depth", "i2i", 1) == "depth_gen"
+    assert pack_sub_capability("qwen_image_21_posestudio", "i2i", 2) == "depth_pose"
+    assert pack_sub_capability("qwen_image_21_posestudio_gen", "i2i", 1) == "depth_gen"
     titles = {item["title"]: item["sub_capability"] for item in default_canvas_menu()}
     assert titles["360全景"] == "i2v_orbit"
     assert titles["调色"] == "color_grade"
     assert titles["蒙版"] == "inpaint"
     assert titles["换衣"] == "outfit_swap"
-    assert titles["深度换姿"] == "depth_pose"
-    assert titles["深度生图"] == "depth_gen"
+    assert titles["姿势换姿"] == "depth_pose"
+    assert titles["姿势生图"] == "depth_gen"
+
+    pose = next(item for item in default_canvas_menu() if item["sub_capability"] == "depth_pose")
+    generate = next(item for item in default_canvas_menu() if item["sub_capability"] == "depth_gen")
+    assert pose["default_target"]["target_id"] == "qwen_image_21_posestudio"
+    assert generate["default_target"]["target_id"] == "qwen_image_21_posestudio_gen"
 
 
 def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:

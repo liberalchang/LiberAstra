@@ -199,17 +199,17 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "depth_pose": {
         "menu": "image",
         "category": "image",
-        "label": "深度换姿",
+        "label": "姿势换姿",
         "slots": [
             {"key": "image", "type": "image", "label": "人物照", "required": True},
-            {"key": "image_2", "type": "image", "label": "深度图", "required": True},
+            {"key": "image_2", "type": "image", "label": "姿势参考图", "required": True},
         ],
     },
     "depth_gen": {
         "menu": "image",
         "category": "image",
-        "label": "深度生图",
-        "slots": [{"key": "image", "type": "image", "label": "深度图", "required": True}],
+        "label": "姿势生图",
+        "slots": [{"key": "image", "type": "image", "label": "姿势参考图", "required": True}],
     },
     "color_grade": {
         "menu": "image",
@@ -787,6 +787,8 @@ def pack_sub_capability(
         return "inpaint"
     if "outfit_swap" in lowered:
         return "outfit_swap"
+    if "posestudio" in lowered:
+        return "depth_gen" if required_images <= 1 else "depth_pose"
     if "union_depth" in lowered:
         return "depth_gen"
     if "union_" in lowered:
@@ -837,8 +839,8 @@ _WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("preset_i2i", "image", "单图编辑", "i2i_single"),
     ("preset_i2i_multi", "image", "多图编辑", "i2i_multi"),
     ("preset_outfit", "image", "换衣", "outfit_swap"),
-    ("preset_depth_pose", "image", "深度换姿", "depth_pose"),
-    ("preset_depth_gen", "image", "深度生图", "depth_gen"),
+    ("preset_depth_pose", "image", "姿势换姿", "depth_pose"),
+    ("preset_depth_gen", "image", "姿势生图", "depth_gen"),
     ("preset_color_grade", "image", "调色", "color_grade"),
     ("preset_inpaint", "image", "蒙版", "inpaint"),
     ("preset_upscale", "image", "放大修复", "upscale"),
