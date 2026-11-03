@@ -5,7 +5,7 @@ license: MIT
 compatibility: 需要 LiberAstra 画布读写工具；生成与删除操作会经过安全路由确认。
 metadata:
   author: LiberAstra
-  version: "2.1"
+  version: "2.2"
 allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node canvas_get_node_schema canvas_add_node canvas_update_node canvas_connect canvas_disconnect canvas_set_binding canvas_layout canvas_delete_nodes canvas_run_nodes
 ---
 
@@ -36,7 +36,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 
 - 输入：`input_image_1`、`input_text_script`、`input_character_hero`
 - 功能：`output_image_1`、`output_video_1`
-- 合成：`output_image_storyboard_1`
+- 拼接：`output_image_storyboard_1`
 
 变量名是画布级命名空间，不能重复。新增节点时自动分配，改名前先确认不冲突。
 
@@ -50,9 +50,9 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 
 - 不要用同一个变量名重复建节点；工具会复用或拒绝，先看返回值。
 - 不要直接给功能节点写 `pack` 或 `outputKind`，必须走 `canvas_apply_menu` / `canvas_apply_pack`，否则会绕过功能菜单和自动补建输入。
-- 执行合成节点时只传合成节点 id；不要为了“保险”把上游关键帧节点一起传，否则会重新提交上游任务。
+- 执行拼接节点时只传拼接节点 id；不要为了“保险”把上游关键帧节点一起传，否则会重新提交上游任务。
 - 连线被拒绝通常是自环、重复边、成环或目标节点没有输入口；先检查节点类型。
-- 图片合成节点只收同类型媒体；产物类型未知时先完成上游节点。
+- 图片拼接节点只收同类型媒体；产物类型未知时先完成上游节点。
 - 图片网格是行优先：要 2 行 N 列（每列一个分镜的首尾帧），先连全部首帧，再连全部尾帧，`columns=N`。
 - 图生视频 / 图生增强目标只有一个图片槽时只接首帧；尾帧不要硬连。图生增强节点内部会优化提示词，不要再写一份增强提示词。
 - `canvas_update_node` 的 `values` 是整份替换；先读完整值，改目标键后再整份写回。
@@ -60,3 +60,5 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 功能节点要引用文本输入时，`prompt` 只写 `{{变量名}}`；不要把正文复制进去，否则修改文本节点不会同步。
 - 删除节点、提交生成、运行脚本会经过安全确认；失败时向用户说明，不要靠重复建点绕过。
 - 改完画布提醒用户保存；不要假设未保存的节点会持久化。
+- 图片/视频/音频拼接是内置工具节点（`kind=concat`），UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」；它不走 `canvas_apply_menu`，也不绑定工作流包。
+- 图片增强和视频增强是功能节点，走 `canvas_apply_menu` / `canvas_apply_pack`；视频增强接最终视频，默认不自动加。

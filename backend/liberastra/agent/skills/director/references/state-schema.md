@@ -56,12 +56,12 @@
 - 整段替换时显式传 `merge=false`。
 - `step` 用数字，表示下一次从哪里继续。
 - `confirmed` 记录用户已经点头的步骤。
-- `route`：`storyboard` = 分镜视频，每镜关键帧 + 逐镜视频 + 合并；`single_video` = 一段视频，分镜参考图 + 参考图生成视频。
+- `route`：`storyboard` = 分镜视频，每镜关键帧 + 逐镜视频 + 拼接；`single_video` = 一段视频，分镜参考图 + 参考图生成视频。
 - `keyframe_count`、`keyframes`：只在 `storyboard` 使用。每镜可以有 1～N 张关键帧，变量名按 `output_image_kf_<分镜>_<序号>` 记录。
-- `reference_images`、`segments`：只在 `single_video` 使用。`reference_images` 记录每镜参考图；`segments` 记录每段分镜号、总时长和合成图变量。
+- `reference_images`、`segments`：只在 `single_video` 使用。`reference_images` 记录每镜参考图；`segments` 记录每段分镜号、总时长和拼接图变量（字段名沿用 `composite_var`）。
 - `videos`：只在 `storyboard` 使用，记录分镜号和视频节点变量名。
 - `single_video_var`：`single_video` 且总时长不超过单段上限时使用。
-- `final_video_var`：最终成片变量；分镜视频是合成节点产物，长视频是 Extender 产物。
+- `final_video_var`：最终成片变量；分镜视频是拼接节点产物，长视频是 Extender 产物。
 - 具体工作流/目标按画布菜单当前配置解析，不要写进状态。
 - 用户改路线、关键帧数量或分镜后，清空后续视频状态，避免沿用旧的参考图或视频节点。
 - 不要把完整剧本、完整提示词反复塞进状态；只存摘要和画布变量名，正文放画布文本节点。

@@ -38,7 +38,9 @@
 | `varName` | 输出变量 |
 | `characterId` / `characterSlot` | 角色输入；视角 `front/side/back/portrait/turnaround` |
 
-## 合成节点（concat）
+## 工具节点：拼接（concat）
+
+UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」；内部 `kind` 仍是 `concat`，不绑定工作流，也不走 `canvas_apply_menu`。
 
 | 字段 | 说明 |
 |---|---|
@@ -80,7 +82,7 @@
 3. `canvas_apply_menu` / `canvas_apply_pack` 绑定目标；已有上游时同时传 `bindings`（槽位 → 上游变量名），避免自动补建空输入节点。
 4. 重新读 `canvas_get_node_schema`，补齐 `values` 和 `bindings`。
 
-### 改图片合成布局
+### 改图片拼接布局
 
 `canvas_update_node(node_id, {"layout": "grid", "columns": 3, "gap": 4, "gapColor": "#FFFFFF"})`。
 

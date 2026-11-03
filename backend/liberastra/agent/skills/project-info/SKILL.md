@@ -5,7 +5,7 @@ license: MIT
 compatibility: 需要 LiberAstra 导演台；只读，不修改画布或提交任务。
 metadata:
   author: LiberAstra
-  version: "1.0"
+  version: "1.1"
 allowed-tools: list_assets get_asset read_asset_text list_characters list_voices list_music list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node canvas_get_node_schema
 ---
 
@@ -41,7 +41,7 @@ allowed-tools: list_assets get_asset read_asset_text list_characters list_voices
 - 功能节点的包参数在 `data.values`，值都是字符串。`canvas_update_node` 的 `values` 是整份替换，先读完整值再改。
 - 本地工作流视频包常按帧数 `length`，用包声明 `fps`、`min`、`max`、`align_base`、`align_offset` 对齐；云端模型常用秒数 `duration`。
 - 媒体输入用 `bindings` 绑定到槽位，例如 `first_frame`、`last_frame`、`reference_image`、`prompt`。
-- 输入节点用 `assetId`、`text`、`varName`；合成节点用 `layout`、`columns`、`gap`、`gapColor`、`order`；语音节点用 `mode`、`text`、`providerId`、`voiceRecordId`、`voice`、`model`、`workflow`。
+- 输入节点用 `assetId`、`text`、`varName`；拼接工具节点（内部 `kind=concat`）用 `layout`、`columns`、`gap`、`gapColor`、`order`；语音节点用 `mode`、`text`、`providerId`、`voiceRecordId`、`voice`、`model`、`workflow`。
 - `varName` 是全画布命名空间，写入前先看是否重名。
 
 ## Gotchas

@@ -28,14 +28,16 @@
 4. 用 `canvas_get_node_schema` 读输入槽、参数规格和完整 `values`，再用 `canvas_update_node` 写 prompt、varName、bindings 和整份 values。
 5. 不要直接改功能节点的 `pack`/`outputKind`；这两个字段由套装工具维护。
 
-## 合成节点 `concat`
+## 工具节点：拼接 `concat`
+
+UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」，内部 `kind` 仍是 `concat`；这是原生工具节点，不绑定工作流，也不走 `canvas_apply_menu`。
 
 ```json
 {"kind": "concat", "mediaKind": "image|video|audio", "order": [], "layout": "horizontal|vertical|grid", "columns": 2, "gap": 4, "gapColor": "#FFFFFF", "varName": "output_image_1"}
 ```
 
 - 只接收同类型媒体。
-- 图片合成支持横排、竖排、网格；`order` 决定顺序。
+- 图片拼接支持横排、竖排、网格；`order` 决定顺序。
 - 网格是行优先：先连的 N 张在第一行，接着的 N 张在第二行。要 2 行 N 列（每列一个分镜的首尾帧），先连全部首帧，再连全部尾帧，`columns=N`。
 
 ## 语音节点 `speech`
@@ -51,9 +53,9 @@
 
 - 目标不能是输入节点。
 - 拒绝自环、重复边和成环。
-- 合成节点检查来源产物类型。
+- 拼接节点检查来源产物类型。
 - asr 只接收音频/视频。
 
 ## 预检
 
-执行前保存画布并预检。常见失败：缺少资产、变量名重复、提示词为空、槽位类型不匹配、合成节点类型不一致。先修节点，再重新预检。
+执行前保存画布并预检。常见失败：缺少资产、变量名重复、提示词为空、槽位类型不匹配、拼接节点类型不一致。先修节点，再重新预检。
