@@ -2,7 +2,7 @@ name: qwen_image_21_posestudio
 capability: i2i
 description: 'Qwen 2.1 PoseStudio 姿势换姿
 
-  线稿会自动裁掉白边，输出画幅跟随姿势参考图。需安装 ComfyUI 节点 TextEncodeQwenImage21、QwenImage21Cache、GetImageSize，并把 PoseStudio LoRA 放到 loras/。'
+  线稿保持原始画幅，输出画幅取姿势参考图比例，分辨率取两张图较大者（长边上限 2048）。需安装 ComfyUI 节点 TextEncodeQwenImage21、QwenImage21Cache、GetImageSize，并把 PoseStudio LoRA 放到 loras/。'
 inputs:
   image:
     node: '7'
@@ -10,7 +10,7 @@ inputs:
     type: image
     required: true
     label: 人物照
-    description: 要保留脸、发型、服装和背景的人。身份由这张图提供
+    description: 要保留脸、发型、服装和背景的人。身份由这张图提供，并决定输出分辨率上限
   image_2:
     node: '6'
     field: inputs.image
@@ -18,7 +18,7 @@ inputs:
     required: true
     label: 姿势参考图
     preprocess: pose_control
-    description: 线稿或深度图。线稿自动裁掉白边；输出宽高比跟随这张图
+    description: 线稿或深度图。线稿保持原始画幅，不裁白边；决定输出画幅比例
   unet_name:
     node: '1'
     field: inputs.unet_name
@@ -99,6 +99,13 @@ inputs:
 outputs:
   node: '13'
   key: images
+size:
+  from: image_2
+  max_from: image
+  max_side: 2048
+  node: '10'
+  width_field: inputs.width
+  height_field: inputs.height
 requirements:
   nodes:
   - UNETLoader
@@ -118,6 +125,6 @@ requirements:
   - loras/VNCCS_QI2_PoseStudioV1.1.safetensors
   - text_encoders/qwen3vl_8b_int8_convrot.safetensors
   - vae/qwen_image_2.1_vae_bf16.safetensors
-llm_note: '事实:Qwen-Image 2.1 + VNCCS PoseStudio V1.1 姿势迁移。image_1 是姿势参考图，image_2 是人物照；提示词默认 Draw character from image2。输出 latent 由 GetImageSize 读取姿势图尺寸后交给 EmptyLatentImage，画幅跟随姿势图。线稿输入会先自动裁掉白边。PoseStudio 官方工作流为 25 步、CFG 1、euler/simple、denoise 1、LoRA 强度 1。
+llm_note: '事实:Qwen-Image 2.1 + VNCCS PoseStudio V1.1 姿势迁移。image_1 是姿势参考图，image_2 是人物照；提示词默认 Draw character from image2。输出画幅取姿势参考图比例，分辨率取两张图较大边长，长边上限 2048。线稿输入保持原始画幅，不做裁剪。PoseStudio 官方工作流为 25 步、CFG 1、euler/simple、denoise 1、LoRA 强度 1。
 
   写作指导:强调保留人物身份、脸、发型、服装和背景；姿势交给参考图，不要在提示词里重复描述肢体动作。'

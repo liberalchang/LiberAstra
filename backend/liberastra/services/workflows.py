@@ -38,6 +38,8 @@ class WorkflowPack:
     # manifest 顶层 llm_note：给提示词优化器的技术上下文(事实密度优先);
     # 缺省时 _workflow_context 回落 description
     llm_note: str = ""
+    # manifest 顶层 size：用源图片宽高覆盖输出节点，可选长边上限
+    size: dict[str, Any] = field(default_factory=dict)
 
 
 def _builtin_dir() -> Path:
@@ -74,6 +76,7 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
         llm_note=str(manifest.get("llm_note") or ""),
+        size=manifest.get("size") or {},
     )
     validate_pack(pack)
     return pack
@@ -133,6 +136,36 @@ def validate_pack(pack: WorkflowPack) -> None:
                 )
     if pack.accel:
         _validate_accel(pack)
+    if pack.size:
+        _validate_size(pack)
+
+
+def _validate_size(pack: WorkflowPack) -> None:
+    """size 声明：来源必须是图片输入，目标节点和宽高字段必须存在。"""
+    spec = pack.size
+    source = str(spec.get("from") or "")
+    source_input = pack.inputs.get(source)
+    if source_input is None or source_input.get("type") != "image":
+        raise ProviderError(
+            f"工作流包 {pack.name} 的 size.from 必须是已声明的图片输入"
+        )
+    max_source = str(spec.get("max_from") or "").strip()
+    if max_source:
+        max_input = pack.inputs.get(max_source)
+        if max_input is None or max_input.get("type") != "image":
+            raise ProviderError(
+                f"工作流包 {pack.name} 的 size.max_from 必须是已声明的图片输入"
+            )
+    node = str(spec.get("node") or "")
+    if node not in pack.workflow:
+        raise ProviderError(f"工作流包 {pack.name} 的 size.node {node} 在图里不存在")
+    for key in ("width_field", "height_field"):
+        if not str(spec.get(key) or "").strip():
+            raise ProviderError(f"工作流包 {pack.name} 的 size.{key} 不能为空")
+    try:
+        int(spec.get("max_side") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ProviderError(f"工作流包 {pack.name} 的 size.max_side 必须是整数") from exc
 
 
 def _validate_accel(pack: WorkflowPack) -> None:
@@ -195,6 +228,7 @@ def import_pack(
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
         llm_note=str(manifest.get("llm_note") or ""),
+        size=manifest.get("size") or {},
     )
     validate_pack(pack)
     pack_dir.mkdir(parents=True, exist_ok=True)
@@ -233,6 +267,8 @@ def export_pack(name: str) -> dict[str, Any]:
         data["accel"] = pack.accel
     if pack.llm_note:
         data["llm_note"] = pack.llm_note
+    if pack.size:
+        data["size"] = pack.size
     return data
 
 

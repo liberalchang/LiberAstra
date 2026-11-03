@@ -92,7 +92,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 
 默认用 `preset_t2i` / `preset_i2i`，不要给每张图都加控制节点。用户明确要求锁定姿势或构图时，先 `list_canvas_menu` 看当前可用项，再按控制图选择：
 
-- 人物照 + 姿势图/线稿，且要保留人物身份：`preset_depth_pose`「姿势换姿」。目标通常是 PoseStudio，需要人物照和姿势图两个图片槽，分别连线；线稿会自动裁白边，输出画幅跟随姿势参考图。
+- 人物照 + 姿势图/线稿，且要保留人物身份：`preset_depth_pose`「姿势换姿」。目标通常是 PoseStudio，需要人物照和姿势图两个图片槽，分别连线；线稿保持原始画幅，不裁白边，输出画幅取姿势参考图比例，分辨率取两图较大者（长边上限 2048）。
 - 只有姿势图/线稿，不需要固定人物身份：`preset_depth_gen`「姿势生图」。
 - 只有深度图：`preset_depth_gen` 里的 Union Depth 目标。先从 `available_targets` 确认，再用 `canvas_apply_pack` 绑定具体包；不要把控制图当成普通首帧。
 - 控制图的画幅会覆盖用户选的画幅；使用前确认，否则生成后按目标画幅补边或重新生成。
@@ -178,5 +178,5 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - 长视频每个 clip 的 prompt 只引用本段对应的 `<Picture N>`，不要把所有参考图都写进同一段。
 - 图片/视频拼接是画布内置工具节点（`kind=concat`），不是功能菜单项；不要对拼接节点调用 `canvas_apply_menu`。UI 里的「工具」「拼接」和内部 `concat` 指同一类节点。
 - `preset_depth_pose` 需要人物照 + 姿势图两个图片槽，只有一个姿势图时改用 `preset_depth_gen`；`preset_depth_gen` 默认可能解析到姿势生图，要 Union Depth 时先看 `available_targets`，再用 `canvas_apply_pack` 绑具体包。
-- 线稿会自动裁白边，姿势/深度控制图的画幅会决定输出画幅；用之前先确认，避免成片画幅和主题设定不一致。
+- 线稿保持原始画幅，不裁白边；姿势换姿按姿势参考图比例、两图较大边长生成（长边上限 2048），姿势生图跟姿势参考图原尺寸。用之前先确认，避免成片画幅和主题设定不一致。
 - 图片增强和视频增强是可选步骤，必须用户确认后再加；SeedVR2 会生成式改变细节，视频增强还更耗时。

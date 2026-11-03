@@ -30,7 +30,8 @@
   → 姿势生图 preset_depth_gen + Union Depth 目标
 ```
 
-- PoseStudio 线稿会自动裁白边，输出画幅跟随姿势参考图。
+- 姿势换姿：PoseStudio 线稿保持原始画幅，不裁白边；输出画幅取姿势参考图比例，分辨率取两图较大者，长边上限 2048。
+- 姿势生图：线稿保持原始画幅，不裁白边；输出画幅跟随姿势参考图。
 - `preset_depth_gen` 可能默认到姿势生图；需要 Union Depth 时从 `available_targets` 确认目标，再用 `canvas_apply_pack` 绑定具体包。
 - 控制图是构图/动作参考，不是普通首帧；不要接到视频节点的首帧槽。
 

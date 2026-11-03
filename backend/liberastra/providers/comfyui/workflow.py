@@ -5,12 +5,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from PIL import Image, UnidentifiedImageError
+
 from liberastra.providers.base import ProviderError
 from liberastra.providers.comfyui.client import ComfyClient, upload_too_large_message
 from liberastra.services.canvas_graph import translate_prompt_slots
 from liberastra.services.pose_image import prepare_pose_control
 from liberastra.services.workflows import (
     WorkflowPack,
+    _set_field,
     apply_accel,
     apply_inputs,
     extract_accel,
@@ -54,6 +57,7 @@ async def run_workflow_pack(
 
     # 未提供的可选媒体输入：断开 TextEncode 等对 Load* 的连线，避免 Comfy 去读占位 example.png
     _detach_unused_media_links(workflow, pack, node_inputs)
+    _apply_declared_size(pack, workflow, node_inputs)
 
     for key, spec in pack.inputs.items():
         if spec.get("type") not in _UPLOAD_INPUT_TYPES or key not in node_inputs:
@@ -76,6 +80,50 @@ async def run_workflow_pack(
     wait_kwargs: dict[str, Any] = {} if wait_timeout is None else {"timeout": wait_timeout}
     result = await client.wait_result(prompt_id, on_progress=on_progress, use_ws=use_ws, **wait_kwargs)
     return result.get("outputs", {})  # type: ignore[no-any-return]
+
+
+def _read_size_source(
+    inputs: dict[str, Any], key: str, label: str
+) -> tuple[int, int]:
+    raw_path = str(inputs.get(key) or "").strip()
+    if not raw_path:
+        raise ProviderError(f"缺少{label}: {key}")
+    path = resolve(raw_path)
+    if not path.exists():
+        raise ProviderError(f"{label}不存在: {path.name}")
+    try:
+        with Image.open(path) as image:
+            return image.size
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ProviderError(f"{label}无法解析: {path.name}") from exc
+
+
+def _apply_declared_size(
+    pack: WorkflowPack, workflow: dict[str, Any], inputs: dict[str, Any]
+) -> None:
+    """按 manifest size 声明：比例取自 from，分辨率取两图较大边长并受 max_side 限制。"""
+    spec = pack.size
+    if not spec:
+        return
+    width, height = _read_size_source(
+        inputs, str(spec.get("from") or ""), "输出画幅来源图片"
+    )
+    long_side = max(width, height)
+    max_key = str(spec.get("max_from") or "").strip()
+    if max_key:
+        max_width, max_height = _read_size_source(
+            inputs, max_key, "输出分辨率来源图片"
+        )
+        long_side = max(long_side, max_width, max_height)
+    max_side = int(spec.get("max_side") or 0)
+    if max_side > 0:
+        long_side = min(long_side, max_side)
+
+    scale = long_side / max(width, height)
+    width = max(8, round(width * scale / 8) * 8)
+    height = max(8, round(height * scale / 8) * 8)
+    _set_field(workflow, str(spec["node"]), str(spec["width_field"]), width)
+    _set_field(workflow, str(spec["node"]), str(spec["height_field"]), height)
 
 
 def prepare_pack_inputs(pack: WorkflowPack, node_inputs: dict[str, Any]) -> dict[str, Any]:

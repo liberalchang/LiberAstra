@@ -30,6 +30,17 @@ class _FakeClient:
         return {"outputs": {}}
 
 
+def _write_upload(image: Image.Image, prefix: str) -> tuple[str, str, bytes]:
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    name = f"{prefix}-{uuid.uuid4().hex}.png"
+    relative = f"uploads/{name}"
+    target = get_settings().data_dir / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(buffer.getvalue())
+    return name, relative, buffer.getvalue()
+
+
 def test_posestudio_pack_wires_person_and_pose_control() -> None:
     pack = get_pack("qwen_image_21_posestudio")
 
@@ -44,9 +55,18 @@ def test_posestudio_pack_wires_person_and_pose_control() -> None:
     assert pack.workflow["8"]["inputs"]["images.image_1"] == ["6", 0]
     assert pack.workflow["8"]["inputs"]["images.image_2"] == ["7", 0]
     assert pack.workflow["9"]["class_type"] == "GetImageSize"
+    assert pack.workflow["9"]["inputs"]["image"] == ["6", 0]
     assert pack.workflow["10"]["class_type"] == "EmptyLatentImage"
     assert pack.workflow["10"]["inputs"]["width"] == ["9", 0]
     assert pack.workflow["10"]["inputs"]["height"] == ["9", 1]
+    assert pack.size == {
+        "from": "image_2",
+        "max_from": "image",
+        "max_side": 2048,
+        "node": "10",
+        "width_field": "inputs.width",
+        "height_field": "inputs.height",
+    }
     assert pack.workflow["11"]["inputs"]["steps"] == 25
     assert pack.workflow["11"]["inputs"]["cfg"] == 1
     assert "LoraLoaderModelOnly" in (pack.requirements.get("nodes") or [])
@@ -62,9 +82,10 @@ def test_posestudio_gen_pack_has_single_pose_slot() -> None:
     assert "t-shirt" in pack.inputs["prompt"]["default"]
     assert "trousers" in pack.inputs["prompt"]["default"]
     assert "t-shirt" in pack.workflow["8"]["inputs"]["prompt"]
+    assert pack.size == {}
 
 
-def test_pose_control_is_cropped_before_upload() -> None:
+def test_pose_control_is_not_cropped_before_upload() -> None:
     image = Image.new("RGB", (400, 600), "white")
     draw = ImageDraw.Draw(image)
     draw.rectangle([120, 60, 280, 540], outline="black", width=4)
@@ -100,11 +121,44 @@ def test_pose_control_is_cropped_before_upload() -> None:
 
     assert len(client.uploaded) == 1
     uploaded_name, uploaded_bytes = client.uploaded[0]
-    assert uploaded_name.endswith("_pose.png")
-    assert uploaded_bytes != buffer.getvalue()
+    assert uploaded_name == name
+    assert uploaded_bytes == buffer.getvalue()
     assert client.workflow is not None
     assert client.workflow["1"]["inputs"]["image"] == uploaded_name
 
-    cropped = Image.open(BytesIO(uploaded_bytes))
-    assert cropped.width < image.width
-    assert cropped.height < image.height
+    uploaded = Image.open(BytesIO(uploaded_bytes))
+    assert uploaded.size == image.size
+
+
+def test_posestudio_output_uses_pose_aspect_and_larger_resolution() -> None:
+    person = Image.new("RGB", (1600, 2400), "white")
+    ImageDraw.Draw(person).rectangle([700, 900, 900, 1500], fill="black")
+    pose = Image.new("RGB", (900, 1200), "white")
+    ImageDraw.Draw(pose).line([450, 100, 450, 1100], fill="black", width=4)
+    _, person_path, _ = _write_upload(person, "person")
+    _, pose_path, _ = _write_upload(pose, "pose")
+
+    pack = get_pack("qwen_image_21_posestudio")
+    client = _FakeClient()
+
+    asyncio.run(run_workflow_pack(client, pack, {"image": person_path, "image_2": pose_path}))
+
+    assert client.workflow is not None
+    assert client.workflow["10"]["inputs"]["width"] == 1536
+    assert client.workflow["10"]["inputs"]["height"] == 2048
+
+
+def test_posestudio_output_avoids_extreme_narrow_person_aspect() -> None:
+    person = Image.new("RGB", (384, 1920), "white")
+    pose = Image.new("RGB", (900, 1200), "white")
+    _, person_path, _ = _write_upload(person, "narrow-person")
+    _, pose_path, _ = _write_upload(pose, "pose")
+
+    pack = get_pack("qwen_image_21_posestudio")
+    client = _FakeClient()
+
+    asyncio.run(run_workflow_pack(client, pack, {"image": person_path, "image_2": pose_path}))
+
+    assert client.workflow is not None
+    assert client.workflow["10"]["inputs"]["width"] == 1440
+    assert client.workflow["10"]["inputs"]["height"] == 1920
