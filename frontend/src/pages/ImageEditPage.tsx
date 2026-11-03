@@ -1,8 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ImageUp, WandSparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ImageUp, WandSparkles } from "lucide-react";
+import { useState } from "react";
 
 import { api } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
+import { ImagePreviewStrip } from "@/components/ImagePreviewStrip";
 import {
   AccelControl,
   buildInputsWithAccel,
@@ -27,6 +29,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
+import { assetsAsFiles } from "@/lib/assets";
 import { referenceImagesHint, workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
@@ -53,7 +56,11 @@ export function ImageEditPage({ capability, title, description }: Props) {
     enabled: isComfy,
   });
   const [workflow, setWorkflow] = usePersistentState(`image-${capability}:workflow`, "");
-  const pack = packs?.find((p) => p.name === workflow) ?? packs?.[0];
+  const preferredPack = capability === "upscale" ? "upscale_basic" : "";
+  const pack =
+    packs?.find((p) => p.name === workflow) ??
+    packs?.find((p) => p.name === preferredPack) ??
+    packs?.[0];
   /** 按 manifest 顺序的图像槽（含 label / required） */
   const imageInputs = pack
     ? Object.entries(pack.inputs).filter(([, spec]) => spec.type === "image")
@@ -82,12 +89,8 @@ export function ImageEditPage({ capability, title, description }: Props) {
 
   const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`;
 
-  /** 追加本轮选择，按 名称+大小+修改时间 去重（同一文件重复选不会重复上传） */
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    // 必须同步快照：FileList 是活引用，onChange 随后清空 input.value 会把它掏空，
-    // 而 setFiles 的 updater 可能被 React 延迟执行（届时再读就什么都拿不到）
-    const incoming = Array.from(list);
+  /** 追加一批文件，按 名称+大小+修改时间 去重（同一文件重复选不会重复上传） */
+  const mergeFiles = (incoming: File[]) => {
     setFiles((prev) => {
       const seen = new Set(prev.map(fileKey));
       const next = [...prev];
@@ -102,11 +105,14 @@ export function ImageEditPage({ capability, title, description }: Props) {
     });
   };
 
-  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    // 必须同步快照：FileList 是活引用，onChange 随后清空 input.value 会把它掏空，
+    // 而 setFiles 的 updater 可能被 React 延迟执行（届时再读就什么都拿不到）
+    mergeFiles(Array.from(list));
+  };
 
-  // 缩略图预览 URL，随 files 变化重建并释放旧的
-  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+  const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
   const submit = useMutation({
     mutationFn: () => {
@@ -210,52 +216,40 @@ export function ImageEditPage({ capability, title, description }: Props) {
               }
               onSelect={addFiles}
             />
-            {files.length > 0 && (
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                {files.map((f, i) => (
-                  <div
-                    key={fileKey(f)}
-                    className="group relative size-20 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
-                  >
-                    <img src={previews[i]} alt={f.name} className="size-full object-cover" />
-                    {imageSlots > 1 && (
-                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[10px] leading-none text-white">
-                        {isMaskPack
-                          ? i === 0
-                            ? tx("原图")
-                            : i === 1
-                              ? tx("蒙版")
-                              : `#${i + 1}`
-                          : tx(imageInputs[i]?.[1]?.label?.replace(/（.*?）/g, "") || "") || tx("图{n}", { n: i + 1 })}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeFile(i)}
-                      title={tx("移除 {name}", { name: f.name })}
-                      className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-danger group-hover:opacity-100"
-                    >
-                      <X className="size-3" />
-                    </button>
-                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-1 py-0.5 text-[10px] leading-none text-white">
-                      {f.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <AssetPickButton
+              kind="image"
+              multiple
+              onPick={async (assets) => mergeFiles(await assetsAsFiles(assets))}
+            />
+            <ImagePreviewStrip
+              files={files}
+              onRemove={removeFile}
+              labelFor={(_, i) =>
+                imageSlots > 1
+                  ? isMaskPack
+                    ? i === 0
+                      ? tx("原图")
+                      : i === 1
+                        ? tx("蒙版")
+                        : `#${i + 1}`
+                    : tx(imageInputs[i]?.[1]?.label?.replace(/（.*?）/g, "") || "") || tx("图{n}", { n: i + 1 })
+                  : undefined
+              }
+            />
           </Field>
-          <PromptField
-            label={tx("提示词")}
-            value={promptValue}
-            onChange={setPromptValue}
-            jobScope={`image-${capability}:prompt-opt`}
-            task={capability === "upscale" ? "upscale" : "i2i"}
-            workflow={isComfy ? pack?.name : undefined}
-            placeholder={workflowPromptPlaceholder(tx, isComfy ? pack : null, {
-              fallback: capability === "upscale" ? "可选，用来约束画面" : "说明要怎么改",
-            })}
-          />
+          {(!isComfy || !pack || "prompt" in pack.inputs) && (
+            <PromptField
+              label={tx("提示词")}
+              value={promptValue}
+              onChange={setPromptValue}
+              jobScope={`image-${capability}:prompt-opt`}
+              task={capability === "upscale" ? "upscale" : "i2i"}
+              workflow={isComfy ? pack?.name : undefined}
+              placeholder={workflowPromptPlaceholder(tx, isComfy ? pack : null, {
+                fallback: capability === "upscale" ? "可选，用来约束画面" : "说明要怎么改",
+              })}
+            />
+          )}
           {isComfy && pack && (
             <AdvancedPanel summary={advancedSummary}>
               {hasAccel(pack.accel) && pack.accel && (

@@ -294,6 +294,45 @@ async def i2v(
     return job
 
 
+@router.post("/edit", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+async def edit_video(
+    user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    video: Annotated[UploadFile, File()],
+    workflow: Annotated[str, Form()] = "",
+    provider_id: Annotated[int | None, Form()] = None,
+    inputs: Annotated[str, Form()] = "{}",
+    wait: bool = False,
+) -> Job:
+    provider = pick_provider(db, "video", provider_id)
+    if not workflow:
+        raise HTTPException(status_code=400, detail="请选择工作流包")
+    try:
+        get_pack(workflow)
+    except ProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    content = await video.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="视频文件为空")
+    video_path = save_upload(video.filename or "video.mp4", content)
+    job = _submit(
+        request,
+        db,
+        user,
+        "video.v2v",
+        {
+            "workflow": workflow,
+            "video_path": video_path,
+            "inputs": _parse_inputs(inputs),
+        },
+        provider.id,
+    )
+    if wait:
+        return await wait_for_job(db, job.id)
+    return job
+
+
 @router.post("/avatar", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
 async def avatar(
     user: CurrentUser,

@@ -8,12 +8,14 @@ from liberastra.pipelines.simple import (
     run_avatar_job,
     run_i2v_job,
     run_motion_job,
+    run_v2v_job,
 )
 
 
 def register_video_jobs(manager: JobManager) -> None:
     manager.register("video.quick", run_quick_job)
     manager.register("video.i2v", run_i2v_job)
+    manager.register("video.v2v", run_v2v_job)
     manager.register("video.avatar", run_avatar_job)
     manager.register("video.motion", run_motion_job)
     manager.register("video.assets", run_assets_job)

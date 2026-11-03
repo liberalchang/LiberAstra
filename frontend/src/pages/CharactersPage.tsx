@@ -3,7 +3,9 @@ import { Trash2, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, type CharacterOut } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
 import { CharacterViewer, presentSlots, useSlotUrls } from "@/components/CharacterViewer";
+import { ImagePreviewStrip } from "@/components/ImagePreviewStrip";
 import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { PromptField, emptyPromptValue, resolveEffectivePrompt, type PromptFieldValue } from "@/components/PromptField";
@@ -15,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { useTrackedJob } from "@/hooks/useJob";
 import { useTx } from "@/i18n/tx";
+import { assetAsFile, assetsAsFiles } from "@/lib/assets";
 import { viewLabel, type CharacterView } from "@/lib/characterPrompt";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 
@@ -85,6 +88,21 @@ export function CharactersPage() {
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("character-generate");
   const appearance = resolveEffectivePrompt(promptValue);
+
+  const mergeRefs = (incoming: File[]) => {
+    setRefs((prev) => {
+      const seen = new Set(prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+      const next = [...prev];
+      for (const file of incoming) {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          next.push(file);
+        }
+      }
+      return next.slice(0, 3);
+    });
+  };
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["characters"] });
   const create = useMutation({
@@ -186,11 +204,16 @@ export function CharactersPage() {
                 clearAfterSelect
                 title={tx("点击或拖拽上传参考图")}
                 subtitle={tx("1 张走图生图，2 到 3 张走多图编辑")}
-                names={refs.map((file) => file.name)}
-                onSelect={(files) => {
-                  const picked = Array.from(files ?? []);
-                  setRefs((prev) => [...prev, ...picked].slice(0, 3));
-                }}
+                onSelect={(files) => mergeRefs(Array.from(files ?? []))}
+              />
+              <AssetPickButton
+                kind="image"
+                multiple
+                onPick={async (assets) => mergeRefs(await assetsAsFiles(assets))}
+              />
+              <ImagePreviewStrip
+                files={refs}
+                onRemove={(index) => setRefs((prev) => prev.filter((_, i) => i !== index))}
               />
               {refs.length > 0 && (
                 <Button variant="ghost" className="mt-2" onClick={() => setRefs([])}>{tx("清空参考图")}</Button>
@@ -203,8 +226,17 @@ export function CharactersPage() {
                 <FileDrop
                   accept="image/*"
                   title={tx("点击或拖拽上传设定图")}
-                  names={turnaround ? [turnaround.name] : []}
                   onSelect={(files) => setTurnaround(files?.[0] ?? null)}
+                />
+                <AssetPickButton
+                  kind="image"
+                  onPick={async (assets) => {
+                    if (assets[0]) setTurnaround(await assetAsFile(assets[0]));
+                  }}
+                />
+                <ImagePreviewStrip
+                  files={turnaround ? [turnaround] : []}
+                  onRemove={() => setTurnaround(null)}
                 />
               </Field>
               <Field label={tx("外观描述")} hint={tx("选填。快速创作会把这段文字加到每个画面前面。")}>

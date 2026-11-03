@@ -18,7 +18,6 @@ const EXPECTED_PATHS = [
   "/guide",
   "/image/generate",
   "/image/edit",
-  "/image/upscale",
   "/image/depth",
   "/speech/tts",
   "/speech/asr",
@@ -31,6 +30,11 @@ const EXPECTED_PATHS = [
   "/video/assets",
   "/video/templates",
   "/video/characters",
+  "/tools/image-concat",
+  "/tools/video-concat",
+  "/tools/audio-concat",
+  "/tools/image-enhance",
+  "/tools/video-enhance",
   "/assets",
   "/plugins",
   "/jobs",
@@ -60,17 +64,35 @@ function activeLeaf(pathname: string): NavLeaf | null {
   return null;
 }
 
-test("导航覆盖全部 27 个入口且无重复", () => {
+test("导航覆盖全部 31 个入口且无重复", () => {
   const paths = flattenNav().map((leaf) => leaf.href ?? leaf.to);
-  assert.equal(paths.length, 27);
+  assert.equal(paths.length, 31);
   assert.equal(new Set(paths).size, paths.length);
   assert.deepEqual(new Set(paths), new Set(EXPECTED_PATHS));
 });
 
-test("一级菜单为 9 项：3 个直达 + 6 个分组", () => {
-  assert.equal(NAV_ENTRIES.length, 9);
+test("一级菜单为 10 项：3 个直达 + 7 个分组", () => {
+  assert.equal(NAV_ENTRIES.length, 10);
   assert.equal(NAV_ENTRIES.filter((entry) => entry.kind === "link").length, 3);
-  assert.equal(NAV_ENTRIES.filter((entry) => entry.kind === "group").length, 6);
+  assert.equal(NAV_ENTRIES.filter((entry) => entry.kind === "group").length, 7);
+});
+
+test("工具组在视频下方，图片组不再有放大入口", () => {
+  const ids = NAV_ENTRIES.map((entry) => entry.id);
+  assert.equal(ids.indexOf("tools"), ids.indexOf("video") + 1);
+  const tools = findGroup("tools");
+  assert.deepEqual(
+    tools.sections.flatMap((section) => section.items.map((item) => item.to)),
+    [
+      "/tools/image-concat",
+      "/tools/video-concat",
+      "/tools/audio-concat",
+      "/tools/image-enhance",
+      "/tools/video-enhance",
+    ],
+  );
+  const image = findGroup("image");
+  assert.ok(image.sections.flatMap((section) => section.items).every((item) => item.to !== "/image/upscale"));
 });
 
 test("画布是一级直达项，紧跟在总览之后", () => {

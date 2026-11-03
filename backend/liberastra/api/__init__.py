@@ -22,6 +22,7 @@ from liberastra.api.routes import (
     system,
     templates,
     tokens,
+    tools,
     tts,
     uploads,
     videos,
@@ -49,6 +50,7 @@ api_router.include_router(images.router)
 api_router.include_router(prompts.router)
 api_router.include_router(workflows.router)
 api_router.include_router(templates.router)
+api_router.include_router(tools.router)
 api_router.include_router(videos.router)
 api_router.include_router(uploads.router)
 api_router.include_router(system.router)

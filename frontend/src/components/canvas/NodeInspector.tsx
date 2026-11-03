@@ -38,7 +38,7 @@ import {
   type SpeechNodeData,
 } from "@/canvas/types";
 import { AccelControl, defaultAccelState, hasAccel, type AccelState } from "@/components/AccelControl";
-import { AssetPicker } from "@/components/canvas/AssetPicker";
+import { AssetPicker } from "@/components/AssetPicker";
 import { ImagePaintEditor } from "@/components/canvas/ImagePaintEditor";
 import { ResultPreview } from "@/components/canvas/nodes";
 import { PromptField, type PromptVar } from "@/components/PromptField";
@@ -129,10 +129,10 @@ function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
   if (d.kind === "function") return d.pack || tx("功能节点");
   if (d.kind === "concat")
     return d.mediaKind === "audio"
-      ? tx("音频合成")
+      ? tx("音频拼接")
       : d.mediaKind === "image"
-        ? tx("图片合成")
-        : tx("视频合成");
+        ? tx("图片拼接")
+        : tx("视频拼接");
   if (d.kind === "speech") return d.mode === "tts" ? tx("文字转语音") : tx("语音转文字");
   const titles: Record<string, string> = {
     image: tx("图片输入"),
@@ -488,7 +488,7 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
     }
   };
 
-  const onPick = (asset: AssetOut) => {
+  const onPick = ([asset]: AssetOut[]) => {
     updateNodeData(node.id, {
       assetId: asset.id,
       assetName: String(asset.meta?.source_name ?? asset.path),
@@ -1259,7 +1259,7 @@ function ConcatInspector({ node }: { node: CanvasFlowNode }) {
           <hr className="border-border" />
         </>
       )}
-      <SectionLabel>{tx("合成顺序")}</SectionLabel>
+      <SectionLabel>{tx("拼接顺序")}</SectionLabel>
       <p className="text-xs text-muted-foreground">
         {tx("按此顺序把连接的输入拼成整段；连线时自动追加")}
       </p>
@@ -1682,7 +1682,7 @@ export function NodeInspector({
   const titles: Record<string, string> = {
     input: tx("输入节点"),
     function: tx("功能节点"),
-    concat: tx("合成节点"),
+    concat: tx("工具节点"),
     speech: tx("语音节点"),
   };
   const icons: Record<string, React.ReactNode> = {

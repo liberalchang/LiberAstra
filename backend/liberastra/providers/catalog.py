@@ -34,7 +34,18 @@ PROVIDER_GROUP = {
 
 # 模型目录不收录工作流包专属能力。那些包由画布菜单单独匹配。
 _WORKFLOW_ONLY_SUBS = frozenset(
-    {"color_grade", "inpaint", "outfit_swap", "depth_pose", "depth_gen", "i2v_orbit"}
+    {
+        "color_grade",
+        "inpaint",
+        "outfit_swap",
+        "depth_pose",
+        "depth_gen",
+        "i2v_orbit",
+        "video_upscale",
+        "tool_image_concat",
+        "tool_video_concat",
+        "tool_audio_concat",
+    }
 )
 
 _LLM_PROVIDER_TYPES = (
@@ -223,8 +234,32 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "upscale": {
         "menu": "image",
         "category": "image",
-        "label": "放大修复",
+        "label": "图片增强",
         "slots": [{"key": "image", "type": "image", "label": "原图", "required": True}],
+    },
+    "video_upscale": {
+        "menu": "video",
+        "category": "video",
+        "label": "视频增强",
+        "slots": [{"key": "video", "type": "video", "label": "视频", "required": True}],
+    },
+    "tool_image_concat": {
+        "menu": "tool",
+        "category": "tool",
+        "label": "图片拼接",
+        "slots": [],
+    },
+    "tool_video_concat": {
+        "menu": "tool",
+        "category": "tool",
+        "label": "视频拼接",
+        "slots": [],
+    },
+    "tool_audio_concat": {
+        "menu": "tool",
+        "category": "tool",
+        "label": "音频拼接",
+        "slots": [],
     },
     "analysis": {
         "menu": "image",
@@ -354,6 +389,7 @@ PACK_CAPABILITY_SUB = {
     "upscale": "upscale",
     "t2v": "t2v",
     "i2v": "i2v_first",
+    "v2v": "video_upscale",
     "avatar": "avatar",
     "motion": "motion",
     "analysis": "analysis",
@@ -832,6 +868,10 @@ def targets_for_menu_item(item: dict[str, Any], specs: list[dict[str, Any]]) -> 
     return chosen
 
 
+# 默认工作流不按字母序选，图片增强优先保留现有的保真放大。
+_DEFAULT_PACK_OVERRIDES = {"upscale": "upscale_basic"}
+
+
 # 图像和视频菜单按最小功能列出。同一功能的官方版、越狱版以及同功能的其他包进同一项。
 # 没有对应工作流的能力（如首尾帧）不出现；语音没有工作流包，仍自动匹配模型。
 _WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
@@ -843,12 +883,13 @@ _WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("preset_depth_gen", "image", "姿势生图", "depth_gen"),
     ("preset_color_grade", "image", "调色", "color_grade"),
     ("preset_inpaint", "image", "蒙版", "inpaint"),
-    ("preset_upscale", "image", "放大修复", "upscale"),
+    ("preset_upscale", "image", "图片增强", "upscale"),
     ("preset_analysis", "image", "画面分析", "analysis"),
     ("preset_t2v", "video", "文生视频", "t2v"),
     ("preset_t2v_enhance", "video", "文生增强", "t2v_enhance"),
     ("preset_i2v_first", "video", "图生视频", "i2v_first"),
     ("preset_i2v_enhance", "video", "图生增强", "i2v_enhance"),
+    ("preset_video_enhance", "video", "视频增强", "video_upscale"),
     ("preset_v2v_ref", "video", "参考图生视频", "v2v_ref"),
     ("preset_storyboard", "video", "分镜视频", "v2v_ref"),
     ("preset_v2v_ref_long", "video", "参考图生成视频（长）", "v2v_ref_long"),
@@ -888,8 +929,27 @@ def _menu_item(
     }
 
 
+def _native_tool_menu_item(tool: Any) -> dict[str, Any]:
+    return {
+        "id": f"tool_{tool.id}",
+        "category": "tool",
+        "title": tool.title,
+        "hint": tool.description,
+        "sub_capability": tool.sub_capability,
+        "bind_mode": "fixed",
+        "manual_targets": [],
+        "default_target": {
+            "provider_id": None,
+            "target_type": "tool",
+            "target_id": tool.id,
+        },
+        "enabled": True,
+    }
+
+
 def default_canvas_menu() -> list[dict[str, Any]]:
     """出厂菜单。图像和视频按当前工作流的最小功能手动指定，有越狱包时默认越狱包。"""
+    from liberastra.services.native_tools import NATIVE_TOOLS
     from liberastra.services.workflows import list_packs
 
     grouped: dict[str, list[str]] = {row[3]: [] for row in _WORKFLOW_MENU_ROWS}
@@ -917,7 +977,10 @@ def default_canvas_menu() -> list[dict[str, Any]]:
         names = sorted(grouped[sub], key=lambda name: (0 if "uncensored" in name else 1, name))
         if not names:
             continue
-        default_id = next((name for name in names if "uncensored" in name), names[0])
+        default_id = next((name for name in names if "uncensored" in name), "")
+        if not default_id:
+            preferred = _DEFAULT_PACK_OVERRIDES.get(sub)
+            default_id = preferred if preferred in names else names[0]
         items.append(
             _menu_item(
                 item_id,
@@ -929,6 +992,7 @@ def default_canvas_menu() -> list[dict[str, Any]]:
                 default_id=default_id,
             )
         )
+    items.extend(_native_tool_menu_item(tool) for tool in NATIVE_TOOLS)
     return items
 
 
@@ -937,21 +1001,21 @@ def normalize_menu_item(raw: dict[str, Any]) -> dict[str, Any]:
     if not 2 <= len(title) <= 10:
         raise ValueError(f"功能简称需为 2–10 个字：{title or '（空）'}")
     category = str(raw.get("category") or "")
-    if category not in {"speech", "image", "video"}:
-        raise ValueError("菜单分类只能是语音、图像或视频")
+    if category not in {"speech", "image", "video", "tool"}:
+        raise ValueError("菜单分类只能是语音、图像、视频或工具")
     sub = str(raw.get("sub_capability") or "")
     if sub not in SUB_CAPABILITIES:
         raise ValueError(f"未知细分能力: {sub}")
     bind_mode = str(raw.get("bind_mode") or "auto")
-    if bind_mode not in {"auto", "manual"}:
-        raise ValueError("绑定模式只能是 auto 或 manual")
+    if bind_mode not in {"auto", "manual", "fixed"}:
+        raise ValueError("绑定模式只能是 auto、manual 或 fixed")
     manual = []
     for target in raw.get("manual_targets") or []:
         if not isinstance(target, dict):
             continue
         target_type = str(target.get("target_type") or "")
         target_id = str(target.get("target_id") or "").strip()
-        if target_type not in {"model", "workflow"} or not target_id:
+        if target_type not in {"model", "workflow", "tool"} or not target_id:
             continue
         provider_id = target.get("provider_id")
         manual.append(

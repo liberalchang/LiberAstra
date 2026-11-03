@@ -1,0 +1,107 @@
+name: seedvr2_3b_video_restore
+capability: v2v
+description: 'SeedVR2 3B 视频增强
+
+  视频做生成式修复和放大，保留原 fps 和音频。batch_size 必须为 4n+1，默认 5；长片用 temporal_overlap 和分块降低显存。'
+inputs:
+  video:
+    node: '1'
+    field: inputs.file
+    type: video
+    required: true
+    label: 原视频
+    description: 待修复或放大的视频
+  model_name:
+    node: '3'
+    field: inputs.model
+    type: str
+    default: seedvr2_ema_3b_fp16.safetensors
+    options_from: seedvr2
+    label: SeedVR2 模型
+    description: 默认 3B FP16。文件放在 ComfyUI 的 models/SEEDVR2/
+  vae_name:
+    node: '4'
+    field: inputs.model
+    type: str
+    default: ema_vae_fp16.safetensors
+    options_from: seedvr2
+    label: SeedVR2 VAE
+    description: 与 SeedVR2 模型配套的 VAE
+  resolution:
+    node: '5'
+    field: inputs.resolution
+    type: int
+    default: 1080
+    min: 64
+    max: 4096
+    step: 2
+    label: 目标短边
+    description: 输出最短边像素，保持原视频宽高比
+  batch_size:
+    node: '5'
+    field: inputs.batch_size
+    type: int
+    default: 5
+    min: 1
+    max: 33
+    step: 4
+    label: 批帧数
+    description: 必须为 4n+1（1、5、9、13…）。越大越稳但越吃显存
+  temporal_overlap:
+    node: '5'
+    field: inputs.temporal_overlap
+    type: int
+    default: 0
+    min: 0
+    max: 16
+    step: 1
+    label: 时序重叠
+    description: 相邻批之间的重叠帧，1-4 通常更稳，0 关闭
+  color_correction:
+    node: '5'
+    field: inputs.color_correction
+    type: str
+    default: lab
+    options:
+    - lab
+    - wavelet
+    - wavelet_adaptive
+    - hsv
+    - adain
+    - none
+    label: 色彩校正
+    description: 默认 lab，最接近原视频
+  seed:
+    node: '5'
+    field: inputs.seed
+    type: int
+    default: 42
+    description: 随机种子
+  attention_mode:
+    node: '3'
+    field: inputs.attention_mode
+    type: str
+    default: sdpa
+    options:
+    - sdpa
+    - flash_attn_2
+    - sageattn_2
+    label: 注意力模式
+    description: 默认 sdpa，稳定兼容
+outputs:
+  node: '6'
+  key: gifs
+requirements:
+  nodes:
+  - LoadVideo
+  - GetVideoComponents
+  - SeedVR2LoadDiTModel
+  - SeedVR2LoadVAEModel
+  - SeedVR2VideoUpscaler
+  - VHS_VideoCombine
+  models:
+  - seedvr2/seedvr2_ema_3b_fp16.safetensors
+  - seedvr2/ema_vae_fp16.safetensors
+llm_note: '事实:SeedVR2 3B 视频增强。LoadVideo 取帧和音频，SeedVR2VideoUpscaler 修复放大，VHS_VideoCombine 用原 fps 回封音频。batch_size 必须 4n+1，默认 5；temporal_overlap 默认 0，可 1-4。模型和 VAE 在 models/SEEDVR2/，默认 3B FP16。输出是生成式修复，可能改细节。
+
+  写作指导:这个包没有提示词入口。强调清晰化、去噪、去压缩和放大，并说明保留原音频。'

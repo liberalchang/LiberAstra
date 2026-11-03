@@ -15,12 +15,13 @@ from liberastra.providers.catalog import (
     targets_for_menu_item,
 )
 from liberastra.providers.schema_registry import model_specs, workflow_specs
+from liberastra.services.native_tools import tool_specs
 from liberastra.services.workflows import list_packs
 
 MENU_SETTING_KEY = "canvas_custom_menu"
 # 出厂菜单结构变化时加 1。低于这个版本的存档会按当前出厂菜单重做图像和视频，语音保留。
 # 用户在当前版本里删掉的项不再补回。
-MENU_REVISION = 6
+MENU_REVISION = 7
 
 
 def decode_menu(raw: str) -> tuple[list[dict], int]:
@@ -118,6 +119,7 @@ def resolve_menu_items(db: Session, owner_id: int) -> list[dict]:
     """给每个菜单项补上可用目标和解析后的默认目标。只读，不写目录。"""
     items = present_menu(load_menu_items(db, persist=False))
     specs = [spec.to_dict() for spec in workflow_specs(list_packs())]
+    specs.extend(spec.to_dict() for spec in tool_specs())
     providers = db.scalars(
         select(Provider).where(Provider.owner_id == owner_id, Provider.enabled.is_(True))
     ).all()

@@ -22,6 +22,12 @@ export type NavIconKey =
   | "i2v"
   | "motion"
   | "videoAssets"
+  | "tools"
+  | "imageConcat"
+  | "videoConcat"
+  | "audioConcat"
+  | "imageEnhance"
+  | "videoEnhance"
   | "templates"
   | "characters"
   | "assetList"
@@ -101,7 +107,6 @@ export const NAV_ENTRIES: NavEntry[] = [
         items: [
           { to: "/image/generate", labelKey: "nav.imageGen", icon: "imageGen" },
           { to: "/image/edit", labelKey: "nav.imageEdit", icon: "imageEdit" },
-          { to: "/image/upscale", labelKey: "nav.upscale", icon: "upscale" },
           { to: "/image/depth", labelKey: "nav.imageDepth", icon: "imageDepth" },
         ],
       },
@@ -146,6 +151,30 @@ export const NAV_ENTRIES: NavEntry[] = [
         items: [
           { to: "/video/templates", labelKey: "nav.templates", icon: "templates" },
           { to: "/video/characters", labelKey: "nav.characters", icon: "characters" },
+        ],
+      },
+    ],
+  },
+  {
+    kind: "group",
+    id: "tools",
+    labelKey: "group.tools",
+    icon: "tools",
+    match: ["/tools"],
+    sections: [
+      {
+        labelKey: "section.toolsConcat",
+        items: [
+          { to: "/tools/image-concat", labelKey: "nav.imageConcat", icon: "imageConcat" },
+          { to: "/tools/video-concat", labelKey: "nav.videoConcat", icon: "videoConcat" },
+          { to: "/tools/audio-concat", labelKey: "nav.audioConcat", icon: "audioConcat" },
+        ],
+      },
+      {
+        labelKey: "section.toolsEnhance",
+        items: [
+          { to: "/tools/image-enhance", labelKey: "nav.imageEnhance", icon: "imageEnhance" },
+          { to: "/tools/video-enhance", labelKey: "nav.videoEnhance", icon: "videoEnhance" },
         ],
       },
     ],

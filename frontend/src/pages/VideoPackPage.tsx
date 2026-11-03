@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, type JobOut } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
+import { assetAsFile } from "@/lib/assets";
 import { enabledModels } from "@/lib/modelCatalog";
 import {
   AccelControl,
@@ -328,6 +330,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 names={videoFile ? [videoFile.name] : []}
                 onSelect={(fs) => setVideoFile(fs?.[0] ?? null)}
               />
+              <AssetPickButton
+                kind="video"
+                onPick={async (assets) => {
+                  if (assets[0]) setVideoFile(await assetAsFile(assets[0]));
+                }}
+              />
             </Field>
           )}
           <Field
@@ -389,6 +397,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               names={imageFile ? [imageFile.name] : []}
               onSelect={(fs) => setImageFile(fs?.[0] ?? null)}
             />
+            <AssetPickButton
+              kind="image"
+              onPick={async (assets) => {
+                if (assets[0]) setImageFile(await assetAsFile(assets[0]));
+              }}
+            />
           </Field>
           {kind === "i2v" && pack?.inputs.image_2 && (
             <Field
@@ -400,6 +414,12 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 title={tx("可选。不传则与首帧同一张")}
                 names={imageFile2 ? [imageFile2.name] : []}
                 onSelect={(fs) => setImageFile2(fs?.[0] ?? null)}
+              />
+              <AssetPickButton
+                kind="image"
+                onPick={async (assets) => {
+                  if (assets[0]) setImageFile2(await assetAsFile(assets[0]));
+                }}
               />
             </Field>
           )}

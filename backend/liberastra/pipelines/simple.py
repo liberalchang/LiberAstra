@@ -150,6 +150,22 @@ async def _run_model_video(db: Session, job: Job, ctx: JobContext) -> list[dict[
     return outputs
 
 
+async def run_v2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """视频到视频工作流：把上传的视频映射到 manifest 的 video 槽。"""
+    params = job.params
+    pack = get_pack(params["workflow"])
+    inputs = dict(params.get("inputs") or {})
+    video_keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "video"]
+    paths = [path for path in params.get("video_paths") or [] if path]
+    if not paths and params.get("video_path"):
+        paths = [params["video_path"]]
+    if not paths:
+        raise ProviderError("缺少视频输入")
+    for key, path in zip(video_keys, paths, strict=False):
+        inputs[key] = path
+    return await _run_video_pack(db, job, ctx, inputs)
+
+
 async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """图生视频：图片 + 提示词 → i2v 工作流。
 

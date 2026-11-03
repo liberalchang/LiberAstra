@@ -67,6 +67,28 @@ def test_comfy_lists_model_folders() -> None:
     asyncio.run(run())
 
 
+def test_model_folder_skips_hidden_files() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/models/SEEDVR2":
+            return httpx.Response(
+                200,
+                json=[
+                    "seedvr2_ema_3b_fp16.safetensors",
+                    "ema_vae_fp16.safetensors",
+                    ".validation_cache.json",
+                ],
+            )
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = ComfyClient("http://comfy:8188", client=http)
+            names = await client.list_model_folder("SEEDVR2")
+            assert names == ["seedvr2_ema_3b_fp16.safetensors", "ema_vae_fp16.safetensors"]
+
+    asyncio.run(run())
+
+
 def test_comfy_client_flow() -> None:
     async def run() -> None:
         async with httpx.AsyncClient(transport=_mock_comfy()) as http:

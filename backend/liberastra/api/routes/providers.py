@@ -76,9 +76,10 @@ def execution_specs(
 ) -> list[dict]:
     """工作流包与已启用云端模型的统一参数契约。"""
     from liberastra.providers.schema_registry import filter_specs, model_specs, workflow_specs
+    from liberastra.services.native_tools import tool_specs
     from liberastra.services.workflows import list_packs
 
-    specs = workflow_specs(list_packs())
+    specs = workflow_specs(list_packs()) + tool_specs()
     records = db.scalars(
         select(Provider).where(Provider.owner_id == user.id, Provider.enabled.is_(True))
     ).all()

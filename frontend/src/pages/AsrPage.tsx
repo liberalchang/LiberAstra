@@ -3,6 +3,7 @@ import { Mic, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
 import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
@@ -16,6 +17,7 @@ import { SPEECH_ASR_MODELS, asrModelHint } from "@/components/SpeechLanguageSele
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
+import { assetAsFile } from "@/lib/assets";
 
 /** 输出类型：空串 = 自动（后端按 txt → json → srt → vtt 优先级取第一个可用格式）。 */
 const FORMAT_OPTIONS = [
@@ -225,6 +227,12 @@ export function AsrPage() {
               subtitle={tx("支持音频和视频文件")}
               names={file ? [file.name] : []}
               onSelect={(fs) => setFile(fs?.[0] ?? null)}
+            />
+            <AssetPickButton
+              kind={["audio", "video"]}
+              onPick={async (assets) => {
+                if (assets[0]) setFile(await assetAsFile(assets[0]));
+              }}
             />
           </Field>
           {error && <p className="text-sm text-danger">{error}</p>}

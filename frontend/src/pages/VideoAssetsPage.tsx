@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
+import { assetsAsFiles } from "@/lib/assets";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import {
   AccelControl,
@@ -79,10 +81,7 @@ export function VideoAssetsPage() {
   // ---- ① 素材 ----
   const [files, setFiles] = useState<File[]>([]);
   const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`;
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    // FileList 是活引用，先同步快照（onChange 随后可能清空 input）
-    const incoming = Array.from(list);
+  const mergeFiles = (incoming: File[]) => {
     setFiles((prev) => {
       const seen = new Set(prev.map(fileKey));
       const next = [...prev];
@@ -94,6 +93,11 @@ export function VideoAssetsPage() {
       }
       return next;
     });
+  };
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    // FileList 是活引用，先同步快照（onChange 随后可能清空 input）
+    mergeFiles(Array.from(list));
   };
   const removeFile = (i: number) => setFiles((prev) => prev.filter((_, j) => j !== i));
   const previews = useMemo(
@@ -336,6 +340,11 @@ export function VideoAssetsPage() {
               title={tx("点击或拖拽上传素材")}
               subtitle={tx("图片与视频，支持多选、多次添加")}
               onSelect={addFiles}
+            />
+            <AssetPickButton
+              kind={["image", "video"]}
+              multiple
+              onPick={async (assets) => mergeFiles(await assetsAsFiles(assets))}
             />
           </Field>
           {files.length > 0 && (

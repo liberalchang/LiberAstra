@@ -32,6 +32,7 @@ import {
   WandSparkles,
   Waypoints,
   Workflow,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,12 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   i2v: Film,
   motion: PersonStanding,
   videoAssets: Images,
+  tools: Wrench,
+  imageConcat: Images,
+  videoConcat: Clapperboard,
+  audioConcat: AudioLines,
+  imageEnhance: ImageUp,
+  videoEnhance: Video,
   templates: LayoutTemplate,
   characters: UsersRound,
   assetList: FolderOpen,

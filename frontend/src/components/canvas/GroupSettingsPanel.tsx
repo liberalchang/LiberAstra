@@ -16,7 +16,7 @@ import { useTx } from "@/i18n/tx";
 export const CAPABILITY_GROUP: Record<string, string> = {
   t2i: "文生图",
   i2i: "图生图",
-  upscale: "放大修复",
+  upscale: "图片增强",
   t2v: "文生视频",
   i2v: "图生视频",
   avatar: "数字人",

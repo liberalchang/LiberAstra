@@ -116,22 +116,26 @@ def _concat_images(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any
     buffer = io.BytesIO()
     canvas.save(buffer, format="PNG")
     save_bytes(buffer.getvalue(), rel_path)
+    visible = bool(params.get("visible", False))
+    meta = {
+        "canvas_temp": not visible,
+        "canvas_id": params.get("canvas_id"),
+        "canvas_node": params.get("node_id"),
+        "sources": asset_ids,
+        "layout": layout,
+        "columns": columns,
+        "gap": gap,
+    }
+    if params.get("tool_id"):
+        meta["tool_id"] = str(params["tool_id"])
     asset = create_asset(
         db,
         kind="image",
         rel_path=rel_path,
         job_id=job.id,
         owner_id=job.owner_id,
-        hidden=True,
-        meta={
-            "canvas_temp": True,
-            "canvas_id": params.get("canvas_id"),
-            "canvas_node": params.get("node_id"),
-            "sources": asset_ids,
-            "layout": layout,
-            "columns": columns,
-            "gap": gap,
-        },
+        hidden=not visible,
+        meta=meta,
     )
     ctx.report(db, job, progress=1.0)
     return [{"type": "asset", "asset_id": asset.id, "kind": "image", "filename": "concat_0.png"}]
@@ -165,21 +169,25 @@ async def run_concat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     await ffmpeg.concat_media(paths, out, kind=kind, work_dir=resolve(f"outputs/{job.id}/concat_work"))
     if ctx.cancelled():
         return []
+    visible = bool(params.get("visible", False))
+    meta = {
+        "canvas_temp": not visible,
+        "canvas_id": params.get("canvas_id"),
+        "canvas_node": params.get("node_id"),
+        "sources": asset_ids,
+        "segments": len(paths),
+        "duration_s": round(time.monotonic() - started, 1),
+    }
+    if params.get("tool_id"):
+        meta["tool_id"] = str(params["tool_id"])
     asset = create_asset(
         db,
         kind=kind,
         rel_path=rel_path,
         job_id=job.id,
         owner_id=job.owner_id,
-        hidden=True,
-        meta={
-            "canvas_temp": True,
-            "canvas_id": params.get("canvas_id"),
-            "canvas_node": params.get("node_id"),
-            "sources": asset_ids,
-            "segments": len(paths),
-            "duration_s": round(time.monotonic() - started, 1),
-        },
+        hidden=not visible,
+        meta=meta,
     )
     ctx.report(db, job, progress=1.0)
     return [{"type": "asset", "asset_id": asset.id, "kind": kind, "filename": out.name}]

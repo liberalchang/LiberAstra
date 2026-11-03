@@ -35,14 +35,14 @@ const IO_ITEMS: { kind: CanvasNodeKind; mediaKind?: MediaKind; icon: typeof Imag
   { kind: "input", mediaKind: "video", icon: Video, label: "视频输入" },
   { kind: "input", mediaKind: "audio", icon: AudioLines, label: "音频输入" },
   { kind: "input", mediaKind: "text", icon: FileText, label: "文本输入" },
-  { kind: "concat", mediaKind: "image", icon: ImageIcon, label: "图片合成" },
-  { kind: "concat", mediaKind: "video", icon: Clapperboard, label: "视频合成" },
-  { kind: "concat", mediaKind: "audio", icon: AudioLines, label: "音频合成" },
+  { kind: "concat", mediaKind: "image", icon: ImageIcon, label: "图片拼接" },
+  { kind: "concat", mediaKind: "video", icon: Clapperboard, label: "视频拼接" },
+  { kind: "concat", mediaKind: "audio", icon: AudioLines, label: "音频拼接" },
 ];
 
 const GROUPS = [
   ["input", "输入", FolderOpen],
-  ["concat", "合成", Clapperboard],
+  ["concat", "工具", Clapperboard],
   ["speech", "语音", Mic],
   ["image", "图像", ImageIcon],
   ["video", "视频", Video],

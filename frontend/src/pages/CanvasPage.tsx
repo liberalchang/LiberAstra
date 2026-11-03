@@ -23,6 +23,7 @@ import "@xyflow/react/dist/style.css";
 import { api, ApiError, type CanvasMenuItem, type WorkflowPackOut } from "@/api/client";
 import { applyMenuToNode, resolveSpec } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
+import { toolForMenu } from "@/canvas/nativeTools";
 import { layeredLayout } from "@/canvas/layout";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import { CanvasBottomBar, type CanvasTool } from "@/components/canvas/CanvasBottomBar";
@@ -435,6 +436,30 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
       x: (rect?.left ?? 0) + (rect?.width ?? 800) / 2,
       y: (rect?.top ?? 0) + 220,
     });
+    if (item.category === "tool") {
+      const tool = toolForMenu(item);
+      if (!tool) {
+        flash(tx("工具配置缺失"));
+        return;
+      }
+      store.batch(() => {
+        const node = store.addNode("concat", tool.mediaKind, at);
+        store.updateNodeData(node.id, {
+          presetId: item.id,
+          presetTitle: item.title,
+          group: item.title,
+        });
+        if (pendingFrom) {
+          store.onConnect({
+            source: pendingFrom,
+            target: node.id,
+            sourceHandle: `out-${pendingFrom}`,
+            targetHandle: `in-${node.id}`,
+          });
+        }
+      });
+      return;
+    }
     // 菜单本身不拉执行契约。点选时再取，否则节点绑不上工作流，属性面板只剩空的模型框。
     const specs = await queryClient.ensureQueryData({
       queryKey: ["execution-specs"],

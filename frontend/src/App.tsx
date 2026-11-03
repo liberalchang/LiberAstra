@@ -23,6 +23,12 @@ const ImageEditPage = lazy(() => import("@/pages/ImageEditPage").then((m) => ({ 
 const ImageDepthPage = lazy(() => import("@/pages/ImageDepthPage").then((m) => ({ default: m.ImageDepthPage })));
 const ImageGenPage = lazy(() => import("@/pages/ImageGenPage").then((m) => ({ default: m.ImageGenPage })));
 const JobsPage = lazy(() => import("@/pages/JobsPage").then((m) => ({ default: m.JobsPage })));
+const MediaConcatPage = lazy(() =>
+  import("@/pages/MediaConcatPage").then((m) => ({ default: m.MediaConcatPage })),
+);
+const VideoEnhancePage = lazy(() =>
+  import("@/pages/VideoEnhancePage").then((m) => ({ default: m.VideoEnhancePage })),
+);
 const PluginsPage = lazy(() => import("@/pages/PluginsPage").then((m) => ({ default: m.PluginsPage })));
 const MusicPage = lazy(() => import("@/pages/MusicPage").then((m) => ({ default: m.MusicPage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
@@ -78,17 +84,23 @@ export default function App() {
             />
           }
         />
+        <Route path="/image/upscale" element={<Navigate to="/tools/image-enhance" replace />} />
+        <Route path="/image/depth" element={<ImageDepthPage />} />
+        <Route path="/tools" element={<Navigate to="/tools/image-concat" replace />} />
+        <Route path="/tools/image-concat" element={<MediaConcatPage kind="image" />} />
+        <Route path="/tools/video-concat" element={<MediaConcatPage kind="video" />} />
+        <Route path="/tools/audio-concat" element={<MediaConcatPage kind="audio" />} />
         <Route
-          path="/image/upscale"
+          path="/tools/image-enhance"
           element={
             <ImageEditPage
               capability="upscale"
-              title={tx("修复与放大")}
-              description={tx("上传图片，用 RealESRGAN 放大 4 倍。模型文件需放在 ComfyUI 的 upscale_models 目录。")}
+              title={tx("图片增强")}
+              description={tx("保真放大用 RealESRGAN；AI 修复用 SeedVR2。按需选择工作流。")}
             />
           }
         />
-        <Route path="/image/depth" element={<ImageDepthPage />} />
+        <Route path="/tools/video-enhance" element={<VideoEnhancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/prompts" element={<PromptsPage />} />
         <Route path="/settings/system" element={<SystemSettingsPage />} />

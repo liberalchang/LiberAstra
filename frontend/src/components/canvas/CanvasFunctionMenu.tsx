@@ -3,7 +3,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { ImageIcon, Mic, Search, Video, X } from "lucide-react";
+import { ImageIcon, Mic, Search, Video, Wrench, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { api, type CanvasMenuItem } from "@/api/client";
@@ -14,6 +14,7 @@ const CATEGORIES = [
   ["speech", "语音", Mic],
   ["image", "图像", ImageIcon],
   ["video", "视频", Video],
+  ["tool", "工具", Wrench],
 ] as const;
 
 const RECENT_KEY = "canvas-menu-recent";

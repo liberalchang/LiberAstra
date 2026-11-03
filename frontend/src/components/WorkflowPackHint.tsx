@@ -121,7 +121,8 @@ export function WorkflowPackControl({
 const PACK_CAPABILITY: Record<string, string> = {
   t2i: "文生图",
   i2i: "图生图",
-  upscale: "修复放大",
+  upscale: "图片增强",
+  v2v: "视频增强",
   i2v: "图生视频",
   t2v: "文生视频",
   avatar: "数字人",

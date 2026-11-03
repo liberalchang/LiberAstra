@@ -1,9 +1,11 @@
 /** 图像 → 深度图生成：通过已启用的 liber_depth 批量转换。 */
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Layers, X } from "lucide-react";
+import { Download, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api, fetchAssetBlob, type AssetOut } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
+import { ImagePreviewStrip } from "@/components/ImagePreviewStrip";
 import { MediaLightbox, MediaThumb, type PreviewTarget } from "@/components/MediaLightbox";
 import { PageHeader } from "@/components/PageShell";
 import { Button, submitButtonClass } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import { Field, selectClass } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { SplitPane } from "@/components/ui/split-pane";
 import { useTx } from "@/i18n/tx";
+import { assetsAsFiles } from "@/lib/assets";
 
 const DEFAULT_MODEL = "dpt_swin2_large_384";
 
@@ -41,9 +44,7 @@ export function ImageDepthPage() {
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
 
   const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    const incoming = Array.from(list);
+  const mergeFiles = (incoming: File[]) => {
     setFiles((prev) => {
       const seen = new Set(prev.map(fileKey));
       const next = [...prev];
@@ -57,9 +58,11 @@ export function ImageDepthPage() {
       return next;
     });
   };
+  const addFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    mergeFiles(Array.from(list));
+  };
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, item) => item !== index));
-  const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
-  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
   const providers = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const prefs = useQuery({ queryKey: ["system-preferences"], queryFn: api.getPreferences });
@@ -182,29 +185,12 @@ export function ImageDepthPage() {
                   subtitle={tx("支持多选、多次添加")}
                   onSelect={addFiles}
                 />
-                {files.length > 0 && (
-                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                    {files.map((file, index) => (
-                      <div
-                        key={fileKey(file)}
-                        className="group relative size-20 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
-                      >
-                        <img src={previews[index]} alt={file.name} className="size-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeFile(index)}
-                          title={tx("移除 {name}", { name: file.name })}
-                          className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-danger group-hover:opacity-100"
-                        >
-                          <X className="size-3" />
-                        </button>
-                        <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-1 py-0.5 text-[10px] leading-none text-white">
-                          {file.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <AssetPickButton
+                  kind="image"
+                  multiple
+                  onPick={async (assets) => mergeFiles(await assetsAsFiles(assets))}
+                />
+                <ImagePreviewStrip files={files} onRemove={removeFile} />
               </Field>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button

@@ -245,6 +245,50 @@ def test_workflow_packs_keep_their_own_functions() -> None:
     assert generate["default_target"]["target_id"] == "qwen_image_21_posestudio_gen"
 
 
+def test_image_enhance_default_stays_real_esrgan() -> None:
+    menu = default_canvas_menu()
+    item = next(row for row in menu if row["sub_capability"] == "upscale")
+    assert item["default_target"]["target_id"] == "upscale_basic"
+
+
+def test_native_tool_menu_items_are_fixed_targets() -> None:
+    from liberastra.providers.catalog import (
+        default_canvas_menu,
+        normalize_menu_item,
+        targets_for_menu_item,
+    )
+    from liberastra.services.native_tools import tool_specs
+
+    menu = default_canvas_menu()
+    tool_items = [item for item in menu if item["category"] == "tool"]
+    assert [item["title"] for item in tool_items] == ["图片拼接", "视频拼接", "音频拼接"]
+    assert all(item["bind_mode"] == "fixed" for item in tool_items)
+    assert all(item["default_target"]["target_type"] == "tool" for item in tool_items)
+
+    specs = [spec.to_dict() for spec in tool_specs()]
+    image_item = next(item for item in tool_items if item["title"] == "图片拼接")
+    targets = targets_for_menu_item(image_item, specs)
+    assert [target["target_id"] for target in targets] == ["image_concat"]
+
+    normalized = normalize_menu_item(
+        {
+            "id": "tool_image_concat",
+            "category": "tool",
+            "title": "图片拼接",
+            "sub_capability": "tool_image_concat",
+            "bind_mode": "fixed",
+            "default_target": {
+                "provider_id": None,
+                "target_type": "tool",
+                "target_id": "image_concat",
+            },
+        }
+    )
+    assert normalized["category"] == "tool"
+    assert normalized["bind_mode"] == "fixed"
+    assert normalized["default_target"]["target_type"] == "tool"
+
+
 def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:
     """每个工作流只进一个功能菜单。有越狱包时默认它，没有则用该功能的第一个包。"""
     from liberastra.services.workflows import list_packs
@@ -255,6 +299,11 @@ def test_workflow_menu_is_manual_and_defaults_to_uncensored() -> None:
         if item["category"] == "speech":
             assert item["bind_mode"] == "auto"
             assert item["manual_targets"] == []
+            continue
+        if item["category"] == "tool":
+            assert item["bind_mode"] == "fixed"
+            assert item["manual_targets"] == []
+            assert item["default_target"]["target_type"] == "tool"
             continue
         assert item["bind_mode"] == "manual"
         assert 2 <= len(item["title"]) <= 12

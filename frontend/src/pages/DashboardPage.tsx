@@ -58,7 +58,7 @@ type Tool = {
 };
 
 type ToolGroup = {
-  mode: Mode;
+  mode: string;
   labelKey: string;
   icon: NavIconKey;
   tools: Tool[];
@@ -72,7 +72,6 @@ const TOOL_GROUPS: ToolGroup[] = [
     tools: [
       { to: "/image/generate", labelKey: "nav.imageGen", icon: "imageGen", hintKey: "studio.toolHints.imageGen" },
       { to: "/image/edit", labelKey: "nav.imageEdit", icon: "imageEdit", hintKey: "studio.toolHints.imageEdit" },
-      { to: "/image/upscale", labelKey: "nav.upscale", icon: "upscale", hintKey: "studio.toolHints.upscale" },
       { to: "/image/depth", labelKey: "nav.imageDepth", icon: "imageDepth", hintKey: "studio.toolHints.imageDepth" },
     ],
   },
@@ -99,6 +98,19 @@ const TOOL_GROUPS: ToolGroup[] = [
     ],
   },
 ];
+
+const TOOL_UTILITY_GROUP: ToolGroup = {
+  mode: "tools",
+  labelKey: "group.tools",
+  icon: "tools",
+  tools: [
+    { to: "/tools/image-concat", labelKey: "nav.imageConcat", icon: "imageConcat", hintKey: "studio.toolHints.imageConcat" },
+    { to: "/tools/video-concat", labelKey: "nav.videoConcat", icon: "videoConcat", hintKey: "studio.toolHints.videoConcat" },
+    { to: "/tools/audio-concat", labelKey: "nav.audioConcat", icon: "audioConcat", hintKey: "studio.toolHints.audioConcat" },
+    { to: "/tools/image-enhance", labelKey: "nav.imageEnhance", icon: "imageEnhance", hintKey: "studio.toolHints.imageEnhance" },
+    { to: "/tools/video-enhance", labelKey: "nav.videoEnhance", icon: "videoEnhance", hintKey: "studio.toolHints.videoEnhance" },
+  ],
+};
 
 export function DashboardPage() {
   const { t } = useTranslation();
@@ -239,6 +251,36 @@ export function DashboardPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="surface-bevel mt-3 rounded-2xl border border-border bg-card p-2">
+          <div className="flex items-center gap-2 px-2.5 py-2">
+            <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary shadow-[inset_0_1px_0_var(--edge-highlight)] ring-1 ring-primary/15">
+              <NavIcon name={TOOL_UTILITY_GROUP.icon} className="size-3.5" />
+            </span>
+            <h3 className="text-sm font-semibold text-foreground">{t(TOOL_UTILITY_GROUP.labelKey)}</h3>
+            <span className="ml-auto min-w-5 rounded-full bg-foreground/[0.04] px-1.5 py-0.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground ring-1 ring-border/60">
+              {TOOL_UTILITY_GROUP.tools.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
+            {TOOL_UTILITY_GROUP.tools.map((tool) => (
+              <Link
+                key={tool.to}
+                to={tool.to}
+                title={t(tool.hintKey)}
+                className="group flex items-center gap-2 rounded-xl px-2.5 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15">
+                  <NavIcon name={tool.icon} className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-foreground">{t(tool.labelKey)}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{t(tool.hintKey)}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
     </div>

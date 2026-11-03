@@ -154,7 +154,8 @@ class ComfyClient:
         files = await self._request("GET", f"/models/{folder}")
         if not isinstance(files, list):
             raise ProviderError(f"ComfyUI 返回了意外的模型目录内容: {str(files)[:200]}")
-        return [f for f in files if isinstance(f, str)]
+        # ComfyUI 会把 .validation_cache.json 之类的隐藏文件也列进来，不能当作模型选项。
+        return [f for f in files if isinstance(f, str) and not f.startswith(".")]
 
     async def list_model_files(self) -> list[str]:
         """按目录列出模型文件。checkpoints 为空时仍返回 diffusion_models 等。"""

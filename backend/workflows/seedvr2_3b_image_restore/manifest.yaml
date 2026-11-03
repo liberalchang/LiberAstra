@@ -1,0 +1,86 @@
+name: seedvr2_3b_image_restore
+capability: upscale
+description: 'SeedVR2 3B 图片增强
+
+  单张图片做生成式修复和放大，适合低清、噪点、压缩和 AI 软图。单帧 batch=1，不利用视频时序。输出宽高比跟随原图，短边由 resolution 控制。'
+inputs:
+  image:
+    node: '1'
+    field: inputs.image
+    type: image
+    required: true
+    label: 原图
+    description: 待修复或放大的图片
+  model_name:
+    node: '3'
+    field: inputs.model
+    type: str
+    default: seedvr2_ema_3b_fp16.safetensors
+    options_from: seedvr2
+    label: SeedVR2 模型
+    description: 默认 3B FP16。文件放在 ComfyUI 的 models/SEEDVR2/
+  vae_name:
+    node: '4'
+    field: inputs.model
+    type: str
+    default: ema_vae_fp16.safetensors
+    options_from: seedvr2
+    label: SeedVR2 VAE
+    description: 与 SeedVR2 模型配套的 VAE
+  resolution:
+    node: '5'
+    field: inputs.resolution
+    type: int
+    default: 1080
+    min: 64
+    max: 4096
+    step: 2
+    label: 目标短边
+    description: 输出最短边像素，保持原图宽高比
+  color_correction:
+    node: '5'
+    field: inputs.color_correction
+    type: str
+    default: lab
+    options:
+    - lab
+    - wavelet
+    - wavelet_adaptive
+    - hsv
+    - adain
+    - none
+    label: 色彩校正
+    description: 默认 lab，最接近原图；none 不做色彩校正
+  seed:
+    node: '5'
+    field: inputs.seed
+    type: int
+    default: 42
+    description: 随机种子
+  attention_mode:
+    node: '3'
+    field: inputs.attention_mode
+    type: str
+    default: sdpa
+    options:
+    - sdpa
+    - flash_attn_2
+    - sageattn_2
+    label: 注意力模式
+    description: 默认 sdpa，稳定兼容；装了 Flash/SageAttention 才切其他值
+outputs:
+  node: '6'
+  key: images
+requirements:
+  nodes:
+  - LoadImage
+  - SeedVR2LoadDiTModel
+  - SeedVR2LoadVAEModel
+  - SeedVR2VideoUpscaler
+  - SaveImage
+  models:
+  - seedvr2/seedvr2_ema_3b_fp16.safetensors
+  - seedvr2/ema_vae_fp16.safetensors
+llm_note: '事实:SeedVR2 3B 图片增强。单张图片作为一帧输入 SeedVR2VideoUpscaler，batch_size 固定 1，没有时序收益。模型和 VAE 在 models/SEEDVR2/，默认 3B FP16。resolution 控制输出最短边，color_correction 默认 lab。生成式修复可能重绘细节，不适合要求像素级保真的商品图或文字图。
+
+  写作指导:这个包没有提示词入口。强调修复、去噪、去压缩和放大；不要承诺完全保真。'

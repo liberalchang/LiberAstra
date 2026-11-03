@@ -113,17 +113,17 @@ export interface ExecutionSpec {
 
 export interface CanvasMenuTarget {
   provider_id: number | null;
-  target_type: "model" | "workflow" | string;
+  target_type: "model" | "workflow" | "tool" | string;
   target_id: string;
 }
 
 export interface CanvasMenuItem {
   id: string;
-  category: "speech" | "image" | "video" | string;
+  category: "speech" | "image" | "video" | "tool" | string;
   title: string;
   hint: string;
   sub_capability: string;
-  bind_mode: "auto" | "manual" | string;
+  bind_mode: "auto" | "manual" | "fixed" | string;
   manual_targets: CanvasMenuTarget[];
   default_target: CanvasMenuTarget | null;
   /** 关闭后不出现在画布功能菜单里。缺省视为开启。 */
@@ -863,12 +863,16 @@ export const api = {
     request<JobOut>("/api/v1/videos/quick", { method: "POST", body: JSON.stringify(body) }),
   submitVideoI2v: (form: FormData) =>
     request<JobOut>("/api/v1/videos/i2v", { method: "POST", body: form }),
+  submitVideoEdit: (form: FormData) =>
+    request<JobOut>("/api/v1/videos/edit", { method: "POST", body: form }),
   submitVideoAvatar: (form: FormData) =>
     request<JobOut>("/api/v1/videos/avatar", { method: "POST", body: form }),
   submitVideoMotion: (form: FormData) =>
     request<JobOut>("/api/v1/videos/motion", { method: "POST", body: form }),
   submitVideoAssets: (form: FormData) =>
     request<JobOut>("/api/v1/videos/assets", { method: "POST", body: form }),
+  submitToolConcat: (body: Record<string, unknown>) =>
+    request<JobOut>("/api/v1/tools/concat", { method: "POST", body: JSON.stringify(body) }),
   /** 看素材写口播（202）。结果是文本，确认后再走 submitVideoAssets。 */
   submitVideoAssetsScript: (form: FormData) =>
     request<JobOut>("/api/v1/videos/assets/script", { method: "POST", body: form }),

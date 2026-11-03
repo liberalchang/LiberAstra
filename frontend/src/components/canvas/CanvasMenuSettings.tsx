@@ -3,10 +3,11 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, Image as ImageIcon, Mic, Pencil, Trash2, Video } from "lucide-react";
+import { AudioLines, Image as ImageIcon, Mic, Pencil, Trash2, Video, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api, type CanvasMenuItem, type ExecutionSpec } from "@/api/client";
+import { NATIVE_TOOLS, toolForMenu } from "@/canvas/nativeTools";
 import { Button } from "@/components/ui/button";
 import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ const CATEGORIES = [
   ["speech", "语音"],
   ["image", "图像"],
   ["video", "视频"],
+  ["tool", "工具"],
 ] as const;
 
 export function CanvasMenuSettings() {
@@ -64,6 +66,30 @@ export function CanvasMenuSettings() {
               size="sm"
               variant="outline"
               onClick={() => {
+                if (category === "tool") {
+                  const tool = NATIVE_TOOLS[0];
+                  const id = `tool_${tool.id}_${Date.now().toString(36)}`;
+                  setItems((current) => [
+                    ...current,
+                    {
+                      id,
+                      category: "tool",
+                      title: tool.title,
+                      hint: tool.description,
+                      sub_capability: tool.subCapability,
+                      bind_mode: "fixed",
+                      manual_targets: [],
+                      default_target: {
+                        provider_id: null,
+                        target_type: "tool",
+                        target_id: tool.id,
+                      },
+                      enabled: true,
+                    },
+                  ]);
+                  setEditingId(id);
+                  return;
+                }
                 const id = `custom_${category}_${Date.now().toString(36)}`;
                 setItems((current) => [
                   ...current,
@@ -82,7 +108,7 @@ export function CanvasMenuSettings() {
                 setEditingId(id);
               }}
             >
-              {tx("添加功能")}
+              {tx(category === "tool" ? "添加工具" : "添加功能")}
             </Button>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3">
@@ -133,7 +159,11 @@ const ABILITIES = [
   ["depth_gen", "姿势生图"],
   ["color_grade", "调色"],
   ["inpaint", "蒙版"],
-  ["upscale", "放大修复"],
+  ["upscale", "图片增强"],
+  ["video_upscale", "视频增强"],
+  ["tool_image_concat", "图片拼接"],
+  ["tool_video_concat", "视频拼接"],
+  ["tool_audio_concat", "音频拼接"],
   ["analysis", "画面分析"],
   ["t2v", "文生视频"],
   ["t2v_enhance", "文生增强"],
@@ -163,7 +193,8 @@ function SummaryCard({
 }) {
   const tx = useTx();
   const ability = ABILITIES.find(([id]) => id === item.sub_capability)?.[1] ?? item.sub_capability;
-  const Icon = item.category === "speech" ? Mic : item.category === "video" ? Video : ImageIcon;
+  const Icon =
+    item.category === "speech" ? Mic : item.category === "video" ? Video : item.category === "tool" ? Wrench : ImageIcon;
   const description = item.hint && item.hint !== item.title && item.hint !== ability ? item.hint : "";
   const same = (spec: ExecutionSpec) =>
     Boolean(
@@ -176,13 +207,15 @@ function SummaryCard({
   const defaultName = specs.find(same)?.display_name;
   const on = item.enabled !== false;
   const binding =
-    item.bind_mode === "manual"
-      ? defaultName
-        ? tx("手动指定 · 默认 {name}", { name: defaultName })
-        : tx("手动指定")
-      : defaultName
-        ? tx("自动匹配 · 默认 {name}", { name: defaultName })
-        : tx("自动匹配");
+    item.category === "tool" || item.bind_mode === "fixed"
+      ? tx("本机处理 · 不需要模型或工作流")
+      : item.bind_mode === "manual"
+        ? defaultName
+          ? tx("手动指定 · 默认 {name}", { name: defaultName })
+          : tx("手动指定")
+        : defaultName
+          ? tx("自动匹配 · 默认 {name}", { name: defaultName })
+          : tx("自动匹配");
   return (
     <article className={`flex gap-3 rounded-2xl border border-border bg-card p-4 ${on ? "" : "text-muted-foreground"}`}>
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -216,6 +249,56 @@ function SummaryCard({
   );
 }
 
+function ToolCard({
+  item,
+  onChange,
+  onRemove,
+}: {
+  item: CanvasMenuItem;
+  onChange: (patch: Partial<CanvasMenuItem>) => void;
+  onRemove: () => void;
+}) {
+  const tx = useTx();
+  const selected = toolForMenu(item) ?? NATIVE_TOOLS[0];
+  return (
+    <article className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-4">
+      <div className="flex items-start justify-between gap-2">
+        <Input value={item.title} maxLength={10} aria-label={tx("简称")} onChange={(event) => onChange({ title: event.target.value })} />
+        <Button variant="ghost" size="sm" onClick={onRemove}>{tx("删除")}</Button>
+      </div>
+      <Field label={tx("工具类型")}>
+        <select
+          className={selectClass}
+          value={selected.id}
+          onChange={(event) => {
+            const tool = NATIVE_TOOLS.find((row) => row.id === event.target.value) ?? NATIVE_TOOLS[0];
+            onChange({
+              title: tool.title,
+              hint: tool.description,
+              sub_capability: tool.subCapability,
+              bind_mode: "fixed",
+              manual_targets: [],
+              default_target: {
+                provider_id: null,
+                target_type: "tool",
+                target_id: tool.id,
+              },
+            });
+          }}
+        >
+          {NATIVE_TOOLS.map((tool) => (
+            <option key={tool.id} value={tool.id}>{tx(tool.title)}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label={tx("说明")}>
+        <Input value={item.hint} onChange={(event) => onChange({ hint: event.target.value })} />
+      </Field>
+      <p className="text-xs text-muted-foreground">{tx("本机处理 · 不需要模型或工作流")}</p>
+    </article>
+  );
+}
+
 function MenuCard({
   item,
   specs,
@@ -228,6 +311,9 @@ function MenuCard({
   onRemove: () => void;
 }) {
   const tx = useTx();
+  if (item.category === "tool") {
+    return <ToolCard item={item} onChange={onChange} onRemove={onRemove} />;
+  }
   const options = specs.filter((spec) => spec.sub_capability === item.sub_capability);
   const same = (spec: ExecutionSpec, target: { provider_id?: number | null; target_type: string; target_id: string }) =>
     target.target_type === spec.target_type &&
