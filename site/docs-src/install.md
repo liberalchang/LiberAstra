@@ -4,28 +4,100 @@ title: 安装 / 下载
 
 # 安装 / 下载
 
-本页为安装与部署的简版指引；更完整的部署说明请参考仓库文档：
-
-- `docs/deployment.md`
-- `docs/deployment.en.md`
-- `docs/分置部署教程.md`
+LiberAstra 的模型不在本进程里运行。安装好编排台后，还需要接入你自己的 ComfyUI、Ollama、语音服务或 OpenAI 兼容 API。
 
 ## Docker（推荐）
 
-在仓库根目录运行：
+在仓库根目录：
 
 ```bash
-docker compose up -d --build
+cp .env.example .env
+docker compose up --build -d
 ```
 
-随后访问 `http://localhost:8000`，首次进入请创建管理员账户，并在「设置 → 服务提供方（Providers）」中配置你的 ComfyUI / Ollama / 语音服务地址。
+默认访问 `http://localhost:8000`，数据保存在 `./data`。首次进入会引导创建管理员账号，然后在「设置 → 服务提供方」里添加实际执行推理的服务。
 
-提示：LiberAstra 不运行模型，模型实际运行在上述服务中。
+如果宿主机 8000 端口已被占用，在 `.env` 中设置：
 
-## Windows 安装包
+```bash
+LIBERASTRA_PUBLISH_PORT=18000
+```
 
-- 访问 Releases 下载：`https://github.com/liberalchang/LiberAstra/releases`
+访问 `http://<主机>:18000`；容器内部仍监听 8000。
+
+## 常用环境变量
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `LIBERASTRA_SECRET_KEY` | 自动生成到 `data/.secret_key` | JWT 签名与密钥加密主密钥，生产必须显式设置；迁移数据时一并迁移 |
+| `LIBERASTRA_DATABASE_URL` | SQLite `data/liberastra.db` | PostgreSQL：`postgresql+psycopg://...`，需安装 `liberastra[postgres]` |
+| `LIBERASTRA_DATA_DIR` | `./data`（容器内 `/data`） | outputs / uploads / voices / workflows / prompts / logs |
+| `LIBERASTRA_PUBLISH_PORT` | `8000` | 宿主机映射端口 |
+| `LIBERASTRA_HOST` / `LIBERASTRA_PORT` | `0.0.0.0` / `8000` | 容器或进程监听地址 |
+| `LIBERASTRA_CLEANUP_RETENTION_DAYS` | `0`（关闭） | 已结束任务与产物的保留天数 |
+
+优先级：环境变量 > `.env` > 默认值。完整示例见仓库根目录的 `.env.example`。
+
+## 可选的全栈 profile
+
+如果想把 Ollama、ComfyUI、PostgreSQL 或语音服务也放在同一台机器上：
+
+```bash
+docker compose --profile ollama up -d
+docker compose --profile comfyui up -d
+docker compose --profile postgres up -d
+docker compose --profile speech up -d
+```
+
+ComfyUI / 语音服务需要 NVIDIA Container Toolkit。更推荐把推理服务放到显卡主机，应用主机只跑 LiberAstra。
 
 ## 分置部署
 
-若前后端 / 服务需要分置部署，请参考 `docs/分置部署教程.md`，该文档包含端口、反向代理与多节点的注意事项。
+适用场景：应用主机只跑 Web/API 与 `data/`，显卡主机分别跑 Ollama、ComfyUI、Liber Speech，通过局域网互联。
+
+```text
+应用主机 LiberAstra :18000  ──LAN──▶  显卡主机 Ollama :11434
+                                      ComfyUI :8188
+                                      Liber Speech :5555
+```
+
+在「服务提供方」中填写显卡主机的局域网 IP：
+
+| 名称 | 类型 | Base URL |
+| --- | --- | --- |
+| comfy | ComfyUI | `http://<显卡主机>:8188` |
+| ollama | Ollama | `http://<显卡主机>:11434` |
+| speech | Liber Speech API | `http://<显卡主机>:5555` |
+
+访问同一台宿主机上的服务用 `host.docker.internal`；访问另一台机器用对方局域网 IP，不要用 `localhost`。
+
+### 迁移已有数据
+
+1. 旧实例停止写入，避免 SQLite 出现半截写入。
+2. 打包整个数据目录，保留 `.secret_key`、数据库、outputs、uploads、voices、workflows、prompts。
+3. 解压到新机器仓库根目录的 `data/`，与 compose 的 `./data:/data` 对齐。
+4. 启动后登录原管理员账号，检查 Provider 地址并试跑一个任务。
+
+不要把 `data/` 放在网盘同步目录里。
+
+## 源码运行
+
+```bash
+cd backend && uv venv .venv && uv pip install -e ".[dev]"
+cd ../frontend && npm install && npm run build
+cd ../backend && uv run astra serve
+```
+
+开发模式：后端 `uv run astra serve --reload`，前端 `npm run dev`（5173，代理 `/api` 到 8000）。
+
+## 运维
+
+- 健康检查：`GET /healthz`
+- 日志：`data/logs/app.log`（50MB 轮转 × 5）
+- 备份：`GET /api/v1/system/backup`（管理员，zip 导出数据目录，不含日志）
+- 容器日志：`docker compose logs -f --tail 100`
+- 停止：`docker compose down`（不会删除 `./data`）
+
+## Windows 安装包
+
+从 [GitHub Releases](https://github.com/liberalchang/LiberAstra/releases) 下载安装包。开始菜单启动的是与 Docker 相同的服务；命令行需要在安装目录执行 `runtime\python.exe -m liberastra.cli.main`，或把 `astra` 加入 PATH。

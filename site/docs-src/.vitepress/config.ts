@@ -44,6 +44,8 @@ export default defineConfig({
                 { text: '图像', link: '/guides/image' },
                 { text: '视频', link: '/guides/video' },
                 { text: '语音', link: '/guides/speech' },
+                { text: '画布与导演台', link: '/guides/canvas' },
+                { text: '设置', link: '/guides/settings' },
                 { text: '作品与任务', link: '/guides/works' }
               ]
             },
@@ -101,6 +103,8 @@ export default defineConfig({
                 { text: 'Image', link: '/en/guides/image' },
                 { text: 'Video', link: '/en/guides/video' },
                 { text: 'Speech', link: '/en/guides/speech' },
+                { text: 'Canvas & Director', link: '/en/guides/canvas' },
+                { text: 'Settings', link: '/en/guides/settings' },
                 { text: 'Works & Tasks', link: '/en/guides/works' }
               ]
             },

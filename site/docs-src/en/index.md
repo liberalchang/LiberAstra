@@ -9,13 +9,26 @@ LiberAstra is a self-hosted AIGC orchestration desk. It connects ComfyUI, Ollama
 - Access: Web UI, `astra` CLI, MCP, OpenAI-compatible `/v1`
 - Important: LiberAstra does not run models; providers do
 
-See also:
+## Start here
 
-- Quick start: `/en/quickstart`
-- Install: `/en/install`
-- Guides: image / video / speech / works
-- Integration: CLI / API / MCP
-- Providers
-- About
+- [Quick start](/en/quickstart)
+- [Install / Download](/en/install)
+- [Providers](/en/providers)
+
+## Guides
+
+- [Image](/en/guides/image)
+- [Video](/en/guides/video)
+- [Speech](/en/guides/speech)
+- [Canvas & Director](/en/guides/canvas)
+- [Settings](/en/guides/settings)
+- [Works & Tasks](/en/guides/works)
+
+## Integrations
+
+- [CLI](/en/integration/cli)
+- [API](/en/integration/api)
+- [MCP](/en/integration/mcp)
+- [About / Security](/en/about)
 
 Note: `liberastra.com.br` is an unrelated mentorship site.

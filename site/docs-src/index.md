@@ -23,11 +23,11 @@ LiberAstra 是自托管的 AIGC 编排台（orchestration desk，编排台）。
 
 ## 进一步阅读
 
-- 快速开始：见「[快速开始](./quickstart.md)」
-- 安装 / 下载：见「[安装](./install.md)」
-- 指南：图像 / 视频 / 语音 / 作品与任务
-- 集成：[`astra` CLI](./integration/cli.md) / [API](./integration/api.md) / [MCP](./integration/mcp.md)
-- 服务提供方：[Providers](./providers.md)
-- 关于与安全：[About](./about.md)
+- 快速开始：见「[快速开始](/quickstart)」
+- 安装 / 下载：见「[安装](/install)」
+- 指南：[图像](/guides/image) / [视频](/guides/video) / [语音](/guides/speech) / [画布与导演台](/guides/canvas) / [设置](/guides/settings) / [作品与任务](/guides/works)
+- 集成：[`astra` CLI](/integration/cli) / [API](/integration/api) / [MCP](/integration/mcp)
+- 服务提供方：[Providers](/providers)
+- 关于与安全：[About](/about)
 
 > 备注：网络中存在「`liberastra.com.br`」的导师网站，与本项目无关。仓库为 `github.com/liberalchang/LiberAstra`。
