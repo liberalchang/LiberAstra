@@ -720,8 +720,14 @@ astra job list --limit 20</code></pre></div>
     <nav class="book-controls" aria-label="书页导航 / Book pages">
       <button type="button" class="reader-btn" data-prev aria-label="上一页 / Previous" disabled><span class="reader-arrow" aria-hidden="true">←</span><span class="zh">上一页</span><span class="en">Previous</span></button>
       <div class="page-picker">
-        <label for="page-select"><span class="zh">页码</span><span class="en">Page</span></label>
-        <select id="page-select" aria-label="选择页码 / Go to page"></select>
+        <span class="page-picker-label" id="page-picker-label"><span class="zh">页码</span><span class="en">Page</span></span>
+        <div class="page-menu-wrap">
+          <button type="button" class="page-select" id="page-select-button" aria-haspopup="listbox" aria-controls="page-menu" aria-expanded="false" aria-labelledby="page-picker-label page-select-value">
+            <span class="page-select-value" id="page-select-value"></span>
+            <span class="page-select-chevron" aria-hidden="true"></span>
+          </button>
+          <div class="page-menu" id="page-menu" role="listbox" aria-labelledby="page-picker-label" hidden></div>
+        </div>
         <span class="sr-only" data-status aria-live="polite"></span>
       </div>
       <button type="button" class="reader-btn reader-next" data-next aria-label="下一页 / Next"><span class="zh">下一页</span><span class="en">Next</span><span class="reader-arrow" aria-hidden="true">→</span></button>

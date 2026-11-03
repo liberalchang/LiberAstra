@@ -1072,27 +1072,78 @@ body.is-book .leaf.is-active .page-foot { animation-delay: 100ms; }
 .reader-arrow { font-size: 14px; line-height: 1; }
 body.is-book .book-controls { display: grid; }
 .page-picker { display: flex; align-items: center; gap: 9px; }
-.page-picker label { color: var(--faint); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
-.page-picker select {
+.page-picker-label { color: var(--faint); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+.page-menu-wrap { position: relative; }
+.page-select {
   appearance: none;
   -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   height: 30px;
   min-width: 220px;
   max-width: 44vw;
-  padding: 0 24px 0 3px;
+  padding: 0 3px;
   border: 0;
   border-bottom: 1px solid transparent;
-  background-color: transparent;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5'%3E%3Cpath d='M1 1l3.5 3L8 1' fill='none' stroke='%2363655f' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 5px center;
+  background: transparent;
   color: var(--ink);
   font-family: var(--serif);
   font-size: 13px;
   letter-spacing: 0.01em;
+  text-align: left;
   cursor: pointer;
 }
-.page-picker select:hover { border-bottom-color: var(--rule-strong); }
+.page-select:hover { border-bottom-color: var(--rule-strong); }
+.page-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-select-chevron {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  opacity: 0.65;
+  transition: transform 160ms ease;
+}
+.page-select[aria-expanded="true"] .page-select-chevron { transform: rotate(225deg) translate(-2px, -2px); }
+.page-menu {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: max-content;
+  min-width: 100%;
+  max-width: min(92vw, 420px);
+  max-height: min(48vh, 360px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--page);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-soft);
+  z-index: 70;
+}
+.page-menu[hidden] { display: none; }
+.page-option {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.page-option:last-child { border-bottom: 0; }
+.page-option:hover, .page-option:focus-visible { background: var(--page-2); }
+.page-option.is-current { background: var(--page-2); }
+.page-option.is-current .page-option-index, .page-option.is-current .page-option-title { color: var(--seal); }
+.page-option-index { font-family: var(--serif); font-size: 11px; color: var(--faint); }
+.page-option-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .contents-motion {
   display: flex;
   width: 100%;
@@ -1404,8 +1455,8 @@ body.motion-paused .leaf-enter-next, body.motion-paused .leaf-enter-prev { anima
   .book-controls { padding: 0 10px; gap: 4px; }
   .reader-btn { padding: 6px 7px; }
   .reader-btn .zh, .reader-btn .en { display: none; }
-  .page-picker label { display: none; }
-  .page-picker select { min-width: 0; max-width: 64vw; padding-right: 18px; font-size: 12px; }
+  .page-picker-label { display: none; }
+  .page-select { min-width: 0; max-width: 64vw; font-size: 12px; }
 }
 
 @media (max-width: 620px) {
@@ -1471,8 +1522,8 @@ body.motion-paused .leaf-enter-next, body.motion-paused .leaf-enter-prev { anima
   .contents summary { font-size: 11px; }
   .contents-panel { width: min(520px, 92vw); }
   .reader-btn { font-size: 13px; }
-  .page-picker label { font-size: 10px; }
-  .page-picker select { min-width: 260px; font-size: 15px; }
+  .page-picker-label { font-size: 10px; }
+  .page-select { min-width: 260px; font-size: 15px; }
   .book-top { padding: 0 30px; }
   .book-controls { padding: 0 32px; }
 }
@@ -1507,7 +1558,7 @@ body.motion-paused .leaf-enter-next, body.motion-paused .leaf-enter-prev { anima
   .top-link, .top-lang { font-size: 13px; }
   .contents summary { font-size: 13px; }
   .reader-btn { font-size: 15px; }
-  .page-picker select { min-width: 300px; font-size: 17px; }
+  .page-select { min-width: 300px; font-size: 17px; }
   .book-top { padding: 0 38px; }
   .book-controls { padding: 0 40px; }
 }
