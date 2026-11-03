@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { LightboxShell } from "@/components/ui/lightbox";
 import { Segmented } from "@/components/ui/segmented";
 import { useTx } from "@/i18n/tx";
+import { hasTemplateIdConflict } from "@/lib/promptTemplates";
 import { cn } from "@/lib/utils";
 
 /** task capability → 使用它的功能页(帮用户理解改动影响面) */
@@ -118,11 +119,14 @@ export function PromptsPage() {
     setNotice(null);
     setError(null);
   };
+  const changeTab = (next: "tasks" | "scenes") => {
+    setSelectedId(null);
+    setTab(next);
+  };
 
   useEffect(() => {
-    if (!data || isNew) return;
+    if (!data || isNew || selectedId !== null) return;
     if (tab === "tasks") {
-      if (data.tasks.some((item) => item.id === selectedId)) return;
       const first = data.tasks[0];
       if (!first) return;
       setSelectedId(first.id);
@@ -134,7 +138,6 @@ export function PromptsPage() {
       });
       return;
     }
-    if (data.scenes.some((item) => item.id === selectedId)) return;
     const first = data.scenes[0];
     if (!first) return;
     setSelectedId(first.id);
@@ -303,6 +306,10 @@ export function PromptsPage() {
   const list = tab === "tasks" ? tasks : scenes;
   const taskOrigin = originOf(currentTask);
   const sceneOrigin = originOf(currentScene);
+  const taskIdConflict =
+    isNew && hasTemplateIdConflict(taskDraft.id, tasks.map((t) => t.id));
+  const sceneIdConflict =
+    isNew && hasTemplateIdConflict(sceneDraft.id, scenes.map((s) => s.id));
   const taskDirty = isNew
     ? Boolean(
         taskDraft.id.trim() ||
@@ -354,7 +361,7 @@ export function PromptsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Segmented
           value={tab}
-          onChange={setTab}
+          onChange={changeTab}
           ariaLabel={tx("模板类型")}
           options={[
             { value: "tasks", label: tx("功能模板") },
@@ -419,7 +426,16 @@ export function PromptsPage() {
             {tab === "tasks" ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={tx("模板 ID")} hint={isNew ? tx("新建后不可改;覆盖内置同名 ID 即自定义它。") : undefined}>
+                  <Field
+                    label={tx("模板 ID")}
+                    hint={
+                      isNew
+                        ? taskIdConflict
+                          ? tx("ID 已被现有模板使用；请换一个唯一 ID。要修改内置模板，请先在左侧选中它。")
+                          : tx("新建后不可改；请使用唯一 ID。要修改内置模板，请先在左侧选中它。")
+                        : undefined
+                    }
+                  >
                     <Input
                       value={taskDraft.id}
                       disabled={!isNew}
@@ -465,6 +481,7 @@ export function PromptsPage() {
                       !taskDraft.name.trim() ||
                       !taskDraft.system.trim() ||
                       !taskDirty ||
+                      taskIdConflict ||
                       saveTask.isPending
                     }
                     onClick={() => saveTask.mutate()}
@@ -510,7 +527,16 @@ export function PromptsPage() {
             ) : (
               <>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={tx("预设 ID")} hint={isNew ? tx("新建后不可改;覆盖内置同名 ID 即自定义它。") : undefined}>
+                  <Field
+                    label={tx("预设 ID")}
+                    hint={
+                      isNew
+                        ? sceneIdConflict
+                          ? tx("ID 已被现有模板使用；请换一个唯一 ID。要修改内置模板，请先在左侧选中它。")
+                          : tx("新建后不可改；请使用唯一 ID。要修改内置模板，请先在左侧选中它。")
+                        : undefined
+                    }
+                  >
                     <Input
                       value={sceneDraft.id}
                       disabled={!isNew}
@@ -539,6 +565,7 @@ export function PromptsPage() {
                       !sceneDraft.id.trim() ||
                       !sceneDraft.name.trim() ||
                       !sceneDirty ||
+                      sceneIdConflict ||
                       saveScene.isPending
                     }
                     onClick={() => saveScene.mutate()}

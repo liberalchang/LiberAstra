@@ -1405,8 +1405,10 @@ export const UI_EN: Record<string, string> = {
   "已恢复默认": "Restored to default",
   "模板 ID": "Template ID",
   "预设 ID": "Preset ID",
-  "新建后不可改;覆盖内置同名 ID 即自定义它。":
-    "Fixed after creation; using a builtin ID customizes that template.",
+  "新建后不可改；请使用唯一 ID。要修改内置模板，请先在左侧选中它。":
+    "Fixed after creation. Use a unique ID; select an existing template on the left to edit it.",
+  "ID 已被现有模板使用；请换一个唯一 ID。要修改内置模板，请先在左侧选中它。":
+    "This ID is already in use. Choose a unique ID, or select the existing template on the left to edit it.",
   "适用功能": "Applies to",
   "逗号分隔的 capability;留空表示不参与页面匹配。当前可选:":
     "Comma-separated capabilities; empty means no page matching. Available: ",
