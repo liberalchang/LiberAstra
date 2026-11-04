@@ -95,6 +95,23 @@ async def has_audio_stream(path: Path) -> bool:
     return await asyncio.to_thread(_has_audio_stream_sync, path)
 
 
+def _has_video_stream_sync(path: Path) -> bool:
+    proc = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet", "-select_streams", "v:0",
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path),
+        ],
+        capture_output=True,
+        check=False,
+    )
+    return bool(proc.stdout.decode().strip())
+
+
+async def has_video_stream(path: Path) -> bool:
+    """文件里是否有视频流（音频容器/纯音频文件为 false）。"""
+    return await asyncio.to_thread(_has_video_stream_sync, path)
+
+
 def _escape_filter_path(path: Path) -> str:
     """ffmpeg filter 内的路径转义（libass subtitles），兼容 Windows 盘符。"""
     posix = path.resolve().as_posix()
@@ -339,6 +356,80 @@ async def replace_audio(video: Path, audio_source: Path, out: Path) -> None:
         "-i", str(video), "-i", str(audio_source),
         "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        str(out),
+    )
+
+
+async def extract_audio(source: Path, out: Path) -> None:
+    """抽出第一条音轨为 wav，保留源采样率和声道。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not await has_audio_stream(source):
+        raise ProviderError("输入没有音轨")
+    await _run(
+        "ffmpeg", "-y",
+        "-i", str(source),
+        "-map", "0:a:0", "-vn",
+        "-c:a", "pcm_s16le",
+        str(out),
+    )
+
+
+async def mix_tracks(vocals: Path, accompaniment: Path, out: Path) -> None:
+    """把人声和伴奏按原音量混回去，不做 amix 默认的自动衰减。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    await _run(
+        "ffmpeg", "-y",
+        "-i", str(vocals), "-i", str(accompaniment),
+        "-filter_complex",
+        "[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a0];"
+        "[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a1];"
+        "[a0][a1]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]",
+        "-map", "[a]",
+        "-c:a", "pcm_s16le",
+        str(out),
+    )
+
+
+async def encode_audio(source: Path, out: Path, fmt: str) -> None:
+    """wav 直接复制；mp3 用 libmp3lame 转码。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if fmt.lower() == "mp3":
+        await _run(
+            "ffmpeg", "-y",
+            "-i", str(source), "-vn",
+            "-c:a", "libmp3lame", "-q:a", "2",
+            str(out),
+        )
+        return
+    shutil.copy2(source, out)
+
+
+async def burn_subtitles(
+    video: Path,
+    audio: Path,
+    subtitle: Path,
+    out: Path,
+    *,
+    size: float = 0,
+    color: str = "",
+) -> None:
+    """用最终音轨重编码视频并烧录字幕。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    vf = f"subtitles='{_escape_filter_path(subtitle)}'{_force_style(size, color)}"
+    await _run(
+        "ffmpeg", "-y",
+        "-i", str(video), "-i", str(audio),
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
         "-shortest",
         str(out),
     )

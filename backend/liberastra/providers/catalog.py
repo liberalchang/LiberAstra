@@ -115,7 +115,13 @@ def model_profile(provider_type: str) -> dict[str, Any]:
             },
             "param_schemas": _ark_param_schemas(),
         }
-    if provider_type in {"volcengine_speech", "liber_speech"}:
+    if provider_type == "liber_speech":
+        return {
+            "model_kinds": ["speech"],
+            "sub_capabilities_by_kind": {"speech": ["tts", "asr", "vc"]},
+            "param_schemas": {},
+        }
+    if provider_type == "volcengine_speech":
         return {
             "model_kinds": ["speech"],
             "sub_capabilities_by_kind": {"speech": ["tts", "asr"]},
@@ -380,6 +386,12 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
         "label": "语音识别",
         "slots": [{"key": "audio", "type": "audio", "label": "音频", "required": True}],
     },
+    "vc": {
+        "menu": "speech",
+        "category": "vc",
+        "label": "音色替换",
+        "slots": [{"key": "audio", "type": "audio", "label": "音频或视频", "required": True}],
+    },
 }
 
 # 工作流包的粗能力落到一个默认细分能力。包名里的 ref / 多图会再细分。
@@ -501,8 +513,12 @@ def depth_model_presets() -> list[dict[str, Any]]:
     ]
 
 
+_MODEL_CATEGORIES = frozenset({"llm", "image", "video", "tts", "asr", "vc"})
+_SPEECH_CATEGORIES = frozenset({"tts", "asr", "vc"})
+
+
 def _kind_for_category(category: str) -> str:
-    if category in {"tts", "asr"}:
+    if category in _SPEECH_CATEGORIES:
         return "speech"
     return category
 
@@ -600,7 +616,7 @@ def normalize_model_item(raw: dict[str, Any], *, provider_type: str = "") -> dic
     category = str(raw.get("category") or "")
     if category == "unknown":
         subs = []
-    elif category not in {"llm", "image", "video", "tts", "asr"}:
+    elif category not in _MODEL_CATEGORIES:
         category = _category_from_subs(subs) or "llm"
     if provider_type:
         profile = model_profile(provider_type)
@@ -610,7 +626,7 @@ def normalize_model_item(raw: dict[str, Any], *, provider_type: str = "") -> dic
             subs = []
         elif category != "unknown":
             allowed = set(profile["sub_capabilities_by_kind"].get(kind, []))
-            if category in {"tts", "asr"}:
+            if category in _SPEECH_CATEGORIES:
                 allowed &= {category}
             subs = [item for item in subs if item in allowed]
             # DeepSeek 官方对话接口支持工具调用；旧目录和远端条目没标 tools 时补上。
@@ -649,7 +665,7 @@ def normalize_model_item(raw: dict[str, Any], *, provider_type: str = "") -> dic
 def _category_from_subs(subs: list[str]) -> str:
     for sub in subs:
         category = str((SUB_CAPABILITIES.get(sub) or {}).get("category") or "")
-        if category in {"llm", "image", "video", "tts", "asr"}:
+        if category in _MODEL_CATEGORIES:
             return category
     return ""
 
@@ -701,6 +717,8 @@ def classify_remote(provider_type: str, model_id: str) -> dict[str, Any] | None:
             return model_item(name, label=name, category="asr", sub_capabilities=["asr"], enabled=False)
         if upper.endswith("TTS") or "· TTS" in upper:
             return model_item(name, label=name, category="tts", sub_capabilities=["tts"], enabled=False)
+        if upper.endswith("VC") or "· VC" in upper:
+            return model_item(name, label=name, category="vc", sub_capabilities=["vc"], enabled=False)
         return classify_model_id(name)
     kind = _PROVIDER_KIND.get(provider_type)
     if kind is None:
@@ -972,6 +990,7 @@ def default_canvas_menu() -> list[dict[str, Any]]:
     items = [
         _menu_item("preset_tts", "speech", "文字转语音", "tts"),
         _menu_item("preset_asr", "speech", "语音识别", "asr"),
+        _menu_item("preset_vc", "speech", "音色替换", "vc"),
     ]
     for item_id, category, title, sub in _WORKFLOW_MENU_ROWS:
         names = sorted(grouped[sub], key=lambda name: (0 if "uncensored" in name else 1, name))

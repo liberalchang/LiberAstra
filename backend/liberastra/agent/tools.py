@@ -251,14 +251,15 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "canvas_add_node",
         "在画布上加节点。kind 为 input/function/concat/speech；"
-        "文字转语音、语音转文字都用 speech，并在 data.mode 写 tts 或 asr。"
+        "文字转语音、语音转文字、音色替换都用 speech，并在 data.mode 写 tts、asr 或 vc；"
+        "也可以用 kind=vc 作为音色替换别名。"
         "media_kind 为 image/video/audio/text/character。"
         "function 节点先建空白节点，不要传 pack；之后用 canvas_apply_menu 或 canvas_apply_pack 绑定执行目标。"
         "data 是初始字段，例如 input 文本节点的 text、varName。",
         {
             "kind": {
                 "type": "string",
-                "enum": ["input", "function", "concat", "speech"],
+                "enum": ["input", "function", "concat", "speech", "vc"],
             },
             "media_kind": {
                 "type": "string",
@@ -274,9 +275,9 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _fn(
         "canvas_apply_menu",
-        "给空白功能节点套用功能菜单项（优先）。先用 list_canvas_menu 找 menu_id；"
-        "菜单会自动解析到已启用的工作流或支持模型。已有上游时用 bindings 传槽位→变量名，"
-        "避免自动补建空输入节点。没有合适菜单时再用 canvas_apply_pack。",
+        "给空白功能节点或语音节点套用功能菜单项（优先）。先用 list_canvas_menu 找 menu_id；"
+        "功能菜单会解析到已启用的工作流或支持模型，语音菜单会把 speech 节点切到 tts/asr/vc。"
+        "已有上游时用 bindings 传槽位→变量名，避免自动补建空输入节点。没有合适菜单时再用 canvas_apply_pack。",
         {"node_id": _STR, "menu_id": _STR, "data": _OBJ, "bindings": _OBJ},
         ["node_id", "menu_id"],
     ),
@@ -290,6 +291,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "canvas_update_node",
         "修改节点数据。patch 是节点 data 的部分字段，例如 prompt、varName、text、values。"
         "input 节点可用 patch.assetId 绑定资源，assetName 同步写。"
+        "语音节点 mode=vc 时可写 voiceRecordId、providerId、model、separateBgm、subtitleAssetId、"
+        "burnSubtitles、subtitleSize、subtitleColor、format。"
         "功能节点的 pack/outputKind 由 canvas_apply_menu 或 canvas_apply_pack 设置，不要直接改。",
         {"node_id": _STR, "patch": _OBJ},
         ["node_id", "patch"],

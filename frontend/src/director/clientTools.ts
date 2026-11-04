@@ -59,6 +59,10 @@ const KIND_ALIASES: Record<
   text_to_speech: { kind: "speech", media: "audio", data: { mode: "tts" } },
   asr: { kind: "speech", media: "audio", data: { mode: "asr" } },
   speech_to_text: { kind: "speech", media: "audio", data: { mode: "asr" } },
+  vc: { kind: "speech", media: "audio", data: { mode: "vc" } },
+  voice_replace: { kind: "speech", media: "audio", data: { mode: "vc" } },
+  voice_conversion: { kind: "speech", media: "audio", data: { mode: "vc" } },
+  voice_convert: { kind: "speech", media: "audio", data: { mode: "vc" } },
 };
 
 function parseArgs(call: ClientToolCall): Record<string, unknown> {
@@ -285,6 +289,13 @@ const EDITABLE_FIELDS: Record<string, string[]> = {
     "workflow",
     "language",
     "format",
+    "outputKind",
+    "separateBgm",
+    "subtitleAssetId",
+    "subtitleName",
+    "burnSubtitles",
+    "subtitleSize",
+    "subtitleColor",
     "varName",
   ],
 };
@@ -371,7 +382,7 @@ export async function executeClientTool(
       const kind = (alias?.kind ?? rawKind) as CanvasNodeKind;
       if (!KINDS.has(kind)) {
         return fail(
-          `未知节点类型: ${rawKind}。可用 input/function/concat/speech；文字转语音用 speech + data.mode=tts。`,
+          `未知节点类型: ${rawKind}。可用 input/function/concat/speech；文字转语音用 speech + data.mode=tts，音色替换用 speech + data.mode=vc。`,
         );
       }
       const rawMedia = String(
@@ -453,8 +464,8 @@ export async function executeClientTool(
     case "canvas_apply_menu": {
       const nodeId = nodeIdOf(args);
       const node = store.nodes.find((item) => item.id === nodeId);
-      if (!node || node.data.kind !== "function") {
-        return fail("只有功能节点可以套用功能菜单");
+      if (!node) {
+        return fail(`节点不存在: ${nodeId}`);
       }
       const wanted = String(args.menu_id ?? args.menuId ?? "");
       const menu = await ctx.queryClient.ensureQueryData({
@@ -471,6 +482,12 @@ export async function executeClientTool(
           .map((entry) => `${entry.id}(${entry.title})`)
           .join("、");
         return fail(`功能菜单项不存在: ${wanted}。可用：${names}`);
+      }
+      const canApply =
+        node.data.kind === "function" ||
+        (node.data.kind === "speech" && item.category === "speech");
+      if (!canApply) {
+        return fail("只有功能节点或语音节点可以套用功能菜单");
       }
       const [specs, providers, packs] = await Promise.all([
         ctx.queryClient.ensureQueryData({

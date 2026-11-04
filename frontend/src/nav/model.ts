@@ -15,6 +15,7 @@ export type NavIconKey =
   | "imageDepth"
   | "tts"
   | "asr"
+  | "vc"
   | "voices"
   | "music"
   | "videoQuick"
@@ -123,6 +124,7 @@ export const NAV_ENTRIES: NavEntry[] = [
         items: [
           { to: "/speech/tts", labelKey: "nav.tts", icon: "tts" },
           { to: "/speech/asr", labelKey: "nav.asr", icon: "asr" },
+          { to: "/speech/vc", labelKey: "nav.vc", icon: "vc" },
           { to: "/speech/voices", labelKey: "nav.voices", icon: "voices" },
           { to: "/speech/music", labelKey: "nav.music", icon: "music" },
         ],

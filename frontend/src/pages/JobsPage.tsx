@@ -36,6 +36,7 @@ const KIND_LABEL: Record<string, string> = {
   "media.concat": "jobs.concat",
   "tts.synthesize": "nav.tts",
   "asr.transcribe": "nav.asr",
+  "vc.convert": "nav.vc",
   "character.generate": "nav.characters",
   "prompt.optimize": "nav.prompts",
   "llm.chat": "jobs.chat",

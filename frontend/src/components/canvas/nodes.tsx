@@ -566,7 +566,12 @@ export function SpeechNodeCard({ id, data, selected }: NodeProps) {
   const tx = useTx();
   const d = data as SpeechNodeData;
   const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
-  const title = d.mode === "tts" ? tx("文字转语音") : tx("语音转文字");
+  const title =
+    d.mode === "tts"
+      ? tx("文字转语音")
+      : d.mode === "vc"
+        ? tx("音色替换")
+        : tx("语音转文字");
   return (
     <>
       <Handle type="target" position={Position.Left} id={`in-${id}`} className={handleClass} />
@@ -583,6 +588,17 @@ export function SpeechNodeCard({ id, data, selected }: NodeProps) {
             <ResultPreview run={d.run} expectedKind="audio" nodeId={id} />
             <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
               {d.text || tx("在右侧属性面板输入要朗读的文本…")}
+            </p>
+          </>
+        ) : d.mode === "vc" ? (
+          <>
+            <ResultPreview
+              run={d.run}
+              expectedKind={d.outputKind === "video" ? "video" : "audio"}
+              nodeId={id}
+            />
+            <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+              {tx("连接音频或视频，在右侧选择音色后执行。")}
             </p>
           </>
         ) : (

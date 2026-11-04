@@ -3,8 +3,8 @@
  */
 
 import type { CanvasMenuItem, ExecutionSpec, ProviderOut, WorkflowPackOut } from "@/api/client";
-import type { MediaKind } from "@/canvas/types";
-import { outputKindOfCapability } from "@/canvas/types";
+import type { MediaKind, SpeechMode } from "@/canvas/types";
+import { nodeOutputKind, outputKindOfCapability } from "@/canvas/types";
 import { defaultAccelState, hasAccel } from "@/components/AccelControl";
 import { nextVarName, useCanvasStore } from "@/stores/canvas";
 
@@ -111,8 +111,14 @@ export function applyMenuToNode(
   let created = 0;
   store.batch(() => {
     if (item.category === "speech") {
+      const speechMode: SpeechMode =
+        item.sub_capability === "asr"
+          ? "asr"
+          : item.sub_capability === "vc"
+            ? "vc"
+            : "tts";
       store.updateNodeData(nodeId, {
-        mode: item.sub_capability === "asr" ? "asr" : "tts",
+        mode: speechMode,
         presetId: item.id,
         presetTitle: item.title,
         ...speechFieldsFromSpec(spec, providers),
@@ -228,8 +234,8 @@ function incomingCount(nodeId: string, mediaType: MediaKind): number {
     }
     if (source.data.kind === "function") return source.data.outputKind === accept;
     if (source.data.kind === "speech") {
-      if (accept === "audio") return source.data.mode !== "asr";
       if (accept === "text") return source.data.mode === "asr";
+      return nodeOutputKind(source) === accept;
     }
     return false;
   }).length;

@@ -859,6 +859,68 @@ async def _execute_speech(
         fingerprint = canonical_fingerprint(
             {"mode": mode, "provider": provider_id, "model": model, **params}
         )
+    elif mode == "vc":
+        media_assets = [
+            a
+            for a in _upstream_assets(db, graph, node_id, runs)
+            if a.kind in ("audio", "video")
+        ]
+        if not media_assets:
+            raise ProviderError("音色替换节点需要连接音频或视频输入")
+        source_asset = media_assets[0]
+        voice_record_id = data.get("voiceRecordId")
+        if not voice_record_id:
+            raise ProviderError("音色替换节点还没有选择音色")
+        record = db.get(Voice, int(voice_record_id))
+        if record is None or record.owner_id != owner_id:
+            raise ProviderError("音色不存在")
+        if not record.ref_audio_path:
+            raise ProviderError("音色没有参考音频")
+        subtitle_asset_id = data.get("subtitleAssetId")
+        subtitle_path: str | None = None
+        if subtitle_asset_id:
+            subtitle_asset = db.get(Asset, int(subtitle_asset_id))
+            if (
+                subtitle_asset is None
+                or subtitle_asset.owner_id != owner_id
+                or subtitle_asset.kind != "subtitle"
+            ):
+                raise ProviderError("字幕资产不存在或类型不正确")
+            subtitle_path = subtitle_asset.path
+        source_kind = source_asset.kind
+        burn = bool(data.get("burnSubtitles"))
+        if burn and source_kind != "video":
+            raise ProviderError("只有视频输入才能烧录字幕")
+        fmt = str(data.get("format") or "wav").lower()
+        if fmt not in {"mp3", "wav"}:
+            fmt = "wav"
+        kind = "vc.convert"
+        provider_id = data.get("providerId")
+        model = str(data.get("model") or "") or None
+        params = {
+            "file_path": source_asset.path,
+            "voice_record_id": int(voice_record_id),
+            "kind": source_kind,
+            "format": fmt,
+            "separate_bgm": bool(data.get("separateBgm")),
+            "subtitle_path": subtitle_path,
+            "language": str(data.get("language") or "").strip() or None,
+            "burn_subtitles": burn,
+            "subtitle_size": data.get("subtitleSize") or 0,
+            "subtitle_color": str(data.get("subtitleColor") or ""),
+            "source_asset_id": source_asset.id,
+            "subtitle_asset_id": int(subtitle_asset_id) if subtitle_asset_id else None,
+        }
+        fingerprint = canonical_fingerprint(
+            {
+                "mode": mode,
+                "provider": provider_id,
+                "model": model,
+                "source_asset": source_asset.id,
+                "subtitle_asset": subtitle_asset_id,
+                **params,
+            }
+        )
     else:
         raise ProviderError(f"未知语音节点模式: {mode}")
 

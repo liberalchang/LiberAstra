@@ -4,6 +4,15 @@ python-multipart
 numpy
 faster-whisper
 chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master
+# Seed-VC V1 推理和 Demucs 背景音分离
+munch
+pyyaml
+tqdm
+einops
+scipy
+librosa
+matplotlib
+demucs
 # Qwen3-ASR 运行时依赖。qwen-asr 本体在镜像里用 --no-deps 安装，避免钉死旧版 transformers。
 qwen-omni-utils
 accelerate

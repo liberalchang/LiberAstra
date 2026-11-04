@@ -38,6 +38,7 @@ export type MarkKind =
   | "motion"
   | "tts"
   | "asr"
+  | "vc"
   | "voices"
   | "music"
   | "library"
@@ -62,6 +63,7 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   motion: PersonStanding,
   tts: AudioLines,
   asr: Mic,
+  vc: AudioLines,
   voices: Library,
   music: Music,
   library: FolderOpen,

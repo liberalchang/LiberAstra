@@ -257,6 +257,8 @@ export interface SystemPreferences {
   default_speech_model: string;
   /** Liber Speech 默认语音转文字模型；空表示跟随语音服务 .env */
   default_asr_model: string;
+  /** 默认换音模型；空表示跟随语音服务 .env */
+  default_vc_model: string;
 }
 
 /** 语音服务 GET /api/v1/models 里的一项可选模型。 */
@@ -271,8 +273,11 @@ export interface SpeechCatalogModel {
 export interface SpeechModelCatalog {
   tts_models: SpeechCatalogModel[];
   asr_models: SpeechCatalogModel[];
+  vc_models: SpeechCatalogModel[];
   default_tts_model: string;
   default_asr_model: string;
+  default_vc_model: string;
+  separate_available: boolean;
 }
 
 export type PromptOrigin = "builtin" | "customized" | "user";
@@ -695,6 +700,8 @@ export const api = {
   }) => request<JobOut>("/api/v1/tts", { method: "POST", body: JSON.stringify(body) }),
   submitAsr: (form: FormData) =>
     request<JobOut>("/api/v1/asr", { method: "POST", body: form }),
+  submitVc: (form: FormData) =>
+    request<JobOut>("/api/v1/vc", { method: "POST", body: form }),
   listVoices: () => request<VoiceOut[]>("/api/v1/voices"),
   createVoice: (form: FormData) =>
     request<VoiceOut>("/api/v1/voices", { method: "POST", body: form }),

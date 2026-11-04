@@ -150,16 +150,21 @@ export function validateCanvas(
 
     if (d.kind === "speech") {
       const s = d as SpeechNodeData;
+      const incomingKinds = incoming(node.id).map((n) => nodeOutputKind(n));
       if (s.mode === "tts") {
         if (!(s.text ?? "").trim()) issues.push({ nodeId: node.id, message: "待合成文本为空" });
         if (!s.voiceRecordId) issues.push({ nodeId: node.id, message: "未选择音色" });
-      } else if (
-        !incoming(node.id).some((n) => {
-          const kind = nodeOutputKind(n);
-          return kind === "audio" || kind === "video";
-        })
-      ) {
+      } else if (!incomingKinds.some((kind) => kind === "audio" || kind === "video")) {
         issues.push({ nodeId: node.id, message: "缺少音频或视频输入" });
+      } else if (s.mode === "vc") {
+        const mediaKinds = incomingKinds.filter((kind) => kind === "audio" || kind === "video");
+        if (mediaKinds.length > 1) {
+          issues.push({ nodeId: node.id, message: "音色替换只支持一个音频或视频输入" });
+        }
+        if (!s.voiceRecordId) issues.push({ nodeId: node.id, message: "未选择音色" });
+        if (s.burnSubtitles && !incomingKinds.includes("video")) {
+          issues.push({ nodeId: node.id, message: "烧录字幕需要视频输入" });
+        }
       }
       continue;
     }

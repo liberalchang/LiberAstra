@@ -33,7 +33,11 @@ function nodeTitle(node: CanvasFlowNode): string {
         ? "音频拼接"
         : "视频拼接";
   }
-  if (data.kind === "speech") return data.mode === "tts" ? "文字转语音" : "语音转文字";
+  if (data.kind === "speech") {
+    if (data.mode === "tts") return "文字转语音";
+    if (data.mode === "vc") return "音色替换";
+    return "语音转文字";
+  }
   const input = data as InputNodeData;
   const titles: Record<string, string> = {
     image: "图片输入",

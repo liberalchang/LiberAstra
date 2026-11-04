@@ -549,6 +549,55 @@ def test_normalize_keeps_typed_params_and_drops_the_rest() -> None:
     assert "params" not in unknown
 
 
+def test_liber_speech_vc_catalog_keeps_voice_conversion() -> None:
+    from types import SimpleNamespace
+
+    from liberastra.providers.catalog import normalize_model_item
+    from liberastra.providers.schema_registry import model_specs
+    from liberastra.services.providers import backfill_catalog
+
+    item_id = "chatterbox · Chatterbox VC · VC"
+    normalized = normalize_model_item(
+        {
+            "id": item_id,
+            "label": item_id,
+            "category": "vc",
+            "sub_capabilities": ["vc"],
+            "enabled": True,
+        },
+        provider_type="liber_speech",
+    )
+    assert normalized["category"] == "vc"
+    assert normalized["sub_capabilities"] == ["vc"]
+
+    provider = SimpleNamespace(
+        id=3,
+        type="liber_speech",
+        name="speech",
+        models=[item_id],
+        extra={
+            "model_catalog": [
+                {
+                    "id": item_id,
+                    "label": item_id,
+                    "category": "unknown",
+                    "sub_capabilities": [],
+                    "enabled": True,
+                    "custom": False,
+                }
+            ]
+        },
+    )
+    assert backfill_catalog(provider) is True
+    repaired = provider.extra["model_catalog"][0]
+    assert repaired["category"] == "vc"
+    assert repaired["sub_capabilities"] == ["vc"]
+    assert repaired["enabled"] is True
+
+    specs = [spec for spec in model_specs(provider) if spec.sub_capability == "vc"]
+    assert [spec.target_id for spec in specs] == [item_id]
+
+
 def test_model_specs_use_saved_image_defaults() -> None:
     from types import SimpleNamespace
 

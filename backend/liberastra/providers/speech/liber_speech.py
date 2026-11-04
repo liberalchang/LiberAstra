@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -94,6 +95,26 @@ def canonical_asr_model(model: str) -> str:
     key = aliases.get(key, key)
     if key not in {"large-v3", "large-v3-turbo", "qwen3-asr-1.7b"}:
         raise ValueError(f"未知语音转文字模型 {model}")
+    return key
+
+
+_VC_MODELS = {"chatterbox", "seed-vc"}
+_VC_ALIASES = {
+    "chatterbox-vc": "chatterbox",
+    "seed_vc": "seed-vc",
+    "seedvc": "seed-vc",
+    "seed-vc-v1": "seed-vc",
+}
+
+
+def canonical_vc_model(model: str) -> str:
+    """校验换音模型。空串表示跟随语音服务 LIBER_SPEECH_VC_MODEL。"""
+    raw = catalog_line_model_id(model).strip().lower()
+    if raw in {"", "default"}:
+        return ""
+    key = _VC_ALIASES.get(raw, raw)
+    if key not in _VC_MODELS:
+        raise ValueError("未知换音模型；只支持 chatterbox、seed-vc")
     return key
 
 
@@ -217,6 +238,9 @@ class LiberSpeech:
         names.extend(
             _catalog_model_line(item, "ASR") for item in _catalog_items(payload.get("asr_models"))
         )
+        names.extend(
+            _catalog_model_line(item, "VC") for item in _catalog_items(payload.get("vc_models"))
+        )
         if names:
             return names
         # 旧语音服务只有当前默认的一对，放在 models 里。
@@ -246,13 +270,17 @@ class LiberSpeech:
             raise ProviderError(f"Liber Speech API 模型响应无效 {self.api_root}/models")
         tts_models = _catalog_items(payload.get("tts_models"))
         asr_models = _catalog_items(payload.get("asr_models"))
+        vc_models = _catalog_items(payload.get("vc_models"))
         if not tts_models or not asr_models:
             raise ProviderError(f"Liber Speech API 未返回 tts_models 或 asr_models {self.api_root}/models")
         return {
             "tts_models": tts_models,
             "asr_models": asr_models,
+            "vc_models": vc_models,
             "default_tts_model": str(payload.get("default_tts_model") or "").strip(),
             "default_asr_model": str(payload.get("default_asr_model") or "").strip(),
+            "default_vc_model": str(payload.get("default_vc_model") or "").strip(),
+            "separate_available": bool(payload.get("separate_available")),
         }
 
     async def list_voices(self) -> list[str]:
@@ -336,6 +364,100 @@ class LiberSpeech:
             segments=segments,
             language=meta.get("language") or language,
         )
+
+    async def _download(self, url: str, out_path: Path, *, timeout: float) -> None:
+        """流式下载大音频，避免整段读进内存。"""
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        own_client = self._client is None
+        http = self._client or httpx.AsyncClient(timeout=timeout)
+        try:
+            async with http.stream("GET", url, headers=self._headers(), timeout=timeout) as resp:
+                if resp.status_code >= 400:
+                    detail = (await resp.aread()).decode(errors="replace")[:500]
+                    raise ProviderError(f"Liber Speech API HTTP {resp.status_code} {url}: {detail}")
+                with out_path.open("wb") as handle:
+                    async for chunk in resp.aiter_bytes():
+                        handle.write(chunk)
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"无法下载换音结果 {url}: {exc}") from exc
+        finally:
+            if own_client:
+                await http.aclose()
+
+    async def convert_voice(
+        self,
+        *,
+        file_path: str,
+        prompt_path: str,
+        out_path: str,
+        model: str | None = None,
+        segments: list[dict[str, Any]] | None = None,
+        timeout: float = 1800.0,
+    ) -> None:
+        """上传源音频和参考音频，把换音结果下载到 out_path。"""
+        source = Path(file_path)
+        prompt = Path(prompt_path)
+        if not source.is_file():
+            raise ProviderError(f"换音源音频不存在: {source.name}")
+        if not prompt.is_file():
+            raise ProviderError(f"换音参考音频不存在: {prompt.name}")
+        data: dict[str, Any] = {}
+        chosen = canonical_vc_model(model or "")
+        if chosen:
+            data["model"] = chosen
+        if segments is not None:
+            data["segments"] = json.dumps(segments, ensure_ascii=False)
+        with source.open("rb") as source_handle, prompt.open("rb") as prompt_handle:
+            resp = await self._request(
+                "POST",
+                f"{self.api_root}/vc/convert",
+                data=data,
+                files={
+                    "file": (source.name, source_handle, "application/octet-stream"),
+                    "prompt": (prompt.name, prompt_handle, "application/octet-stream"),
+                },
+                timeout=timeout,
+            )
+        payload = resp.json()
+        audio_url = str(payload.get("audio_url") or "")
+        if not audio_url:
+            raise ProviderError("Liber Speech API 未返回换音 audio_url")
+        if audio_url.startswith("/"):
+            audio_url = urljoin(_origin(self.api_root) + "/", audio_url.lstrip("/"))
+        await self._download(audio_url, Path(out_path), timeout=timeout)
+
+    async def separate(
+        self,
+        *,
+        file_path: str,
+        vocals_out: str,
+        accompaniment_out: str,
+        timeout: float = 1800.0,
+    ) -> None:
+        """上传音频，下载 Demucs 分离后的 vocals 和伴奏。"""
+        source = Path(file_path)
+        if not source.is_file():
+            raise ProviderError(f"分离源音频不存在: {source.name}")
+        with source.open("rb") as handle:
+            resp = await self._request(
+                "POST",
+                f"{self.api_root}/audio/separate",
+                files={"file": (source.name, handle, "application/octet-stream")},
+                timeout=timeout,
+            )
+        payload = resp.json()
+        vocals_url = str(payload.get("vocals_url") or "")
+        accompaniment_url = str(payload.get("accompaniment_url") or "")
+        if not vocals_url or not accompaniment_url:
+            raise ProviderError("Liber Speech API 未返回分离结果")
+        if vocals_url.startswith("/"):
+            vocals_url = urljoin(_origin(self.api_root) + "/", vocals_url.lstrip("/"))
+        if accompaniment_url.startswith("/"):
+            accompaniment_url = urljoin(
+                _origin(self.api_root) + "/", accompaniment_url.lstrip("/")
+            )
+        await self._download(vocals_url, Path(vocals_out), timeout=timeout)
+        await self._download(accompaniment_url, Path(accompaniment_out), timeout=timeout)
 
 
 def _segment(chunk: dict[str, Any]) -> ASRSegment:

@@ -31,6 +31,7 @@ from liberastra.services.image import register_image_jobs
 from liberastra.services.llm import register_llm_jobs
 from liberastra.services.prompts import register_prompt_jobs
 from liberastra.services.tts import register_tts_jobs
+from liberastra.services.vc import register_vc_jobs
 
 
 class SPAStaticFiles(StaticFiles):
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
         register_prompt_jobs(manager)
         register_tts_jobs(manager)
         register_asr_jobs(manager)
+        register_vc_jobs(manager)
         register_image_jobs(manager)
         register_character_jobs(manager)
         register_video_jobs(manager)

@@ -164,6 +164,36 @@ def build_asr_adapter(
     return build_adapter(record, client=client)
 
 
+def _speech_default_vc_model(db: Session | None, extra_model: str | None) -> str:
+    """系统设置优先；空串表示跟随语音服务 LIBER_SPEECH_VC_MODEL。"""
+    if db is not None:
+        from liberastra.models import AppSetting
+
+        row = db.get(AppSetting, "default_vc_model")
+        if row is not None:
+            return str(row.value or "").strip()
+    return str(extra_model or "").strip()
+
+
+def build_vc_adapter(
+    record: Provider,
+    *,
+    client: httpx.AsyncClient | None = None,
+    db: Session | None = None,
+) -> Any:
+    """VC 适配器；同一个语音服务同时提供 ASR，供换音任务生成字幕。"""
+    if record.type == "liber_speech":
+        extra = record.extra or {}
+        return LiberSpeech(
+            record.base_url,
+            decrypt_api_key(record),
+            _speech_default_model(db, extra.get("model")),
+            client=client,
+            default_asr_model=_speech_default_asr_model(db, extra.get("asr_model")),
+        )
+    return build_adapter(record, client=client)
+
+
 def build_image_adapter(record: Provider, *, client: httpx.AsyncClient | None = None) -> Any:
     return build_adapter(record, client=client)
 
@@ -265,7 +295,13 @@ def _seed_saved_models(record: Provider) -> list[dict[str, Any]]:
 
 def backfill_catalog(record: Provider) -> bool:
     """已保存的模型 ID 还没进目录时写回去。返回是否改动了记录。"""
-    from liberastra.providers.catalog import enabled_model_ids, non_generative_model, read_catalog
+    from liberastra.providers.catalog import (
+        classify_remote,
+        enabled_model_ids,
+        non_generative_model,
+        normalize_model_item,
+        read_catalog,
+    )
 
     before = read_catalog(record.extra, record.type)
     seeded = _seed_saved_models(record)
@@ -275,6 +311,20 @@ def backfill_catalog(record: Provider) -> bool:
             continue
         item["category"] = "unknown"
         item["sub_capabilities"] = []
+    for item in seeded:
+        if item.get("custom") or item.get("category") != "unknown" or item.get("sub_capabilities"):
+            continue
+        guessed = classify_remote(record.type, str(item.get("id") or ""))
+        if guessed is None:
+            continue
+        try:
+            rebuilt = normalize_model_item(guessed, provider_type=record.type)
+        except ValueError:
+            continue
+        if rebuilt["category"] == "unknown" or not rebuilt["sub_capabilities"]:
+            continue
+        item["category"] = rebuilt["category"]
+        item["sub_capabilities"] = rebuilt["sub_capabilities"]
     if seeded == before:
         return False
     _write_catalog(record, seeded)

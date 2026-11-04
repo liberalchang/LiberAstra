@@ -149,6 +149,17 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - 分镜视频路线接视频拼接的输出；一段视频路线接 `single_video_var` 或 `final_video_var`。
 - 增强是生成式修复，可能改变细节；已经满意的成片不要强行加。
 
+## 可选：音色替换
+
+成片后用户要求换音时：
+
+1. `list_canvas_menu` 看「音色替换」项的可用目标；没有该项时先让用户在画布菜单设置里添加。
+2. `canvas_add_node(kind="speech", data={mode:"vc"})`。
+3. 用 `canvas_connect` 把最终视频或音频接到 vc 节点；输出类型会随输入变化。
+4. `list_voices` 找有参考音频的音色，用 `canvas_update_node` 写 `voiceRecordId`、`providerId`、`model`、`separateBgm`；视频可再写 `burnSubtitles`、`subtitleSize`、`subtitleColor`。
+5. 需要自定义字幕时，让用户在属性面板上传 srt；Agent 不伪造 `subtitleAssetId`。没有 srt 时自动 ASR。
+6. 向用户说明会生成音频、字幕和视频（视频输入时），确认后再 `canvas_run_nodes`；不要默认自动换音。
+
 ## 推进规则
 
 - 不要把多个步骤合并成一次长回复。

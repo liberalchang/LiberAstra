@@ -18,6 +18,7 @@ import type { CanvasGraph, CanvasNodeRunOut, CanvasOut } from "@/api/client";
 import {
   createDefaultNodeData,
   idleRun,
+  nodeOutputKind,
   normalizeNodeData,
   type CanvasFlowNode,
   type CanvasNodeKind,
@@ -329,9 +330,27 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
     };
     // concat 节点：新连入的源追加到 order 末尾
     const nodes2 = nodes.map((n) => {
-      if (n.id !== conn.target || n.data.kind !== "concat") return n;
-      if (n.data.order.includes(conn.source)) return n;
-      return { ...n, data: { ...n.data, order: [...n.data.order, conn.source] } };
+      if (n.id !== conn.target) return n;
+      if (n.data.kind === "concat") {
+        if (n.data.order.includes(conn.source)) return n;
+        return { ...n, data: { ...n.data, order: [...n.data.order, conn.source] } };
+      }
+      if (n.data.kind === "speech" && n.data.mode === "vc") {
+        const source = nodes.find((item) => item.id === conn.source);
+        const outputKind = source ? nodeOutputKind(source) : null;
+        if (outputKind === "audio" || outputKind === "video") {
+          const currentVar = n.data.varName ?? "";
+          const autoVar = !currentVar || /^output_(audio|video|media)_\d+$/.test(currentVar);
+          const varName = autoVar
+            ? nextVarName(
+                nodes.filter((item) => item.id !== n.id),
+                outputKind === "video" ? "output_video" : "output_audio",
+              )
+            : currentVar;
+          return { ...n, data: { ...n.data, outputKind, varName } };
+        }
+      }
+      return n;
     });
     set({ nodes: nodes2, edges: [...edges, edge], dirty: true });
     return null;

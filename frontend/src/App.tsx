@@ -10,6 +10,7 @@ import { useAuthStore } from "@/stores/auth";
 
 // 路由级代码分割：各页面（含 GuidePage/CliPage 内联的 markdown 文档）按需加载
 const AsrPage = lazy(() => import("@/pages/AsrPage").then((m) => ({ default: m.AsrPage })));
+const VcPage = lazy(() => import("@/pages/VcPage").then((m) => ({ default: m.VcPage })));
 const AssetsPage = lazy(() => import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const CanvasListPage = lazy(() =>
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/dev/cli" element={<CliPage />} />
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
+        <Route path="/speech/vc" element={<VcPage />} />
         <Route path="/speech/voices" element={<VoicesPage />} />
         <Route path="/speech/music" element={<MusicPage />} />
         <Route path="/image/generate" element={<ImageGenPage />} />

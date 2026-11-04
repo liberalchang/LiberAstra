@@ -3,11 +3,17 @@
 import asyncio
 
 import httpx
+import pytest
 
 from liberastra.media.subtitles import to_json, to_srt, to_txt, to_vtt
 from liberastra.providers.asr.openai_stt import OpenAISTT
 from liberastra.providers.base import ASRResult, ASRSegment, ProviderError
-from liberastra.providers.speech.liber_speech import LiberSpeech, canonical_asr_model, language_from_voice
+from liberastra.providers.speech.liber_speech import (
+    LiberSpeech,
+    canonical_asr_model,
+    canonical_vc_model,
+    language_from_voice,
+)
 from liberastra.providers.tts.openai_tts import OpenAITTS
 
 RESULT = ASRResult(
@@ -290,6 +296,94 @@ def test_liber_speech_catalog() -> None:
                 "large-v3 · faster-whisper large-v3 · ASR",
                 "qwen3-asr-1.7b · Qwen3-ASR-1.7B · ASR",
             ]
+
+    asyncio.run(run())
+
+
+def test_canonical_vc_model() -> None:
+    assert canonical_vc_model("") == ""
+    assert canonical_vc_model("default") == ""
+    assert canonical_vc_model("chatterbox-vc") == "chatterbox"
+    assert canonical_vc_model("seed_vc") == "seed-vc"
+    assert canonical_vc_model("chatterbox · Chatterbox VC · VC") == "chatterbox"
+    assert canonical_vc_model("seed-vc · Seed-VC · VC") == "seed-vc"
+    with pytest.raises(ValueError):
+        canonical_vc_model("other")
+
+
+def test_liber_speech_vc_and_separate(tmp_path) -> None:  # noqa: ANN001
+    source = tmp_path / "source.wav"
+    prompt = tmp_path / "prompt.wav"
+    source.write_bytes(b"RIFF-source")
+    prompt.write_bytes(b"RIFF-prompt")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/vc/convert":
+            return httpx.Response(200, json={"audio_url": "/api/v1/results/vc.wav"})
+        if request.url.path == "/api/v1/audio/separate":
+            return httpx.Response(
+                200,
+                json={
+                    "vocals_url": "/api/v1/results/vocals.wav",
+                    "accompaniment_url": "/api/v1/results/accompaniment.wav",
+                },
+            )
+        if request.url.path == "/api/v1/results/vc.wav":
+            return httpx.Response(200, content=b"vc-audio")
+        if request.url.path == "/api/v1/results/vocals.wav":
+            return httpx.Response(200, content=b"vocals")
+        if request.url.path == "/api/v1/results/accompaniment.wav":
+            return httpx.Response(200, content=b"accompaniment")
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", client=client)
+            out = tmp_path / "out.wav"
+            await adapter.convert_voice(
+                file_path=str(source),
+                prompt_path=str(prompt),
+                out_path=str(out),
+                segments=[{"start": 0.0, "end": 1.0}],
+            )
+            assert out.read_bytes() == b"vc-audio"
+
+            vocals = tmp_path / "vocals.wav"
+            accompaniment = tmp_path / "accompaniment.wav"
+            await adapter.separate(
+                file_path=str(source),
+                vocals_out=str(vocals),
+                accompaniment_out=str(accompaniment),
+            )
+            assert vocals.read_bytes() == b"vocals"
+            assert accompaniment.read_bytes() == b"accompaniment"
+
+    asyncio.run(run())
+
+
+def test_liber_speech_catalog_vc() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "tts_models": [{"id": "multilingual_v3", "label": "V3"}],
+                "asr_models": [{"id": "large-v3", "label": "large-v3"}],
+                "vc_models": [
+                    {"id": "chatterbox", "label": "Chatterbox VC"},
+                    {"id": "seed-vc", "label": "Seed-VC"},
+                ],
+                "default_vc_model": "chatterbox",
+                "separate_available": True,
+            },
+        )
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", client=client)
+            catalog = await adapter.list_catalog()
+            assert [item["id"] for item in catalog["vc_models"]] == ["chatterbox", "seed-vc"]
+            assert catalog["default_vc_model"] == "chatterbox"
+            assert catalog["separate_available"] is True
 
     asyncio.run(run())
 

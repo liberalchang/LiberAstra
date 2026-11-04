@@ -37,7 +37,14 @@ docker compose up -d
 | `LIBER_SPEECH_ASR_MODEL` | 请求不传 `model` 时的识别模型。可选 `large-v3`、`large-v3-turbo`、`qwen3-asr-1.7b` |
 | `LIBER_SPEECH_QWEN_ALIGNER_MODEL` | Qwen3-ASR 时间戳模型路径或仓库名。留空则自动查找本地缓存 |
 | `LIBER_SPEECH_TTS_MODEL` | 请求不传 `model` 时的合成模型，默认 `multilingual_v3` |
+| `LIBER_SPEECH_VC_MODEL` | 请求不传 `model` 时的换音模型，默认 `chatterbox`；可选 `seed-vc` |
+| `LIBER_SPEECH_SEEDVC_DIR` | Seed-VC 主权重目录，默认 `/models/Seed-VC` |
+| `LIBER_SPEECH_WHISPER_SMALL_DIR` | Seed-VC 的 Whisper 编码器目录，默认 `/models/whisper-small` |
+| `LIBER_SPEECH_CAMPPLUS_DIR` | CAMPPlus 说话人编码器目录，默认 `/models/campplus` |
+| `LIBER_SPEECH_BIGVGAN_DIR` | BigVGAN 声码器目录，默认 `/models/bigvgan_v2_22khz_80band_256x` |
+| `LIBER_SPEECH_DEMUCS_DIR` | Demucs 权重目录，默认 `/models/demucs` |
 | `LIBER_SPEECH_MODELS_DIR` | 宿主机权重目录，挂到容器 `/models` |
+| `TORCH_HOME` | 设为 `/models`，Demucs 的本地缓存也会落在 `/models/hub` |
 | `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` | 设为 `1` 时不再联网下载 |
 
 请求里的 `model` 会覆盖上面的默认值。`multilingual` 仍然是 `multilingual_v2` 的别名，只有不传 `model` 时才读 `LIBER_SPEECH_TTS_MODEL`。
@@ -57,6 +64,12 @@ docker compose up -d
 | `models--mobiuslabsgmbh--faster-whisper-large-v3-turbo` | `large-v3-turbo`。Systran 没有发布这个仓库 |
 | `models--Qwen--Qwen3-ASR-1.7B` | `qwen3-asr-1.7b` |
 | `models--Qwen--Qwen3-ForcedAligner-0.6B` | Qwen3-ASR 的字词时间戳 |
+| `models--ResembleAI--chatterbox/snapshots/*/s3gen.safetensors` | Chatterbox VC 声码器；同目录的 `conds.pt` 可选，本服务每次都会传参考音频 |
+| `/models/Seed-VC/` | Seed-VC V1 主权重和配置 yml |
+| `/models/whisper-small/` | Seed-VC 的 Whisper 编码器 |
+| `/models/campplus/campplus_cn_common.bin` | Seed-VC 的说话人编码器 |
+| `/models/bigvgan_v2_22khz_80band_256x/` | Seed-VC 的 BigVGAN 声码器 |
+| `/models/demucs/htdemucs-*.th` | Demucs 背景音分离；启动时会归一化到 `$TORCH_HOME/hub/checkpoints/` |
 
 也可以不用缓存结构，直接放平铺目录：
 
@@ -67,12 +80,18 @@ docker compose up -d
 
 ## 接口
 
-- `GET /api/v1/models`：返回 `tts_models`（11 个合成包）、`asr_models`、`default_tts_model`、`default_asr_model`
+- `GET /api/v1/models`：返回 `tts_models`（11 个合成包）、`asr_models`、`vc_models`、`default_tts_model`、`default_asr_model`、`default_vc_model`、`separate_available`
 - `POST /api/v1/tts/synthesize`：表单字段 `text`、`model`、`language`、`format`，参考音频字段名是 `prompt`
 - `POST /api/v1/asr/transcribe`：上传音频，可选 `model`、`language`、`task`
+- `POST /api/v1/vc/convert`：表单字段 `file`（音频）、`prompt`（目标音色参考音频）、`model`（`chatterbox` / `seed-vc`）、`segments`（JSON `[{start, end}]`，可选）；返回 `audio_url`
+- `POST /api/v1/audio/separate`：上传音频，返回 `vocals_url`、`accompaniment_url`
 
 返回的 `chunks` 都是句子级：`start`、`end`、`text`。Qwen3-ASR 原始结果是字或词，服务会按标点或超过 0.6 秒的停顿收成句子，主服务导出 SRT / VTT 不用另写解析。
 
 ## 显存
 
-每次合成或转写结束都会丢掉当前模型，并调用 `gc.collect()` 与 `torch.cuda.empty_cache()`。同一次请求里不会让 Chatterbox 和识别模型一起留在显存上。Qwen3-ASR 使用 Transformers 后端，不会按 vLLM 的方式预占整张卡。
+每次合成或转写结束都会丢掉当前模型，并调用 `gc.collect()` 与 `torch.cuda.empty_cache()`。同一次请求里不会让 Chatterbox 和识别模型一起留在显存上。Qwen3-ASR 使用 Transformers 后端，不会按 vLLM 的方式预占整张卡。换音/分离同样在请求结束后释放模型。
+
+## Seed-VC 许可证
+
+`services/speech/third_party/seed_vc/` 来自 [Plachtaa/Seed-VC](https://github.com/Plachtaa/Seed-VC)，按 GPL-3.0 引入，许可证和上游 commit 见该目录的 `LICENSE` / `UPSTREAM.md`。分发安装包时需要一并提供许可证和源码说明；模型权重不随仓库分发。

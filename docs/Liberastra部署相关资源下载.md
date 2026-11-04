@@ -122,3 +122,18 @@ RTX 3090 / Ampere 优先用 Comfy-Org 的 `minimax_h3_ref2va_pruned_int8_convrot
 | `es-es` | 西班牙西班牙语 | <https://huggingface.co/ResembleAI/Chatterbox-Multilingual-es-es> | 缓存 `/models/models--ResembleAI--Chatterbox-Multilingual-es-es/`，组装目录 `/models/liber-speech-packs/es-es/` |
 | `pt-pt` | 葡萄牙葡萄牙语 | <https://huggingface.co/ResembleAI/Chatterbox-Multilingual-pt-pt> | 缓存 `/models/models--ResembleAI--Chatterbox-Multilingual-pt-pt/`，组装目录 `/models/liber-speech-packs/pt-pt/` |
 | `hi` | 印地语 | <https://huggingface.co/ResembleAI/Chatterbox-Multilingual-hi> | 缓存 `/models/models--ResembleAI--Chatterbox-Multilingual-hi/`，组装目录 `/models/liber-speech-packs/hi/` |
+
+### VC 换音（语音转换）
+
+换音功能在 TTS / ASR 之外另需下列权重。`chatterbox` 默认走 Chatterbox VC；`seed-vc` 走 Seed-VC V1（`seed-uvit-whisper-small-wavenet`）。「分离背景音」还需 Demucs。本机整理包目录示例：`W-文字语音转换/VC(语音换音)/`。
+
+| 模型名 | 描述 | 下载地址 | 放入位置 |
+| --- | --- | --- | --- |
+| `s3gen.safetensors` | Chatterbox VC 声码器。与现有 TTS 共用 [ResembleAI/chatterbox](https://huggingface.co/ResembleAI/chatterbox)；只缺这一个文件时补下载即可 | <https://huggingface.co/ResembleAI/chatterbox/blob/main/s3gen.safetensors> | `/models/models--ResembleAI--chatterbox/`（与同仓库已有 `s3gen.pt`、`ve.pt` 等放在同一快照目录） |
+| `seed-vc` | Seed-VC V1 主权重与配置：`DiT_seed_v2_uvit_whisper_small_wavenet_bigvgan_pruned.pth`、`config_dit_mel_seed_uvit_whisper_small_wavenet.yml` | <https://huggingface.co/Plachta/Seed-VC> | `/models/Seed-VC/` |
+| `whisper-small` | Seed-VC 内容编码器，仓库 [openai/whisper-small](https://huggingface.co/openai/whisper-small)。推理至少需要 `model.safetensors` 与配置、分词器文件 | <https://huggingface.co/openai/whisper-small> | `/models/whisper-small/` |
+| `campplus` | Seed-VC 说话人编码器。文件 `campplus_cn_common.bin` | <https://huggingface.co/funasr/campplus/blob/main/campplus_cn_common.bin> | `/models/campplus/` |
+| `bigvgan_v2_22khz_80band_256x` | Seed-VC 声码器。至少需要 `bigvgan_generator.pt` 与 `config.json` | <https://huggingface.co/nvidia/bigvgan_v2_22khz_80band_256x> | `/models/bigvgan_v2_22khz_80band_256x/` |
+| `htdemucs` | Demucs 人声/伴奏分离。文件 `htdemucs-955717e8-8726e21a.th` | <https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th> | `/models/demucs/` |
+
+换音相关环境变量（compose 已给默认值）：`LIBER_SPEECH_VC_MODEL=chatterbox`、`LIBER_SPEECH_SEEDVC_DIR=/models/Seed-VC`、`LIBER_SPEECH_WHISPER_SMALL_DIR=/models/whisper-small`、`LIBER_SPEECH_CAMPPLUS_DIR=/models/campplus`、`LIBER_SPEECH_BIGVGAN_DIR=/models/bigvgan_v2_22khz_80band_256x`、`LIBER_SPEECH_DEMUCS_DIR=/models/demucs`、`TORCH_HOME=/models`。

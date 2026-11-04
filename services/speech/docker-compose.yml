@@ -17,8 +17,16 @@ services:
       LIBER_SPEECH_ASR_MODEL: ${LIBER_SPEECH_ASR_MODEL:-large-v3}
       # 不传 model 时的默认合成包。multilingual 仍是 multilingual_v2 的别名
       LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual_v3}
+      # 换音：Chatterbox VC 默认；Seed-VC / Demucs 权重按 /models 下的固定目录读取
+      LIBER_SPEECH_VC_MODEL: ${LIBER_SPEECH_VC_MODEL:-chatterbox}
+      LIBER_SPEECH_SEEDVC_DIR: ${LIBER_SPEECH_SEEDVC_DIR:-/models/Seed-VC}
+      LIBER_SPEECH_WHISPER_SMALL_DIR: ${LIBER_SPEECH_WHISPER_SMALL_DIR:-/models/whisper-small}
+      LIBER_SPEECH_CAMPPLUS_DIR: ${LIBER_SPEECH_CAMPPLUS_DIR:-/models/campplus}
+      LIBER_SPEECH_BIGVGAN_DIR: ${LIBER_SPEECH_BIGVGAN_DIR:-/models/bigvgan_v2_22khz_80band_256x}
+      LIBER_SPEECH_DEMUCS_DIR: ${LIBER_SPEECH_DEMUCS_DIR:-/models/demucs}
       HF_HOME: /models
       HUGGINGFACE_HUB_CACHE: /models
+      TORCH_HOME: /models
       # 1 时只读本地缓存，不再访问 Hugging Face
       HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
       TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-0}
@@ -29,6 +37,7 @@ services:
       # 接口代码挂载进容器，改模型列表接口时不用重新构建镜像
       - ./server.py:/app/server.py:ro
       - ./engine.py:/app/engine.py:ro
+      - ./third_party:/app/third_party:ro
       # 中文分词模型。宿主机已有 ~/.pkuseg 时挂进来，避免再从 GitHub 下载
       - ${PKUSEG_HOST_DIR:-pkuseg-home}:/root/.pkuseg
     deploy:

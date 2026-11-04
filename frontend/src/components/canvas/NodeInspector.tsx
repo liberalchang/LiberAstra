@@ -133,7 +133,11 @@ function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
       : d.mediaKind === "image"
         ? tx("图片拼接")
         : tx("视频拼接");
-  if (d.kind === "speech") return d.mode === "tts" ? tx("文字转语音") : tx("语音转文字");
+  if (d.kind === "speech") {
+    if (d.mode === "tts") return tx("文字转语音");
+    if (d.mode === "vc") return tx("音色替换");
+    return tx("语音转文字");
+  }
   const titles: Record<string, string> = {
     image: tx("图片输入"),
     video: tx("视频输入"),
@@ -251,7 +255,11 @@ function OutputVarCard({ node }: { node: CanvasFlowNode }) {
         : d.kind === "speech"
           ? d.mode === "tts"
             ? "audio"
-            : "text"
+            : d.mode === "vc"
+              ? d.outputKind === "video"
+                ? "video"
+                : "audio"
+              : "text"
           : (d.outputKind ?? "image");
 
   return (
@@ -1309,12 +1317,15 @@ function ConcatInspector({ node }: { node: CanvasFlowNode }) {
 function SpeechInspector({ node }: { node: CanvasFlowNode }) {
   const tx = useTx();
   const d = node.data as SpeechNodeData;
+  const [subtitleUploading, setSubtitleUploading] = useState(false);
+  const [subtitleError, setSubtitleError] = useState<string | null>(null);
+  const subtitleInputRef = useRef<HTMLInputElement>(null);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const queryClient = useQueryClient();
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices, staleTime: 60_000 });
   const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
 
-  const cap = d.mode === "tts" ? "tts" : "asr";
+  const cap = d.mode;
   const { data: menu } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
   const { data: specs } = useQuery({ queryKey: ["execution-specs"], queryFn: () => api.executionSpecs() });
   // 与语音页同一规则:comfy 是工作流驱动的,没有对应能力的包就不列出
@@ -1327,13 +1338,16 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
     (menu ?? []).find((row) => row.enabled !== false && row.id === d.presetId) ??
     (sameCap.length === 1 ? sameCap[0] : undefined);
   const pool = menuItem ? specsForMenu(menuItem, specs ?? []) : null;
-  const candidates = pool
-    ? (providers ?? []).filter((p) => pool.some((spec) => providerForSpec(spec, providers ?? [])?.id === p.id))
-    : (providers ?? []).filter((p) => {
-        if (!p.enabled || !p.capabilities.includes(cap)) return false;
-        if (p.type === "comfyui") return (capPacks?.length ?? 0) > 0;
-        return true;
-      });
+  const candidates =
+    pool && pool.length > 0
+      ? (providers ?? []).filter((p) =>
+          pool.some((spec) => providerForSpec(spec, providers ?? [])?.id === p.id),
+        )
+      : (providers ?? []).filter((p) => {
+          if (!p.enabled || !p.capabilities.includes(cap)) return false;
+          if (p.type === "comfyui") return (capPacks?.length ?? 0) > 0;
+          return true;
+        });
   // 未选 = 第一个可用服务(与后端 pick_provider 的默认一致)
   const provider = candidates.find((p) => p.id === d.providerId) ?? candidates[0];
   const ptype = provider?.type;
@@ -1345,7 +1359,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
     : null;
   const menuModelSelect = menuOptions && (
     <Field
-      label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
+      label={tx(d.mode === "asr" ? "识别模型" : d.mode === "vc" ? "换音模型" : "模型 / 工作流")}
       hint={tx("来自菜单设置。手动指定时只显示勾选的项。")}
     >
       <WorkflowPackControl
@@ -1360,7 +1374,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
       >
       <select
         className={selectClass}
-        aria-label={tx(d.mode === "asr" ? "识别模型" : "模型 / 工作流")}
+        aria-label={tx(d.mode === "asr" ? "识别模型" : d.mode === "vc" ? "换音模型" : "模型 / 工作流")}
         value={menuOptions.find((spec) => speechSpecSelected(spec, d))?.target_id ?? ""}
         onChange={(e) => {
           const spec = menuOptions.find((row) => row.target_id === e.target.value);
@@ -1392,7 +1406,7 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
     updateNodeData(node.id, {
       presetId: menuItem.id,
       presetTitle: menuItem.title,
-      mode: menuItem.sub_capability === "asr" ? "asr" : "tts",
+      mode: menuItem.sub_capability === "asr" ? "asr" : menuItem.sub_capability === "vc" ? "vc" : "tts",
       ...speechFieldsFromSpec(chosen, providers ?? []),
     });
   }, [menuItem, pool, specs, d.workflow, d.voice, d.model, providers, node.id, updateNodeData]);
@@ -1476,6 +1490,51 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
     </Field>
   );
 
+  const uploadSubtitle = async (file: File) => {
+    setSubtitleUploading(true);
+    setSubtitleError(null);
+    try {
+      const uploaded = await api.uploadFileAsAsset(file, "subtitle", true);
+      updateNodeData(node.id, {
+        subtitleAssetId: uploaded.asset_id,
+        subtitleName: file.name,
+      });
+    } catch (err) {
+      setSubtitleError(err instanceof Error ? err.message : tx("上传失败"));
+    } finally {
+      setSubtitleUploading(false);
+    }
+  };
+
+  const vcModels = speechCatalog?.vc_models ?? [];
+  const libraryVoices = (voices ?? []).filter((voice) => voice.ref_audio_path);
+  const vcModelControl =
+    menuOptions && menuOptions.length > 0
+      ? menuModelSelect
+      : ptype === "liber_speech"
+        ? (
+            <Field label={tx("换音模型")} hint={tx("不选则使用系统设置里的换音模型。")}>
+              <select
+                className={selectClass}
+                value={d.model ?? ""}
+                onChange={(e) => updateNodeData(node.id, { model: e.target.value })}
+              >
+                <option value="">{tx("系统设置")}</option>
+                {vcModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              {vcModels.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {tx("语音服务未提供换音模型，请升级语音服务。")}
+                </p>
+              )}
+            </Field>
+          )
+        : null;
+
   if (d.mode === "asr") {
     return (
       <section className="flex flex-col gap-3">
@@ -1534,6 +1593,149 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             <option value="vtt">vtt</option>
           </select>
         </Field>
+      </section>
+    );
+  }
+  if (d.mode === "vc") {
+    const isVideoInput = d.outputKind === "video";
+    return (
+      <section className="flex flex-col gap-3">
+        <SectionLabel>{tx("输入")}</SectionLabel>
+        <p className="text-xs text-muted-foreground">
+          {tx("连接音频或视频。默认自动识别字幕；也可以上传 srt。未覆盖部分会保留原声。")}
+        </p>
+        {serviceSelect}
+        {vcModelControl}
+        <Field label={tx("音色")} hint={tx("只列出有参考音频的音色记录。")}>
+          <select
+            className={selectClass}
+            value={d.voiceRecordId ?? ""}
+            onChange={(e) =>
+              updateNodeData(node.id, {
+                voiceRecordId: e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+          >
+            <option value="">{tx("选择音色…")}</option>
+            {libraryVoices.map((voice) => (
+              <option key={voice.id} value={voice.id}>
+                {voice.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={tx("字幕来源")} hint={tx("默认自动识别；上传 srt 会跳过识别。")}>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className={selectClass}
+              value={d.subtitleAssetId ? "srt" : "asr"}
+              onChange={(e) => {
+                if (e.target.value === "asr") {
+                  updateNodeData(node.id, { subtitleAssetId: null, subtitleName: "" });
+                } else {
+                  subtitleInputRef.current?.click();
+                }
+              }}
+            >
+              <option value="asr">{tx("自动识别")}</option>
+              <option value="srt">{tx("上传 srt")}</option>
+            </select>
+            <input
+              ref={subtitleInputRef}
+              type="file"
+              accept=".srt"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadSubtitle(file);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={subtitleUploading}
+              onClick={() => subtitleInputRef.current?.click()}
+            >
+              <Upload className="size-3.5" />
+              {subtitleUploading ? tx("上传中…") : d.subtitleName || tx("选择 srt")}
+            </Button>
+            {d.subtitleAssetId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => updateNodeData(node.id, { subtitleAssetId: null, subtitleName: "" })}
+              >
+                {tx("清除")}
+              </Button>
+            )}
+          </div>
+          {subtitleError && <p className="text-sm text-danger">{subtitleError}</p>}
+        </Field>
+        <Field label={tx("分离背景音")} hint={tx("先拆人声和伴奏，只换人声再混回伴奏。")}>
+          <select
+            className={selectClass}
+            value={d.separateBgm ? "1" : "0"}
+            disabled={speechCatalog?.separate_available === false}
+            onChange={(e) => updateNodeData(node.id, { separateBgm: e.target.value === "1" })}
+          >
+            <option value="0">{tx("关闭")}</option>
+            <option value="1">{tx("开启")}</option>
+          </select>
+          {speechCatalog?.separate_available === false && (
+            <p className="text-xs text-muted-foreground">
+              {tx("语音服务未提供 Demucs 背景音分离。")}
+            </p>
+          )}
+        </Field>
+        <AdvancedPanel summary={tx("字幕样式、语言与输出格式")}>
+          {languageSelect}
+          {isVideoInput && (
+            <Field label={tx("烧录字幕")} hint={tx("只对视频输入生效。")}>
+              <Segmented
+                ariaLabel={tx("烧录字幕")}
+                value={d.burnSubtitles ? "on" : "off"}
+                onChange={(value) => updateNodeData(node.id, { burnSubtitles: value === "on" })}
+                options={[
+                  { value: "off", label: tx("关闭") },
+                  { value: "on", label: tx("开启") },
+                ]}
+              />
+            </Field>
+          )}
+          {isVideoInput && d.burnSubtitles && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={tx("字号")} hint={tx("0 = 按视频高度自动")}>
+                <Input
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={d.subtitleSize ?? 0}
+                  onChange={(e) =>
+                    updateNodeData(node.id, { subtitleSize: Number(e.target.value) || 0 })
+                  }
+                />
+              </Field>
+              <Field label={tx("颜色")}>
+                <Input
+                  type="color"
+                  value={d.subtitleColor || "#FFFFFF"}
+                  onChange={(e) => updateNodeData(node.id, { subtitleColor: e.target.value })}
+                />
+              </Field>
+            </div>
+          )}
+          <Field label={tx("音频格式")} hint={tx("wav 无损；mp3 体积更小。")}>
+            <select
+              className={selectClass}
+              value={d.format === "mp3" ? "mp3" : "wav"}
+              onChange={(e) => updateNodeData(node.id, { format: e.target.value })}
+            >
+              <option value="wav">wav</option>
+              <option value="mp3">mp3</option>
+            </select>
+          </Field>
+        </AdvancedPanel>
       </section>
     );
   }

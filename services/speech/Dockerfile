@@ -24,5 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y torchvision
 
 COPY engine.py server.py ./
+COPY third_party ./third_party
 EXPOSE 5555
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5555"]

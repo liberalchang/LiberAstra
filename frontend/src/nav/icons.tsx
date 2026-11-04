@@ -55,6 +55,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   imageDepth: Layers,
   tts: AudioLines,
   asr: Mic,
+  vc: AudioLines,
   voices: Library,
   music: Music,
   videoQuick: Clapperboard,

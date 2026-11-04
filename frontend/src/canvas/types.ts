@@ -9,7 +9,7 @@ export type MediaKind = "image" | "video" | "audio" | "text" | "character";
 export type CanvasNodeKind = "input" | "function" | "concat" | "speech";
 export type ConcatMediaKind = "image" | "audio" | "video";
 export type ImageConcatLayout = "horizontal" | "vertical" | "grid";
-export type SpeechMode = "tts" | "asr";
+export type SpeechMode = "tts" | "asr" | "vc";
 
 export type NodeRunStatus =
   | "idle"
@@ -121,7 +121,7 @@ export interface SpeechNodeData extends Record<string, unknown> {
   /** 来源菜单项。有它时属性里的服务商和模型按该菜单的匹配方式过滤。 */
   presetId?: string;
   presetTitle?: string;
-  /** tts=文字转语音(产音频);asr=语音转文字(吃音频,产文本/字幕) */
+  /** tts=文字转语音(产音频);asr=语音转文字(吃音频,产文本/字幕);vc=音色替换 */
   mode: SpeechMode;
   /** tts 的文本内容,支持 {{varName}} */
   text?: string;
@@ -137,8 +137,19 @@ export interface SpeechNodeData extends Record<string, unknown> {
   workflow?: string;
   /** asr 语言(空=自动)；Liber Speech 的朗读语言也写在这里 */
   language?: string;
-  /** tts: mp3 / wav / ogg_opus。asr: txt / json / srt / vtt，空为自动。 */
+  /** tts: mp3 / wav / ogg_opus。asr: txt / json / srt / vtt，空为自动。vc: mp3 / wav。 */
   format?: string;
+  /** vc: 连入视频时输出视频，否则输出音频；由上游连线解析。 */
+  outputKind?: MediaKind | null;
+  /** vc: 是否分离背景音 */
+  separateBgm?: boolean;
+  /** vc: 上传的 srt（隐藏字幕资产） */
+  subtitleAssetId?: number | null;
+  subtitleName?: string;
+  /** vc: 视频输入时烧录字幕 */
+  burnSubtitles?: boolean;
+  subtitleSize?: number;
+  subtitleColor?: string;
   /** 输出变量名;tts → output_audio_n,asr → output_text_n */
   varName?: string;
   run: NodeRunState;
@@ -260,7 +271,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       kind: "speech",
       presetId: typeof data.presetId === "string" ? data.presetId : "",
       presetTitle: typeof data.presetTitle === "string" ? data.presetTitle : "",
-      mode: data.mode === "asr" ? "asr" : "tts",
+      mode: data.mode === "asr" ? "asr" : data.mode === "vc" ? "vc" : "tts",
       text: typeof data.text === "string" ? data.text : "",
       providerId: data.providerId == null ? null : Number(data.providerId),
       voiceRecordId: data.voiceRecordId == null ? null : Number(data.voiceRecordId),
@@ -269,6 +280,15 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       workflow: typeof data.workflow === "string" ? data.workflow : "",
       language: typeof data.language === "string" ? data.language : "",
       format: typeof data.format === "string" ? data.format : "",
+      outputKind: (data.outputKind as MediaKind | null) ?? null,
+      separateBgm: Boolean(data.separateBgm),
+      subtitleAssetId: data.subtitleAssetId == null ? null : Number(data.subtitleAssetId),
+      subtitleName: typeof data.subtitleName === "string" ? data.subtitleName : "",
+      burnSubtitles: Boolean(data.burnSubtitles),
+      subtitleSize: Number.isFinite(Number(data.subtitleSize))
+        ? Math.max(0, Number(data.subtitleSize))
+        : 0,
+      subtitleColor: typeof data.subtitleColor === "string" ? data.subtitleColor : "#FFFFFF",
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
     };
@@ -334,7 +354,11 @@ export function nodeOutputKind(
     return data.mediaKind;
   }
   if (data.kind === "concat") return data.mediaKind;
-  if (data.kind === "speech") return data.mode === "tts" ? "audio" : null;
+  if (data.kind === "speech") {
+    if (data.mode === "tts") return "audio";
+    if (data.mode === "vc") return data.outputKind ?? "audio";
+    return null;
+  }
   // 功能节点:选包时写入的 outputKind 是权威;查表只是兜底。
   // 此前只走 capabilityOf,不传回调的调用方(槽位绑定/连线校验)会把功能节点产物误判为 null。
   return data.outputKind ?? outputKindOfCapability(capabilityOf?.(data.pack));

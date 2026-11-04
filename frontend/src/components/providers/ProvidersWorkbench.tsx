@@ -56,6 +56,7 @@ const SUBS = [
   ["v2v_ref_long", "参考图生成视频（长）"],
   ["tts", "文字转语音"],
   ["asr", "语音转文字"],
+  ["vc", "音色替换"],
 ] as const;
 
 const SUB_ICON: Record<string, LucideIcon> = {
@@ -72,6 +73,7 @@ const SUB_ICON: Record<string, LucideIcon> = {
   v2v_ref_long: Film,
   tts: AudioLines,
   asr: Mic,
+  vc: AudioLines,
 };
 
 function knownSubs(subs: string[]): string[] {
@@ -106,7 +108,7 @@ function subLabel(id: string): string {
 
 function modelInTab(item: ModelItem, tabId: string): boolean {
   if (tabId === "all") return true;
-  if (tabId === "speech") return item.category === "tts" || item.category === "asr";
+  if (tabId === "speech") return item.category === "tts" || item.category === "asr" || item.category === "vc";
   return item.category === tabId;
 }
 
@@ -147,7 +149,7 @@ export function ProvidersWorkbench() {
   }, [activeInfo, tab]);
   const shown = catalog.filter((item) => {
     if (tab === "all") return true;
-    if (tab === "speech") return item.category === "tts" || item.category === "asr";
+    if (tab === "speech") return item.category === "tts" || item.category === "asr" || item.category === "vc";
     return item.category === tab;
   });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["providers"] });
@@ -766,6 +768,7 @@ function categoryOf(subs: string[]): string {
   }
   if (subs.includes("tts")) return "tts";
   if (subs.includes("asr")) return "asr";
+  if (subs.includes("vc")) return "vc";
   return subs.length > 0 ? "llm" : "unknown";
 }
 
@@ -840,7 +843,7 @@ const KIND_OPTIONS: { id: ModelKind; label: string }[] = [
 ];
 
 function kindOf(item: ModelItem): ModelKind {
-  if (item.category === "tts" || item.category === "asr") return "speech";
+  if (item.category === "tts" || item.category === "asr" || item.category === "vc") return "speech";
   if (item.category === "image" || item.category === "video" || item.category === "llm") return item.category;
   return "unknown";
 }

@@ -1679,4 +1679,58 @@ export const UI_EN: Record<string, string> = {
   "关闭节点菜单": "Close node menu",
   "描述你的想法；输入 / 或 @ 引用节点，导演台会直接改画布。":
     "Describe your idea; type / or @ to reference nodes, and the director edits the canvas directly.",
+  "换音": "Voice Conversion",
+  "保持时间轴不变，把音频或视频里的人声替换成音色库中的目标音色。":
+    "Keep the timeline and replace the voice in an audio or video clip with a library voice.",
+  "只列出已启用且具备 vc 能力的服务。": "Enabled providers with voice conversion only.",
+  "换音模型": "Voice conversion model",
+  "不选则使用系统设置里的换音模型。": "Leave empty to use the model from System Settings.",
+  "只列出有参考音频的音色记录。": "Only voices with a reference clip are listed.",
+  "音色库还没有带参考音频的音色。": "The voice library has no voice with a reference clip yet.",
+  "音频格式": "Audio format",
+  "mp3 体积小；wav 无损。": "mp3 is smaller; wav is lossless.",
+  "识别用；上传 srt 时忽略。": "Used for recognition. Ignored when an srt is uploaded.",
+  "语音服务未提供 Demucs 背景音分离。": "The speech service does not provide Demucs separation.",
+  "换音素材": "Source media",
+  "支持音频或视频，最大 200MB / 30 分钟。未覆盖的字幕区间保留原声。":
+    "Audio or video, up to 200MB / 30 minutes. Uncovered subtitle spans keep the original voice.",
+  "点击或拖拽上传音频或视频": "Click or drop audio or video",
+  "字幕 srt（可选）": "srt subtitles (optional)",
+  "不上传则自动识别；上传后跳过识别。": "Without an srt the audio is transcribed; with one recognition is skipped.",
+  "点击或拖拽上传 srt": "Click or drop an srt",
+  "可选；未上传时自动识别字幕": "Optional; subtitles are generated when empty",
+  "只对视频输入生效。": "Applies to video input only.",
+  "字号": "Font size",
+  "读取语音服务模型失败": "Could not load the speech service models",
+  "开始换音": "Convert voice",
+  "上传音频或视频，换音后得到新音视频和字幕":
+    "Upload audio or video to get new media and subtitles",
+  "语音服务未提供换音模型，请升级语音服务。":
+    "The speech service does not provide voice conversion models. Upgrade it first.",
+  "留空跟随语音服务 .env；功能页不选模型时使用这里保存的值。":
+    "Leave empty to follow the speech service .env. Feature pages use this saved value when they do not pick a model.",
+  "音色替换": "Voice conversion",
+  "连接音频或视频。默认自动识别字幕；也可以上传 srt。未覆盖部分会保留原声。":
+    "Connect audio or video. Subtitles are recognized by default; you can upload an srt instead. Uncovered spans keep the original voice.",
+  "连接音频或视频，在右侧选择音色后执行。":
+    "Connect audio or video, then choose a voice in the inspector.",
+  "字幕来源": "Subtitle source",
+  "默认自动识别；上传 srt 会跳过识别。":
+    "Recognized by default; uploading an srt skips recognition.",
+  "自动识别": "Auto recognize",
+  "上传 srt": "Upload srt",
+  "选择 srt": "Choose srt",
+  "分离背景音": "Separate background music",
+  "先拆人声和伴奏，只换人声再混回伴奏。":
+    "Split vocals and accompaniment, convert only the vocals, then mix the accompaniment back.",
+  "字幕样式、语言与输出格式": "Subtitle style, language, and output format",
+  "0 = 按视频高度自动": "0 = automatic from the video height",
+  "wav 无损；mp3 体积更小。": "wav is lossless; mp3 is smaller.",
+  "请先选择音频或视频": "Choose audio or video first",
+  "请选择音色": "Choose a voice",
+  "音色替换只支持一个音频或视频输入": "Voice conversion accepts only one audio or video input",
+  "烧录字幕需要视频输入": "Burning subtitles needs a video input",
+  "未选择音色": "Choose a voice",
+  "音色替换节点需要连接音频或视频输入":
+    "The voice conversion node needs an audio or video input",
 };

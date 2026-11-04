@@ -149,7 +149,7 @@ PROVIDER_TYPES: dict[str, ProviderTypeInfo] = {
     "liber_speech": ProviderTypeInfo(
         type="liber_speech",
         label="Liber Speech API",
-        capabilities=("tts", "asr"),
+        capabilities=("tts", "asr", "vc"),
         requires_api_key=False,
         default_base_url="http://127.0.0.1:5555",
         description=(

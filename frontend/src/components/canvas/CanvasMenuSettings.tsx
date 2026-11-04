@@ -151,6 +151,7 @@ export function CanvasMenuSettings() {
 const ABILITIES = [
   ["tts", "文字转语音"],
   ["asr", "语音识别"],
+  ["vc", "音色替换"],
   ["t2i", "文生图"],
   ["i2i_single", "单图编辑"],
   ["i2i_multi", "多图编辑"],
@@ -219,7 +220,7 @@ function SummaryCard({
   return (
     <article className={`flex gap-3 rounded-2xl border border-border bg-card p-4 ${on ? "" : "text-muted-foreground"}`}>
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-        {item.sub_capability === "tts" || item.sub_capability === "asr" ? <AudioLines className="size-4" /> : <Icon className="size-4" />}
+        {["tts", "asr", "vc"].includes(item.sub_capability) ? <AudioLines className="size-4" /> : <Icon className="size-4" />}
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium">{item.title}</h3>

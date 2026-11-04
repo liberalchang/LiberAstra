@@ -46,6 +46,15 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 图片引用写成 `<Picture 1>`、`<Picture 2>`，与槽位顺序一致。
 - 引用角色时说明「保持同一人物，五官、发型、服装一致」。
 
+## 音色替换（vc）
+
+- 建节点：`canvas_add_node(kind="speech", data={mode:"vc"})`，或 `kind="vc"`。
+- `list_canvas_menu` 找「音色替换」项（`sub_capability=vc`），用 `canvas_apply_menu` 套用；没有菜单项时用 `canvas_update_node` 直接写 `providerId`、`model`、`voiceRecordId`。
+- 音色必须有参考音频；`voiceRecordId` 必填。
+- 上游连音频或视频。输出类型随输入：音频出音频，视频出视频（另有音频和字幕产物）。
+- 可选字段：`separateBgm`、`subtitleAssetId`（已有 subtitle 资产）、`burnSubtitles`、`subtitleSize`、`subtitleColor`、`format`（wav/mp3）。
+- 上传 srt 属于属性面板的人工操作；Agent 只能复用已有 subtitle 资产，不要伪造 `assetId`。
+
 ## Gotchas
 
 - 不要用同一个变量名重复建节点；工具会复用或拒绝，先看返回值。

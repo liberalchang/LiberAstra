@@ -84,6 +84,7 @@ export function SystemSettingsPage() {
   const [characterI2iMulti, setCharacterI2iMulti] = useState("qwen_image_21_edit_multi");
   const [speechModel, setSpeechModel] = useState("multilingual_v3");
   const [speechAsrModel, setSpeechAsrModel] = useState("");
+  const [speechVcModel, setSpeechVcModel] = useState("");
   const [prefSaved, setPrefSaved] = useState(false);
   const ttsGroups = useMemo(
     () => groupSpeechModels(speechCatalog.data?.tts_models ?? [], speechModel),
@@ -99,6 +100,16 @@ export function SystemSettingsPage() {
     }
     return options;
   }, [speechCatalog.data, speechAsrModel]);
+  const vcOptions = useMemo(() => {
+    const options: SpeechCatalogModel[] = [
+      { id: "", label: "跟随语音服务配置 (.env)" },
+      ...(speechCatalog.data?.vc_models ?? []),
+    ];
+    if (speechVcModel && !options.some((item) => item.id === speechVcModel)) {
+      options.push({ id: speechVcModel, label: speechVcModel });
+    }
+    return options;
+  }, [speechCatalog.data, speechVcModel]);
   const catalogError =
     speechCatalog.error instanceof ApiError
       ? speechCatalog.error.message
@@ -156,6 +167,7 @@ export function SystemSettingsPage() {
       setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "qwen_image_21_edit_multi");
       setSpeechModel(prefs.default_speech_model || "multilingual_v3");
       setSpeechAsrModel(prefs.default_asr_model || "");
+      setSpeechVcModel(prefs.default_vc_model || "");
     }
   }, [prefs]);
 
@@ -176,6 +188,7 @@ export function SystemSettingsPage() {
         default_character_i2i_multi_workflow: characterI2iMulti,
         default_speech_model: speechModel,
         default_asr_model: speechAsrModel,
+        default_vc_model: speechVcModel,
       }),
     onSuccess: (next) => {
       setPrefSaved(true);
@@ -458,6 +471,29 @@ export function SystemSettingsPage() {
                 hint: item.id || undefined,
               }))}
             />
+          </Field>
+          <Field
+            label={tx("换音模型")}
+            hint={tx("留空跟随语音服务 .env；功能页不选模型时使用这里保存的值。")}
+          >
+            <SearchSelect
+              ariaLabel={tx("换音模型")}
+              value={speechVcModel}
+              disabled={!speechCatalog.data}
+              onChange={setSpeechVcModel}
+              placeholder={tx("搜索模型")}
+              emptyText={tx("没有匹配项")}
+              options={vcOptions.map((item) => ({
+                value: item.id,
+                label: item.id ? item.label : tx(item.label),
+                hint: item.id || undefined,
+              }))}
+            />
+            {(speechCatalog.data?.vc_models?.length ?? 0) === 0 && (
+              <p className="text-xs text-muted-foreground">
+                {tx("语音服务未提供换音模型，请升级语音服务。")}
+              </p>
+            )}
           </Field>
           <div className="flex items-center gap-3">
             <Button

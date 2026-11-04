@@ -6,6 +6,7 @@ LiberAstra 主服务只通过 HTTP 调用这里，不在主进程里加载模型
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 import wave
@@ -20,6 +21,8 @@ import engine
 app = FastAPI(title="LiberAstra Speech", version="1.0.0")
 _bearer = HTTPBearer(auto_error=False)
 _ALLOWED_AUDIO = {".wav", ".ogg", ".mp3"}
+_ALLOWED_INPUT = {".wav", ".mp3", ".ogg", ".flac", ".m4a"}
+_MAX_MEDIA_SECONDS = 30 * 60
 
 
 def results_dir() -> Path:
@@ -54,6 +57,40 @@ def _save_wav(path: Path, sample_rate: int, wav: object) -> None:
         handle.writeframes(pcm.tobytes())
 
 
+def _save_audio(path: Path, audio: object, sample_rate: int) -> None:
+    """保存单声道或 [channels, samples] 音频。"""
+    import numpy as np
+    import soundfile as sf
+
+    array = np.asarray(audio, dtype=np.float32)
+    if array.ndim == 1:
+        array = array[:, None]
+    elif array.ndim == 2:
+        array = array.T
+    sf.write(str(path), array, sample_rate, subtype="PCM_16")
+
+
+def _parse_segments(raw: str | None) -> list[dict[str, float]] | None:
+    if raw is None or not raw.strip():
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="segments 必须是 JSON 数组") from exc
+    if not isinstance(data, list):
+        raise HTTPException(status_code=400, detail="segments 必须是 JSON 数组")
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _media_duration(path: Path) -> float:
+    import librosa
+
+    try:
+        return float(librosa.get_duration(path=str(path)))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"无法读取音频时长: {exc}") from exc
+
+
 def _to_ogg(wav_path: Path, ogg_path: Path) -> None:
     import shutil
     import subprocess
@@ -77,8 +114,11 @@ def models() -> dict[str, object]:
         "models": engine.configured_models(),
         "tts_models": engine.tts_catalog(),
         "asr_models": engine.asr_catalog(),
+        "vc_models": engine.vc_catalog(),
         "default_tts_model": engine.default_tts_model(),
         "default_asr_model": engine.default_asr_model(),
+        "default_vc_model": engine.default_vc_model(),
+        "separate_available": engine.separate_available(),
     }
 
 
@@ -183,6 +223,102 @@ def transcribe(
             "task": task or "transcribe",
             "model": result.get("model"),
         },
+    }
+
+
+@app.post("/api/v1/vc/convert", dependencies=[Depends(require_key)])
+def convert_voice(
+    file: UploadFile | None = File(None),
+    prompt: UploadFile | None = File(None),
+    model: str | None = Form(None),
+    segments: str | None = Form(None),
+) -> dict[str, object]:
+    if file is None or not file.filename:
+        raise HTTPException(status_code=400, detail="必须上传音频文件")
+    if prompt is None or not prompt.filename:
+        raise HTTPException(status_code=400, detail="必须上传参考音频")
+    suffix = Path(file.filename).suffix.lower()
+    prompt_suffix = Path(prompt.filename).suffix.lower()
+    if suffix not in _ALLOWED_INPUT:
+        raise HTTPException(status_code=400, detail="换音素材只支持 wav、mp3、ogg、flac、m4a")
+    if prompt_suffix not in _ALLOWED_INPUT:
+        raise HTTPException(status_code=400, detail="参考音频只支持 wav、mp3、ogg、flac、m4a")
+
+    token = uuid.uuid4().hex
+    source_path = results_dir() / f"vc-in-{token}{suffix}"
+    prompt_path = results_dir() / f"vc-ref-{token}{prompt_suffix}"
+    out_path = results_dir() / f"vc-out-{token}.wav"
+    source_path.write_bytes(file.file.read())
+    prompt_path.write_bytes(prompt.file.read())
+    try:
+        if _media_duration(source_path) > _MAX_MEDIA_SECONDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"换音素材不能超过 {_MAX_MEDIA_SECONDS // 60} 分钟",
+            )
+        audio, sample_rate = engine.convert(
+            str(source_path),
+            model=model,
+            prompt=str(prompt_path),
+            segments=_parse_segments(segments),
+        )
+        _save_audio(out_path, audio, sample_rate)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail=f"VC 依赖未安装: {exc}") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"换音失败: {exc}") from exc
+    finally:
+        source_path.unlink(missing_ok=True)
+        prompt_path.unlink(missing_ok=True)
+    return {
+        "audio_url": f"/api/v1/results/{out_path.name}",
+        "meta": {"format": "wav", "sample_rate": sample_rate},
+    }
+
+
+@app.post("/api/v1/audio/separate", dependencies=[Depends(require_key)])
+def separate_audio(file: UploadFile | None = File(None)) -> dict[str, object]:
+    if file is None or not file.filename:
+        raise HTTPException(status_code=400, detail="必须上传音频文件")
+    suffix = Path(file.filename).suffix.lower()
+    if suffix not in _ALLOWED_INPUT:
+        raise HTTPException(status_code=400, detail="分离只支持 wav、mp3、ogg、flac、m4a")
+    token = uuid.uuid4().hex
+    source_path = results_dir() / f"sep-in-{token}{suffix}"
+    vocals_path = results_dir() / f"sep-vocals-{token}.wav"
+    accompaniment_path = results_dir() / f"sep-accompaniment-{token}.wav"
+    source_path.write_bytes(file.file.read())
+    try:
+        if _media_duration(source_path) > _MAX_MEDIA_SECONDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"分离素材不能超过 {_MAX_MEDIA_SECONDS // 60} 分钟",
+            )
+        vocals, accompaniment, sample_rate = engine.separate(str(source_path))
+        _save_audio(vocals_path, vocals, sample_rate)
+        _save_audio(accompaniment_path, accompaniment, sample_rate)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail=f"Demucs 依赖未安装: {exc}") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"背景音分离失败: {exc}") from exc
+    finally:
+        source_path.unlink(missing_ok=True)
+    return {
+        "vocals_url": f"/api/v1/results/{vocals_path.name}",
+        "accompaniment_url": f"/api/v1/results/{accompaniment_path.name}",
+        "meta": {"format": "wav", "sample_rate": sample_rate},
     }
 
 

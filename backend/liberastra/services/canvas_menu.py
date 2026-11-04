@@ -21,7 +21,7 @@ from liberastra.services.workflows import list_packs
 MENU_SETTING_KEY = "canvas_custom_menu"
 # 出厂菜单结构变化时加 1。低于这个版本的存档会按当前出厂菜单重做图像和视频，语音保留。
 # 用户在当前版本里删掉的项不再补回。
-MENU_REVISION = 7
+MENU_REVISION = 8
 
 
 def decode_menu(raw: str) -> tuple[list[dict], int]:
@@ -43,6 +43,10 @@ def merge_factory_items(items: list[dict]) -> list[dict]:
     speech = [dict(item) for item in items if item.get("category") == "speech"]
     if not speech:
         speech = [item for item in factory if item.get("category") == "speech"]
+    elif not any(str(item.get("id") or "") == "preset_vc" for item in speech):
+        preset_vc = next((item for item in factory if item.get("id") == "preset_vc"), None)
+        if preset_vc is not None:
+            speech.append(dict(preset_vc))
     workflow = [item for item in factory if item.get("category") != "speech"]
     return speech + workflow
 

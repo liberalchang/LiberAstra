@@ -40,6 +40,8 @@ STR_SPECS: dict[str, str] = {
     "default_speech_model": "multilingual_v3",
     # 空串表示跟随语音服务 .env 的 LIBER_SPEECH_ASR_MODEL。
     "default_asr_model": "",
+    # 换音模型。空串表示跟随语音服务 LIBER_SPEECH_VC_MODEL。
+    "default_vc_model": "",
 }
 
 
@@ -88,6 +90,10 @@ def set_str_pref(db: Session, key: str, value: str) -> str:
         from liberastra.providers.speech.liber_speech import canonical_asr_model
 
         text = canonical_asr_model(text.strip())
+    if key == "default_vc_model":
+        from liberastra.providers.speech.liber_speech import canonical_vc_model
+
+        text = canonical_vc_model(text.strip())
     row = db.get(AppSetting, key)
     if row is None:
         db.add(AppSetting(key=key, value=text))

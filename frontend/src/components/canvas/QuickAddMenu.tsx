@@ -154,7 +154,12 @@ export function QuickAddMenu({
         onClick={() =>
           onPick({
             kind: item.category === "speech" ? "speech" : "function",
-            speechMode: item.sub_capability === "asr" ? "asr" : undefined,
+            speechMode:
+              item.sub_capability === "asr"
+                ? "asr"
+                : item.sub_capability === "vc"
+                  ? "vc"
+                  : undefined,
             menu: item,
           })
         }
