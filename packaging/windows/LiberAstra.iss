@@ -1,7 +1,7 @@
 ﻿; LiberAstra Windows 安装包。由 build.ps1 调用 Inno Setup 编译。
 
 #define MyAppName "LiberAstra"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "LiberAstra"
 #define MyAppURL "https://github.com/liberalchang/LiberAstra"
 
