@@ -695,6 +695,124 @@ def test_image_ref_does_not_require_vision(auth_header):
         db.close()
 
 
+def _stored_image(db, user, name: str, color: str = "red") -> Asset:
+    raw = _png(color, (8, 8))
+    rel = f"uploads/{name}"
+    save_bytes(raw, rel)
+    asset = Asset(
+        kind="image",
+        path=rel,
+        mime="image/png",
+        size=len(raw),
+        owner_id=user.id,
+        hidden=True,
+        meta={},
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+def test_node_only_attachment_does_not_require_vision(auth_header):
+    _ = auth_header
+    db = SessionLocal()
+    try:
+        user = db.scalars(select(User)).first()
+        assert user is not None
+        asset = _stored_image(db, user, "node-only.png")
+        parts = assemble_user_content(
+            db,
+            user.id,
+            {
+                "text": "把附件放到图片输入节点",
+                "attachments": [
+                    {
+                        "asset_id": asset.id,
+                        "kind": "image",
+                        "name": "node-only.png",
+                        "send_to_model": False,
+                    }
+                ],
+            },
+            vision=False,
+        )
+        assert not [part for part in parts if part.get("type") == "image_url"]
+        text = "\n".join(
+            str(part.get("text", "")) for part in parts if part.get("type") == "text"
+        )
+        assert f"asset_id={asset.id}" in text
+        assert "仅用于画布节点" in text
+    finally:
+        db.close()
+
+
+def test_node_only_attachment_stays_text_with_vision(auth_header):
+    _ = auth_header
+    db = SessionLocal()
+    try:
+        user = db.scalars(select(User)).first()
+        assert user is not None
+        asset = _stored_image(db, user, "node-only-vision.png")
+        parts = assemble_user_content(
+            db,
+            user.id,
+            {
+                "text": "把附件放到图片输入节点",
+                "attachments": [
+                    {
+                        "asset_id": asset.id,
+                        "kind": "image",
+                        "name": "node-only-vision.png",
+                        "send_to_model": False,
+                    }
+                ],
+            },
+            vision=True,
+        )
+        assert not [part for part in parts if part.get("type") == "image_url"]
+        text = "\n".join(
+            str(part.get("text", "")) for part in parts if part.get("type") == "text"
+        )
+        assert f"asset_id={asset.id}" in text
+        assert "仅用于画布节点" in text
+    finally:
+        db.close()
+
+
+def test_model_attachment_keeps_asset_id_text(auth_header):
+    _ = auth_header
+    db = SessionLocal()
+    try:
+        user = db.scalars(select(User)).first()
+        assert user is not None
+        asset = _stored_image(db, user, "model-attachment.png")
+        parts = assemble_user_content(
+            db,
+            user.id,
+            {
+                "text": "看图，同时把这个资源放到节点",
+                "attachments": [
+                    {
+                        "asset_id": asset.id,
+                        "kind": "image",
+                        "name": "model-attachment.png",
+                        "send_to_model": True,
+                    }
+                ],
+            },
+            vision=True,
+        )
+        assert len([part for part in parts if part.get("type") == "image_url"]) == 1
+        text = "\n".join(
+            str(part.get("text", "")) for part in parts if part.get("type") == "text"
+        )
+        assert f"asset_id={asset.id}" in text
+        assert "也可用于画布节点" in text
+    finally:
+        db.close()
+
+
 class _Ctx:
     def report(self, *args: Any, **kwargs: Any) -> None:
         return None

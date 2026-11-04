@@ -1612,10 +1612,16 @@ export const UI_EN: Record<string, string> = {
   "上传技能": "Upload skill",
   "管理": "Manage",
   "技能": "Skill",
-  "当前模型没有视觉能力。请换模型，或去掉图片/视频后再发送。":
-    "This model has no vision. Switch models or remove images/videos before sending.",
-  "当前模型没有视觉能力，请换模型或去掉图片/视频。":
-    "This model has no vision. Switch models or remove images/videos.",
+  "当前模型没有视觉能力。请换模型、把附件设为「仅节点」，或去掉图片/视频后再发送。":
+    "This model has no vision. Switch models, set attachments to node-only, or remove images/videos before sending.",
+  "当前模型没有视觉能力，请换模型、把附件设为「仅节点」，或去掉图片/视频。":
+    "This model has no vision. Switch models, set attachments to node-only, or remove images/videos.",
+  "仅节点": "Node only",
+  "发给模型": "Send to model",
+  "全部设为仅节点": "Set all to node only",
+  "当前仅用于画布节点，点击改为发给模型": "Node-only. Click to send to the model.",
+  "会发给模型，也可用于画布节点；点击改为仅节点":
+    "Sent to the model and reusable by canvas nodes. Click to keep node-only.",
   "知道了": "Got it",
   "确认执行": "Confirm",
   "Agent 想提交生成任务（占用 GPU）": "The agent wants to submit a generation job (uses GPU)",

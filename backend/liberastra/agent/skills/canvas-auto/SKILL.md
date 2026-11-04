@@ -62,3 +62,4 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 改完画布提醒用户保存；不要假设未保存的节点会持久化。
 - 图片/视频/音频拼接是内置工具节点（`kind=concat`），UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」；它不走 `canvas_apply_menu`，也不绑定工作流包。
 - 图片增强和视频增强是功能节点，走 `canvas_apply_menu` / `canvas_apply_pack`；视频增强接最终视频，默认不自动加。
+- 附件标为「仅节点」时不会发给模型，消息里会给出 `asset_id`；用 `canvas_add_node(kind=input, media_kind=..., data={assetId, assetName, varName})` 或 `canvas_update_node(node_id, patch={assetId, assetName})` 把它绑到输入节点。发给模型的附件同样带 `asset_id`，也可以复用。

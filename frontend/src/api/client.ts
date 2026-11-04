@@ -513,6 +513,8 @@ export interface AgentAttachment {
   asset_id: number;
   kind: string;
   name?: string;
+  /** false = 仅用于画布节点，不发给模型；默认 true。 */
+  send_to_model?: boolean;
 }
 
 export interface AgentRefAsset {

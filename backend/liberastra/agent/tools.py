@@ -289,6 +289,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "canvas_update_node",
         "修改节点数据。patch 是节点 data 的部分字段，例如 prompt、varName、text、values。"
+        "input 节点可用 patch.assetId 绑定资源，assetName 同步写。"
         "功能节点的 pack/outputKind 由 canvas_apply_menu 或 canvas_apply_pack 设置，不要直接改。",
         {"node_id": _STR, "patch": _OBJ},
         ["node_id", "patch"],

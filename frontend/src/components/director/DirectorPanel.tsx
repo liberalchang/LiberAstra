@@ -203,6 +203,7 @@ function UserBubble({
               className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] text-primary-foreground/90"
             >
               {tx("附件")} #{item.asset_id} · {item.kind}
+              {item.send_to_model === false ? ` · ${tx("仅节点")}` : ""}
             </span>
           ))}
           {refs.map((ref) => (
@@ -504,7 +505,9 @@ export function DirectorPanel({
   }, [refOptions, refQuery]);
 
   const hasMedia = attachments.some(
-    (item) => item.kind === "image" || item.kind === "video",
+    (item) =>
+      item.send_to_model !== false &&
+      (item.kind === "image" || item.kind === "video"),
   );
   const visionBlocked = hasMedia && !currentVision;
   const refsHaveMedia = refs.some((ref) =>
@@ -779,6 +782,17 @@ export function DirectorPanel({
     }
   };
 
+  const markAllNodeOnly = () => {
+    setAttachments((prev) =>
+      prev.map((item) =>
+        item.kind === "image" || item.kind === "video"
+          ? { ...item, send_to_model: false }
+          : item,
+      ),
+    );
+    setError(null);
+  };
+
   const sendMessage = async (
     text: string,
     sendAttachments: AgentAttachment[] = [],
@@ -791,7 +805,7 @@ export function DirectorPanel({
       return;
     }
     if (visionBlocked) {
-      setError(tx("当前模型没有视觉能力，请换模型或去掉图片/视频。"));
+      setError(tx("当前模型没有视觉能力，请换模型、把附件设为「仅节点」，或去掉图片/视频。"));
       return;
     }
     setError(null);
@@ -1062,7 +1076,7 @@ export function DirectorPanel({
               : forcedKind || "text";
       try {
         const result = await api.uploadFileAsAsset(file, kind, true);
-        next.push({ asset_id: result.asset_id, kind, name: file.name });
+        next.push({ asset_id: result.asset_id, kind, name: file.name, send_to_model: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "上传失败");
       }
@@ -1075,7 +1089,7 @@ export function DirectorPanel({
     setAttachments((prev) =>
       prev.some((item) => item.asset_id === asset.id)
         ? prev
-        : [...prev, { asset_id: asset.id, kind: asset.kind, name: asset.path }],
+        : [...prev, { asset_id: asset.id, kind: asset.kind, name: asset.path, send_to_model: true }],
     );
     setAssetOpen(false);
   };
@@ -1384,6 +1398,27 @@ export function DirectorPanel({
                   #{item.asset_id} {item.kind}
                   <button
                     type="button"
+                    aria-pressed={item.send_to_model === false}
+                    className="rounded-full bg-background/50 px-1.5 py-0.5 text-[10px] text-foreground/80 hover:bg-background"
+                    title={
+                      item.send_to_model === false
+                        ? tx("当前仅用于画布节点，点击改为发给模型")
+                        : tx("会发给模型，也可用于画布节点；点击改为仅节点")
+                    }
+                    onClick={() =>
+                      setAttachments((prev) =>
+                        prev.map((x) =>
+                          x.asset_id === item.asset_id
+                            ? { ...x, send_to_model: x.send_to_model === false }
+                            : x,
+                        ),
+                      )
+                    }
+                  >
+                    {item.send_to_model === false ? tx("仅节点") : tx("发给模型")}
+                  </button>
+                  <button
+                    type="button"
                     aria-label={tx("移除附件")}
                     onClick={() =>
                       setAttachments((prev) =>
@@ -1416,9 +1451,14 @@ export function DirectorPanel({
           )}
 
           {visionBlocked && (
-            <p className="mb-1.5 rounded-lg border border-warning/30 bg-warning/[0.07] px-2.5 py-1.5 text-[11px] leading-relaxed text-warning">
-              {tx("当前模型没有视觉能力。请换模型，或去掉图片/视频后再发送。")}
-            </p>
+            <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warning/30 bg-warning/[0.07] px-2.5 py-1.5 text-[11px] leading-relaxed text-warning">
+              <span>
+                {tx("当前模型没有视觉能力。请换模型、把附件设为「仅节点」，或去掉图片/视频后再发送。")}
+              </span>
+              <button type="button" className="underline" onClick={markAllNodeOnly}>
+                {tx("全部设为仅节点")}
+              </button>
+            </div>
           )}
           {refsMediaSkipped && (
             <p className="mb-1.5 text-[10px] leading-relaxed text-muted-foreground">
@@ -1702,80 +1742,78 @@ export function DirectorPanel({
                   }}
                 />
                 {modelOpen && (
-                  <>
-                    <div className="absolute bottom-full right-0 z-40 mb-2 w-[320px] rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
-                      <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        {tx("模型")}
-                      </div>
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/70",
-                          modelChoice === FOLLOW_DEFAULT && "bg-primary/[0.07]",
-                        )}
-                        onClick={() => void changeModel(FOLLOW_DEFAULT)}
-                      >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                          <Cpu className="size-3.5" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1 text-xs font-medium">
-                            {tx("跟随系统默认")}
-                            {modelChoice === FOLLOW_DEFAULT && (
-                              <Check className="size-3 text-primary" />
-                            )}
+                  <div className="absolute bottom-full left-1/2 z-40 mb-2 w-72 -translate-x-1/2 rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur-xl">
+                        <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                          {tx("模型")}
+                        </div>
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/70",
+                            modelChoice === FOLLOW_DEFAULT && "bg-primary/[0.07]",
+                          )}
+                          onClick={() => void changeModel(FOLLOW_DEFAULT)}
+                        >
+                          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                            <Cpu className="size-3.5" />
                           </span>
-                          <span className="block truncate text-[10px] text-muted-foreground">
-                            {systemDefault?.label || tx("使用系统设置里的默认 LLM")}
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1 text-xs font-medium">
+                              {tx("跟随系统默认")}
+                              {modelChoice === FOLLOW_DEFAULT && (
+                                <Check className="size-3 text-primary" />
+                              )}
+                            </span>
+                            <span className="block truncate text-[10px] text-muted-foreground">
+                              {systemDefault?.label || tx("使用系统设置里的默认 LLM")}
+                            </span>
                           </span>
-                        </span>
-                      </button>
-                      <div className="my-1 border-t border-border/70" />
-                      <div className="max-h-64 overflow-y-auto">
-                        {llmOptions.map((item) => (
-                          <button
-                            key={item.value}
-                            type="button"
-                            className={cn(
-                              "flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/70",
-                              modelChoice === item.value && "bg-primary/[0.07]",
-                            )}
-                            onClick={() => void changeModel(item.value)}
-                          >
-                            <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-muted text-foreground/70">
-                              <Cpu className="size-3.5" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="flex items-center gap-1 text-xs font-medium">
-                                <span className="truncate">{item.model}</span>
-                                {modelChoice === item.value && (
-                                  <Check className="size-3 text-primary" />
-                                )}
+                        </button>
+                        <div className="my-1 border-t border-border/70" />
+                        <div className="max-h-64 overflow-y-auto">
+                          {llmOptions.map((item) => (
+                            <button
+                              key={item.value}
+                              type="button"
+                              className={cn(
+                                "flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted/70",
+                                modelChoice === item.value && "bg-primary/[0.07]",
+                              )}
+                              onClick={() => void changeModel(item.value)}
+                            >
+                              <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-muted text-foreground/70">
+                                <Cpu className="size-3.5" />
                               </span>
-                              <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                                <span className="truncate">{item.provider}</span>
-                                {item.vision && (
-                                  <span className="rounded-full bg-muted px-1.5 py-0.5">
-                                    {tx("视觉")}
-                                  </span>
-                                )}
-                                {item.tools && (
-                                  <span className="rounded-full bg-muted px-1.5 py-0.5">
-                                    {tx("工具")}
-                                  </span>
-                                )}
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center gap-1 text-xs font-medium">
+                                  <span className="truncate">{item.model}</span>
+                                  {modelChoice === item.value && (
+                                    <Check className="size-3 text-primary" />
+                                  )}
+                                </span>
+                                <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                                  <span className="truncate">{item.provider}</span>
+                                  {item.vision && (
+                                    <span className="rounded-full bg-muted px-1.5 py-0.5">
+                                      {tx("视觉")}
+                                    </span>
+                                  )}
+                                  {item.tools && (
+                                    <span className="rounded-full bg-muted px-1.5 py-0.5">
+                                      {tx("工具")}
+                                    </span>
+                                  )}
+                                </span>
                               </span>
-                            </span>
-                          </button>
-                        ))}
-                        {llmOptions.length === 0 && (
-                          <p className="px-2.5 py-2 text-[11px] text-muted-foreground">
-                            {tx("尚未启用 LLM 模型。请先在服务提供方里勾选。")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </>
+                            </button>
+                          ))}
+                          {llmOptions.length === 0 && (
+                            <p className="px-2.5 py-2 text-[11px] text-muted-foreground">
+                              {tx("尚未启用 LLM 模型。请先在服务提供方里勾选。")}
+                            </p>
+                          )}
+                        </div>
+                  </div>
                 )}
               </div>
               {!currentVision && (

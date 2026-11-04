@@ -24,7 +24,8 @@ MAX_TEXT_CHARS = 20_000
 MAX_VIDEO_FRAMES = 5
 
 VISION_REQUIRED = (
-    "当前模型不支持视觉输入。请换一个带视觉能力（vision）的模型，或去掉图片、视频后再发送。"
+    "当前模型不支持视觉输入。请换一个带视觉能力的模型、把附件设为「仅节点使用」，"
+    "或去掉图片、视频后再发送。"
 )
 
 
@@ -200,34 +201,12 @@ def _media_parts(asset: Asset) -> list[dict[str, Any]]:
     return [{"type": "text", "text": f"附件 #{asset.id} 类型为 {asset.kind}，未附带内容。"}]
 
 
-def _media_assets(
-    db: Session, owner_id: int, attachments: list[Any], refs: list[Any]
-) -> list[Asset]:
-    assets: list[Asset] = []
-    seen: set[int] = set()
-
-    def add(asset: Asset) -> None:
-        if asset.id not in seen:
-            seen.add(asset.id)
-            assets.append(asset)
-
-    for attachment in attachments:
-        if not isinstance(attachment, dict):
-            continue
-        if attachment.get("asset_id") is not None:
-            add(_asset(db, owner_id, attachment.get("asset_id")))
-    for ref in refs:
-        if not isinstance(ref, dict):
-            continue
-        for item in ref.get("assets") or []:
-            if isinstance(item, dict) and item.get("asset_id") is not None:
-                add(_asset(db, owner_id, item.get("asset_id")))
-        for raw_id in ref.get("asset_ids") or []:
-            if isinstance(raw_id, dict):
-                raw_id = raw_id.get("asset_id")
-            if raw_id is not None:
-                add(_asset(db, owner_id, raw_id))
-    return assets
+def _attachment_label(attachment: dict[str, Any], asset: Asset) -> str:
+    meta = asset.meta or {}
+    name = str(
+        attachment.get("name") or meta.get("source_name") or meta.get("name") or asset.path
+    )
+    return name.replace("\n", " ")[:120]
 
 
 def _ref_text(ref: dict[str, Any], *, media_included: bool) -> str:
@@ -262,7 +241,11 @@ def assemble_user_content(
     *,
     vision: bool,
 ) -> list[dict[str, Any]]:
-    """组装一条用户消息的多模态 parts；需要视觉而模型没有时抛 400。"""
+    """组装一条用户消息的多模态 parts；需要视觉而模型没有时抛 400。
+
+    附件按 send_to_model 分流：发给模型的图片/视频才要求视觉；仅节点附件只给
+    asset_id/kind/name，供 Agent 写入画布节点。
+    """
     text = str(payload.get("text") or "").strip()
     attachments = payload.get("attachments") or []
     refs = payload.get("refs") or []
@@ -270,11 +253,6 @@ def assemble_user_content(
         attachments = []
     if not isinstance(refs, list):
         refs = []
-
-    attachment_assets = _media_assets(db, owner_id, attachments, [])
-    needs_vision = any(asset.kind in {"image", "video"} for asset in attachment_assets)
-    if needs_vision and not vision:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=VISION_REQUIRED)
 
     parts: list[dict[str, Any]] = []
     added_assets: set[int] = set()
@@ -287,11 +265,41 @@ def assemble_user_content(
 
     if text:
         parts.append({"type": "text", "text": text[:MAX_TEXT_CHARS]})
+
+    model_assets: list[Asset] = []
+    attachment_lines: list[str] = []
+    seen_attachments: set[int] = set()
+    needs_vision = False
     for attachment in attachments:
         if not isinstance(attachment, dict):
             continue
-        if attachment.get("asset_id") is not None:
-            add_media(_asset(db, owner_id, attachment["asset_id"]))
+        if attachment.get("asset_id") is None:
+            continue
+        asset = _asset(db, owner_id, attachment["asset_id"])
+        if asset.id in seen_attachments:
+            continue
+        seen_attachments.add(asset.id)
+        send_to_model = attachment.get("send_to_model") is not False
+        if send_to_model:
+            model_assets.append(asset)
+            needs_vision = needs_vision or asset.kind in {"image", "video"}
+            note = "已按模型附件处理，也可用于画布节点"
+        else:
+            note = "仅用于画布节点，未发送媒体内容"
+        attachment_lines.append(
+            f"- asset_id={asset.id}, kind={asset.kind}, "
+            f"name={_attachment_label(attachment, asset)}（{note}）"
+        )
+
+    if needs_vision and not vision:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=VISION_REQUIRED)
+
+    if attachment_lines:
+        parts.append({"type": "text", "text": "附件：\n" + "\n".join(attachment_lines)})
+
+    for asset in model_assets:
+        add_media(asset)
+
     for ref in refs:
         if not isinstance(ref, dict):
             continue
