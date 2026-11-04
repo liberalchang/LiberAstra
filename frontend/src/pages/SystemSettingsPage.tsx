@@ -494,6 +494,9 @@ export function SystemSettingsPage() {
                 {tx("语音服务未提供换音模型，请升级语音服务。")}
               </p>
             )}
+            <p className="text-xs text-muted-foreground">
+              {tx("列表来自语音服务实时目录；画布菜单的模型列表需在服务提供方刷新后更新。")}
+            </p>
           </Field>
           <div className="flex items-center gap-3">
             <Button

@@ -1709,6 +1709,8 @@ export const UI_EN: Record<string, string> = {
     "The speech service does not provide voice conversion models. Upgrade it first.",
   "留空跟随语音服务 .env；功能页不选模型时使用这里保存的值。":
     "Leave empty to follow the speech service .env. Feature pages use this saved value when they do not pick a model.",
+  "列表来自语音服务实时目录；画布菜单的模型列表需在服务提供方刷新后更新。":
+    "The list comes from the live speech service catalog. The canvas menu updates after you refresh models under Providers.",
   "音色替换": "Voice conversion",
   "连接音频或视频。默认自动识别字幕；也可以上传 srt。未覆盖部分会保留原声。":
     "Connect audio or video. Subtitles are recognized by default; you can upload an srt instead. Uncovered spans keep the original voice.",

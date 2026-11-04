@@ -84,6 +84,7 @@ const TOOL_GROUPS: ToolGroup[] = [
       { to: "/video/i2v", labelKey: "nav.i2v", icon: "i2v", hintKey: "studio.toolHints.i2v" },
       { to: "/video/avatar", labelKey: "nav.avatar", icon: "avatar", hintKey: "studio.toolHints.avatar" },
       { to: "/video/motion", labelKey: "nav.motion", icon: "motion", hintKey: "studio.toolHints.motion" },
+      { to: "/video/assets", labelKey: "nav.videoAssets", icon: "videoAssets", hintKey: "studio.toolHints.videoAssets" },
     ],
   },
   {
@@ -93,6 +94,16 @@ const TOOL_GROUPS: ToolGroup[] = [
     tools: [
       { to: "/speech/tts", labelKey: "nav.tts", icon: "tts", hintKey: "studio.toolHints.tts" },
       { to: "/speech/asr", labelKey: "nav.asr", icon: "asr", hintKey: "studio.toolHints.asr" },
+      { to: "/speech/vc", labelKey: "nav.vc", icon: "vc", hintKey: "studio.toolHints.vc" },
+    ],
+  },
+  {
+    mode: "resources",
+    labelKey: "group.assets",
+    icon: "resources",
+    tools: [
+      { to: "/assets", labelKey: "nav.assetList", icon: "assetList", hintKey: "studio.toolHints.assetList" },
+      { to: "/resources/characters", labelKey: "nav.characters", icon: "characters", hintKey: "studio.toolHints.characters" },
       { to: "/resources/voices", labelKey: "nav.voices", icon: "voices", hintKey: "studio.toolHints.voices" },
       { to: "/resources/music", labelKey: "nav.music", icon: "music", hintKey: "studio.toolHints.music" },
     ],
@@ -213,7 +224,7 @@ export function DashboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">{t("studio.toolsHint")}</p>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {TOOL_GROUPS.map((group) => (
             <div key={group.mode} className="surface-bevel relative rounded-2xl border border-border bg-card p-2">
               <div className="flex items-center gap-2 px-2.5 py-2">
