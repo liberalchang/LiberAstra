@@ -208,6 +208,14 @@ export interface AssetOut {
   created_at: string;
 }
 
+export interface AssetJobOut {
+  job_id: string;
+  job_kind: string;
+  created_at: string;
+  asset_count: number;
+  kinds: string[];
+}
+
 export interface PluginOut {
   id: string;
   name: string;
@@ -728,6 +736,20 @@ export const api = {
       .join("&");
     return request<AssetOut[]>(`/api/v1/assets${qs ? `?${qs}` : ""}`);
   },
+  listAssetJobs: (limit = 20, offset = 0, jobKind?: string) => {
+    const qs = [
+      `limit=${limit}`,
+      `offset=${offset}`,
+      jobKind && `job_kind=${encodeURIComponent(jobKind)}`,
+    ]
+      .filter(Boolean)
+      .join("&");
+    return request<AssetJobOut[]>(`/api/v1/assets/jobs?${qs}`);
+  },
+  listJobAssets: (jobId: string, limit = 50, offset = 0) =>
+    request<AssetOut[]>(
+      `/api/v1/assets?job_id=${encodeURIComponent(jobId)}&limit=${limit}&offset=${offset}`,
+    ),
   /** 发布画布中间结果：取消隐藏,资源库可见 */
   publishAsset: (id: number) =>
     request<AssetOut>(`/api/v1/assets/${id}/publish`, { method: "POST" }),

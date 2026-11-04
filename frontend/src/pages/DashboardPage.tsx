@@ -93,8 +93,8 @@ const TOOL_GROUPS: ToolGroup[] = [
     tools: [
       { to: "/speech/tts", labelKey: "nav.tts", icon: "tts", hintKey: "studio.toolHints.tts" },
       { to: "/speech/asr", labelKey: "nav.asr", icon: "asr", hintKey: "studio.toolHints.asr" },
-      { to: "/speech/voices", labelKey: "nav.voices", icon: "voices", hintKey: "studio.toolHints.voices" },
-      { to: "/speech/music", labelKey: "nav.music", icon: "music", hintKey: "studio.toolHints.music" },
+      { to: "/resources/voices", labelKey: "nav.voices", icon: "voices", hintKey: "studio.toolHints.voices" },
+      { to: "/resources/music", labelKey: "nav.music", icon: "music", hintKey: "studio.toolHints.music" },
     ],
   },
 ];

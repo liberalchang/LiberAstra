@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { cn, formatStepName, readableText } from "@/lib/utils";
+import { jobKindLabel } from "@/lib/jobLabels";
 import { explainJobError } from "@/lib/jobError";
 import { useTx } from "@/i18n/tx";
 
@@ -22,25 +23,6 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 type JobFilter = "all" | "active" | "failed" | "done";
-
-const KIND_LABEL: Record<string, string> = {
-  "image.generate": "nav.imageGen",
-  "image.edit": "nav.imageEdit",
-  "video.quick": "nav.videoQuick",
-  "video.i2v": "nav.i2v",
-  "video.avatar": "nav.avatar",
-  "video.motion": "nav.motion",
-  "video.assets": "nav.videoAssets",
-  "video.assets.script": "jobs.script",
-  "canvas.node": "jobs.node",
-  "media.concat": "jobs.concat",
-  "tts.synthesize": "nav.tts",
-  "asr.transcribe": "nav.asr",
-  "vc.convert": "nav.vc",
-  "character.generate": "nav.characters",
-  "prompt.optimize": "nav.prompts",
-  "llm.chat": "jobs.chat",
-};
 
 const SUMMARY_KEYS = ["prompt", "text", "title", "topic", "script"];
 
@@ -124,7 +106,7 @@ export function JobsPage() {
         const canvasName = paramText(j.params, "canvas_name") || (canvasId ? canvasNames.get(canvasId) ?? "" : "");
         const node =
           paramText(j.params, "node_label") || paramText(j.params, "workflow") || paramText(j.params, "model");
-        const kindLabel = KIND_LABEL[j.kind] ? t(KIND_LABEL[j.kind]) : j.kind;
+        const kindLabel = jobKindLabel(j.kind, t);
         const title = canvasName ? `${canvasName} · ${node || kindLabel}` : kindLabel;
         const explained = j.error ? explainJobError(j.error) : null;
         return (

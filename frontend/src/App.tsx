@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/auth";
 const AsrPage = lazy(() => import("@/pages/AsrPage").then((m) => ({ default: m.AsrPage })));
 const VcPage = lazy(() => import("@/pages/VcPage").then((m) => ({ default: m.VcPage })));
 const AssetsPage = lazy(() => import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
+const AssetJobPage = lazy(() => import("@/pages/AssetJobPage").then((m) => ({ default: m.AssetJobPage })));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const CanvasListPage = lazy(() =>
   import("@/pages/CanvasListPage").then((m) => ({ default: m.CanvasEntryPage })),
@@ -73,8 +74,8 @@ export default function App() {
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
         <Route path="/speech/vc" element={<VcPage />} />
-        <Route path="/speech/voices" element={<VoicesPage />} />
-        <Route path="/speech/music" element={<MusicPage />} />
+        <Route path="/resources/voices" element={<VoicesPage />} />
+        <Route path="/resources/music" element={<MusicPage />} />
         <Route path="/image/generate" element={<ImageGenPage />} />
         <Route
           path="/image/edit"
@@ -109,14 +110,15 @@ export default function App() {
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/assets" element={<AssetsPage />} />
-        <Route path="/plugins" element={<PluginsPage />} />
+        <Route path="/assets/jobs/:jobId" element={<AssetJobPage />} />
+        <Route path="/settings/plugins" element={<PluginsPage />} />
         <Route path="/video/quick" element={<VideoQuickPage />} />
-        <Route path="/video/templates" element={<TemplatesPage />} />
+        <Route path="/settings/storyboard-templates" element={<TemplatesPage />} />
         <Route path="/video/assets" element={<VideoAssetsPage />} />
         <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />
         <Route path="/video/i2v" element={<VideoPackPage kind="i2v" />} />
         <Route path="/video/motion" element={<VideoPackPage kind="motion" />} />
-        <Route path="/video/characters" element={<CharactersPage />} />
+        <Route path="/resources/characters" element={<CharactersPage />} />
       </Route>
         <Route path="*" element={<HomeRedirect />} />
       </Routes>

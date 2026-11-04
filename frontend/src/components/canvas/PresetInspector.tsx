@@ -76,19 +76,6 @@ export function PresetInspector({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-sm font-medium">{d.presetTitle || item?.title}</p>
-        <select
-          className={selectClass}
-          value={d.presetId ?? ""}
-          aria-label={tx("切换功能")}
-          onChange={(event) => {
-            const next = (menu ?? []).find((row) => row.id === event.target.value);
-            if (next) apply(resolveSpec(next, specs ?? []), next);
-          }}
-        >
-          {(menu ?? []).map((row) => (
-            <option key={row.id} value={row.id}>{row.title}</option>
-          ))}
-        </select>
       </div>
       <Field label={tx("服务商")}>
         <select

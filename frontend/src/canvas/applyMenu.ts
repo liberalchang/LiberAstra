@@ -1,5 +1,5 @@
 /** 把画布菜单项落到节点上，并只补建还缺的前置输入。已有输入不删除。
- * CanvasPage 与属性面板切换功能时调用。
+ * CanvasPage 创建节点、PresetInspector 切换工作流/模型时调用。
  */
 
 import type { CanvasMenuItem, ExecutionSpec, ProviderOut, WorkflowPackOut } from "@/api/client";

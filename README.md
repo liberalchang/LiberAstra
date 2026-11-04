@@ -135,7 +135,7 @@ https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 - **图生视频**：首帧 + 提示词，走 `i2v`。内置 MiniMax H3 官方、越狱、越狱+提示词增强；另有 `i2v_ref` 多参考、`minimax_h3_orbit` 360° 环绕和 `minimax_h3_extender` 长视频包，可开 Turbo。
 - **动作迁移**：参考视频 + 目标图（内置两套 motion 工作流包）。
 - **视频增强**：侧栏「工具 → 视频增强」用 SeedVR2 对视频做修复和放大，保留原 fps 和音频。
-- **模板管理**：上传或覆盖分镜模板（`static_` / `image_` / `video_`）。
+- **分镜模板**：设置 → 分镜模板，上传或覆盖快速创作的分镜模板（`static_` / `image_` / `video_`）。
 
 ![快速创作](docs/images/video-quick.webp)
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.media.thumbs import (
@@ -20,7 +20,7 @@ from liberastra.media.thumbs import (
 )
 from liberastra.models import Asset, Job, User
 from liberastra.providers.base import ProviderError
-from liberastra.schemas.asset import AssetOut, AssetRenameIn
+from liberastra.schemas.asset import AssetJobOut, AssetOut, AssetRenameIn
 from liberastra.storage import resolve
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -52,8 +52,10 @@ def list_assets(
     user: CurrentUser,
     db: DbSession,
     kind: str | None = None,
+    job_id: str | None = None,
     job_kind: str | None = None,
     limit: int = 50,
+    offset: int = 0,
     include_hidden: bool = False,
 ) -> list[Asset]:
     stmt = select(Asset).where(Asset.owner_id == user.id).order_by(Asset.created_at.desc())
@@ -62,10 +64,75 @@ def list_assets(
     if kind:
         kinds = [k.strip() for k in kind.split(",") if k.strip()]
         stmt = stmt.where(Asset.kind.in_(kinds))
+    if job_id:
+        stmt = stmt.where(Asset.job_id == job_id)
     if job_kind:
         job_kinds = [k.strip() for k in job_kind.split(",") if k.strip()]
         stmt = stmt.join(Job, Asset.job_id == Job.id).where(Job.kind.in_(job_kinds))
-    return list(db.scalars(stmt.limit(min(limit, 200))).all())
+    return list(
+        db.scalars(
+            stmt.offset(max(0, offset)).limit(min(max(limit, 1), 200))
+        ).all()
+    )
+
+
+@router.get("/jobs", response_model=list[AssetJobOut])
+def list_asset_jobs(
+    user: CurrentUser,
+    db: DbSession,
+    job_kind: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[AssetJobOut]:
+    """素材库「工作」页签：按 job 聚合可见资源，不生成缩略图。"""
+    conditions = [
+        Asset.owner_id == user.id,
+        Asset.hidden.is_(False),
+        Job.owner_id == user.id,
+    ]
+    if job_kind:
+        kinds = [k.strip() for k in job_kind.split(",") if k.strip()]
+        if kinds:
+            conditions.append(Job.kind.in_(kinds))
+    stmt = (
+        select(
+            Job.id,
+            Job.kind,
+            Job.created_at,
+            func.count(Asset.id).label("asset_count"),
+        )
+        .join(Asset, Asset.job_id == Job.id)
+        .where(*conditions)
+        .group_by(Job.id, Job.kind, Job.created_at)
+        .order_by(Job.created_at.desc(), Job.id.desc())
+        .offset(max(0, offset))
+        .limit(min(max(limit, 1), 100))
+    )
+    rows = db.execute(stmt).all()
+    job_ids = [row[0] for row in rows]
+    kinds_by_job: dict[str, set[str]] = {}
+    if job_ids:
+        kind_rows = db.execute(
+            select(Asset.job_id, Asset.kind)
+            .where(
+                Asset.owner_id == user.id,
+                Asset.hidden.is_(False),
+                Asset.job_id.in_(job_ids),
+            )
+            .distinct()
+        ).all()
+        for row in kind_rows:
+            kinds_by_job.setdefault(row[0], set()).add(row[1])
+    return [
+        AssetJobOut(
+            job_id=row[0],
+            job_kind=row[1],
+            created_at=row[2],
+            asset_count=int(row[3]),
+            kinds=sorted(kinds_by_job.get(row[0], set())),
+        )
+        for row in rows
+    ]
 
 
 @router.post("/{asset_id}/publish", response_model=AssetOut)

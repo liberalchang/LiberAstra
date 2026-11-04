@@ -795,7 +795,7 @@ export const UI_EN: Record<string, string> = {
   "可选。填写参考音频里说的原话，克隆时更准确。": "Optional. The words spoken in the clip. Cloning is more accurate with it.",
   " · 含参考音频": " · has reference audio",
 
-  "模板管理": "Templates",
+  "分镜模板": "Storyboard Templates",
   "分镜模板决定快速创作的画面样式。模板是带 {{占位符}} 的 HTML 文件，文件名前缀标识类型。":
     "Storyboard templates set the look of Quick Create. A template is HTML with {{placeholders}}. The filename prefix sets the type.",
   "模板会被放进对应画幅的目录。": "Stored in the folder for this aspect.",
@@ -976,12 +976,12 @@ export const UI_EN: Record<string, string> = {
   "生成分镜后暂停，人工确认后再合成": "Pause after the storyboard for review",
   "勾选后只出脚本和分镜 JSON，可以在下方修改画面提示词，确认无误再合成视频。":
     "When checked, you only get the script and storyboard JSON. Edit the visual prompts below, then render.",
-  "分镜模板": "Storyboard template",
   "模板决定每镜的画面：静态样式纯排版、生成插图逐镜出图、生成视频逐镜出片段。":
     "The template sets each shot: a static layout, a generated still, or a generated clip.",
-  "当前画幅没有模板，请到「模板管理」上传。": "No template for this aspect. Upload one under Templates.",
-  "该模式下当前画幅没有模板，可到「模板管理」上传。":
-    "No template for this mode and aspect. Upload one under Templates.",
+  "管理模板": "Manage templates",
+  "当前画幅没有模板，请到「分镜模板」上传。": "No template for this aspect. Upload one under Storyboard Templates.",
+  "该模式下当前画幅没有模板，可到「分镜模板」上传。":
+    "No template for this mode and aspect. Upload one under Storyboard Templates.",
   "注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。":
     "Video mode runs a text-to-video workflow for every shot. {count} shots means about {count} video renders, so this takes a while.",
   "文字与字幕": "Text and subtitles",

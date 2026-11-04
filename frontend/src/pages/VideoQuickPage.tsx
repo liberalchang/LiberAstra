@@ -652,7 +652,12 @@ export function VideoQuickPage() {
       {/* ② 分镜模板 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />{tx("分镜模板")}</CardTitle>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2"><ImageIcon className="size-4" />{tx("分镜模板")}</span>
+            <Link to="/settings/storyboard-templates" className="text-xs font-normal text-primary underline-offset-4 hover:underline">
+              {tx("管理模板")}
+            </Link>
+          </CardTitle>
           <CardDescription>{tx("模板决定每镜的画面：静态样式纯排版、生成插图逐镜出图、生成视频逐镜出片段。")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -664,7 +669,7 @@ export function VideoQuickPage() {
             </select>
           </Field>
           {usableTemplates && usableTemplates.length === 0 && (
-            <p className="text-sm text-muted-foreground">{tx("当前画幅没有模板，请到「模板管理」上传。")}</p>
+            <p className="text-sm text-muted-foreground">{tx("当前画幅没有模板，请到「分镜模板」上传。")}</p>
           )}
           {/* 已选模板摘要：缩略图 + 名称 + 类型，默认折叠不占空间 */}
           {tpl && (
@@ -720,7 +725,7 @@ export function VideoQuickPage() {
                   ))}
               </div>
               {usableTemplates && !usableTemplates.some((t) => t.type === modeType) && (
-                <p className="text-sm text-muted-foreground">{tx("该模式下当前画幅没有模板，可到「模板管理」上传。")}</p>
+                <p className="text-sm text-muted-foreground">{tx("该模式下当前画幅没有模板，可到「分镜模板」上传。")}</p>
               )}
             </div>
           )}

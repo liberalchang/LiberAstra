@@ -81,7 +81,7 @@ export function CharacterInputPicker({
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="flex flex-col gap-3 text-sm text-muted-foreground">
               <p>{tx("角色库还是空的。")}</p>
-              <Link to="/video/characters" className="text-primary underline-offset-4 hover:underline" onClick={onClose}>
+              <Link to="/resources/characters" className="text-primary underline-offset-4 hover:underline" onClick={onClose}>
                 {tx("去角色库创建")}
               </Link>
             </div>

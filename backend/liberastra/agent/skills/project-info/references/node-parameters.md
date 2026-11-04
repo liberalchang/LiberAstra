@@ -19,6 +19,8 @@
 | `audioMode` | 数字人/动作迁移的声音来源 |
 | `bgmPath` / `bgmVolume` | 背景音乐，`bgm/<文件名>`，音量 0–1 |
 
+功能在创建时确定：`presetId` 已存在时，`canvas_apply_menu` 不能换功能，只能通过菜单允许的目标换工作流/模型；没有 `presetId` 但有 `pack` 或 `targetType/targetId` 的通用节点可以继续用 `canvas_apply_pack` 换工作流。语音节点的 `mode` 不能通过 `canvas_update_node` 修改。
+
 修改 `values` 时：
 
 1. `canvas_get_node_schema` 读出完整 `values`。

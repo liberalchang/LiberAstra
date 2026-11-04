@@ -8,9 +8,15 @@ import {
   type WorkflowInputSpec,
   type WorkflowPackOut,
 } from "@/api/client";
-import { applyMenuToNode, resolveSpec } from "@/canvas/applyMenu";
+import { applyMenuToNode, resolveSpec, specsForMenu } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { bindingSources, findNodeByVar } from "@/canvas/bindings";
+import {
+  canApplyMenu,
+  canApplyPack,
+  canEditSpeechField,
+  type BindingNode,
+} from "@/canvas/functionRules";
 import { layeredLayout } from "@/canvas/layout";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
 import type { CanvasNodeKind, MediaKind } from "@/canvas/types";
@@ -280,7 +286,6 @@ const EDITABLE_FIELDS: Record<string, string[]> = {
   ],
   concat: ["mediaKind", "order", "layout", "columns", "gap", "gapColor", "varName"],
   speech: [
-    "mode",
     "text",
     "providerId",
     "voiceRecordId",
@@ -483,11 +488,16 @@ export async function executeClientTool(
           .join("、");
         return fail(`功能菜单项不存在: ${wanted}。可用：${names}`);
       }
-      const canApply =
-        node.data.kind === "function" ||
-        (node.data.kind === "speech" && item.category === "speech");
-      if (!canApply) {
-        return fail("只有功能节点或语音节点可以套用功能菜单");
+      if (item.category === "speech" ? node.data.kind !== "speech" : node.data.kind !== "function") {
+        return fail("只有匹配的节点类型可以套用该功能菜单");
+      }
+      const binding = canApplyMenu(
+        node.data as unknown as BindingNode,
+        item.id,
+        item.sub_capability,
+      );
+      if (!binding.ok) {
+        return fail(binding.reason ?? "不能套用功能菜单");
       }
       const [specs, providers, packs] = await Promise.all([
         ctx.queryClient.ensureQueryData({
@@ -532,10 +542,31 @@ export async function executeClientTool(
         return fail("只有功能节点可以绑定工作流包");
       }
       const packName = String(args.pack ?? "");
-      const packs = await loadPacks(ctx.queryClient);
+      const [packs, menu, specs] = await Promise.all([
+        loadPacks(ctx.queryClient),
+        ctx.queryClient.ensureQueryData({
+          queryKey: ["canvas-menu"],
+          queryFn: () => api.getCanvasMenu(),
+        }),
+        ctx.queryClient.ensureQueryData({
+          queryKey: ["execution-specs"],
+          queryFn: () => api.executionSpecs(),
+        }),
+      ]);
       const pack = packs.find((item) => item.name === packName);
       if (!pack) {
         return fail(`工作流包不存在: ${packName}。先用 list_workflows 查可用包名。`);
+      }
+      const presetId = String((node.data as { presetId?: string }).presetId || "");
+      const item = menu.find((entry) => entry.id === presetId);
+      const allowed = item
+        ? specsForMenu(item, specs)
+            .filter((spec) => spec.target_type === "workflow")
+            .map((spec) => spec.target_id)
+        : [];
+      const binding = canApplyPack(node.data as unknown as BindingNode, pack.name, allowed);
+      if (!binding.ok) {
+        return fail(binding.reason ?? "不能绑定该工作流包");
       }
       const currentValues = (node.data as { values?: Record<string, string> }).values ?? {};
       const extra = extraDataPatch(args);
@@ -565,13 +596,13 @@ export async function executeClientTool(
       const patch = patchOf(args);
       if (!patch) return fail("patch 必须是对象");
       const { run: _run, ...safe } = patch;
-      if (
-        node.data.kind === "function" &&
-        ("pack" in safe || "outputKind" in safe)
-      ) {
+      if (node.data.kind === "function" && ("pack" in safe || "outputKind" in safe)) {
         return fail(
           "功能节点的 pack/outputKind 由 canvas_apply_menu 或 canvas_apply_pack 设置，不要直接改。",
         );
+      }
+      if (node.data.kind === "speech" && Object.keys(safe).some((key) => !canEditSpeechField(key))) {
+        return fail("语音节点的模式在创建时确定，不能切换");
       }
       store.batch(() => useCanvasStore.getState().updateNodeData(nodeId, safe));
       const connections = isRecord(safe.bindings)

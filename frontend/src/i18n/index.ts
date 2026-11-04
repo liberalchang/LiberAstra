@@ -38,7 +38,7 @@ const zh = {
     imageEnhance: "图片增强",
     videoEnhance: "视频增强",
     videoQuick: "快速创作",
-    templates: "模板管理",
+    templates: "分镜模板",
     videoAssets: "自定义素材",
     avatar: "数字人口播",
     i2v: "图生视频",
@@ -166,6 +166,8 @@ const zh = {
   assets: {
     title: "资产库",
     all: "全部",
+    work: "工作",
+    files: "个文件",
     image: "图片",
     audio: "音频",
     video: "视频",
@@ -174,7 +176,12 @@ const zh = {
     hint: "图片、音频、视频和字幕都收在这里。",
     includeHidden: "含画布中间结果",
     search: "搜索名称、提示词或时间",
+    searchJobs: "搜索任务类型或时间",
     noMatch: "没有匹配的资产",
+    jobAssets: "任务产物",
+    viewJob: "查看任务",
+    back: "返回素材库",
+    loadMore: "加载更多",
   },
 };
 
@@ -214,7 +221,7 @@ const en: typeof zh = {
     imageEnhance: "Image Enhance",
     videoEnhance: "Video Enhance",
     videoQuick: "Quick Create",
-    templates: "Templates",
+    templates: "Storyboard Templates",
     videoAssets: "Custom Assets",
     avatar: "Digital Human",
     i2v: "Image to Video",
@@ -342,6 +349,8 @@ const en: typeof zh = {
   assets: {
     title: "Asset Library",
     all: "All",
+    work: "Work",
+    files: "files",
     image: "Images",
     audio: "Audio",
     video: "Video",
@@ -350,7 +359,12 @@ const en: typeof zh = {
     hint: "Images, audio, video and subtitles live here.",
     includeHidden: "Include canvas drafts",
     search: "Search name, prompt, or time",
+    searchJobs: "Search task type or time",
     noMatch: "No matching assets",
+    jobAssets: "Task outputs",
+    viewJob: "View job",
+    back: "Back to assets",
+    loadMore: "Load more",
   },
 };
 

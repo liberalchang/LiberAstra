@@ -22,26 +22,26 @@ const EXPECTED_PATHS = [
   "/speech/tts",
   "/speech/asr",
   "/speech/vc",
-  "/speech/voices",
-  "/speech/music",
   "/video/quick",
   "/video/avatar",
   "/video/i2v",
   "/video/motion",
   "/video/assets",
-  "/video/templates",
-  "/video/characters",
   "/tools/image-concat",
   "/tools/video-concat",
   "/tools/audio-concat",
   "/tools/image-enhance",
   "/tools/video-enhance",
   "/assets",
-  "/plugins",
+  "/resources/characters",
+  "/resources/voices",
+  "/resources/music",
   "/jobs",
   "/settings",
   "/settings/workflows",
   "/settings/prompts",
+  "/settings/storyboard-templates",
+  "/settings/plugins",
   "/settings/system",
   "/docs",
   "/dev/cli",
@@ -102,15 +102,34 @@ test("画布是一级直达项，紧跟在总览之后", () => {
   assert.equal(NAV_ENTRIES[1].kind, "link");
 });
 
-test("视频生成组中自定义素材排在动作迁移之后", () => {
+test("视频生成组只剩创作动作，模板和角色已移出", () => {
   const video = findGroup("video");
   assert.deepEqual(
-    video.sections[0].items.map((item) => item.to),
+    video.sections.flatMap((section) => section.items.map((item) => item.to)),
     ["/video/quick", "/video/avatar", "/video/i2v", "/video/motion", "/video/assets"],
   );
+});
+
+test("资源组收纳素材、角色、音色和音乐", () => {
+  const resources = findGroup("resources");
   assert.deepEqual(
-    video.sections[1].items.map((item) => item.to),
-    ["/video/templates", "/video/characters"],
+    resources.sections.flatMap((section) => section.items.map((item) => item.to)),
+    ["/assets", "/resources/characters", "/resources/voices", "/resources/music"],
+  );
+});
+
+test("设置组包含模板和插件", () => {
+  const settings = findGroup("settings");
+  assert.deepEqual(
+    settings.sections.flatMap((section) => section.items.map((item) => item.to)),
+    [
+      "/settings",
+      "/settings/workflows",
+      "/settings/prompts",
+      "/settings/storyboard-templates",
+      "/settings/plugins",
+      "/settings/system",
+    ],
   );
 });
 
@@ -168,10 +187,14 @@ test("分组与子项激活规则", () => {
   assert.equal(activeLeaf("/image/edit")?.labelKey, "nav.imageEdit");
   assert.equal(activeGroupId("/speech/tts"), "speech");
   assert.equal(activeLeaf("/speech/tts")?.labelKey, "nav.tts");
+  assert.equal(activeGroupId("/resources/voices"), "resources");
+  assert.equal(activeLeaf("/resources/voices")?.labelKey, "nav.voices");
   assert.equal(activeGroupId("/video/i2v"), "video");
   assert.equal(activeLeaf("/video/i2v")?.labelKey, "nav.i2v");
   assert.equal(activeGroupId("/settings"), "settings");
   assert.equal(activeLeaf("/settings")?.labelKey, "nav.providers");
+  assert.equal(activeLeaf("/settings/storyboard-templates")?.labelKey, "nav.templates");
+  assert.equal(activeLeaf("/settings/plugins")?.labelKey, "nav.plugins");
   assert.equal(activeLeaf("/settings/system")?.labelKey, "nav.system");
   assert.equal(activeGroupId("/jobs"), null);
   assert.equal(activeGroupId("/docs"), null);

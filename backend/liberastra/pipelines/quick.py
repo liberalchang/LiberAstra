@@ -168,7 +168,7 @@ def resolve_quick_template(name: str, aspect: str) -> TemplateInfo:
         items = list_templates(aspect, type_)
         if items:
             return items[0]
-    raise ProviderError(f"没有 {aspect} 画幅的分镜模板，请到「模板管理」上传")
+    raise ProviderError(f"没有 {aspect} 画幅的分镜模板，请到「分镜模板」上传")
 
 
 def _image_data_uri(filename: str, content: bytes) -> str:

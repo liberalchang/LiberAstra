@@ -275,15 +275,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _fn(
         "canvas_apply_menu",
-        "给空白功能节点或语音节点套用功能菜单项（优先）。先用 list_canvas_menu 找 menu_id；"
-        "功能菜单会解析到已启用的工作流或支持模型，语音菜单会把 speech 节点切到 tts/asr/vc。"
+        "给空白功能节点或空白语音节点做首次功能绑定（优先）。先用 list_canvas_menu 找 menu_id；"
+        "功能在创建时确定：已有 presetId 的节点不能再换功能，语音节点也不能换 mode，需要换功能时新建节点。"
         "已有上游时用 bindings 传槽位→变量名，避免自动补建空输入节点。没有合适菜单时再用 canvas_apply_pack。",
         {"node_id": _STR, "menu_id": _STR, "data": _OBJ, "bindings": _OBJ},
         ["node_id", "menu_id"],
     ),
     _fn(
         "canvas_apply_pack",
-        "没有合适功能菜单时，把工作流包绑定到空白功能节点。先用 list_workflows 找包名。",
+        "没有合适功能菜单时，把工作流包绑定到空白功能节点；这样得到没有 presetId 的通用节点。"
+        "已有功能节点只能换当前功能允许的工作流，不能跨功能。先用 list_workflows 找包名。",
         {"node_id": _STR, "pack": _STR, "data": _OBJ, "bindings": _OBJ},
         ["node_id", "pack"],
     ),
@@ -291,8 +292,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "canvas_update_node",
         "修改节点数据。patch 是节点 data 的部分字段，例如 prompt、varName、text、values。"
         "input 节点可用 patch.assetId 绑定资源，assetName 同步写。"
-        "语音节点 mode=vc 时可写 voiceRecordId、providerId、model、separateBgm、subtitleAssetId、"
-        "burnSubtitles、subtitleSize、subtitleColor、format。"
+        "语音节点可写 voiceRecordId、providerId、model、separateBgm、subtitleAssetId、"
+        "burnSubtitles、subtitleSize、subtitleColor、format，但不能改 mode。"
         "功能节点的 pack/outputKind 由 canvas_apply_menu 或 canvas_apply_pack 设置，不要直接改。",
         {"node_id": _STR, "patch": _OBJ},
         ["node_id", "patch"],

@@ -16,8 +16,8 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 1. `canvas_get_graph` 看现状，确认已有节点、变量名和连线。
 2. 需要功能入口时 `list_canvas_menu`，看用户菜单里启用项、可用目标和默认目标；需要工作流槽位时 `list_workflows`。
 3. 功能节点先保持空白创建：`canvas_add_node` 的 `kind=function`，不要传 `pack`、`outputKind` 或 `menu`。
-4. 优先用 `canvas_apply_menu` 套用功能菜单项（例如 `preset_t2i`、`preset_i2i`），它会自动解析到已启用的工作流或支持模型。已经有上游节点时，把槽位→变量名写进 `bindings`；工具会自动补上游连线，并返回 `created_edges` / `missing_bindings`。`bindings` 只选槽，不能替代连线。
-5. 没有合适功能菜单时，再用 `list_workflows` 找包名，并用 `canvas_apply_pack` 绑定工作流。仍没有目标时问用户，不要猜一个包。
+4. 优先用 `canvas_apply_menu` 套用功能菜单项（例如 `preset_t2i`、`preset_i2i`），它会自动解析到已启用的工作流或支持模型。**功能在创建时确定**：`canvas_apply_menu` 只用于没有 `presetId`、没有 `pack/target` 的空白节点做首次绑定；已有功能的节点不能再换功能，需要换功能时新建节点。已经有上游节点时，把槽位→变量名写进 `bindings`；工具会自动补上游连线，并返回 `created_edges` / `missing_bindings`。`bindings` 只选槽，不能替代连线。
+5. 没有合适功能菜单时，再用 `list_workflows` 找包名，并用 `canvas_apply_pack` 绑定工作流；这样创建的是没有 `presetId` 的通用节点。仍没有目标时问用户，不要猜一个包。已有功能节点只能在当前功能允许的目标里换工作流/模型，不能借 `canvas_apply_pack` 跨功能。
 6. 套好目标后先用 `canvas_get_node_schema` 读输入槽、参数规格和完整 `values`，再 `canvas_update_node` 写 prompt、变量名、`bindings` 和整份 `values`，然后 `canvas_connect`。
 7. 生成前说明会跑哪些节点，等用户确认后 `canvas_run_nodes`。
 
@@ -48,7 +48,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 
 ## 音色替换（vc）
 
-- 建节点：`canvas_add_node(kind="speech", data={mode:"vc"})`，或 `kind="vc"`。
+- 建节点：`canvas_add_node(kind="speech", data={mode:"vc"})`，或 `kind="vc"`。语音模式在创建时确定，已有语音节点不能改 mode。
 - `list_canvas_menu` 找「音色替换」项（`sub_capability=vc`），用 `canvas_apply_menu` 套用；没有菜单项时用 `canvas_update_node` 直接写 `providerId`、`model`、`voiceRecordId`。
 - 音色必须有参考音频；`voiceRecordId` 必填。
 - 上游连音频或视频。输出类型随输入：音频出音频，视频出视频（另有音频和字幕产物）。
@@ -59,6 +59,8 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 
 - 不要用同一个变量名重复建节点；工具会复用或拒绝，先看返回值。
 - 不要直接给功能节点写 `pack` 或 `outputKind`，必须走 `canvas_apply_menu` / `canvas_apply_pack`，否则会绕过功能菜单和自动补建输入。
+- 已有 `presetId` 的节点不能再用 `canvas_apply_menu` 换成另一个功能；要换功能就新建节点。`canvas_update_node` 也不能改 speech 的 `mode`。
+- 没有 `presetId`、但已有 `pack` 或 `targetType/targetId` 的通用节点可以继续用 `canvas_apply_pack` 换工作流；它没有功能菜单约束，不能再套菜单。
 - 执行拼接节点时只传拼接节点 id；不要为了“保险”把上游关键帧节点一起传，否则会重新提交上游任务。
 - 连线被拒绝通常是自环、重复边、成环或目标节点没有输入口；先检查节点类型。
 - 图片拼接节点只收同类型媒体；产物类型未知时先完成上游节点。

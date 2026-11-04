@@ -22,7 +22,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { api, type AssetOut, type WorkflowInputSpec, type WorkflowPackOut } from "@/api/client";
-import { applyMenuToNode, providerForSpec, resolveSpec, specsForMenu, speechFieldsFromSpec, speechSpecSelected } from "@/canvas/applyMenu";
+import { providerForSpec, resolveSpec, specsForMenu, speechFieldsFromSpec, speechSpecSelected } from "@/canvas/applyMenu";
+import { functionNodeTitle } from "@/canvas/functionRules";
 import { PresetInspector } from "@/components/canvas/PresetInspector";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { scopeOf, validateCanvas } from "@/canvas/preflight";
@@ -126,7 +127,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** 节点展示名（槽位下拉里带来源）。 */
 function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
   const d = node.data;
-  if (d.kind === "function") return d.pack || tx("功能节点");
+  if (d.kind === "function") return functionNodeTitle(d, tx("通用节点"));
   if (d.kind === "concat")
     return d.mediaKind === "audio"
       ? tx("音频拼接")
@@ -818,9 +819,7 @@ function FunctionInspector({
   const store = useCanvasStore();
   const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm, staleTime: 60_000 });
   const providerId = useComfyProviderId();
-  const { data: menu } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
   const { data: specs } = useQuery({ queryKey: ["execution-specs"], queryFn: () => api.executionSpecs() });
-  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: api.listProviders });
   const { data: allPacks } = useQuery({
     queryKey: ["workflows"],
     queryFn: () => api.listWorkflows(),
@@ -898,30 +897,11 @@ function FunctionInspector({
     <>
       {d.presetId ? (
         <PresetInspector node={node} onFlash={onFlash} />
-      ) : (
-        <section className="flex flex-col gap-3">
-          <SectionLabel>{tx("功能")}</SectionLabel>
-          <Field label={tx("功能")} hint={tx("选中后按该功能补建还缺的输入，已有输入不会删除")}>
-            <select
-              className={selectClass}
-              value=""
-              onChange={(event) => {
-                const next = (menu ?? []).find((row) => row.id === event.target.value);
-                if (!next) return;
-                const created = applyMenuToNode(node.id, next, resolveSpec(next, specs ?? []), providers ?? [], allPacks ?? []);
-                if (created > 0) onFlash(tx("已补建 {n} 个输入节点", { n: created }));
-              }}
-            >
-              <option value="">{tx("选择功能…")}</option>
-              {(menu ?? []).map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </section>
-      )}
+      ) : !d.pack && !d.targetId ? (
+        <p className="text-sm text-muted-foreground">
+          {tx("该节点未绑定执行目标，请从菜单新建节点。")}
+        </p>
+      ) : null}
 
       {pack && (
         <>
@@ -1109,7 +1089,7 @@ function FunctionInspector({
         </>
       )}
 
-      {d.presetId && !pack && d.subCapability !== "analysis" && d.subCapability !== "video_analysis" && (
+      {(d.presetId || d.targetId) && !pack && d.subCapability !== "analysis" && d.subCapability !== "video_analysis" && (
         <PromptField
           label={tx("提示词")}
           value={{
@@ -1135,7 +1115,7 @@ function FunctionInspector({
           minRowsClass="min-h-20"
         />
       )}
-      {d.presetId && !pack && currentSpec && Object.keys(currentSpec.inputs).length > 0 && (
+      {(d.presetId || d.targetId) && !pack && currentSpec && Object.keys(currentSpec.inputs).length > 0 && (
         d.subCapability === "analysis" || d.subCapability === "video_analysis" ? (
           <section className="flex flex-col gap-3">
             <SectionLabel>{tx("参数")}</SectionLabel>
@@ -1881,12 +1861,6 @@ export function NodeInspector({
 }) {
   const tx = useTx();
   if (!node) return null;
-  const titles: Record<string, string> = {
-    input: tx("输入节点"),
-    function: tx("功能节点"),
-    concat: tx("工具节点"),
-    speech: tx("语音节点"),
-  };
   const icons: Record<string, React.ReactNode> = {
     input: <FolderOpen className="size-4" />,
     function: <Zap className="size-4" />,
@@ -1908,7 +1882,7 @@ export function NodeInspector({
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
           {icons[node.data.kind]}
         </span>
-        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{titles[node.data.kind]}</h3>
+        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{nodeTitle(node, tx)}</h3>
         <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
           {tx(statusLabel[node.data.run.status] ?? node.data.run.status)}
         </span>

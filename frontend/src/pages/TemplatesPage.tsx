@@ -68,7 +68,7 @@ export function TemplatesPage() {
       <PageHeader
         kind="templates"
         icon={LayoutTemplate}
-        title={tx("模板管理")}
+        title={tx("分镜模板")}
         description={tx("分镜模板决定快速创作的画面样式。模板是带 {{占位符}} 的 HTML 文件，文件名前缀标识类型。")}
       />
 

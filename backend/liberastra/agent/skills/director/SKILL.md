@@ -83,9 +83,9 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 功能节点先空白创建（`canvas_add_node` 的 `kind=function`，不传 `pack`/`outputKind`/`menu`），再用：
 
 1. `list_canvas_menu` 找对应功能入口（文生图 `preset_t2i`、图生图 `preset_i2i`）。
-2. `canvas_apply_menu` 套用菜单，让它解析到已启用工作流或支持模型。
-3. 没有合适菜单时 `list_workflows` + `canvas_apply_pack`；仍没有目标就问用户，不要猜包。
-4. 用 `canvas_get_node_schema` 读目标参数规格，写 prompt、变量名和 `bindings`。
+2. `canvas_apply_menu` 套用菜单，让它解析到已启用工作流或支持模型。**功能在创建时确定**：这个工具只用于空白节点的首次绑定；已有 `presetId` 的节点不能换功能，要换功能就新建节点。
+3. 没有合适菜单时 `list_workflows` + `canvas_apply_pack`，创建没有 `presetId` 的通用节点；仍没有目标就问用户，不要猜包。已有功能节点只能在当前功能允许的目标里换工作流，不能跨功能。
+4. 用 `canvas_get_node_schema` 读目标参数规格，写 prompt、变量名和 `bindings`。`canvas_update_node` 不能改 speech 的 `mode`。
 5. `bindings` 只决定多个上游如何填槽，媒体依赖仍必须有真实连线。`canvas_apply_menu` / `canvas_apply_pack` 会自动补边；返回的 `created_edges` 应包含参考变量。`missing_bindings` 非空时先 `canvas_connect` 补线，再继续。
 
 ### 关键帧/参考图的控制与增强（可选）
