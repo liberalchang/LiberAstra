@@ -1056,3 +1056,12 @@ export async function fetchBgmBlob(name: string): Promise<Blob> {
   if (!resp.ok) throw new ApiError(resp.status, `加载音乐失败: ${resp.statusText}`);
   return resp.blob();
 }
+
+/** 带鉴权获取音色库参考音频（audio 标签无法带 Authorization 头）。 */
+export async function fetchVoiceRefBlob(voiceId: number): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(`/api/v1/voices/${voiceId}/ref-audio`, { headers });
+  if (!resp.ok) throw new ApiError(resp.status, `加载参考音频失败: ${resp.statusText}`);
+  return resp.blob();
+}

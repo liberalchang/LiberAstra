@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import mimetypes
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 
 from liberastra.api.deps import CurrentUser, DbSession
@@ -68,6 +71,22 @@ def set_default_voice(voice_id: int, user: CurrentUser, db: DbSession) -> Voice:
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get("/{voice_id}/ref-audio")
+def voice_ref_audio(voice_id: int, user: CurrentUser, db: DbSession) -> FileResponse:
+    record = _get_owned(db, voice_id, user)
+    if not record.ref_audio_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音色没有参考音频")
+    try:
+        path = resolve(record.ref_audio_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="参考音频文件不存在")
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    filename = f"{Path(record.name).name or 'voice'}{path.suffix}"
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @router.delete("/{voice_id}", status_code=status.HTTP_204_NO_CONTENT)

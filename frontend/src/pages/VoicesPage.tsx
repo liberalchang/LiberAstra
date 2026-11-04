@@ -1,16 +1,42 @@
-import { Library } from "lucide-react";
-import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Star, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Library, Star, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { api } from "@/api/client";
+import { api, fetchVoiceRefBlob } from "@/api/client";
+import { PageHeader } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { useTx } from "@/i18n/tx";
+
+/** 参考音频试听：带鉴权拉 blob 后交给 audio 标签。 */
+function VoiceRefPlayer({ voiceId }: { voiceId: number }) {
+  const tx = useTx();
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let url: string | null = null;
+    let alive = true;
+    setSrc(null);
+    setFailed(false);
+    fetchVoiceRefBlob(voiceId)
+      .then((blob) => {
+        if (!alive) return;
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      })
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [voiceId]);
+  if (failed) return <span className="text-xs text-danger">{tx("加载失败")}</span>;
+  if (!src) return <span className="text-xs text-muted-foreground">{tx("加载中…")}</span>;
+  return <audio controls preload="none" src={src} className="h-9 w-full" />;
+}
 
 export function VoicesPage() {
   const tx = useTx();
@@ -127,6 +153,11 @@ export function VoicesPage() {
                   {v.ref_audio_path ? tx(" · 含参考音频") : ""}
                 </div>
               </div>
+              {v.ref_audio_path && (
+                <div className="w-56 shrink-0">
+                  <VoiceRefPlayer voiceId={v.id} />
+                </div>
+              )}
               <Button variant="outline" size="sm" onClick={() => setDefault.mutate(v.id)} disabled={v.is_default}>
                 <Star /> {tx('设为默认')}
               </Button>

@@ -230,7 +230,24 @@ def test_voice_library_crud(client: TestClient, auth_header: dict[str, str]) -> 
     listing = client.get("/api/v1/voices", headers=auth_header).json()
     assert any(v["id"] == voice["id"] for v in listing)
 
+    audio = client.get(f"/api/v1/voices/{voice['id']}/ref-audio", headers=auth_header)
+    assert audio.status_code == 200
+    assert audio.content == b"RIFFreference"
+    assert audio.headers["content-type"].startswith("audio/")
+
     assert client.delete(f"/api/v1/voices/{voice['id']}", headers=auth_header).status_code == 204
+
+
+def test_voice_ref_audio_requires_file(client: TestClient, auth_header: dict[str, str]) -> None:
+    voice = client.post(
+        "/api/v1/voices",
+        data={"name": "无参考音频"},
+        headers=auth_header,
+    ).json()
+
+    resp = client.get(f"/api/v1/voices/{voice['id']}/ref-audio", headers=auth_header)
+
+    assert resp.status_code == 404
 
 
 def test_tts_with_voice_record(
