@@ -35,7 +35,7 @@ export function ConfirmDialog({
     >
       <div className="flex flex-col gap-4 p-5">
         <h2 className="text-base font-medium">{title}</h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">{message}</p>
+        <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{message}</p>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>

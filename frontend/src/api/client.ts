@@ -786,11 +786,12 @@ export const api = {
     requestBlob(`/api/v1/characters/${id}/image/${slot}`),
   registerCharacterAsset: (id: number, slot: string) =>
     request<AssetOut>(`/api/v1/characters/${id}/asset/${slot}`, { method: "POST" }),
-  listAssets: (kind?: string, includeHidden?: boolean, jobFunction?: string) => {
+  listAssets: (kind?: string, includeHidden?: boolean, jobFunction?: string, hiddenOnly?: boolean) => {
     const qs = [
       kind && `kind=${encodeURIComponent(kind)}`,
       includeHidden && "include_hidden=true",
       jobFunction && `job_function=${encodeURIComponent(jobFunction)}`,
+      hiddenOnly && "hidden_only=true",
     ]
       .filter(Boolean)
       .join("&");
@@ -814,6 +815,21 @@ export const api = {
     request<{ url: string }>(`/api/v1/assets/${id}/download-token`, { method: "POST" }).then(
       (result) => result.url,
     ),
+  getAssetsDownloadUrl: (assetIds: number[]) =>
+    request<{ url: string }>("/api/v1/assets/selection/download-token", {
+      method: "POST",
+      body: JSON.stringify({ asset_ids: assetIds }),
+    }).then((result) => result.url),
+  publishAssets: (assetIds: number[]) =>
+    request<{ assets: number }>("/api/v1/assets/publish", {
+      method: "POST",
+      body: JSON.stringify({ asset_ids: assetIds }),
+    }),
+  deleteAssets: (assetIds: number[]) =>
+    request<{ assets: number }>("/api/v1/assets/delete", {
+      method: "POST",
+      body: JSON.stringify({ asset_ids: assetIds }),
+    }),
   getAssetJobsDownloadUrl: (jobIds: string[]) =>
     request<{ url: string }>("/api/v1/assets/jobs/download-token", {
       method: "POST",

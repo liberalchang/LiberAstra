@@ -35,23 +35,35 @@ export function AssetsPage() {
   const [jobLimit, setJobLimit] = useState(24);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState<"download" | "delete" | null>(null);
+  const [selectedAssets, setSelectedAssets] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<"download" | "delete" | "import" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmAssetDelete, setConfirmAssetDelete] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const isWork = tab === "work";
+  const isHidden = tab === "hidden";
   const setTab = (value: string) => {
     setSearchParams(value ? { tab: value } : {}, { replace: true });
     setSelectionMode(false);
     setSelectedJobs(new Set());
+    setSelectedAssets(new Set());
+    setConfirmDelete(false);
+    setConfirmAssetDelete(false);
     setBulkError(null);
   };
 
   const { data: assets } = useQuery({
     queryKey: ["assets", tab, showHidden],
-    queryFn: () => api.listAssets(tab && !isWork ? tab : undefined, showHidden),
+    queryFn: () =>
+      api.listAssets(
+        tab && !isWork && !isHidden ? tab : undefined,
+        isHidden ? true : showHidden,
+        undefined,
+        isHidden,
+      ),
     enabled: !isWork,
   });
   const { data: jobs } = useQuery({
@@ -128,11 +140,16 @@ export function AssetsPage() {
       .includes(needle);
   });
   const selectedJobRows = (jobs ?? []).filter((job) => selectedJobs.has(job.job_id));
-  const selectedAssetCount = selectedJobRows.reduce((sum, job) => sum + job.asset_count, 0);
+  const selectedJobAssetCount = selectedJobRows.reduce((sum, job) => sum + job.asset_count, 0);
+  const selectedAssetRows = (assets ?? []).filter((asset) => selectedAssets.has(asset.id));
+  const selectedHiddenAssets = selectedAssetRows.some((asset) => asset.hidden);
 
   useEffect(() => {
     setSelectionMode(false);
     setSelectedJobs(new Set());
+    setSelectedAssets(new Set());
+    setConfirmDelete(false);
+    setConfirmAssetDelete(false);
     setBulkError(null);
   }, [tab]);
 
@@ -145,6 +162,16 @@ export function AssetsPage() {
       return next.size === previous.size ? previous : next;
     });
   }, [isWork, jobs]);
+
+  useEffect(() => {
+    if (isWork || !assets) return;
+    setSelectedAssets((previous) => {
+      const next = new Set(
+        [...previous].filter((assetId) => assets.some((asset) => asset.id === assetId)),
+      );
+      return next.size === previous.size ? previous : next;
+    });
+  }, [isWork, assets]);
 
   useEffect(() => {
     if (!notice) return;
@@ -165,11 +192,27 @@ export function AssetsPage() {
   const exitSelection = () => {
     setSelectionMode(false);
     setSelectedJobs(new Set());
+    setSelectedAssets(new Set());
     setBulkError(null);
   };
 
   const selectAllJobs = () => {
     setSelectedJobs(new Set(visibleJobs.map((job) => job.job_id)));
+    setBulkError(null);
+  };
+
+  const toggleAsset = (assetId: number) => {
+    setSelectedAssets((previous) => {
+      const next = new Set(previous);
+      if (next.has(assetId)) next.delete(assetId);
+      else next.add(assetId);
+      return next;
+    });
+    setBulkError(null);
+  };
+
+  const selectAllAssets = () => {
+    setSelectedAssets(new Set(visible.map((asset) => asset.id)));
     setBulkError(null);
   };
 
@@ -213,6 +256,64 @@ export function AssetsPage() {
     }
   };
 
+  const downloadSelectedAssets = async () => {
+    if (!selectedAssets.size) return;
+    setBulkBusy("download");
+    setBulkError(null);
+    setNotice(t("assets.downloadStarted"));
+    try {
+      const url = await api.getAssetsDownloadUrl([...selectedAssets]);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "liberastra-assets.zip";
+      anchor.click();
+    } catch (error) {
+      setNotice(null);
+      setBulkError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  const deleteSelectedAssets = async () => {
+    if (!selectedAssets.size) return;
+    setBulkBusy("delete");
+    setBulkError(null);
+    try {
+      const result = await api.deleteAssets([...selectedAssets]);
+      setConfirmAssetDelete(false);
+      exitSelection();
+      setNotice(t("assets.bulkAssetDeleted", { assets: result.assets }));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["assets"] }),
+        queryClient.invalidateQueries({ queryKey: ["asset-jobs"] }),
+      ]);
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  const importSelectedAssets = async () => {
+    if (!selectedAssets.size) return;
+    setBulkBusy("import");
+    setBulkError(null);
+    try {
+      const result = await api.publishAssets([...selectedAssets]);
+      exitSelection();
+      setNotice(t("assets.imported", { assets: result.assets }));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["assets"] }),
+        queryClient.invalidateQueries({ queryKey: ["asset-jobs"] }),
+      ]);
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
   return (
     <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader kind="library" icon={FolderOpen} title={t("assets.title")} description={t("assets.hint")} />
@@ -240,8 +341,19 @@ export function AssetsPage() {
             {t(`assets.${k}`)}
           </Button>
         ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setTab("hidden")}
+          className={cn(
+            "border-danger/40 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger",
+            isHidden && "border-danger bg-danger text-white hover:bg-danger hover:text-white",
+          )}
+        >
+          {t("assets.hidden")}
+        </Button>
         <div className="ml-auto flex items-center gap-3">
-          {!isWork && (
+          {!isWork && !isHidden && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <input
                 type="checkbox"
@@ -310,8 +422,66 @@ export function AssetsPage() {
           )}
         </div>
       )}
+      {!isWork && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2">
+          {!selectionMode ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectionMode(true)}
+                disabled={!assets?.length}
+              >
+                <CheckSquare /> {t("assets.select")}
+              </Button>
+              <span className="text-xs text-muted-foreground">{t("assets.selectHintAssets")}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-medium">
+                {t("assets.selected", { n: selectedAssets.size })}
+              </span>
+              <Button size="sm" variant="ghost" onClick={selectAllAssets} disabled={!visible.length}>
+                {t("assets.selectAllLoaded")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void downloadSelectedAssets()}
+                disabled={!selectedAssets.size || bulkBusy !== null}
+              >
+                {bulkBusy === "download" ? <Loader2 className="animate-spin" /> : <Download />}
+                {t("common.download")}
+              </Button>
+              {isHidden && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void importSelectedAssets()}
+                  disabled={!selectedAssets.size || bulkBusy !== null}
+                >
+                  {bulkBusy === "import" ? <Loader2 className="animate-spin" /> : <FolderPlus />}
+                  {t("assets.importToLibrary")}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-danger"
+                onClick={() => setConfirmAssetDelete(true)}
+                disabled={!selectedAssets.size || bulkBusy !== null}
+              >
+                <Trash2 /> {t("common.delete")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={exitSelection} disabled={bulkBusy !== null}>
+                {t("common.cancel")}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
       {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
-      {bulkError && !confirmDelete && <p role="alert" className="text-sm text-danger">{bulkError}</p>}
+      {bulkError && !confirmDelete && !confirmAssetDelete && <p role="alert" className="text-sm text-danger">{bulkError}</p>}
       {uploadError && <p role="alert" className="text-sm text-danger">{uploadError}</p>}
 
       {isWork ? (
@@ -382,7 +552,11 @@ export function AssetsPage() {
         </>
       ) : (
         <>
-          {assets?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
+          {assets?.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {isHidden ? t("assets.noHidden") : t("common.empty")}
+            </p>
+          )}
           {assets && assets.length > 0 && visible.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("assets.noMatch")}</p>
           )}
@@ -391,22 +565,48 @@ export function AssetsPage() {
               const custom = assetCustomName(a.meta);
               const summary = assetSummary(a.meta);
               const title = custom ?? formatTime(a.created_at);
+              const checked = selectedAssets.has(a.id);
               return (
-                <Card key={a.id}>
+                <Card
+                  key={a.id}
+                  className={cn(
+                    "relative transition-colors",
+                    selectionMode && "cursor-pointer hover:border-primary/50",
+                    checked && "border-primary bg-primary/5",
+                  )}
+                  onClick={selectionMode ? () => toggleAsset(a.id) : undefined}
+                >
+                  {selectionMode && (
+                    <label
+                      className="absolute left-2 top-2 z-10 grid size-6 place-items-center rounded-md bg-card/90"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAsset(a.id)}
+                        aria-label={`${t("assets.select")} ${title}`}
+                      />
+                    </label>
+                  )}
                   <CardContent className="flex flex-col gap-2 p-3">
                     <button
                       type="button"
-                      onClick={() => openPreview(a)}
+                      onClick={() => {
+                        if (!selectionMode) openPreview(a);
+                      }}
                       className="group relative block w-full overflow-hidden rounded-lg"
-                      title={t("common.preview")}
+                      title={selectionMode ? t("assets.select") : t("common.preview")}
                     >
                       <div className="aspect-video w-full overflow-hidden bg-muted/50">
                         <MediaThumb assetId={a.id} kind={a.kind} className="h-full w-full object-cover" />
                       </div>
-                      <span className="absolute inset-0 grid place-items-center gap-1 rounded-lg bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
-                        <Eye className="size-6 drop-shadow" />
-                        <span className="text-xs font-medium drop-shadow">{t("common.preview")}</span>
-                      </span>
+                      {!selectionMode && (
+                        <span className="absolute inset-0 grid place-items-center gap-1 rounded-lg bg-black/0 text-white opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+                          <Eye className="size-6 drop-shadow" />
+                          <span className="text-xs font-medium drop-shadow">{t("common.preview")}</span>
+                        </span>
+                      )}
                     </button>
                     <div className="min-w-0">
                       <div className="truncate text-sm" title={title}>
@@ -426,33 +626,35 @@ export function AssetsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Button variant="outline" size="sm" onClick={() => openPreview(a)} aria-label={t("common.preview")}>
-                        <Eye /> {t("common.preview")}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadAssetById(a.id, assetDownloadName(a))}
-                        aria-label={t("common.download")}
-                      >
-                        <Download /> {t("common.download")}
-                      </Button>
-                      {a.hidden && (
+                    {!selectionMode && (
+                      <div className="flex flex-wrap gap-1">
+                        <Button variant="outline" size="sm" onClick={() => openPreview(a)} aria-label={t("common.preview")}>
+                          <Eye /> {t("common.preview")}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => publish.mutate(a.id)}
-                          disabled={publish.isPending}
-                          aria-label={`${t("assets.publish")} ${title}`}
+                          onClick={() => downloadAssetById(a.id, assetDownloadName(a))}
+                          aria-label={t("common.download")}
                         >
-                          <FolderPlus /> {t("assets.publish")}
+                          <Download /> {t("common.download")}
                         </Button>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => remove.mutate(a.id)} aria-label={t("common.delete")}>
-                        <Trash2 /> {t("common.delete")}
-                      </Button>
-                    </div>
+                        {a.hidden && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => publish.mutate(a.id)}
+                            disabled={publish.isPending}
+                            aria-label={`${t("assets.publish")} ${title}`}
+                          >
+                            <FolderPlus /> {t("assets.publish")}
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => remove.mutate(a.id)} aria-label={t("common.delete")}>
+                          <Trash2 /> {t("common.delete")}
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -466,7 +668,7 @@ export function AssetsPage() {
           title={t("assets.bulkDeleteTitle")}
           message={t("assets.bulkDeleteMessage", {
             jobs: selectedJobs.size,
-            assets: selectedAssetCount,
+            assets: selectedJobAssetCount,
           })}
           confirmLabel={t("common.delete")}
           danger
@@ -476,6 +678,27 @@ export function AssetsPage() {
           onClose={() => {
             if (bulkBusy === "delete") return;
             setConfirmDelete(false);
+            setBulkError(null);
+          }}
+        />
+      )}
+      {confirmAssetDelete && (
+        <ConfirmDialog
+          title={t("assets.bulkAssetDeleteTitle")}
+          message={[
+            t("assets.bulkAssetDeleteMessage", { assets: selectedAssets.size }),
+            (isHidden || selectedHiddenAssets) && t("assets.canvasWarning"),
+          ]
+            .filter(Boolean)
+            .join("\n\n")}
+          confirmLabel={t("common.delete")}
+          danger
+          busy={bulkBusy === "delete"}
+          error={bulkError}
+          onConfirm={() => void deleteSelectedAssets()}
+          onClose={() => {
+            if (bulkBusy === "delete") return;
+            setConfirmAssetDelete(false);
             setBulkError(null);
           }}
         />

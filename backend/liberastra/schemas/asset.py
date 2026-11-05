@@ -42,6 +42,16 @@ class AssetJobDeleteOut(BaseModel):
     assets: int
 
 
+class AssetIdsIn(BaseModel):
+    """资产页批量操作选中的资产。"""
+
+    asset_ids: list[int] = Field(min_length=1, max_length=100)
+
+
+class AssetBulkOut(BaseModel):
+    assets: int
+
+
 class AssetRenameIn(BaseModel):
     """预览里修改的展示名。空字符串表示去掉自定义名称。"""
 

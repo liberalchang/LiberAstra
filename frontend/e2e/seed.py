@@ -183,6 +183,66 @@ def main() -> None:
             hidden=True,
             with_job=False,
         )
+        for label in ("E2E 批量下载A", "E2E 批量下载B"):
+            _add(
+                db,
+                user.id,
+                kind="image.generate",
+                function="image.generate",
+                asset_kind="image",
+                label=label,
+                ext="png",
+                content=PNG,
+                mime="image/png",
+            )
+        _add(
+            db,
+            user.id,
+            kind="video.quick",
+            function="video.quick",
+            asset_kind="video",
+            label="E2E 批量视频下载",
+            ext="mp4",
+            content=b"E2E-BULK-VIDEO",
+            mime="video/mp4",
+        )
+        _add(
+            db,
+            user.id,
+            kind="image.generate",
+            function="image.generate",
+            asset_kind="image",
+            label="E2E 批量删除",
+            ext="png",
+            content=PNG,
+            mime="image/png",
+        )
+        _add(
+            db,
+            user.id,
+            kind="",
+            function="",
+            asset_kind="image",
+            label="E2E 隐藏批量导入",
+            ext="png",
+            content=PNG,
+            mime="image/png",
+            hidden=True,
+            with_job=False,
+        )
+        _add(
+            db,
+            user.id,
+            kind="",
+            function="",
+            asset_kind="image",
+            label="E2E 隐藏批量删除",
+            ext="png",
+            content=PNG,
+            mime="image/png",
+            hidden=True,
+            with_job=False,
+        )
         db.commit()
     finally:
         db.close()

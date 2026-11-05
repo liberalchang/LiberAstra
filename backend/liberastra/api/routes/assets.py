@@ -30,6 +30,8 @@ from liberastra.models import Asset, Job, User
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.asset import (
+    AssetBulkOut,
+    AssetIdsIn,
     AssetJobDeleteOut,
     AssetJobIdsIn,
     AssetJobOut,
@@ -73,9 +75,12 @@ def list_assets(
     limit: int = 50,
     offset: int = 0,
     include_hidden: bool = False,
+    hidden_only: bool = False,
 ) -> list[Asset]:
     stmt = select(Asset).where(Asset.owner_id == user.id).order_by(Asset.created_at.desc())
-    if not include_hidden:
+    if hidden_only:
+        stmt = stmt.where(Asset.hidden.is_(True))
+    elif not include_hidden:
         stmt = stmt.where(Asset.hidden.is_(False))
     if kind:
         kinds = [k.strip() for k in kind.split(",") if k.strip()]
@@ -322,6 +327,114 @@ def delete_asset_jobs(
         db.delete(job)
     db.commit()
     return AssetJobDeleteOut(jobs=len(jobs), assets=len(assets))
+
+
+def _assets_for_owner(db, owner_id: int, asset_ids: list[int]) -> list[Asset]:  # noqa: ANN001
+    wanted = list(dict.fromkeys(asset_ids))
+    rows = db.scalars(
+        select(Asset).where(Asset.id.in_(wanted), Asset.owner_id == owner_id)
+    ).all()
+    by_id = {asset.id: asset for asset in rows}
+    if len(by_id) != len(wanted):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="资产不存在或无权访问")
+    return [by_id[asset_id] for asset_id in wanted]
+
+
+def _build_assets_zip(db, owner_id: int, asset_ids: list[int]) -> FileResponse:  # noqa: ANN001
+    assets = _assets_for_owner(db, owner_id, asset_ids)
+    handle, zip_name = tempfile.mkstemp(prefix="liberastra-assets-", suffix=".zip")
+    os.close(handle)
+    used: set[str] = set()
+    added = 0
+    missing: list[str] = []
+    try:
+        with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_STORED) as archive:
+            for asset in assets:
+                try:
+                    path = resolve(asset.path)
+                except ValueError:
+                    missing.append(_download_name(asset))
+                    continue
+                if not path.is_file():
+                    missing.append(_download_name(asset))
+                    continue
+                name = _unique_zip_name(_download_name(asset), used)
+                archive.write(path, name)
+                added += 1
+            if missing:
+                archive.writestr("missing.txt", "\n".join(missing))
+        if added == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="没有可下载的资产")
+    except Exception:
+        os.unlink(zip_name)
+        raise
+    return FileResponse(
+        zip_name,
+        media_type="application/zip",
+        filename=f"liberastra-assets-{datetime.now(UTC):%Y%m%d-%H%M%S}.zip",
+        background=BackgroundTask(os.unlink, zip_name),
+    )
+
+
+@router.post("/selection/download-token")
+def create_selection_download_token(
+    body: AssetIdsIn,
+    user: CurrentUser,
+    db: DbSession,
+) -> dict[str, str]:
+    assets = _assets_for_owner(db, user.id, body.asset_ids)
+    token = create_download_token(
+        str(user.id),
+        kind="assets",
+        payload={"asset_ids": [asset.id for asset in assets]},
+    )
+    return {"url": f"/api/v1/assets/selection/download?token={quote(token)}"}
+
+
+@router.get("/selection/download")
+def download_selection_with_token(token: str, db: DbSession) -> FileResponse:
+    payload = decode_download_token(token)
+    if payload is None or payload.get("kind") != "assets":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效或已过期")
+    asset_ids = payload.get("asset_ids")
+    if not isinstance(asset_ids, list) or not asset_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效")
+    try:
+        owner_id = int(str(payload["sub"]))
+        ids = [int(asset_id) for asset_id in asset_ids]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效"
+        ) from exc
+    return _build_assets_zip(db, owner_id, ids)
+
+
+@router.post("/publish", response_model=AssetBulkOut)
+def publish_assets(body: AssetIdsIn, user: CurrentUser, db: DbSession) -> AssetBulkOut:
+    """把选中的隐藏资源批量转正。"""
+    assets = _assets_for_owner(db, user.id, body.asset_ids)
+    for asset in assets:
+        asset.hidden = False
+        meta = dict(asset.meta or {})
+        meta.pop("canvas_temp", None)
+        asset.meta = meta
+    db.commit()
+    return AssetBulkOut(assets=len(assets))
+
+
+@router.post("/delete", response_model=AssetBulkOut)
+def delete_assets(body: AssetIdsIn, user: CurrentUser, db: DbSession) -> AssetBulkOut:
+    """删除选中的资产；不删除对应 job。"""
+    assets = _assets_for_owner(db, user.id, body.asset_ids)
+    for asset in assets:
+        try:
+            resolve(asset.path).unlink(missing_ok=True)
+        except ValueError:
+            pass
+        remove_asset_thumb(asset.id)
+        db.delete(asset)
+    db.commit()
+    return AssetBulkOut(assets=len(assets))
 
 
 @router.post("/{asset_id}/publish", response_model=AssetOut)
