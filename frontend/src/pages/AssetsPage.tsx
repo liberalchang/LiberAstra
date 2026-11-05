@@ -1,12 +1,13 @@
-import { Folder, FolderOpen } from "lucide-react";
+import { CheckSquare, Folder, FolderOpen, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, type AssetOut } from "@/api/client";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   downloadAssetById,
   MediaLightbox,
@@ -17,20 +18,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { jobKindLabel } from "@/lib/jobLabels";
-import { formatSize, formatTime, assetCustomName, assetDownloadName, assetSummary } from "@/lib/utils";
+import { cn, formatSize, formatTime, assetCustomName, assetDownloadName, assetSummary } from "@/lib/utils";
 
 const KINDS = ["image", "audio", "video", "subtitle", "text"] as const;
 
 export function AssetsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") ?? "";
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<string>("");
   const [showHidden, setShowHidden] = useState(false);
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const [query, setQuery] = useState("");
   const [jobLimit, setJobLimit] = useState(24);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState<"download" | "delete" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const isWork = tab === "work";
+  const setTab = (value: string) => {
+    setSearchParams(value ? { tab: value } : {}, { replace: true });
+    setSelectionMode(false);
+    setSelectedJobs(new Set());
+    setBulkError(null);
+  };
 
   const { data: assets } = useQuery({
     queryKey: ["assets", tab, showHidden],
@@ -71,6 +85,94 @@ export function AssetsPage() {
       .toLowerCase()
       .includes(needle);
   });
+  const selectedJobRows = (jobs ?? []).filter((job) => selectedJobs.has(job.job_id));
+  const selectedAssetCount = selectedJobRows.reduce((sum, job) => sum + job.asset_count, 0);
+
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedJobs(new Set());
+    setBulkError(null);
+  }, [tab]);
+
+  useEffect(() => {
+    if (!isWork || !jobs) return;
+    setSelectedJobs((previous) => {
+      const next = new Set(
+        [...previous].filter((jobId) => jobs.some((job) => job.job_id === jobId)),
+      );
+      return next.size === previous.size ? previous : next;
+    });
+  }, [isWork, jobs]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const toggleJob = (jobId: string) => {
+    setSelectedJobs((previous) => {
+      const next = new Set(previous);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
+      return next;
+    });
+    setBulkError(null);
+  };
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedJobs(new Set());
+    setBulkError(null);
+  };
+
+  const selectAllJobs = () => {
+    setSelectedJobs(new Set(visibleJobs.map((job) => job.job_id)));
+    setBulkError(null);
+  };
+
+  const downloadSelected = async () => {
+    if (!selectedJobs.size) return;
+    setBulkBusy("download");
+    setBulkError(null);
+    setNotice(t("assets.downloadStarted"));
+    try {
+      const blob = await api.downloadAssetJobs([...selectedJobs]);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      anchor.href = url;
+      anchor.download = `liberastra-jobs-${stamp}.zip`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setNotice(null);
+      setBulkError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedJobs.size) return;
+    setBulkBusy("delete");
+    setBulkError(null);
+    try {
+      const result = await api.deleteAssetJobs([...selectedJobs]);
+      setConfirmDelete(false);
+      exitSelection();
+      setNotice(t("assets.bulkDeleted", { jobs: result.jobs, assets: result.assets }));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["asset-jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["assets"] }),
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+      ]);
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBulkBusy(null);
+    }
+  };
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -105,6 +207,56 @@ export function AssetsPage() {
         aria-label={isWork ? t("assets.searchJobs") : t("assets.search")}
       />
 
+      {isWork && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2">
+          {!selectionMode ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectionMode(true)}
+                disabled={!jobs?.length}
+              >
+                <CheckSquare /> {t("assets.select")}
+              </Button>
+              <span className="text-xs text-muted-foreground">{t("assets.selectHint")}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-medium">
+                {t("assets.selected", { n: selectedJobs.size })}
+              </span>
+              <Button size="sm" variant="ghost" onClick={selectAllJobs} disabled={!visibleJobs.length}>
+                {t("assets.selectAllLoaded")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void downloadSelected()}
+                disabled={!selectedJobs.size || bulkBusy !== null}
+              >
+                {bulkBusy === "download" ? <Loader2 className="animate-spin" /> : <Download />}
+                {t("common.download")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-danger"
+                onClick={() => setConfirmDelete(true)}
+                disabled={!selectedJobs.size || bulkBusy !== null}
+              >
+                <Trash2 /> {t("common.delete")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={exitSelection} disabled={bulkBusy !== null}>
+                {t("common.cancel")}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+      {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
+      {bulkError && !confirmDelete && <p role="alert" className="text-sm text-danger">{bulkError}</p>}
+
       {isWork ? (
         <>
           {jobs?.length === 0 && <p className="text-sm text-muted-foreground">{t("common.empty")}</p>}
@@ -112,27 +264,56 @@ export function AssetsPage() {
             <p className="text-sm text-muted-foreground">{t("assets.noMatch")}</p>
           )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleJobs.map((job) => (
-              <button
-                key={job.job_id}
-                type="button"
-                onClick={() => navigate(`/assets/jobs/${job.job_id}`)}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-muted/30"
-              >
-                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                  <Folder className="size-6" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{formatTime(job.created_at)}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {jobKindLabel(job.job_kind, t)} · {job.asset_count} {t("assets.files")}
-                  </span>
-                </span>
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {job.asset_count}
-                </span>
-              </button>
-            ))}
+            {visibleJobs.map((job) => {
+              const checked = selectedJobs.has(job.job_id);
+              return (
+                <div
+                  key={job.job_id}
+                  className={cn(
+                    "relative rounded-xl border border-border bg-card transition-colors",
+                    checked ? "border-primary bg-primary/5" : "hover:border-primary/50",
+                  )}
+                >
+                  {selectionMode && (
+                    <label className="absolute left-2 top-2 z-10 grid size-6 place-items-center rounded-md bg-card/90">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleJob(job.job_id)}
+                        aria-label={`${t("assets.select")} ${formatTime(job.created_at)}`}
+                      />
+                    </label>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      selectionMode
+                        ? toggleJob(job.job_id)
+                        : navigate(`/assets/jobs/${job.job_id}`)
+                    }
+                    className={cn(
+                      "flex w-full items-center gap-3 p-4 text-left",
+                      selectionMode && "pl-10",
+                    )}
+                  >
+                    <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                      <Folder className="size-6" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {formatTime(job.created_at)}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {jobKindLabel(job.job_kind, t)} · {job.asset_count} {t("assets.files")}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {job.asset_count}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
           {(jobs?.length ?? 0) >= jobLimit && jobLimit < 100 && (
             <div className="flex justify-center">
@@ -207,6 +388,25 @@ export function AssetsPage() {
         </>
       )}
 
+      {confirmDelete && (
+        <ConfirmDialog
+          title={t("assets.bulkDeleteTitle")}
+          message={t("assets.bulkDeleteMessage", {
+            jobs: selectedJobs.size,
+            assets: selectedAssetCount,
+          })}
+          confirmLabel={t("common.delete")}
+          danger
+          busy={bulkBusy === "delete"}
+          error={bulkError}
+          onConfirm={() => void deleteSelected()}
+          onClose={() => {
+            if (bulkBusy === "delete") return;
+            setConfirmDelete(false);
+            setBulkError(null);
+          }}
+        />
+      )}
       <MediaLightbox target={preview} onClose={() => setPreview(null)} />
     </div>
   );

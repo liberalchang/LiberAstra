@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AssetOut(BaseModel):
@@ -29,6 +29,17 @@ class AssetJobOut(BaseModel):
     created_at: datetime
     asset_count: int
     kinds: list[str]
+
+
+class AssetJobIdsIn(BaseModel):
+    """批量操作选中的任务文件夹。"""
+
+    job_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class AssetJobDeleteOut(BaseModel):
+    jobs: int
+    assets: int
 
 
 class AssetRenameIn(BaseModel):

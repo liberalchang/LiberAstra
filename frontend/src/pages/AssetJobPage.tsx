@@ -55,7 +55,7 @@ export function AssetJobPage() {
         description={job ? `${formatTime(job.created_at)} · ${job.id.slice(0, 8)}` : jobId}
       />
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => navigate("/assets")}>
+        <Button variant="outline" size="sm" onClick={() => navigate("/assets?tab=work")}>
           <ArrowLeft /> {t("assets.back")}
         </Button>
         <Button variant="outline" size="sm" onClick={() => navigate("/jobs")}>

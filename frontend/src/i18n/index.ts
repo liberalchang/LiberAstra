@@ -186,6 +186,14 @@ const zh = {
     viewJob: "查看任务",
     back: "返回素材库",
     loadMore: "加载更多",
+    select: "选择",
+    selectHint: "选择任务文件夹后可批量下载或删除",
+    selected: "已选 {{n}} 项",
+    selectAllLoaded: "全选当前页",
+    bulkDeleteTitle: "删除选中的工作？",
+    bulkDeleteMessage: "将删除 {{jobs}} 个任务中的 {{assets}} 个产物，并删除任务记录。此操作不可恢复。",
+    bulkDeleted: "已删除 {{jobs}} 个任务、{{assets}} 个产物",
+    downloadStarted: "正在打包下载",
   },
 };
 
@@ -373,6 +381,15 @@ const en: typeof zh = {
     viewJob: "View job",
     back: "Back to assets",
     loadMore: "Load more",
+    select: "Select",
+    selectHint: "Select work folders to download or delete in bulk",
+    selected: "{{n}} selected",
+    selectAllLoaded: "Select loaded",
+    bulkDeleteTitle: "Delete selected work?",
+    bulkDeleteMessage:
+      "This deletes {{assets}} outputs from {{jobs}} jobs and removes the task records. This cannot be undone.",
+    bulkDeleted: "Deleted {{jobs}} jobs and {{assets}} outputs",
+    downloadStarted: "Packing download",
   },
 };
 

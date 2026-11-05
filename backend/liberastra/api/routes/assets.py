@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import shutil
+import tempfile
+import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
+from starlette.background import BackgroundTask
 
 from liberastra.api.deps import CurrentUser, DbSession
 from liberastra.media.thumbs import (
@@ -19,8 +25,15 @@ from liberastra.media.thumbs import (
     store_asset_thumb,
 )
 from liberastra.models import Asset, Job, User
+from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.providers.base import ProviderError
-from liberastra.schemas.asset import AssetJobOut, AssetOut, AssetRenameIn
+from liberastra.schemas.asset import (
+    AssetJobDeleteOut,
+    AssetJobIdsIn,
+    AssetJobOut,
+    AssetOut,
+    AssetRenameIn,
+)
 from liberastra.storage import resolve
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -133,6 +146,134 @@ def list_asset_jobs(
         )
         for row in rows
     ]
+
+
+def _owned_jobs(db, user: User, job_ids: list[str]) -> list[Job]:  # noqa: ANN001
+    wanted = list(dict.fromkeys(job_ids))
+    jobs = db.scalars(
+        select(Job).where(Job.id.in_(wanted), Job.owner_id == user.id)
+    ).all()
+    by_id = {job.id: job for job in jobs}
+    if len(by_id) != len(wanted):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在或无权访问")
+    return [by_id[job_id] for job_id in wanted]
+
+
+def _safe_zip_part(value: str, fallback: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", value).strip(" .")
+    return cleaned or fallback
+
+
+def _job_folder_name(job: Job) -> str:
+    created = job.created_at or datetime.now(UTC)
+    kind = _safe_zip_part(job.kind, "job")[:40]
+    return f"{created:%Y%m%d-%H%M%S}_{kind}_{job.id[:8]}"
+
+
+def _unique_zip_name(name: str, used: set[str]) -> str:
+    safe = _safe_zip_part(name, "asset")
+    if safe not in used:
+        used.add(safe)
+        return safe
+    path = Path(safe)
+    index = 2
+    while True:
+        candidate = f"{path.stem} ({index}){path.suffix}"
+        if candidate not in used:
+            used.add(candidate)
+            return candidate
+        index += 1
+
+
+@router.post("/jobs/download")
+def download_asset_jobs(
+    body: AssetJobIdsIn,
+    user: CurrentUser,
+    db: DbSession,
+) -> FileResponse:
+    """把选中的任务文件夹打成 ZIP；只打包可见资产，保留任务子目录。"""
+    jobs = _owned_jobs(db, user, body.job_ids)
+    assets = db.scalars(
+        select(Asset)
+        .where(
+            Asset.owner_id == user.id,
+            Asset.job_id.in_([job.id for job in jobs]),
+            Asset.hidden.is_(False),
+        )
+        .order_by(Asset.created_at)
+    ).all()
+    by_job: dict[str, list[Asset]] = {}
+    for asset in assets:
+        by_job.setdefault(str(asset.job_id), []).append(asset)
+
+    handle, zip_name = tempfile.mkstemp(prefix="liberastra-jobs-", suffix=".zip")
+    os.close(handle)
+    added = 0
+    missing: list[str] = []
+    try:
+        with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_STORED) as archive:
+            for job in jobs:
+                folder = _job_folder_name(job)
+                used: set[str] = set()
+                for asset in by_job.get(job.id, []):
+                    path = resolve(asset.path)
+                    if not path.is_file():
+                        missing.append(f"{folder}/{Path(asset.path).name}")
+                        continue
+                    name = _unique_zip_name(Path(asset.path).name, used)
+                    archive.write(path, f"{folder}/{name}")
+                    added += 1
+            if missing:
+                archive.writestr("missing.txt", "\n".join(missing))
+        if added == 0:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="没有可下载的产物")
+    except Exception:
+        os.unlink(zip_name)
+        raise
+    return FileResponse(
+        zip_name,
+        media_type="application/zip",
+        filename=f"liberastra-jobs-{datetime.now(UTC):%Y%m%d-%H%M%S}.zip",
+        background=BackgroundTask(os.unlink, zip_name),
+    )
+
+
+@router.post("/jobs/delete", response_model=AssetJobDeleteOut)
+def delete_asset_jobs(
+    body: AssetJobIdsIn,
+    user: CurrentUser,
+    db: DbSession,
+) -> AssetJobDeleteOut:
+    """删除选中的任务文件夹：资产、文件、缩略图和任务记录一起删除。"""
+    jobs = _owned_jobs(db, user, body.job_ids)
+    active = [job for job in jobs if job.status not in TERMINAL_STATUSES]
+    if active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="有任务仍在进行中，完成或取消后才能删除",
+        )
+
+    job_ids = [job.id for job in jobs]
+    assets = db.scalars(select(Asset).where(Asset.job_id.in_(job_ids))).all()
+    for asset in assets:
+        try:
+            resolve(asset.path).unlink(missing_ok=True)
+        except ValueError:
+            pass
+        remove_asset_thumb(asset.id)
+        db.delete(asset)
+    for job in jobs:
+        try:
+            output_dir = resolve(f"outputs/{job.id}")
+            if output_dir.is_dir():
+                shutil.rmtree(output_dir)
+            elif output_dir.exists():
+                output_dir.unlink(missing_ok=True)
+        except ValueError:
+            pass
+        db.delete(job)
+    db.commit()
+    return AssetJobDeleteOut(jobs=len(jobs), assets=len(assets))
 
 
 @router.post("/{asset_id}/publish", response_model=AssetOut)

@@ -65,6 +65,28 @@ async function requestBlob(path: string): Promise<Blob> {
   return resp.blob();
 }
 
+async function requestBlobPost(path: string, body: unknown): Promise<Blob> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const resp = await fetch(path, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 401 && authToken && onUnauthorized) onUnauthorized();
+  if (!resp.ok) {
+    let detail = resp.statusText;
+    try {
+      const payload = await resp.json();
+      detail = payload.detail ?? detail;
+    } catch {
+      /* 非 JSON 响应 */
+    }
+    throw new ApiError(resp.status, String(detail));
+  }
+  return resp.blob();
+}
+
 export type AuthStatus = components["schemas"]["AuthStatus"];
 export type UserOut = components["schemas"]["UserOut"];
 export type TokenResponse = components["schemas"]["TokenResponse"];
@@ -750,6 +772,13 @@ export const api = {
     request<AssetOut[]>(
       `/api/v1/assets?job_id=${encodeURIComponent(jobId)}&limit=${limit}&offset=${offset}`,
     ),
+  downloadAssetJobs: (jobIds: string[]) =>
+    requestBlobPost("/api/v1/assets/jobs/download", { job_ids: jobIds }),
+  deleteAssetJobs: (jobIds: string[]) =>
+    request<{ jobs: number; assets: number }>("/api/v1/assets/jobs/delete", {
+      method: "POST",
+      body: JSON.stringify({ job_ids: jobIds }),
+    }),
   /** 发布画布中间结果：取消隐藏,资源库可见 */
   publishAsset: (id: number) =>
     request<AssetOut>(`/api/v1/assets/${id}/publish`, { method: "POST" }),
