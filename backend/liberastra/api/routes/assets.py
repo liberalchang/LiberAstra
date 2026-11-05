@@ -77,7 +77,11 @@ def list_assets(
     include_hidden: bool = False,
     hidden_only: bool = False,
 ) -> list[Asset]:
-    stmt = select(Asset).where(Asset.owner_id == user.id).order_by(Asset.created_at.desc())
+    stmt = (
+        select(Asset)
+        .where(Asset.owner_id == user.id, Asset.origin != "character")
+        .order_by(Asset.created_at.desc())
+    )
     if hidden_only:
         stmt = stmt.where(Asset.hidden.is_(True))
     elif not include_hidden:

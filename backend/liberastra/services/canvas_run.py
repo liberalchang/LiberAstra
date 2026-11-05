@@ -245,6 +245,7 @@ def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun, ow
             if mask is None or mask.kind != "image":
                 raise ProviderError("蒙版资产不存在或不是图片")
             mask.hidden = True
+            mask.origin = "canvas"
             mask.meta = {**(mask.meta or {}), "canvas_mask": True, "canvas_node": node.get("id")}
             row.asset_ids.append(mask.id)
     row.status = "succeeded"
@@ -964,6 +965,7 @@ async def _execute_speech(
         assets = db.scalars(select(Asset).where(Asset.job_id == job.id)).all()
         for asset in assets:
             asset.hidden = True
+            asset.origin = "canvas"
             asset.meta = {
                 **(asset.meta or {}),
                 "canvas_temp": True,

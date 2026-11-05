@@ -61,6 +61,7 @@ async def upload(
             rel_path=path,
             owner_id=user.id,
             hidden=hidden,
+            origin="canvas" if hidden else "upload",
             meta={"source": "canvas-upload", "source_name": file.filename or "", "name": file.filename or ""},
         )
         asset_id = asset.id

@@ -71,6 +71,7 @@ def _save_outputs(
             job_id=job.id,
             owner_id=job.owner_id,
             hidden=True,
+            origin="canvas",
             meta=_canvas_meta(
                 job,
                 {
@@ -261,6 +262,7 @@ async def _run_canvas_analysis(
         job_id=job.id,
         owner_id=job.owner_id,
         hidden=True,
+        origin="canvas",
         meta=_canvas_meta(
             job,
             {"provider": provider.name, "duration_s": round(time.monotonic() - started, 1)},

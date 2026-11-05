@@ -264,6 +264,7 @@ export interface AssetOut {
   size: number;
   job_id: string | null;
   meta: Record<string, unknown>;
+  origin: string;
   hidden: boolean;
   created_at: string;
 }

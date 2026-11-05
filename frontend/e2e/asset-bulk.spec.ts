@@ -117,3 +117,20 @@ test("隐藏页签批量删除提示画布引用风险", async ({ page }) => {
   await expect(page.getByText("已删除 1 个资产")).toBeVisible();
   await expect(page.getByText("E2E 隐藏批量删除", { exact: true })).toHaveCount(0);
 });
+
+test("角色库图片不出现在资产库与隐藏页签", async ({ page }) => {
+  await openAssets(page);
+  await page.getByLabel(SEARCH).fill("E2E 角色图");
+  await expect(page.getByText(/E2E 角色图/)).toHaveCount(0);
+
+  await page.getByLabel("显示隐藏资源").check();
+  await expect(page.getByText(/E2E 角色图/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "隐藏", exact: true }).click();
+  await page.getByLabel(SEARCH).fill("E2E 角色图");
+  await expect(page.getByText(/E2E 角色图/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "全部", exact: true }).click();
+  await page.getByLabel(SEARCH).fill("E2E 生成图");
+  await expect(page.getByText("E2E 生成图", { exact: true })).toBeVisible();
+});

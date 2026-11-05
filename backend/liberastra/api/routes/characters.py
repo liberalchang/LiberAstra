@@ -18,6 +18,7 @@ from liberastra.services.characters import (
     SLOTS,
     apply_split,
     ensure_character_asset,
+    remove_character_assets,
     remove_character_files,
     save_character_bytes,
     slot_path,
@@ -214,6 +215,7 @@ def update_character(
 @router.delete("/{character_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_character(character_id: int, user: CurrentUser, db: DbSession) -> None:
     record = _owned(db, character_id, user)
+    remove_character_assets(db, record)
     remove_character_files(record)
     db.delete(record)
     db.commit()

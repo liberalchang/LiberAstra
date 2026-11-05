@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from liberastra.core.config import get_settings
 from liberastra.models import Asset
+from liberastra.models.asset import ASSET_ORIGINS
 
 _MIME_BY_EXT = {
     ".mp3": "audio/mpeg",
@@ -79,7 +80,10 @@ def create_asset(
     owner_id: int,
     meta: dict | None = None,
     hidden: bool = False,
+    origin: str = "output",
 ) -> Asset:
+    if origin not in ASSET_ORIGINS:
+        raise ValueError(f"unknown asset origin: {origin}")
     path = resolve(rel_path)
     asset = Asset(
         kind=kind,
@@ -89,6 +93,7 @@ def create_asset(
         job_id=job_id,
         meta=meta or {},
         hidden=hidden,
+        origin=origin,
         owner_id=owner_id,
     )
     db.add(asset)

@@ -230,6 +230,7 @@ def ensure_character_asset(db: Session, character: Character, slot: str):  # noq
         kind="image",
         rel_path=rel,
         owner_id=character.owner_id,
+        origin="character",
         meta={
             "character_id": character.id,
             "character_slot": slot,
@@ -550,6 +551,28 @@ def _ext_of(content: bytes, filename: str = "") -> str:
     if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
         return ".webp"
     return ".png"
+
+
+def remove_character_assets(db: Session, character: Character) -> int:
+    """删除角色登记过的一切资产记录、源文件与缩略图。"""
+    from sqlalchemy import select
+
+    from liberastra.media.thumbs import remove_asset_thumb
+    from liberastra.models import Asset
+
+    rows = db.scalars(select(Asset).where(Asset.owner_id == character.owner_id)).all()
+    removed = 0
+    for asset in rows:
+        if (asset.meta or {}).get("character_id") != character.id:
+            continue
+        try:
+            resolve(asset.path).unlink(missing_ok=True)
+        except ValueError:
+            pass
+        remove_asset_thumb(asset.id)
+        db.delete(asset)
+        removed += 1
+    return removed
 
 
 def remove_character_files(character: Character) -> None:

@@ -15,6 +15,7 @@ class AssetOut(BaseModel):
     size: int
     job_id: str | None
     meta: dict
+    origin: str
     hidden: bool
     created_at: datetime
 

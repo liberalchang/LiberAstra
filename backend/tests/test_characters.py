@@ -15,6 +15,7 @@ from liberastra.services.characters import (
     sheet_prompt,
     split_turnaround,
 )
+from liberastra.storage import resolve
 
 
 def _sheet() -> bytes:
@@ -229,6 +230,7 @@ def test_character_asset_is_idempotent(client: TestClient, auth_header: dict[str
     assert first.status_code == 200, first.text
     assert second.status_code == 200
     assert first.json()["id"] == second.json()["id"]
+    assert first.json()["origin"] == "character"
     assert first.json()["meta"]["character_slot"] == "front"
     sheet = client.post(f"/api/v1/characters/{character_id}/asset/turnaround", headers=auth_header)
     again = client.post(f"/api/v1/characters/{character_id}/asset/turnaround", headers=auth_header)
@@ -238,6 +240,56 @@ def test_character_asset_is_idempotent(client: TestClient, auth_header: dict[str
     assert sheet.json()["meta"]["character_slot"] == "turnaround"
     missing = client.post(f"/api/v1/characters/{character_id}/asset/nope", headers=auth_header)
     assert missing.status_code == 400
+
+
+def test_character_assets_removed_with_character(
+    client: TestClient,
+    auth_header: dict[str, str],
+) -> None:
+    created = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={"name": "待删除角色", "description": "黑长直", "auto_split": "true"},
+        files={"turnaround": ("sheet.png", _sheet(), "image/png")},
+    )
+    assert created.status_code == 201, created.text
+    character_id = created.json()["id"]
+
+    front = client.post(f"/api/v1/characters/{character_id}/asset/front", headers=auth_header)
+    sheet = client.post(
+        f"/api/v1/characters/{character_id}/asset/turnaround", headers=auth_header
+    )
+    assert front.status_code == 200, front.text
+    assert sheet.status_code == 200, sheet.text
+    asset_ids = [front.json()["id"], sheet.json()["id"]]
+    asset_paths = [resolve(front.json()["path"]), resolve(sheet.json()["path"])]
+    assert all(path.is_file() for path in asset_paths)
+
+    other = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={"name": "保留角色", "description": "短发", "auto_split": "true"},
+        files={"turnaround": ("sheet.png", _sheet(), "image/png")},
+    )
+    assert other.status_code == 201, other.text
+    other_id = other.json()["id"]
+    other_front = client.post(f"/api/v1/characters/{other_id}/asset/front", headers=auth_header)
+    assert other_front.status_code == 200, other_front.text
+    other_asset_id = other_front.json()["id"]
+    other_path = resolve(other_front.json()["path"])
+
+    deleted = client.delete(f"/api/v1/characters/{character_id}", headers=auth_header)
+    assert deleted.status_code == 204, deleted.text
+
+    for asset_id in asset_ids:
+        assert (
+            client.get(f"/api/v1/assets/{asset_id}", headers=auth_header).status_code == 404
+        )
+    assert not any(path.exists() for path in asset_paths)
+    assert (
+        client.get(f"/api/v1/assets/{other_asset_id}", headers=auth_header).status_code == 200
+    )
+    assert other_path.is_file()
 
 
 def test_create_character_splits_turnaround(client: TestClient, auth_header: dict[str, str]) -> None:

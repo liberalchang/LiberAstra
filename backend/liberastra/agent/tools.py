@@ -347,7 +347,7 @@ def _parse_arguments(raw: Any) -> dict[str, Any]:
 def _asset_rows(
     db: Session, owner_id: int, include_hidden: bool, kind: str, limit: int
 ) -> list[Asset]:
-    stmt = select(Asset).where(Asset.owner_id == owner_id)
+    stmt = select(Asset).where(Asset.owner_id == owner_id, Asset.origin != "character")
     if not include_hidden:
         stmt = stmt.where(Asset.hidden.is_(False))
     if kind:
@@ -365,6 +365,7 @@ def _asset_brief(asset: Asset) -> dict[str, Any]:
         "mime": asset.mime,
         "size": asset.size,
         "hidden": asset.hidden,
+        "origin": asset.origin,
         "job_id": asset.job_id,
         "name": meta.get("source_name") or meta.get("name") or asset.path,
         "meta": meta,

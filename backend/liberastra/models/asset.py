@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from liberastra.models.job import Job
 
 ASSET_KINDS = ("image", "audio", "video", "subtitle", "text")
+ASSET_ORIGINS = ("upload", "output", "character", "canvas")
 
 
 class Asset(Base):
@@ -37,6 +38,10 @@ class Asset(Base):
         ForeignKey("jobs.id", ondelete="SET NULL"), default=None, index=True
     )
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 来源：上传、任务产出、角色库、画布/功能页临时资源。角色库资源不进资产库。
+    origin: Mapped[str] = mapped_column(
+        String(16), default="output", server_default="output", index=True
+    )
     # 画布中间结果打标隐藏：资源库默认不显示，发布后转正
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

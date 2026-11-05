@@ -135,6 +135,7 @@ def _concat_images(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any
         job_id=job.id,
         owner_id=job.owner_id,
         hidden=not visible,
+        origin="output" if visible else "canvas",
         meta=meta,
     )
     ctx.report(db, job, progress=1.0)
@@ -187,6 +188,7 @@ async def run_concat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         job_id=job.id,
         owner_id=job.owner_id,
         hidden=not visible,
+        origin="output" if visible else "canvas",
         meta=meta,
     )
     ctx.report(db, job, progress=1.0)

@@ -9,7 +9,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from liberastra.core.db import SessionLocal
-from liberastra.models import Asset, Job, User
+from liberastra.models import Asset, Character, Job, User
 from liberastra.storage import save_bytes
 
 
@@ -35,6 +35,8 @@ def _add(
     mime: str,
     hidden: bool = False,
     with_job: bool = True,
+    origin: str = "output",
+    meta_extra: dict | None = None,
 ) -> Asset:
     job_id = None
     if with_job:
@@ -59,7 +61,8 @@ def _add(
         hidden=hidden,
         size=len(content),
         mime=mime,
-        meta={"name": label, "source_name": f"{label}.{ext}"},
+        origin=origin,
+        meta={"name": label, "source_name": f"{label}.{ext}", **(meta_extra or {})},
     )
     db.add(asset)
     db.flush()
@@ -243,6 +246,28 @@ def main() -> None:
             hidden=True,
             with_job=False,
         )
+        character = Character(name="E2E 角色", owner_id=user.id)
+        db.add(character)
+        db.flush()
+        for slot in ("turnaround", "portrait", "front", "side", "back"):
+            _add(
+                db,
+                user.id,
+                kind="",
+                function="",
+                asset_kind="image",
+                label=f"E2E 角色图-{slot}",
+                ext="png",
+                content=PNG,
+                mime="image/png",
+                with_job=False,
+                origin="character",
+                meta_extra={
+                    "character_id": character.id,
+                    "character_slot": slot,
+                    "character_name": character.name,
+                },
+            )
         db.commit()
     finally:
         db.close()
