@@ -50,6 +50,8 @@ def test_image_generate_job(
     assert resp.status_code == 202
     job = resp.json()
     assert job["status"] == "succeeded", job["error"]
+    assert job["kind"] == "image.generate"
+    assert job["function"] == "image.generate"
     assert len(job["outputs"]) == 2
 
     asset = client.get(f"/api/v1/assets/{job['outputs'][0]['asset_id']}", headers=auth_header).json()

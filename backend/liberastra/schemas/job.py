@@ -10,6 +10,7 @@ from pydantic import BaseModel
 class JobOut(BaseModel):
     id: str
     kind: str
+    function: str | None = None
     status: str
     progress: float
     provider_id: int | None

@@ -105,11 +105,9 @@ export function ImageEditPage({ capability, title, description }: Props) {
     });
   };
 
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    // 必须同步快照：FileList 是活引用，onChange 随后清空 input.value 会把它掏空，
-    // 而 setFiles 的 updater 可能被 React 延迟执行（届时再读就什么都拿不到）
-    mergeFiles(Array.from(list));
+  const addFiles = (files: File[] | null) => {
+    if (!files?.length) return;
+    mergeFiles(files);
   };
 
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -119,6 +117,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
       const form = new FormData();
       for (const f of files) form.append("images", f);
       form.set("prompt", effectivePrompt);
+      form.set("capability", capability);
       if (provider) form.set("provider_id", String(provider.id));
       if (isComfy && pack) form.set("workflow", pack.name);
       form.set("inputs", JSON.stringify(buildInputsWithAccel(extra, pack?.accel, accel)));
@@ -311,6 +310,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
             job={job ?? null}
             mediaKind="image"
             historyKind="image"
+            jobFunction={capability === "upscale" ? "image.upscale" : "image.i2i,image.edit"}
             emptyHint={tx("上传原图后开始处理")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },

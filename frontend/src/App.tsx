@@ -79,6 +79,7 @@ export default function App() {
           path="/image/edit"
           element={
             <ImageEditPage
+              key="i2i"
               capability="i2i"
               title={tx("图生图与编辑")}
               description={tx("上传参考图，配合提示词进行编辑或风格迁移。")}
@@ -88,13 +89,14 @@ export default function App() {
         <Route path="/image/upscale" element={<Navigate to="/tools/image-enhance" replace />} />
         <Route path="/image/depth" element={<ImageDepthPage />} />
         <Route path="/tools" element={<Navigate to="/tools/image-concat" replace />} />
-        <Route path="/tools/image-concat" element={<MediaConcatPage kind="image" />} />
-        <Route path="/tools/video-concat" element={<MediaConcatPage kind="video" />} />
-        <Route path="/tools/audio-concat" element={<MediaConcatPage kind="audio" />} />
+        <Route path="/tools/image-concat" element={<MediaConcatPage key="image" kind="image" />} />
+        <Route path="/tools/video-concat" element={<MediaConcatPage key="video" kind="video" />} />
+        <Route path="/tools/audio-concat" element={<MediaConcatPage key="audio" kind="audio" />} />
         <Route
           path="/tools/image-enhance"
           element={
             <ImageEditPage
+              key="upscale"
               capability="upscale"
               title={tx("图片增强")}
               description={tx("保真放大用 RealESRGAN；AI 修复用 SeedVR2。按需选择工作流。")}
@@ -113,9 +115,9 @@ export default function App() {
         <Route path="/video/quick" element={<VideoQuickPage />} />
         <Route path="/settings/storyboard-templates" element={<TemplatesPage />} />
         <Route path="/video/assets" element={<VideoAssetsPage />} />
-        <Route path="/video/avatar" element={<VideoPackPage kind="avatar" />} />
-        <Route path="/video/i2v" element={<VideoPackPage kind="i2v" />} />
-        <Route path="/video/motion" element={<VideoPackPage kind="motion" />} />
+        <Route path="/video/avatar" element={<VideoPackPage key="avatar" kind="avatar" />} />
+        <Route path="/video/i2v" element={<VideoPackPage key="i2v" kind="i2v" />} />
+        <Route path="/video/motion" element={<VideoPackPage key="motion" kind="motion" />} />
         <Route path="/resources/characters" element={<CharactersPage />} />
       </Route>
         <Route path="*" element={<HomeRedirect />} />

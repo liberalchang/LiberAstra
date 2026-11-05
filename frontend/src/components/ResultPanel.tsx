@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, Download, ImageIcon, Loader2, Maximize2, Video } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { api, TERMINAL_STATUSES, type JobOut } from "@/api/client";
 import {
@@ -26,8 +27,8 @@ interface ResultPanelProps {
   mediaKind: "image" | "audio" | "video" | null;
   /** 历史资产的 kind 筛选 */
   historyKind: string;
-  /** 只看这类任务产出的资产，例如 video.i2v */
-  jobKind?: string;
+  /** 只看这类功能产出的资产，例如 video.quick */
+  jobFunction?: string;
   meta?: MetaItem[];
   emptyHint?: string;
 }
@@ -90,22 +91,22 @@ function ClickableThumb({
   );
 }
 
-export function ResultPanel({ job, mediaKind, historyKind, jobKind, meta = [], emptyHint }: ResultPanelProps) {
+export function ResultPanel({ job, mediaKind, historyKind, jobFunction, meta = [], emptyHint }: ResultPanelProps) {
   const tx = useTx();
   const queryClient = useQueryClient();
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
-  const historyKey = ["assets", historyKind, jobKind ?? "all"] as const;
+  const historyKey = ["assets", historyKind, jobFunction ?? "all"] as const;
 
   const { data: history } = useQuery({
     queryKey: historyKey,
-    queryFn: () => api.listAssets(historyKind, undefined, jobKind),
+    queryFn: () => api.listAssets(historyKind, undefined, jobFunction),
   });
 
   useEffect(() => {
     if (job?.status === "succeeded") {
-      queryClient.invalidateQueries({ queryKey: ["assets", historyKind, jobKind ?? "all"] });
+      queryClient.invalidateQueries({ queryKey: ["assets", historyKind, jobFunction ?? "all"] });
     }
-  }, [job?.status, historyKind, jobKind, queryClient]);
+  }, [job?.status, historyKind, jobFunction, queryClient]);
 
   const running = job != null && !TERMINAL_STATUSES.includes(job.status);
   const resultAssets =
@@ -226,7 +227,15 @@ export function ResultPanel({ job, mediaKind, historyKind, jobKind, meta = [], e
 
       {/* 下方：历史资产 */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">{tx("历史作品")}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-muted-foreground">{tx("历史作品")}</h2>
+          <Link
+            to={`/assets?tab=${encodeURIComponent(historyKind.split(",")[0] ?? "")}`}
+            className="text-xs text-primary hover:underline"
+          >
+            {tx("查看全部")}
+          </Link>
+        </div>
         {history?.length === 0 && (
           <p className="text-sm text-muted-foreground">{emptyHint ?? tx("暂无历史记录")}</p>
         )}

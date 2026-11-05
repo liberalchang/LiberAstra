@@ -2,11 +2,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
-import { api, fetchAssetBlob, type AssetOut } from "@/api/client";
+import { api, type AssetOut } from "@/api/client";
 import { AssetPickButton } from "@/components/AssetPickButton";
 import { ImagePreviewStrip } from "@/components/ImagePreviewStrip";
-import { MediaLightbox, MediaThumb, type PreviewTarget } from "@/components/MediaLightbox";
+import {
+  downloadAssetById,
+  MediaLightbox,
+  MediaThumb,
+  type PreviewTarget,
+} from "@/components/MediaLightbox";
 import { PageHeader } from "@/components/PageShell";
 import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,13 +30,7 @@ function sourceName(asset: AssetOut): string {
 }
 
 async function downloadAsset(asset: AssetOut) {
-  const blob = await fetchAssetBlob(asset.id);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = sourceName(asset);
-  link.click();
-  URL.revokeObjectURL(url);
+  await downloadAssetById(asset.id, sourceName(asset));
 }
 
 export function ImageDepthPage() {
@@ -58,9 +58,9 @@ export function ImageDepthPage() {
       return next;
     });
   };
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    mergeFiles(Array.from(list));
+  const addFiles = (files: File[] | null) => {
+    if (!files?.length) return;
+    mergeFiles(files);
   };
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, item) => item !== index));
 
@@ -223,7 +223,12 @@ export function ImageDepthPage() {
             ) : (
               <ResultGrid assets={batch} onOpen={setPreview} />
             )}
-            <h2 className="text-sm font-medium">{tx("历史深度图")}</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium">{tx("历史深度图")}</h2>
+              <Link to="/assets?tab=image" className="text-xs text-primary hover:underline">
+                {tx("查看全部")}
+              </Link>
+            </div>
             <ResultGrid assets={past} onOpen={setPreview} />
           </div>
         }

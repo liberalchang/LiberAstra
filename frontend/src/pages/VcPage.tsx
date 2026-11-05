@@ -308,6 +308,7 @@ export function VcPage() {
             job={job ?? null}
             mediaKind={isVideo ? "video" : "audio"}
             historyKind={isVideo ? "video" : "audio"}
+            jobFunction="vc.convert"
             emptyHint={tx("上传音频或视频，换音后得到新音视频和字幕")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },

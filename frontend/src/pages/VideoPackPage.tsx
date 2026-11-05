@@ -645,7 +645,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
-            jobKind={`video.${kind}`}
+            jobFunction={`video.${kind}`}
             emptyHint={tx(
               kind === "avatar"
                 ? "上传人物图片并填写口播文案，生成数字人视频"

@@ -103,8 +103,16 @@ class JobManager:
         params: dict,
         provider_id: int | None = None,
         model: str | None = None,
+        function: str | None = None,
     ) -> Job:
-        job = Job(kind=kind, params=params, provider_id=provider_id, model=model, owner_id=owner_id)
+        job = Job(
+            kind=kind,
+            function=function or kind,
+            params=params,
+            provider_id=provider_id,
+            model=model,
+            owner_id=owner_id,
+        )
         db.add(job)
         db.commit()
         db.refresh(job)

@@ -24,6 +24,7 @@ class Job(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     kind: Mapped[str] = mapped_column(String(64), index=True)  # 能力或流水线，如 llm.chat
+    function: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
     progress: Mapped[float] = mapped_column(Float, default=0.0)
     provider_id: Mapped[int | None] = mapped_column(

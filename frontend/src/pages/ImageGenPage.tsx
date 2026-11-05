@@ -308,6 +308,7 @@ export function ImageGenPage() {
             job={job ?? null}
             mediaKind="image"
             historyKind="image"
+            jobFunction="image.generate"
             emptyHint={tx("填写左侧参数，生成第一张图片")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },

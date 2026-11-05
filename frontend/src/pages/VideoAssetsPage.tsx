@@ -94,10 +94,9 @@ export function VideoAssetsPage() {
       return next;
     });
   };
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    // FileList 是活引用，先同步快照（onChange 随后可能清空 input）
-    mergeFiles(Array.from(list));
+  const addFiles = (files: File[] | null) => {
+    if (!files?.length) return;
+    mergeFiles(files);
   };
   const removeFile = (i: number) => setFiles((prev) => prev.filter((_, j) => j !== i));
   const previews = useMemo(
@@ -862,7 +861,7 @@ export function VideoAssetsPage() {
             job={job ?? null}
             mediaKind="video"
             historyKind="video"
-            jobKind="video.assets"
+            jobFunction="video.assets"
             emptyHint={tx("上传素材，拼成一条短片")}
             meta={[
               { label: tx("画幅"), value: aspect },

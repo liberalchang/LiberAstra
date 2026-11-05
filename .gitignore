@@ -56,5 +56,11 @@ packaging/speech/output/
 .DS_Store
 Thumbs.db
 
+# Playwright E2E 临时数据与报告
+frontend/.e2e-data/
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/
+
 # impeccable 工具链的本地工作区(评审快照/live 配置/评审截图)
 .impeccable/

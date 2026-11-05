@@ -90,10 +90,17 @@ async def edit(
     provider_id: Annotated[int | None, Form()] = None,
     workflow: Annotated[str | None, Form()] = None,
     inputs: Annotated[str, Form()] = "{}",
+    capability: Annotated[str | None, Form()] = None,
     wait: bool = False,
 ) -> Job:
     import json
 
+    if capability not in (None, "", "i2i", "upscale"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="capability 只能是 i2i 或 upscale",
+        )
+    function = f"image.{capability}" if capability in ("i2i", "upscale") else "image.edit"
     if not images:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少输入图像")
     provider = pick_provider(db, "image", provider_id)
@@ -134,6 +141,7 @@ async def edit(
         },
         provider_id=provider.id,
         model=str(extra_inputs.get("model") or "") or None,
+        function=function,
     )
     if wait:
         return await wait_for_job(db, job.id)

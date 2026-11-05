@@ -128,7 +128,7 @@ export function VideoEnhancePage() {
             </Button>
           </CardContent>
         </Card>
-        <ResultPanel job={job ?? null} mediaKind="video" historyKind="video" jobKind="video.v2v" emptyHint={tx("增强后的视频会出现在这里")} />
+        <ResultPanel job={job ?? null} mediaKind="video" historyKind="video" jobFunction="video.v2v" emptyHint={tx("增强后的视频会出现在这里")} />
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import tempfile
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
@@ -17,6 +18,7 @@ from sqlalchemy import func, select
 from starlette.background import BackgroundTask
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.core.security import create_download_token, decode_download_token
 from liberastra.media.thumbs import (
     asset_thumb_path,
     extract_video_thumb,
@@ -67,6 +69,7 @@ def list_assets(
     kind: str | None = None,
     job_id: str | None = None,
     job_kind: str | None = None,
+    job_function: str | None = None,
     limit: int = 50,
     offset: int = 0,
     include_hidden: bool = False,
@@ -79,9 +82,14 @@ def list_assets(
         stmt = stmt.where(Asset.kind.in_(kinds))
     if job_id:
         stmt = stmt.where(Asset.job_id == job_id)
+    if job_kind or job_function:
+        stmt = stmt.join(Job, Asset.job_id == Job.id)
     if job_kind:
         job_kinds = [k.strip() for k in job_kind.split(",") if k.strip()]
-        stmt = stmt.join(Job, Asset.job_id == Job.id).where(Job.kind.in_(job_kinds))
+        stmt = stmt.where(Job.kind.in_(job_kinds))
+    if job_function:
+        functions = [f.strip() for f in job_function.split(",") if f.strip()]
+        stmt = stmt.where(Job.function.in_(functions))
     return list(
         db.scalars(
             stmt.offset(max(0, offset)).limit(min(max(limit, 1), 200))
@@ -148,15 +156,19 @@ def list_asset_jobs(
     ]
 
 
-def _owned_jobs(db, user: User, job_ids: list[str]) -> list[Job]:  # noqa: ANN001
+def _jobs_for_owner(db, owner_id: int, job_ids: list[str]) -> list[Job]:  # noqa: ANN001
     wanted = list(dict.fromkeys(job_ids))
     jobs = db.scalars(
-        select(Job).where(Job.id.in_(wanted), Job.owner_id == user.id)
+        select(Job).where(Job.id.in_(wanted), Job.owner_id == owner_id)
     ).all()
     by_id = {job.id: job for job in jobs}
     if len(by_id) != len(wanted):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在或无权访问")
     return [by_id[job_id] for job_id in wanted]
+
+
+def _owned_jobs(db, user: User, job_ids: list[str]) -> list[Job]:  # noqa: ANN001
+    return _jobs_for_owner(db, user.id, job_ids)
 
 
 def _safe_zip_part(value: str, fallback: str) -> str:
@@ -185,18 +197,12 @@ def _unique_zip_name(name: str, used: set[str]) -> str:
         index += 1
 
 
-@router.post("/jobs/download")
-def download_asset_jobs(
-    body: AssetJobIdsIn,
-    user: CurrentUser,
-    db: DbSession,
-) -> FileResponse:
-    """把选中的任务文件夹打成 ZIP；只打包可见资产，保留任务子目录。"""
-    jobs = _owned_jobs(db, user, body.job_ids)
+def _build_jobs_zip(db, owner_id: int, job_ids: list[str]) -> FileResponse:  # noqa: ANN001
+    jobs = _jobs_for_owner(db, owner_id, job_ids)
     assets = db.scalars(
         select(Asset)
         .where(
-            Asset.owner_id == user.id,
+            Asset.owner_id == owner_id,
             Asset.job_id.in_([job.id for job in jobs]),
             Asset.hidden.is_(False),
         )
@@ -236,6 +242,48 @@ def download_asset_jobs(
         filename=f"liberastra-jobs-{datetime.now(UTC):%Y%m%d-%H%M%S}.zip",
         background=BackgroundTask(os.unlink, zip_name),
     )
+
+
+@router.post("/jobs/download")
+def download_asset_jobs(
+    body: AssetJobIdsIn,
+    user: CurrentUser,
+    db: DbSession,
+) -> FileResponse:
+    """把选中的任务文件夹打成 ZIP；只打包可见资产，保留任务子目录。"""
+    return _build_jobs_zip(db, user.id, body.job_ids)
+
+
+@router.post("/jobs/download-token")
+def create_jobs_download_token(
+    body: AssetJobIdsIn,
+    user: CurrentUser,
+    db: DbSession,
+) -> dict[str, str]:
+    jobs = _owned_jobs(db, user, body.job_ids)
+    token = create_download_token(
+        str(user.id),
+        kind="jobs",
+        payload={"job_ids": [job.id for job in jobs]},
+    )
+    return {"url": f"/api/v1/assets/jobs/download?token={quote(token)}"}
+
+
+@router.get("/jobs/download")
+def download_jobs_with_token(token: str, db: DbSession) -> FileResponse:
+    payload = decode_download_token(token)
+    if payload is None or payload.get("kind") != "jobs":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效或已过期")
+    job_ids = payload.get("job_ids")
+    if not isinstance(job_ids, list) or not job_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效")
+    try:
+        owner_id = int(str(payload["sub"]))
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效"
+        ) from exc
+    return _build_jobs_zip(db, owner_id, [str(job_id) for job_id in job_ids])
 
 
 @router.post("/jobs/delete", response_model=AssetJobDeleteOut)
@@ -287,6 +335,42 @@ def publish_asset(asset_id: int, user: CurrentUser, db: DbSession) -> Asset:
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.post("/{asset_id}/download-token")
+def create_asset_download_token(
+    asset_id: int,
+    user: CurrentUser,
+    db: DbSession,
+) -> dict[str, str]:
+    record = _get_owned(db, asset_id, user)
+    token = create_download_token(
+        str(user.id),
+        kind="asset",
+        payload={"asset_id": record.id},
+    )
+    return {"url": f"/api/v1/assets/{asset_id}/download?token={quote(token)}"}
+
+
+@router.get("/{asset_id}/download")
+def download_asset_with_token(asset_id: int, token: str, db: DbSession) -> FileResponse:
+    payload = decode_download_token(token)
+    if (
+        payload is None
+        or payload.get("kind") != "asset"
+        or int(payload.get("asset_id", 0)) != asset_id
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="下载链接无效或已过期")
+    record = db.get(Asset, asset_id)
+    if record is None or str(record.owner_id) != str(payload.get("sub")):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="资产不存在")
+    try:
+        path = resolve(record.path)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
+    if not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件已丢失")
+    return FileResponse(path, media_type=record.mime, filename=_download_name(record))
 
 
 @router.get("/{asset_id}", response_model=AssetOut)

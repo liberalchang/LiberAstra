@@ -61,13 +61,11 @@ export function kindLabel(kind: string): string {
 }
 
 export async function downloadAssetById(assetId: number, filename: string) {
-  const blob = await fetchAssetBlob(assetId);
-  const url = URL.createObjectURL(blob);
+  const url = await api.getAssetDownloadUrl(assetId);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
 }
 
 /** 元素进入视口（含 200px 提前量）后返回 true，用于缩略图懒加载。 */

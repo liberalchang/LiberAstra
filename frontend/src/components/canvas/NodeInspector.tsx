@@ -482,7 +482,7 @@ function InputInspector({ node }: { node: CanvasFlowNode }) {
     setUploading(true);
     setUploadError(null);
     try {
-      const uploaded = await api.uploadFileAsAsset(file, kind);
+      const uploaded = await api.uploadFileAsAsset(file, kind, true);
       updateNodeData(node.id, {
         assetId: uploaded.asset_id,
         assetName: file.name,

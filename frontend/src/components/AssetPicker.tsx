@@ -35,9 +35,13 @@ export function AssetPicker({
   const tx = useTx();
   const kinds = useMemo(() => (Array.isArray(kind) ? kind : [kind]), [kind]);
   const [selected, setSelected] = useState<AssetOut[]>([]);
+  const [showHidden, setShowHidden] = useState(true);
   const { data, isLoading } = useQuery({
-    queryKey: ["assets", "picker", kinds.join(",")],
-    queryFn: () => (kinds.length === 1 ? api.listAssets(kinds[0]) : api.listAssets()),
+    queryKey: ["assets", "picker", kinds.join(","), showHidden],
+    queryFn: () =>
+      kinds.length === 1
+        ? api.listAssets(kinds[0], showHidden)
+        : api.listAssets(undefined, showHidden),
   });
   const assets = (data ?? []).filter((asset) => kinds.includes(asset.kind as AssetKind));
 
@@ -66,6 +70,14 @@ export function AssetPicker({
               {kinds.map((item) => tx(KIND_LABEL[item])).join(" / ")}
             </span>
           </h3>
+          <label className="ml-auto mr-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showHidden}
+              onChange={(event) => setShowHidden(event.target.checked)}
+            />
+            {tx("显示隐藏资源")}
+          </label>
           <Button variant="ghost" size="icon" className="size-7" onClick={onClose} aria-label={tx("关闭")}>
             <X className="size-4" />
           </Button>
@@ -90,6 +102,11 @@ export function AssetPicker({
                 <span className="block w-full truncate px-1.5 py-1 text-[10px] text-muted-foreground">
                   #{asset.id} {assetName(asset)}
                 </span>
+                {asset.hidden && (
+                  <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1 py-0.5 text-[10px] leading-none text-white">
+                    {tx("隐藏")}
+                  </span>
+                )}
                 {picked && (
                   <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
                     <Check className="size-3" />

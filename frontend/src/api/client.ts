@@ -1,3 +1,4 @@
+import { finishUpload, startUpload, updateUpload } from "@/lib/uploadProgress";
 import type { components } from "./types";
 
 /** 与后端 LIBERASTRA_COMFY_MAX_UPLOAD_MB 默认值一致（ComfyUI 默认 100MB）。超限时不发请求。 */
@@ -33,7 +34,65 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
+function requestForm<T>(path: string, form: FormData, method = "POST"): Promise<T> {
+  const files = Array.from(form.values()).filter((value): value is File => value instanceof File);
+  const label = files.length === 1 ? files[0].name : files.length > 1 ? `${files.length} 个文件` : "";
+  const taskId = label ? startUpload(label) : null;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      if (taskId != null) finishUpload(taskId);
+    };
+    xhr.open(method, path);
+    if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+    xhr.upload.onprogress = (event) => {
+      if (taskId != null && event.lengthComputable && event.total > 0) {
+        updateUpload(taskId, (event.loaded / event.total) * 100);
+      }
+    };
+    xhr.onload = () => {
+      done();
+      if (xhr.status === 401 && authToken && onUnauthorized) onUnauthorized();
+      if (xhr.status === 204) {
+        resolve(undefined as T);
+        return;
+      }
+      let payload: unknown = null;
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        reject(new ApiError(xhr.status, "响应解析失败"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as T);
+        return;
+      }
+      const detail =
+        payload && typeof payload === "object" && "detail" in payload
+          ? String((payload as { detail: unknown }).detail)
+          : xhr.statusText;
+      reject(new ApiError(xhr.status, detail));
+    };
+    xhr.onerror = () => {
+      done();
+      reject(new ApiError(0, "网络错误，上传失败"));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(new ApiError(0, "上传已取消"));
+    };
+    xhr.send(form);
+  });
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (init?.body instanceof FormData) {
+    return requestForm<T>(path, init.body, init.method ?? "POST");
+  }
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
@@ -62,28 +121,6 @@ async function requestBlob(path: string): Promise<Blob> {
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
   const resp = await fetch(path, { headers });
   if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
-  return resp.blob();
-}
-
-async function requestBlobPost(path: string, body: unknown): Promise<Blob> {
-  const headers = new Headers({ "Content-Type": "application/json" });
-  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(path, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  if (resp.status === 401 && authToken && onUnauthorized) onUnauthorized();
-  if (!resp.ok) {
-    let detail = resp.statusText;
-    try {
-      const payload = await resp.json();
-      detail = payload.detail ?? detail;
-    } catch {
-      /* 非 JSON 响应 */
-    }
-    throw new ApiError(resp.status, String(detail));
-  }
   return resp.blob();
 }
 
@@ -179,6 +216,7 @@ export interface JobOutput {
 export interface JobOut {
   id: string;
   kind: string;
+  function?: string | null;
   status: "pending" | "running" | "succeeded" | "failed" | "canceled";
   progress: number;
   provider_id?: number | null;
@@ -748,11 +786,11 @@ export const api = {
     requestBlob(`/api/v1/characters/${id}/image/${slot}`),
   registerCharacterAsset: (id: number, slot: string) =>
     request<AssetOut>(`/api/v1/characters/${id}/asset/${slot}`, { method: "POST" }),
-  listAssets: (kind?: string, includeHidden?: boolean, jobKind?: string) => {
+  listAssets: (kind?: string, includeHidden?: boolean, jobFunction?: string) => {
     const qs = [
       kind && `kind=${encodeURIComponent(kind)}`,
       includeHidden && "include_hidden=true",
-      jobKind && `job_kind=${encodeURIComponent(jobKind)}`,
+      jobFunction && `job_function=${encodeURIComponent(jobFunction)}`,
     ]
       .filter(Boolean)
       .join("&");
@@ -772,8 +810,15 @@ export const api = {
     request<AssetOut[]>(
       `/api/v1/assets?job_id=${encodeURIComponent(jobId)}&limit=${limit}&offset=${offset}`,
     ),
-  downloadAssetJobs: (jobIds: string[]) =>
-    requestBlobPost("/api/v1/assets/jobs/download", { job_ids: jobIds }),
+  getAssetDownloadUrl: (id: number) =>
+    request<{ url: string }>(`/api/v1/assets/${id}/download-token`, { method: "POST" }).then(
+      (result) => result.url,
+    ),
+  getAssetJobsDownloadUrl: (jobIds: string[]) =>
+    request<{ url: string }>("/api/v1/assets/jobs/download-token", {
+      method: "POST",
+      body: JSON.stringify({ job_ids: jobIds }),
+    }).then((result) => result.url),
   deleteAssetJobs: (jobIds: string[]) =>
     request<{ jobs: number; assets: number }>("/api/v1/assets/jobs/delete", {
       method: "POST",

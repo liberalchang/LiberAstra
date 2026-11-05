@@ -253,6 +253,7 @@ export function AsrPage() {
             job={job ?? null}
             mediaKind={null}
             historyKind="subtitle,text"
+            jobFunction="asr.transcribe"
             emptyHint={tx("上传音频，转写出文本和字幕")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },

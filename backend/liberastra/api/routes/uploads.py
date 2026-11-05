@@ -61,7 +61,7 @@ async def upload(
             rel_path=path,
             owner_id=user.id,
             hidden=hidden,
-            meta={"source": "canvas-upload", "source_name": file.filename or ""},
+            meta={"source": "canvas-upload", "source_name": file.filename or "", "name": file.filename or ""},
         )
         asset_id = asset.id
     return UploadOut(path=path, size=len(content), asset_id=asset_id)

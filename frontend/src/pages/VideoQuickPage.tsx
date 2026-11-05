@@ -313,6 +313,7 @@ export function VideoQuickPage() {
   const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
   const [bgmName, setBgmName] = usePersistentState("video-quick:bgm-name", "");
   const [bgmVolume, setBgmVolume] = usePersistentState("video-quick:bgm-volume", "0.2");
+  const [bgmUploadName, setBgmUploadName] = useState("");
   const uploadBgm = useMutation({
     mutationFn: (f: File) => api.uploadBgm(f),
     onSuccess: (item) => {
@@ -1101,7 +1102,10 @@ export function VideoQuickPage() {
             <select
               className={selectClass}
               value={bgmName}
-              onChange={(e) => setBgmName(e.target.value)}
+              onChange={(e) => {
+                setBgmName(e.target.value);
+                setBgmUploadName("");
+              }}
             >
               <option value="">{tx("无背景音乐")}</option>
               {bgmName && !bgmList?.some((b) => b.name === bgmName) && (
@@ -1128,9 +1132,13 @@ export function VideoQuickPage() {
             accept="audio/*"
             title={uploadBgm.isPending ? tx("上传中…") : tx("点击或拖拽上传，自动存入音乐库")}
             subtitle="MP3 / WAV / M4A / OGG / FLAC / AAC"
+            names={bgmUploadName ? [bgmUploadName] : []}
             onSelect={(fs) => {
               const f = fs?.[0];
-              if (f) uploadBgm.mutate(f);
+              if (f) {
+                setBgmUploadName(f.name);
+                uploadBgm.mutate(f);
+              }
             }}
           />
         </Field>
@@ -1189,7 +1197,7 @@ export function VideoQuickPage() {
               job={job ?? null}
               mediaKind="video"
               historyKind="video"
-              jobKind="video.quick"
+              jobFunction="video.quick"
               emptyHint={tx("一句话或一段文案，生成一条短视频")}
               meta={[
                 { label: tx("画幅"), value: aspect },

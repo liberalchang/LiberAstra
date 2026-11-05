@@ -413,6 +413,7 @@ export function TtsPage() {
             job={job ?? null}
             mediaKind="audio"
             historyKind="audio"
+            jobFunction="tts.synthesize"
             emptyHint={tx("输入文本，合成第一段语音")}
             meta={[
               { label: tx("服务"), value: provider?.name ?? "" },

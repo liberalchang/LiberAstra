@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from liberastra.models import Base, utcnow
@@ -18,6 +18,15 @@ ASSET_KINDS = ("image", "audio", "video", "subtitle", "text")
 
 class Asset(Base):
     __tablename__ = "assets"
+    __table_args__ = (
+        Index(
+            "ix_assets_owner_hidden_kind_created",
+            "owner_id",
+            "hidden",
+            "kind",
+            "created_at",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String(32), index=True)

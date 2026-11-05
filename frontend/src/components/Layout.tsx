@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate, Outlet } from "react-router-dom";
 
 import { BrandMark } from "@/components/BrandMark";
+import { GlobalUploadProgress } from "@/components/GlobalUploadProgress";
 import { SidebarNav } from "@/components/layout/SidebarNav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ export function Layout() {
           </main>
         </div>
       </div>
+      <GlobalUploadProgress />
     </div>
   );
 }

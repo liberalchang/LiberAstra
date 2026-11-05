@@ -1,8 +1,8 @@
-import { CheckSquare, Folder, FolderOpen, Loader2 } from "lucide-react";
+import { CheckSquare, Folder, FolderOpen, FolderPlus, Loader2, Upload } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { inferAssetKind } from "@/lib/fileAccept";
 import { jobKindLabel } from "@/lib/jobLabels";
 import { cn, formatSize, formatTime, assetCustomName, assetDownloadName, assetSummary } from "@/lib/utils";
 
@@ -38,6 +39,8 @@ export function AssetsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const isWork = tab === "work";
   const setTab = (value: string) => {
     setSearchParams(value ? { tab: value } : {}, { replace: true });
@@ -61,6 +64,45 @@ export function AssetsPage() {
     mutationFn: (id: number) => api.deleteAsset(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] }),
   });
+
+  const publish = useMutation({
+    mutationFn: (id: number) => api.publishAsset(id),
+    onSuccess: () => {
+      setNotice(t("assets.published"));
+      void queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (error: Error) => setUploadError(error.message),
+  });
+
+  const uploadFiles = async (files: File[]) => {
+    setUploadError(null);
+    const unsupported: string[] = [];
+    let uploaded = 0;
+    for (const file of files) {
+      const kind = inferAssetKind(file);
+      if (!kind) {
+        unsupported.push(file.name);
+        continue;
+      }
+      try {
+        await api.uploadFileAsAsset(file, kind);
+        uploaded += 1;
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (uploaded > 0) {
+      setNotice(t("assets.uploaded", { n: uploaded }));
+      setTab("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["assets"] }),
+        queryClient.invalidateQueries({ queryKey: ["asset-jobs"] }),
+      ]);
+    }
+    if (unsupported.length > 0) {
+      setUploadError(t("assets.unsupported", { names: unsupported.join("、") }));
+    }
+  };
 
   const openPreview = (a: AssetOut) =>
     setPreview({
@@ -137,14 +179,11 @@ export function AssetsPage() {
     setBulkError(null);
     setNotice(t("assets.downloadStarted"));
     try {
-      const blob = await api.downloadAssetJobs([...selectedJobs]);
-      const url = URL.createObjectURL(blob);
+      const url = await api.getAssetJobsDownloadUrl([...selectedJobs]);
       const anchor = document.createElement("a");
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
       anchor.href = url;
-      anchor.download = `liberastra-jobs-${stamp}.zip`;
+      anchor.download = "liberastra-jobs.zip";
       anchor.click();
-      URL.revokeObjectURL(url);
     } catch (error) {
       setNotice(null);
       setBulkError(error instanceof Error ? error.message : String(error));
@@ -177,6 +216,18 @@ export function AssetsPage() {
   return (
     <div className="flex max-w-5xl flex-col gap-6">
       <PageHeader kind="library" icon={FolderOpen} title={t("assets.title")} description={t("assets.hint")} />
+      <input
+        ref={uploadInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,audio/*,.srt,.vtt,.txt,.md,.json,.csv"
+        className="hidden"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          if (files.length > 0) void uploadFiles(files);
+        }}
+      />
       <div className="flex flex-wrap gap-1">
         <Button variant={tab === "" ? "default" : "outline"} size="sm" onClick={() => setTab("")}>
           {t("assets.all")}
@@ -189,16 +240,21 @@ export function AssetsPage() {
             {t(`assets.${k}`)}
           </Button>
         ))}
-        {!isWork && (
-          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={showHidden}
-              onChange={(e) => setShowHidden(e.target.checked)}
-            />
-            {t("assets.includeHidden")}
-          </label>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {!isWork && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showHidden}
+                onChange={(e) => setShowHidden(e.target.checked)}
+              />
+              {t("assets.includeHidden")}
+            </label>
+          )}
+          <Button variant="outline" size="sm" onClick={() => uploadInputRef.current?.click()}>
+            <Upload /> {t("assets.upload")}
+          </Button>
+        </div>
       </div>
       <Input
         value={query}
@@ -256,6 +312,7 @@ export function AssetsPage() {
       )}
       {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
       {bulkError && !confirmDelete && <p role="alert" className="text-sm text-danger">{bulkError}</p>}
+      {uploadError && <p role="alert" className="text-sm text-danger">{uploadError}</p>}
 
       {isWork ? (
         <>
@@ -360,8 +417,13 @@ export function AssetsPage() {
                           {summary}
                         </div>
                       )}
-                      <div className="text-xs text-muted-foreground">
-                        {a.kind} · {formatSize(a.size)}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>{a.kind} · {formatSize(a.size)}</span>
+                        {a.hidden && (
+                          <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning">
+                            {t("assets.hidden")}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -376,6 +438,17 @@ export function AssetsPage() {
                       >
                         <Download /> {t("common.download")}
                       </Button>
+                      {a.hidden && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => publish.mutate(a.id)}
+                          disabled={publish.isPending}
+                          aria-label={`${t("assets.publish")} ${title}`}
+                        >
+                          <FolderPlus /> {t("assets.publish")}
+                        </Button>
+                      )}
                       <Button variant="outline" size="sm" onClick={() => remove.mutate(a.id)} aria-label={t("common.delete")}>
                         <Trash2 /> {t("common.delete")}
                       </Button>

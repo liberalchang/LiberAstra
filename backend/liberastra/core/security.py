@@ -6,6 +6,7 @@ import base64
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from argon2 import PasswordHasher
@@ -51,6 +52,39 @@ def decode_access_token(token: str) -> str | None:
         return None
     sub = payload.get("sub")
     return str(sub) if sub else None
+
+
+def create_download_token(
+    subject: str,
+    *,
+    kind: str,
+    payload: dict[str, Any] | None = None,
+    expires_minutes: int = 5,
+) -> str:
+    """短时下载令牌。只用于浏览器直链下载，不替代登录会话。"""
+    settings = get_settings()
+    now = datetime.now(UTC)
+    data: dict[str, Any] = {
+        **(payload or {}),
+        "sub": subject,
+        "scope": "download",
+        "kind": kind,
+        "iat": now,
+        "exp": now + timedelta(minutes=expires_minutes),
+    }
+    return jwt.encode(data, settings.resolved_secret_key, algorithm="HS256")
+
+
+def decode_download_token(token: str) -> dict[str, Any] | None:
+    try:
+        payload = jwt.decode(
+            token, get_settings().resolved_secret_key, algorithms=["HS256"]
+        )
+    except jwt.PyJWTError:
+        return None
+    if payload.get("scope") != "download" or not payload.get("sub"):
+        return None
+    return payload
 
 
 def generate_api_token() -> tuple[str, str, str]:

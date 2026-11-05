@@ -1,8 +1,9 @@
 import { ArrowDown, ArrowUp, Images, Loader2, Trash2 } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 import { api, TERMINAL_STATUSES, type AssetOut } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
 import { MediaThumb } from "@/components/MediaLightbox";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
@@ -13,9 +14,14 @@ import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SplitPane } from "@/components/ui/split-pane";
 import { useTrackedJob } from "@/hooks/useJob";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
 
 type Kind = "image" | "video" | "audio";
+
+function assetLabel(asset: AssetOut): string {
+  return String(asset.meta?.source_name ?? asset.path.split("/").pop() ?? `#${asset.id}`);
+}
 
 const META: Record<Kind, { title: string; description: string; accept: string; min: number }> = {
   image: {
@@ -49,21 +55,80 @@ export function MediaConcatPage({ kind }: { kind: Kind }) {
   const [gap, setGap] = useState(4);
   const [gapColor, setGapColor] = useState("#FFFFFF");
   const [error, setError] = useState<string | null>(null);
+  const [storedIds, setStoredIds] = usePersistentState<number[]>(
+    `tool-${kind}-concat:asset-ids`,
+    [],
+  );
+  const uploadedIds = useRef<Set<number>>(new Set());
+  const hydrated = useRef(false);
 
-  const { data: assets, isLoading } = useQuery({
-    queryKey: ["assets", kind, "tool"],
-    queryFn: () => api.listAssets(kind),
-  });
+  useEffect(() => {
+    const ids = storedIds;
+    if (ids.length === 0) {
+      hydrated.current = true;
+      return;
+    }
+    let alive = true;
+    void Promise.allSettled(ids.map((id) => api.getAsset(id))).then((results) => {
+      if (!alive) return;
+      const assets = results
+        .filter(
+          (result): result is PromiseFulfilledResult<AssetOut> => result.status === "fulfilled",
+        )
+        .map((result) => result.value)
+        .filter((asset) => asset.kind === kind);
+      setSelected((current) => {
+        const next = [...current];
+        for (const asset of assets) {
+          if (!next.some((item) => item.id === asset.id)) next.push(asset);
+        }
+        return next;
+      });
+      hydrated.current = true;
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    setStoredIds(selected.map((asset) => asset.id));
+  }, [selected, setStoredIds]);
+
+  const mergeAssets = (assets: AssetOut[]) => {
+    setSelected((current) => [
+      ...current,
+      ...assets.filter(
+        (asset) => asset.kind === kind && !current.some((item) => item.id === asset.id),
+      ),
+    ]);
+    setError(null);
+  };
+
+  const removeAsset = (asset: AssetOut) => {
+    setSelected((current) => current.filter((item) => item.id !== asset.id));
+    if (!asset.hidden || !uploadedIds.current.has(asset.id)) return;
+    uploadedIds.current.delete(asset.id);
+    void api.deleteAsset(asset.id).then(
+      () => queryClient.invalidateQueries({ queryKey: ["assets"] }),
+      () => {},
+    );
+  };
 
   const upload = useMutation({
-    mutationFn: async (files: FileList | null) => {
-      for (const file of Array.from(files ?? [])) {
-        await api.uploadFileAsAsset(file, kind);
+    mutationFn: async (files: File[]) => {
+      const added: AssetOut[] = [];
+      for (const file of files) {
+        const created = await api.uploadFileAsAsset(file, kind, true);
+        added.push(await api.getAsset(created.asset_id));
       }
+      return added;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["assets", kind, "tool"] });
-      setError(null);
+    onSuccess: (added) => {
+      for (const asset of added) uploadedIds.current.add(asset.id);
+      mergeAssets(added);
+      void queryClient.invalidateQueries({ queryKey: ["assets"] });
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -79,6 +144,7 @@ export function MediaConcatPage({ kind }: { kind: Kind }) {
         gap_color: gapColor,
       }),
     onSuccess: (created) => {
+      uploadedIds.current.clear();
       setJobId(created.id);
       setError(null);
     },
@@ -108,44 +174,26 @@ export function MediaConcatPage({ kind }: { kind: Kind }) {
             <Card>
               <CardHeader>
                 <CardTitle>{tx("素材")}</CardTitle>
-                <CardDescription>{tx("上传后会进入资源库；也可以直接选已有素材。")}</CardDescription>
+                <CardDescription>{tx("上传后自动加入下方顺序；隐藏资源可在选择器中直接复用。")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <FileDrop
                   accept={meta.accept}
                   multiple
                   clearAfterSelect
+                  names={selected.map(assetLabel)}
                   title={upload.isPending ? tx("上传中…") : tx("点击或拖拽上传")}
                   subtitle={tx("可多选、多次添加")}
-                  onSelect={(files) => upload.mutate(files)}
+                  onSelect={(files) => {
+                    if (files?.length) upload.mutate(files);
+                  }}
+                />
+                <AssetPickButton
+                  kind={kind}
+                  multiple
+                  onPick={(assets) => mergeAssets(assets)}
                 />
                 {error && <p className="text-sm text-danger">{error}</p>}
-                <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-4">
-                  {isLoading && <p className="col-span-full text-sm text-muted-foreground">{tx("加载中…")}</p>}
-                  {!isLoading && !assets?.length && (
-                    <p className="col-span-full text-sm text-muted-foreground">{tx("资源库暂无该类型文件")}</p>
-                  )}
-                  {assets?.map((asset) => {
-                    const picked = selected.some((item) => item.id === asset.id);
-                    return (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        className={`flex h-28 flex-col overflow-hidden rounded-lg border text-left transition ${picked ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/60"}`}
-                        onClick={() =>
-                          setSelected((current) =>
-                            picked ? current.filter((item) => item.id !== asset.id) : [...current, asset],
-                          )
-                        }
-                      >
-                        <MediaThumb assetId={asset.id} kind={asset.kind} className="h-20 w-full shrink-0" />
-                        <span className="block truncate px-1.5 py-1 text-[10px] text-muted-foreground">
-                          #{asset.id} {String(asset.meta?.source_name ?? asset.path)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
               </CardContent>
             </Card>
 
@@ -160,14 +208,14 @@ export function MediaConcatPage({ kind }: { kind: Kind }) {
                   <div key={asset.id} className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5">
                     <span className="w-5 shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
                     <MediaThumb assetId={asset.id} kind={asset.kind} className="size-10 rounded-md" />
-                    <span className="min-w-0 flex-1 truncate text-sm">#{asset.id}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{assetLabel(asset)}</span>
                     <Button size="icon" variant="ghost" aria-label={tx("上移")} disabled={index === 0} onClick={() => move(index, -1)}>
                       <ArrowUp />
                     </Button>
                     <Button size="icon" variant="ghost" aria-label={tx("下移")} disabled={index === selected.length - 1} onClick={() => move(index, 1)}>
                       <ArrowDown />
                     </Button>
-                    <Button size="icon" variant="ghost" aria-label={tx("移除")} onClick={() => setSelected((current) => current.filter((item) => item.id !== asset.id))}>
+                    <Button size="icon" variant="ghost" aria-label={tx("移除")} onClick={() => removeAsset(asset)}>
                       <Trash2 />
                     </Button>
                   </div>
@@ -209,7 +257,7 @@ export function MediaConcatPage({ kind }: { kind: Kind }) {
             </Button>
           </div>
         }
-        right={<ResultPanel job={job ?? null} mediaKind={kind} historyKind={kind} jobKind="media.concat" emptyHint={tx("拼接结果会出现在这里")} />}
+        right={<ResultPanel job={job ?? null} mediaKind={kind} historyKind={kind} jobFunction="media.concat" emptyHint={tx("拼接结果会出现在这里")} />}
       />
     </div>
   );

@@ -5,7 +5,8 @@ import { RotateCcw, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api, fetchAssetBlob, type JobOut } from "@/api/client";
+import { api, type JobOut } from "@/api/client";
+import { downloadAssetById } from "@/components/MediaLightbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
@@ -72,13 +73,7 @@ export function JobsPage() {
   const retry = useMutation({ mutationFn: (id: string) => api.retryJob(id), onSuccess: invalidate });
 
   const download = async (assetId: number, filename: string) => {
-    const blob = await fetchAssetBlob(assetId);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    await downloadAssetById(assetId, filename);
   };
 
   const visible = (jobs ?? []).filter((j) => matchesFilter(j.status, filter));
