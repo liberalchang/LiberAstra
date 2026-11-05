@@ -58,11 +58,26 @@ astra mcp
 
 | 工具 | 作用 |
 | --- | --- |
-| `generate_image` | 文生图，返回本地文件路径 |
-| `synthesize_speech` | 文字转语音；`voice` 例如 `zh-CN-XiaoxiaoNeural` |
-| `transcribe` | 语音转文字 |
-| `create_video` | 一句话生成短视频 |
-| `get_job` | 查询任务状态与产物 |
+| `generate_image` / `submit_image` | 文生图；`submit_*` 立即返回 job |
+| `synthesize_speech` / `submit_speech` | 文字转语音 |
+| `transcribe` / `submit_transcription` | 语音转文字 |
+| `create_video` / `submit_video` | 一句话生成短视频 |
+| `get_job` / `wait_job` | 查询 / 等待任务 |
+| `cancel_job` / `retry_job` | 取消 / 重试任务 |
+| `list_voices` / `list_workflows` / `list_providers` | 发现音色、工作流包、服务提供方 |
+| `list_assets` / `get_asset` | 列出 / 读取资产 |
+
+`generate_image`、`synthesize_speech`、`transcribe`、`create_video` 是阻塞便捷工具，适合一次调用拿结果。视频和长任务优先用 `submit_*` 拿 `job_id`，再 `wait_job` 跟进，避免单次工具调用超时。
+
+先用 `list_workflows` 和 `list_voices` 发现可用名称；不同安装的内置包可能不同。
+
+资源：`liberastra://skill` 返回技能说明，`liberastra://workflows` 返回工作流包目录。
+
+工具失败时返回结构化对象而不是抛异常：
+
+```json
+{"ok": false, "error": {"type": "SecurityError", "message": "凭据无效，请先 astra login", "exit_code": 1}}
+```
 
 ## Skill
 

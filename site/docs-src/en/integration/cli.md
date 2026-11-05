@@ -6,11 +6,13 @@ title: CLI
 
 `astra` is the LiberAstra command-line client. It calls a running server over HTTP and does not run models in this process.
 
-Global flags go before the subcommand:
+Global flags usually go before the subcommand, but can also be placed after it:
 
 ```bash
 astra --server http://127.0.0.1:8000 --token astra_... --json job list
 ```
+
+`--server`, `--token`, and `--json` can also be placed after the subcommand. With `--json`, errors are written to stderr as `{ok:false,error:{type,message,exit_code}}`.
 
 | Flag | Meaning |
 |------|---------|
@@ -26,9 +28,10 @@ Exit codes: `0` success, `2` bad arguments, `3` server unreachable, `4` job fail
 astra serve                 # API and web UI, default 0.0.0.0:8000
 astra serve --reload        # Reload on code changes
 astra doctor                # Config, database, ffmpeg, server reachability
-astra version
+astra version               # or astra --version
 astra login --server http://127.0.0.1:8000 --username admin --password '***'
 astra config                # Current server and whether a token is saved
+astra logout                # Remove saved credentials
 ```
 
 The Windows setup starts the same server from the Start menu. From a terminal, run `runtime\python.exe -m liberastra.cli.main` inside the install directory, or put `astra` on PATH yourself.
@@ -50,20 +53,35 @@ astra provider models 1
 astra tts "Hello" --voice zh-CN-XiaoxiaoNeural -o hello.mp3
 astra asr ./talk.wav -f srt -o talk.srt --language zh
 astra image gen --prompt "an orange cat" --workflow qwen_image_21 -o ./out
+astra image edit --image input.png --prompt "replace the background with a beach" --workflow qwen_image_21_edit -o ./out
 astra video quick --topic "three productivity tips" --voice zh-CN-XiaoxiaoNeural -o v.mp4
+astra video i2v --image first.png --workflow minimax_h3_i2v -o v.mp4
 ```
 
-`image gen` also accepts `--width`, `--height`, `--seed`, `--provider-id`, and `--params`. `video quick` needs either `--topic` or `--script`. `--aspect` defaults to `9:16`.
+`image gen` also accepts `--width`, `--height`, `--seed`, `--provider-id`, and `--params`. `image edit` takes one or more repeatable `--image` inputs. `video quick` needs either `--topic` or `--script`; `--aspect` defaults to `9:16`. `video i2v` takes the first frame with `--image`; add `--image-2` and `--sub-capability i2v_flf` for first/last-frame mode.
 
 ## Jobs and workflows
 
 ```bash
-astra job list --limit 20
+astra job list --limit 20 --status failed --kind image.generate
 astra job get <job_id>
-astra job wait <job_id>
+astra job wait <job_id> --timeout 7200
+astra job retry <job_id>
 astra job cancel <job_id>
-astra workflow list
+astra workflow list --capability t2i
 ```
+
+## Assets and voices
+
+```bash
+astra asset list --kind image --limit 20
+astra asset list --include-hidden
+astra asset download 123 -o ./out
+astra asset delete 123 --yes
+astra voices list
+```
+
+`asset download` reads the asset metadata first, then downloads the file; when `-o` is a directory, the server-side basename is used. `asset delete` requires `--yes`.
 
 ## MCP
 

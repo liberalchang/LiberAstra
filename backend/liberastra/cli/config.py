@@ -23,6 +23,10 @@ def load() -> dict:
 def save(server: str, token: str) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(f'server = "{server}"\ntoken = "{token}"\n', encoding="utf-8")
+    try:
+        os.chmod(CONFIG_PATH, 0o600)
+    except OSError:
+        pass
 
 
 def resolve(server: str | None = None, token: str | None = None) -> tuple[str, str | None]:

@@ -40,7 +40,7 @@
 | Community health | **约 42%** | 有 README + LICENSE；缺 CONTRIBUTING、CoC、Issue/PR 模板、SECURITY |
 | README | ~308 行，中英双语；16 张静态 PNG；**无 shields 徽章、无 GIF、无 Demo 视频、无「为什么选它」对比** | 功能段在安装段之前，首屏偏「说明书」 |
 | 截图 | `docs/images/` 8 张，最大约 396KB | 有产品感；缺动效与「成品样片」 |
-| 文档 | `docs/使用文档.md` 等较全；夹杂多份「开发计划」 | 对新访客像内部 wiki |
+| 文档 | `site/docs-src/` 较全；夹杂多份「开发计划」 | 对新访客像内部 wiki |
 | 站外检索 | 「LiberAstra」几乎不指向本项目 | 名称与巴西站撞车；仓库外几乎无索引页 |
 | 作者画像 | bio/blog/twitter 均为空；followers 约 6 | 个人品牌未给仓库导流 |
 | 已有传播资产 | `/workspace/docs/LiberAstra-公众号.md` | 文稿已备；**是否已发布未在本任务中核实** |

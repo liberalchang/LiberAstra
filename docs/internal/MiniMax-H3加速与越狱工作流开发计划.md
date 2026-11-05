@@ -1,5 +1,8 @@
 # MiniMax H3：模型清单、Turbo 加速与越狱增强工作流开发计划
 
+> **历史方案（已归档）**：本文记录当时的开发计划与决策，不代表当前实现。当前功能与文档以 `site/docs-src/` 和代码为准；请勿直接按本文实施。
+
+
 > 状态（2026-10-20）：**代码侧** 六个 H3 视频包已切到方案 A（`MiniMaxH3TurboLoRA` + `minimax_h3_turbo_v4_step600_ema.safetensors`，采样器预设 `euler`、8 步）。**运维侧** 远程仍缺 Larry Turbo 节点包；EMA 已在本地下好，待上传到 `models/loras/`。出片验收未做。
 >
 > 远程实测摘要（`ps@10.10.12.140`，ComfyUI 0.37.0 / PyTorch 2.14.1+cu130）：磁盘剩余约 89G；内存 62G、可用约 20G；Guide `054ccb8`；`MiniMaxH3PromptEnhancer` / `MiniMaxH3GenerationTailLoader` 已注册；无 `ComfyUI-MiniMax-H3-Turbo`。

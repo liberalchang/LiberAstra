@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test src/canvas/layout.test.ts src/canvas/bindings.test.ts src/canvas/preflight.test.ts src/canvas/runState.test.ts src/canvas/functionRules.test.ts src/nav/model.test.ts src/components/ui/galaxy.test.ts src/lib/promptTemplates.test.ts",
+    "test": "node --test src/canvas/layout.test.ts src/canvas/bindings.test.ts src/canvas/preflight.test.ts src/canvas/runState.test.ts src/canvas/functionRules.test.ts src/docs/docs.test.ts src/nav/model.test.ts src/components/ui/galaxy.test.ts src/lib/promptTemplates.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,13 +15,17 @@
     "@xyflow/react": "^12.12.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "github-slugger": "^2.0.0",
     "i18next": "^26.4.4",
     "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^17.0.16",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.1.0",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.6.0",
     "zustand": "^5.0.2"
   },

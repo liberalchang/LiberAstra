@@ -52,7 +52,6 @@ const zh = {
     prompts: "提示词模板",
     system: "系统设置",
     apiDocs: "API 文档",
-    cliDocs: "CLI 文档",
   },
   common: {
     logout: "退出登录",
@@ -247,7 +246,6 @@ const en: typeof zh = {
     prompts: "Prompt Templates",
     system: "System",
     apiDocs: "API Docs",
-    cliDocs: "CLI Docs",
   },
   common: {
     logout: "Sign out",

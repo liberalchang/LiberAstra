@@ -37,8 +37,7 @@ export type NavIconKey =
   | "workflows"
   | "prompts"
   | "system"
-  | "apiDocs"
-  | "cliDocs";
+  | "apiDocs";
 
 export type NavLeaf = {
   to: string;
@@ -223,13 +222,12 @@ export const NAV_ENTRIES: NavEntry[] = [
     id: "reading",
     labelKey: "group.reading",
     icon: "reading",
-    match: ["/guide", "/dev"],
+    match: ["/guide"],
     sections: [
       {
         items: [
           { to: "/guide", labelKey: "nav.guide", icon: "guide" },
           { to: "/docs", labelKey: "nav.apiDocs", icon: "apiDocs", href: "/docs", external: true },
-          { to: "/dev/cli", labelKey: "nav.cliDocs", icon: "cliDocs" },
         ],
       },
     ],

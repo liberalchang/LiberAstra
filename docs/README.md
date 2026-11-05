@@ -10,12 +10,12 @@ LiberAstra 是自托管 AIGC 编排台：对接 ComfyUI、Ollama、语音服务�
 
 | 文档 | 适合谁 |
 |------|--------|
-| [使用文档](./使用文档.md) | 装好之后的界面、工作流包和模型怎么配对（中文） |
+| [使用文档](../site/docs-src/quickstart.md) | 站点与应用内共用；中文，英文在 `site/docs-src/en/` |
 | [部署](./deployment.md) | Docker、环境变量、可选 profile |
 | [Deployment (English)](./deployment.en.md) | Same deploy path in English |
 | [分置部署教程](./分置部署教程.md) | 编排机和显卡机分开 |
 | [部署相关资源下载](./Liberastra部署相关资源下载.md) | 安装包、Ollama、ComfyUI、模型地址 |
-| [CLI](./cli.md) / [CLI (English)](./cli.en.md) | `astra` 命令 |
+| [CLI](../site/docs-src/integration/cli.md) / [CLI (English)](../site/docs-src/en/integration/cli.md) | `astra` 命令 |
 | [在 Claude / Cursor 里用](./agents.md) | Skill 与 MCP |
 | [Provider 接入](./providers.md) | 服务提供方类型 |
 | [API](./api.md) | HTTP 接口 |
@@ -37,4 +37,4 @@ Windows 主程序看 [最新 Release](https://github.com/liberalchang/LiberAstra
 
 ## English
 
-User-facing docs are linked in the table above. The long in-app manual (`使用文档.md`) is Chinese; the Web UI is Chinese and English. Deploy steps in English: [deployment.en.md](./deployment.en.md). Agents: [agents.md](./agents.md).
+User-facing docs are linked in the table above. The in-app manual is generated from `site/docs-src/` and is available in Chinese and English; the Web UI follows the same languages. Deploy steps in English: [deployment.en.md](./deployment.en.md). Agents: [agents.md](./agents.md).

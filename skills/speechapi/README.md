@@ -71,3 +71,45 @@ python scripts/liber_speech_client.py asr audio.wav --output text
 ```
 
 模型列表、语言代码和字段说明见 `references/api.md`。
+
+### 模型列表
+
+```bash
+python scripts/liber_speech_client.py models
+```
+
+直接读取服务端 `GET /api/v1/models`，返回可用的 ASR/TTS 包和默认模型。优先用它确认模型名，不要硬编码。
+
+### 批量转写
+
+```bash
+# 多个文件
+python scripts/liber_speech_client.py asr a.wav b.mp3 --output json
+# 整个目录
+python scripts/liber_speech_client.py asr ./recordings --output text
+```
+
+批量模式下，结果写在每个输入文件旁边：结构化输出写同名 `.json`，纯文本写同名 `.txt`。`--output` 只对单个输入生效。
+
+### 临时覆盖与重试
+
+所有子命令都支持：
+
+- `--base-url` / `--api-key`：覆盖本次调用的服务地址和密钥
+- `--timeout`：请求超时（默认 120 秒；合成/转写默认 600 秒）
+- `--retries`：连接错误、超时和 HTTP 5xx 的指数退避重试次数；4xx 不重试
+
+### 退出码
+
+| 退出码 | 含义 |
+|---|---|
+| `0` | 成功 |
+| `2` | 配置、参数或输入文件错误 |
+| `3` | 网络或服务不可达 |
+| `4` | 服务返回 API 错误 |
+
+### 和 `liberastra` skill 的区别
+
+- 本 skill 直接调用语音服务 `:5555` 的 `/api/v1`，同步返回 ASR/TTS 结果，不经过主平台的任务队列。
+- `liberastra` skill 调用主平台 `:8000`，生成走异步任务，适合图片、视频和需要任务管理的场景。
+- 两者不要混用 `LIBER_API_BASE_URL` 和 `LIBERASTRA_SERVER`。

@@ -125,3 +125,80 @@ def test_mcp_server_builds() -> None:
 
     mcp = create_mcp()
     assert mcp.name == "LiberAstra"
+
+
+def test_prepare_argv_hoists_global_flags() -> None:
+    from liberastra.cli.main import prepare_argv
+
+    cleaned, parsed = prepare_argv(
+        ["job", "list", "--json", "--server", "http://example:8000", "--token=abc"]
+    )
+    assert cleaned == ["job", "list"]
+    assert parsed == {
+        "server": "http://example:8000",
+        "token": "abc",
+        "json": True,
+        "version": False,
+    }
+
+
+def test_save_outputs_sanitizes_filename(tmp_path: Path) -> None:
+    from liberastra.cli.client import ApiClient
+
+    client = ApiClient("http://127.0.0.1:9")
+    client.request_bytes = lambda _path: b"data"  # type: ignore[method-assign]
+    saved = client.save_outputs(
+        {
+            "outputs": [
+                {
+                    "type": "asset",
+                    "asset_id": 1,
+                    "kind": "image",
+                    "filename": "../../evil.png",
+                }
+            ]
+        },
+        tmp_path,
+        default_name="image",
+        kind="image",
+    )
+    client.close()
+    assert saved == [tmp_path / "evil.png"]
+    assert (tmp_path / "evil.png").read_bytes() == b"data"
+
+
+def test_logout_removes_config(live_server: str) -> None:
+    _login(live_server)
+    assert cli_config.CONFIG_PATH.exists()
+    result = runner.invoke(app, ["--json", "logout"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["ok"] is True
+    assert not cli_config.CONFIG_PATH.exists()
+
+
+def test_job_filters_and_discovery(live_server: str) -> None:
+    _login(live_server)
+    filters = runner.invoke(
+        app,
+        ["--json", "job", "list", "--status", "succeeded", "--kind", "image.generate"],
+    )
+    assert filters.exit_code == 0, filters.output
+    assert isinstance(json.loads(filters.output), list)
+
+    for command in (
+        ["asset", "list"],
+        ["voices", "list"],
+        ["workflow", "list", "--capability", "t2i"],
+    ):
+        result = runner.invoke(app, ["--json", *command])
+        assert result.exit_code == 0, result.output
+        assert isinstance(json.loads(result.output), list)
+
+
+def test_doctor_json(live_server: str) -> None:
+    _login(live_server)
+    result = runner.invoke(app, ["--json", "doctor"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "checks" in payload
+    assert any(item["name"] == "数据库连接" for item in payload["checks"])

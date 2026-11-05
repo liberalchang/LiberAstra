@@ -17,6 +17,12 @@ from liberastra.cli.config import resolve
 TERMINAL = ("succeeded", "failed", "canceled")
 
 
+def _safe_output_name(entry: dict, index: int, default_name: str) -> str:
+    """服务端返回的文件名只取 basename，避免写出目标目录。"""
+    raw = Path(str(entry.get("filename") or f"{default_name}_{index}")).name
+    return raw or f"{default_name}_{index}"
+
+
 class CliError(Exception):
     exit_code = 1
 
@@ -111,14 +117,14 @@ class ApiClient:
         single = len(entries) == 1
         for i, entry in enumerate(entries):
             content = self.request_bytes(f"/api/v1/assets/{entry['asset_id']}/content")
+            name = _safe_output_name(entry, i, default_name)
             if out is None:
-                name = entry.get("filename") or f"{default_name}_{i}"
                 target = Path.cwd() / name
             elif single and out.suffix:
                 target = out
             else:
                 out.mkdir(parents=True, exist_ok=True)
-                target = out / (entry.get("filename") or f"{default_name}_{i}")
+                target = out / name
             target.write_bytes(content)
             saved.append(target)
         return saved

@@ -25,7 +25,6 @@ import {
   Settings,
   Settings2,
   Sparkles,
-  Terminal,
   UserRound,
   UsersRound,
   Video,
@@ -78,7 +77,6 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   prompts: ScrollText,
   system: Settings,
   apiDocs: Code2,
-  cliDocs: Terminal,
 };
 
 export function NavIcon({ name, className }: { name: NavIconKey; className?: string }) {

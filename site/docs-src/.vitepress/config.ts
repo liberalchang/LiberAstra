@@ -1,7 +1,25 @@
 import { defineConfig } from 'vitepress';
 
+import nav from '../nav.json';
+
 // 中文为主，提供简要英文骨架。构建输出到 site/docs。
 // 本地预览用 DOCS_BASE=/docs/；GitHub Project Pages 默认 /LiberAstra/docs/。
+const navData = nav as {
+  zh: { sections: { title: string; items: { title: string; slug: string }[] }[] };
+  en: { sections: { title: string; items: { title: string; slug: string }[] }[] };
+};
+
+/** 侧栏与 nav.json 共用一份；slug=index 指向该语言的根路径。 */
+function sidebarFor(locale: (typeof navData)['zh'], prefix = '') {
+  return locale.sections.map((section) => ({
+    text: section.title,
+    items: section.items.map((item) => ({
+      text: item.title,
+      link: item.slug === 'index' ? `${prefix}/` : `${prefix}/${item.slug}`,
+    })),
+  }));
+}
+
 export default defineConfig({
   title: 'LiberAstra',
   description:
@@ -24,48 +42,7 @@ export default defineConfig({
           { text: '关于', link: '/about' }
         ],
         sidebar: {
-          '/': [
-            {
-              text: '介绍',
-              items: [
-                { text: '项目目的与非目标', link: '/' },
-                { text: '快速开始', link: '/quickstart' }
-              ]
-            },
-            {
-              text: '安装与部署',
-              items: [
-                { text: '安装 / 下载', link: '/install' }
-              ]
-            },
-            {
-              text: '指南',
-              items: [
-                { text: '图像', link: '/guides/image' },
-                { text: '视频', link: '/guides/video' },
-                { text: '语音', link: '/guides/speech' },
-                { text: '画布与导演台', link: '/guides/canvas' },
-                { text: '设置', link: '/guides/settings' },
-                { text: '作品与任务', link: '/guides/works' }
-              ]
-            },
-            {
-              text: '集成',
-              items: [
-                { text: 'CLI', link: '/integration/cli' },
-                { text: 'API', link: '/integration/api' },
-                { text: 'MCP', link: '/integration/mcp' }
-              ]
-            },
-            {
-              text: '服务提供方',
-              items: [{ text: 'Providers', link: '/providers' }]
-            },
-            {
-              text: '关于',
-              items: [{ text: 'MIT / 安全 / FAQ', link: '/about' }]
-            }
-          ]
+          '/': sidebarFor(navData.zh)
         },
         socialLinks: [
           { icon: 'github', link: 'https://github.com/liberalchang/LiberAstra' }
@@ -85,46 +62,7 @@ export default defineConfig({
           { text: 'About', link: '/en/about' }
         ],
         sidebar: {
-          '/en/': [
-            {
-              text: 'Introduction',
-              items: [
-                { text: 'Purpose and non-goals', link: '/en/' },
-                { text: 'Quick start', link: '/en/quickstart' }
-              ]
-            },
-            {
-              text: 'Install & Deploy',
-              items: [{ text: 'Install / Download', link: '/en/install' }]
-            },
-            {
-              text: 'Guides',
-              items: [
-                { text: 'Image', link: '/en/guides/image' },
-                { text: 'Video', link: '/en/guides/video' },
-                { text: 'Speech', link: '/en/guides/speech' },
-                { text: 'Canvas & Director', link: '/en/guides/canvas' },
-                { text: 'Settings', link: '/en/guides/settings' },
-                { text: 'Works & Tasks', link: '/en/guides/works' }
-              ]
-            },
-            {
-              text: 'Integration',
-              items: [
-                { text: 'CLI', link: '/en/integration/cli' },
-                { text: 'API', link: '/en/integration/api' },
-                { text: 'MCP', link: '/en/integration/mcp' }
-              ]
-            },
-            {
-              text: 'Providers',
-              items: [{ text: 'Providers', link: '/en/providers' }]
-            },
-            {
-              text: 'About',
-              items: [{ text: 'MIT / Security / FAQ', link: '/en/about' }]
-            }
-          ]
+          '/en/': sidebarFor(navData.en, '/en')
         },
         socialLinks: [
           { icon: 'github', link: 'https://github.com/liberalchang/LiberAstra' }

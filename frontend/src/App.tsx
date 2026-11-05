@@ -8,7 +8,7 @@ import { AuthPage } from "@/pages/AuthPage";
 import { useTx } from "@/i18n/tx";
 import { useAuthStore } from "@/stores/auth";
 
-// 路由级代码分割：各页面（含 GuidePage/CliPage 内联的 markdown 文档）按需加载
+// 路由级代码分割：各页面（含 GuidePage 内联的 markdown 文档）按需加载
 const AsrPage = lazy(() => import("@/pages/AsrPage").then((m) => ({ default: m.AsrPage })));
 const VcPage = lazy(() => import("@/pages/VcPage").then((m) => ({ default: m.VcPage })));
 const AssetsPage = lazy(() => import("@/pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
@@ -19,7 +19,6 @@ const CanvasListPage = lazy(() =>
 );
 const CanvasPage = lazy(() => import("@/pages/CanvasPage").then((m) => ({ default: m.CanvasPage })));
 const CharactersPage = lazy(() => import("@/pages/CharactersPage").then((m) => ({ default: m.CharactersPage })));
-const CliPage = lazy(() => import("@/pages/CliPage").then((m) => ({ default: m.CliPage })));
 const GuidePage = lazy(() => import("@/pages/GuidePage").then((m) => ({ default: m.GuidePage })));
 const ImageEditPage = lazy(() => import("@/pages/ImageEditPage").then((m) => ({ default: m.ImageEditPage })));
 const ImageDepthPage = lazy(() => import("@/pages/ImageDepthPage").then((m) => ({ default: m.ImageDepthPage })));
@@ -69,8 +68,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/canvas" element={<CanvasListPage />} />
         <Route path="/canvas/:id" element={<CanvasPage />} />
-        <Route path="/guide" element={<GuidePage />} />
-        <Route path="/dev/cli" element={<CliPage />} />
+        <Route path="/guide/*" element={<GuidePage />} />
         <Route path="/speech/tts" element={<TtsPage />} />
         <Route path="/speech/asr" element={<AsrPage />} />
         <Route path="/speech/vc" element={<VcPage />} />

@@ -15,7 +15,6 @@ import {
   PersonStanding,
   ScrollText,
   Settings,
-  Terminal,
   UserRound,
   UsersRound,
   WandSparkles,
@@ -46,7 +45,6 @@ export type MarkKind =
   | "settings"
   | "workflow"
   | "guide"
-  | "cli"
   | "prompts";
 
 /** 功能图标来自 lucide-react，按主题色着色；与侧栏导航同一套语义映射。 */
@@ -72,7 +70,6 @@ const MARK_ICON: Record<MarkKind, LucideIcon> = {
   workflow: Workflow,
   canvas: Waypoints,
   guide: BookOpen,
-  cli: Terminal,
   prompts: ScrollText,
 };
 

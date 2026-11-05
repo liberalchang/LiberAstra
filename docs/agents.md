@@ -33,11 +33,16 @@ stdio 传输。凭据顺序：环境变量 `LIBERASTRA_SERVER` / `LIBERASTRA_TOK
 
 | 工具 | 作用 |
 |------|------|
-| `generate_image` | 文生图，返回本地路径 |
-| `synthesize_speech` | 文字转语音。`voice` 例如 `zh-CN-XiaoxiaoNeural` |
-| `transcribe` | 语音转文字 |
-| `create_video` | 一句话出短视频 |
-| `get_job` | 查询任务 |
+| `generate_image` / `submit_image` | 文生图；`submit_*` 立即返回 job |
+| `synthesize_speech` / `submit_speech` | 文字转语音 |
+| `transcribe` / `submit_transcription` | 语音转文字 |
+| `create_video` / `submit_video` | 一句话短视频 |
+| `get_job` / `wait_job` | 查询 / 等待任务 |
+| `cancel_job` / `retry_job` | 取消 / 重试任务 |
+| `list_voices` / `list_workflows` / `list_providers` | 发现音色、工作流包、服务提供方 |
+| `list_assets` / `get_asset` | 资产 |
+
+长任务优先用 `submit_*` 拿 `job_id`，再 `wait_job` 跟进。工具失败返回 `{ok:false,error:{type,message,exit_code}}`，401 时先 `astra login`。
 
 Cursor 的 MCP 配置可以写成：
 
@@ -58,12 +63,12 @@ Cursor 的 MCP 配置可以写成：
 
 把 `astra` 换成你机器上的可执行文件路径。Token 来自登录后的配置，或在界面里签发的 API Token。不要把 Token 提交进仓库。
 
-命令行等价用法见 [cli.md](./cli.md)。全局选项放在子命令前面，例如 `astra --json job list`。
+命令行等价用法见 [CLI 文档](../site/docs-src/integration/cli.md)。全局选项放在子命令前面，例如 `astra --json job list`。
 
 ## English
 
 Point an agent at [`skills/liberastra/SKILL.md`](../skills/liberastra/SKILL.md) after `astra login` against your own server. `astra doctor` checks the database, ffmpeg, and connectivity.
 
-MCP (stdio): install `liberastra[mcp]`, then run `astra mcp`. Tools: `generate_image`, `synthesize_speech`, `transcribe`, `create_video`, `get_job`. Credentials: `LIBERASTRA_SERVER` and `LIBERASTRA_TOKEN`, else `~/.liberastra/config.toml`.
+MCP (stdio): install `liberastra[mcp]`, then run `astra mcp`. Tools: blocking `generate_image`, `synthesize_speech`, `transcribe`, `create_video`, `get_job`; async `submit_image`, `submit_speech`, `submit_transcription`, `submit_video`, `wait_job`, `cancel_job`, `retry_job`; discovery `list_voices`, `list_workflows`, `list_providers`, `list_assets`, `get_asset`. Prefer `submit_*` + `wait_job` for long jobs. Credentials: `LIBERASTRA_SERVER` and `LIBERASTRA_TOKEN`, else `~/.liberastra/config.toml`.
 
-The JSON block above is a Cursor-style MCP entry. Keep the token out of git. CLI details: [cli.en.md](./cli.en.md).
+The JSON block above is a Cursor-style MCP entry. Keep the token out of git. CLI details: [CLI (English)](../site/docs-src/en/integration/cli.md).

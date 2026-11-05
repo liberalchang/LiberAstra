@@ -2,57 +2,64 @@
 title: API
 ---
 
-# API
+# LiberAstra API reference
 
-All endpoints except `/healthz` and `/auth/*` require `Authorization: Bearer <JWT or astra_ token>`. Interactive Swagger UI is available at `/docs` after the app starts.
+All endpoints except `/healthz` and `/auth/*` require `Authorization: Bearer <JWT or astra_ token>`.
+
+Interactive docs: open `/docs` (Swagger UI) after the app starts.
 
 ## Auth
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/v1/auth/status` | Whether setup is complete |
-| POST | `/api/v1/auth/setup` | Create the first admin |
-| POST | `/api/v1/auth/login` | Return a JWT |
-| GET/POST/DELETE | `/api/v1/tokens[/{id}]` | Issue, list, revoke API tokens |
+| GET | `/api/v1/auth/status` | Whether the instance has been initialized |
+| POST | `/api/v1/auth/setup` | Create the first administrator |
+| POST | `/api/v1/auth/login` | Log in and return a JWT |
+| GET/POST/DELETE | `/api/v1/tokens[/{id}]` | Issue, list, and revoke API tokens |
 
-## Providers and jobs
+## Providers and capabilities
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/v1/capabilities` | Provider registry and capability tags |
-| GET/POST | `/api/v1/providers` | List / create providers |
+| GET | `/api/v1/capabilities` | Provider type registry and capability tags |
+| GET/POST | `/api/v1/providers` | List / create providers (`api_key` stored encrypted) |
 | PATCH/DELETE | `/api/v1/providers/{id}` | Update / delete |
-| POST | `/api/v1/providers/{id}/test` | Test connection |
-| GET | `/api/v1/providers/{id}/models` | Fetch and cache models |
+| POST | `/api/v1/providers/{id}/test` | Test the connection |
+| GET | `/api/v1/providers/{id}/models` | Fetch and cache the live model list |
+
+## Jobs
+
+| Method | Path | Purpose |
+| --- | --- | --- |
 | GET | `/api/v1/jobs` | List jobs (`status_filter`, `kind`, `limit`) |
 | GET | `/api/v1/jobs/{id}` | Job detail |
-| GET | `/api/v1/jobs/{id}/events` | SSE progress |
+| GET | `/api/v1/jobs/{id}/events` | SSE progress stream (snapshot + deltas + heartbeat) |
 | POST | `/api/v1/jobs/{id}/cancel` / `retry` | Cancel / retry |
 
-Generation endpoints return `202` with a Job by default. Add `?wait=true` to wait for the terminal state.
+All generation endpoints return `202` with a Job by default. Add `?wait=true` to wait for the terminal state.
 
 ## Capabilities
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/api/v1/llm/chat` | LLM chat job |
-| POST | `/api/v1/tts` | Text to speech |
-| POST | `/api/v1/asr` | Speech to text (multipart; txt/srt/vtt/json) |
-| GET/POST/DELETE | `/api/v1/voices` | Voice library |
-| POST | `/api/v1/images/generate` / `edit` | Text-to-image / edit |
-| POST | `/api/v1/images/optimize-prompt` | LLM prompt expansion |
-| GET/POST/DELETE | `/api/v1/workflows[/{name}]`, `/workflows/import` | Workflow packs |
-| POST | `/api/v1/videos/quick` | Quick Create |
-| POST | `/api/v1/videos/i2v` / `avatar` / `motion` / `assets` | Video modes |
-| POST | `/api/v1/uploads` | Uploads for workflow parameters |
-| GET | `/api/v1/assets[/{id}[/content]]` | Assets and content |
-| GET | `/api/v1/system/info`, POST `cleanup`, GET `backup` | System operations |
+| POST | `/api/v1/llm/chat` | LLM chat (Job) |
+| POST | `/api/v1/tts` | Text to speech (`voice` or `voice_record_id`) |
+| POST | `/api/v1/asr` | Speech to text (multipart; export txt/srt/vtt/json) |
+| GET/POST/DELETE | `/api/v1/voices` | Voice library (reference audio + `voice_id` + default voice) |
+| POST | `/api/v1/images/generate` / `edit` | Text-to-image / image edit (ComfyUI requires a workflow pack name) |
+| POST | `/api/v1/images/optimize-prompt` | Expand a prompt with the LLM |
+| GET/POST/DELETE | `/api/v1/workflows[/{name}]`, `/workflows/import` | Workflow pack management |
+| POST | `/api/v1/videos/quick` | Quick Create (`topic`/`script`/`storyboard`) |
+| POST | `/api/v1/videos/i2v` / `avatar` / `motion` / `assets` | Image-to-video / digital human / motion transfer / custom assets (multipart) |
+| POST | `/api/v1/uploads` | General uploads referenced by parameters such as BGM |
+| GET | `/api/v1/assets[/{id}[/content]]` | Asset list / detail / content download |
+| GET | `/api/v1/system/info`, POST `cleanup`, GET `backup` | System info / cleanup / backup export (administrator) |
 
-## OpenAI-compatible subset
+## OpenAI-compatible subset (/v1)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/v1/chat/completions` | Default LLM (no streaming yet) |
+| POST | `/v1/chat/completions` | Proxy the default LLM (streaming is not supported yet) |
 | POST | `/v1/audio/speech` | Default TTS provider |
-| POST | `/v1/audio/transcriptions` | Default ASR provider |
-| POST | `/v1/images/generations` | Online image provider |
+| POST | `/v1/audio/transcriptions` | Default ASR provider (json/text/srt/vtt) |
+| POST | `/v1/images/generations` | Online image provider (b64_json/url; use `/api/v1/images/generate` for ComfyUI providers) |

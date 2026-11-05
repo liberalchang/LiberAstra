@@ -44,7 +44,6 @@ const EXPECTED_PATHS = [
   "/settings/plugins",
   "/settings/system",
   "/docs",
-  "/dev/cli",
 ];
 
 function findGroup(id: string): NavGroupEntry {
@@ -65,9 +64,9 @@ function activeLeaf(pathname: string): NavLeaf | null {
   return null;
 }
 
-test("导航覆盖全部 32 个入口且无重复", () => {
+test("导航覆盖全部 31 个入口且无重复", () => {
   const paths = flattenNav().map((leaf) => leaf.href ?? leaf.to);
-  assert.equal(paths.length, 32);
+  assert.equal(paths.length, 31);
   assert.equal(new Set(paths).size, paths.length);
   assert.deepEqual(new Set(paths), new Set(EXPECTED_PATHS));
 });
@@ -133,11 +132,11 @@ test("设置组包含模板和插件", () => {
   );
 });
 
-test("阅读组顺序为使用文档、API 文档、CLI 文档", () => {
+test("阅读组顺序为使用文档、API 文档", () => {
   const reading = findGroup("reading");
   assert.deepEqual(
     reading.sections.flatMap((section) => section.items.map((item) => item.labelKey)),
-    ["nav.guide", "nav.apiDocs", "nav.cliDocs"],
+    ["nav.guide", "nav.apiDocs"],
   );
 });
 
@@ -214,10 +213,10 @@ test("前缀匹配有路径边界", () => {
   assert.equal(activeGroupId("/guidance"), null);
   assert.equal(activeGroupId("/imagery"), null);
   assert.equal(activeGroupId("/devil"), null);
-  assert.equal(activeGroupId("/dev/cli"), "reading");
+  assert.equal(activeGroupId("/guide/integration/cli"), "reading");
   const reading = findGroup("reading");
   assert.equal(isGroupActive("/docs", reading), false);
-  assert.equal(isGroupActive("/dev/cli", reading), true);
+  assert.equal(isGroupActive("/guide/integration/cli", reading), true);
   assert.equal(isGroupActive("/guide", reading), true);
 });
 

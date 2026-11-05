@@ -5,6 +5,7 @@ import copy
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,9 +21,26 @@ _session = requests.Session()
 _session.trust_env = False
 
 
-def _request(method: str, url: str, **kwargs) -> requests.Response:
-    """使用不走代理的 session 发请求。"""
-    return _session.request(method, url, **kwargs)
+def _request(
+    method: str, url: str, *, retries: int = 0, **kwargs
+) -> requests.Response:
+    """使用不走代理的 session 发请求；连接错误/超时/5xx 可重试。"""
+    delay = 0.8
+    for attempt in range(retries + 1):
+        try:
+            response = _session.request(method, url, **kwargs)
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt >= retries:
+                raise
+            time.sleep(delay)
+            delay *= 2
+            continue
+        if response.status_code >= 500 and attempt < retries:
+            time.sleep(delay)
+            delay *= 2
+            continue
+        return response
+    raise ApiError("request failed")
 
 
 # 语音服务只接受这两种；ogg 会被服务端改写成 ogg_opus。mp3、mp4 会返回 400。
@@ -96,27 +114,31 @@ def load_config_json(config_path: Path) -> dict[str, Any]:
     return merged_config
 
 
-def load_env() -> dict[str, Any]:
+def load_env(
+    base_url_override: str | None = None,
+    api_key_override: str | None = None,
+    config_path_override: str | None = None,
+) -> dict[str, Any]:
     script_dir = Path(__file__).resolve().parent
     skill_dir = script_dir.parent
 
     # First, try loading from environment variables
-    base_url = os.getenv("LIBER_API_BASE_URL", "").strip().rstrip("/")
-    api_key = os.getenv("LIBER_API_KEY", "").strip()
+    base_url = (base_url_override or os.getenv("LIBER_API_BASE_URL", "")).strip().rstrip("/")
+    api_key = (api_key_override or os.getenv("LIBER_API_KEY", "")).strip()
 
     # If not found in environment variables, try loading from ~/.openclaw/.env
     if not base_url or not api_key:
         openclaw_env_path = Path.home() / ".openclaw" / ".env"
         load_dotenv(openclaw_env_path)
-        base_url = os.getenv("LIBER_API_BASE_URL", "").strip().rstrip("/")
-        api_key = os.getenv("LIBER_API_KEY", "").strip()
+        base_url = (base_url_override or os.getenv("LIBER_API_BASE_URL", "")).strip().rstrip("/")
+        api_key = (api_key_override or os.getenv("LIBER_API_KEY", "")).strip()
 
     # Finally, try loading from local .env files (skill directory or current working directory)
     if not base_url or not api_key:
         for candidate in (skill_dir / ".env", Path.cwd() / ".env"):
             load_dotenv(candidate)
-            base_url = os.getenv("LIBER_API_BASE_URL", "").strip().rstrip("/")
-            api_key = os.getenv("LIBER_API_KEY", "").strip()
+            base_url = (base_url_override or os.getenv("LIBER_API_BASE_URL", "")).strip().rstrip("/")
+            api_key = (api_key_override or os.getenv("LIBER_API_KEY", "")).strip()
             if base_url and api_key:
                 break
 
@@ -126,15 +148,20 @@ def load_env() -> dict[str, Any]:
         raise ConfigError("Missing LIBER_API_KEY. Please set it in environment variables, ~/.openclaw/.env, or local .env file")
 
     # Load config from external location to prevent overwrites during skill updates
-    config_path = Path.home() / ".openclaw" / "workspace" / "config" / "speechapi_config.json"
-    if config_path.exists():
-        config_json = load_config_json(config_path)
+    if config_path_override:
+        config_json = load_config_json(Path(config_path_override))
     else:
-        # 仓库里的文件名是 speechapi_config.json，旧的 config.json 仅作兼容。
-        local_config = skill_dir / "speechapi_config.json"
-        if not local_config.exists():
-            local_config = skill_dir / "config.json"
-        config_json = load_config_json(local_config)
+        config_path = (
+            Path.home() / ".openclaw" / "workspace" / "config" / "speechapi_config.json"
+        )
+        if config_path.exists():
+            config_json = load_config_json(config_path)
+        else:
+            # 仓库里的文件名是 speechapi_config.json，旧的 config.json 仅作兼容。
+            local_config = skill_dir / "speechapi_config.json"
+            if not local_config.exists():
+                local_config = skill_dir / "config.json"
+            config_json = load_config_json(local_config)
 
     return {
         "base_url": base_url,
@@ -207,10 +234,34 @@ def audio_extension(fmt: str) -> str:
     return "wav"
 
 
-def check_health(config: dict[str, Any]) -> dict[str, Any]:
+def check_health(
+    config: dict[str, Any], *, timeout: float | None = None, retries: int = 0
+) -> dict[str, Any]:
     url = f'{config["base_url"]}/health'
-    response = _request("GET", url, headers=build_headers(config["api_key"]), timeout=DEFAULT_TIMEOUT)
+    response = _request(
+        "GET",
+        url,
+        headers=build_headers(config["api_key"]),
+        timeout=timeout or DEFAULT_TIMEOUT,
+        retries=retries,
+    )
     _raise_for_status(response, "health check failed")
+    return response.json()
+
+
+def list_models(
+    config: dict[str, Any], *, timeout: float | None = None, retries: int = 0
+) -> dict[str, Any]:
+    """读取服务端模型列表（ASR/TTS 包和默认模型）。"""
+    url = f'{config["base_url"]}/models'
+    response = _request(
+        "GET",
+        url,
+        headers=build_headers(config["api_key"]),
+        timeout=timeout or DEFAULT_TIMEOUT,
+        retries=retries,
+    )
+    _raise_for_status(response, "models request failed")
     return response.json()
 
 
@@ -219,6 +270,9 @@ def download_audio_file(
     audio_url: str,
     output_path: str | None = None,
     fmt: str = "wav",
+    *,
+    timeout: float | None = None,
+    retries: int = 0,
 ) -> Path | None:
     """Download audio file from API and save to local path.
     
@@ -260,7 +314,14 @@ def download_audio_file(
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             target_path = results_dir / f"tts_{timestamp}.{audio_extension(fmt)}"
 
-        response = _request("GET", full_url, headers=build_headers(config["api_key"]), timeout=DEFAULT_TIMEOUT)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        response = _request(
+            "GET",
+            full_url,
+            headers=build_headers(config["api_key"]),
+            timeout=timeout or DEFAULT_TIMEOUT,
+            retries=retries,
+        )
         response.raise_for_status()
 
         content_type = response.headers.get("Content-Type", "")
@@ -276,6 +337,8 @@ def download_audio_file(
         
         return target_path
         
+    except requests.RequestException:
+        raise
     except Exception as e:
         raise ApiError(f"Failed to download audio file: {e}") from e
 
@@ -286,8 +349,13 @@ def transcribe_file(
     task: str | None = None,
     model: str | None = None,
     output: str | None = None,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    timeout: float | None = None,
+    retries: int = 0,
 ) -> dict[str, Any] | str:
-    config = load_env()
+    config = load_env(base_url, api_key)
     file_path = Path(audio_path)
     if not file_path.exists() or not file_path.is_file():
         raise FileNotFoundError(f"Audio file not found: {file_path}")
@@ -308,7 +376,8 @@ def transcribe_file(
             headers=build_headers(config["api_key"]),
             data=data,
             files=files,
-            timeout=TTS_TIMEOUT,
+            timeout=timeout or TTS_TIMEOUT,
+            retries=retries,
         )
 
     _raise_for_status(response, "ASR transcription failed")
@@ -330,8 +399,13 @@ def synthesize_text(
     clone_audio: str | None = None,
     telegram: bool = False,
     output_path: str | None = None,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    timeout: float | None = None,
+    retries: int = 0,
 ) -> dict[str, Any]:
-    config = load_env()
+    config = load_env(base_url, api_key)
     cleaned_text = (text or "").strip()
     if not cleaned_text:
         raise ValueError("TTS text must not be empty")
@@ -364,7 +438,8 @@ def synthesize_text(
                 headers=build_headers(config["api_key"]),
                 data=data,
                 files=files,
-                timeout=TTS_TIMEOUT,
+                timeout=timeout or TTS_TIMEOUT,
+                retries=retries,
             )
     else:
         response = _request(
@@ -372,7 +447,8 @@ def synthesize_text(
             url,
             headers=build_headers(config["api_key"]),
             data=data,
-            timeout=TTS_TIMEOUT,
+            timeout=timeout or TTS_TIMEOUT,
+            retries=retries,
         )
 
     _raise_for_status(response, "TTS synthesis failed")
@@ -382,7 +458,14 @@ def synthesize_text(
         raise ApiError("TTS succeeded but returned empty audio_url")
     
     # Download audio file to local path
-    local_path = download_audio_file(config, audio_url, output_path, effective_format)
+    local_path = download_audio_file(
+        config,
+        audio_url,
+        output_path,
+        effective_format,
+        timeout=timeout,
+        retries=retries,
+    )
     if local_path:
         payload["local_path"] = str(local_path)
     
@@ -397,42 +480,147 @@ def _raise_for_status(response: requests.Response, message: str) -> None:
         raise ApiError(f"{message}: HTTP {response.status_code}: {detail}") from exc
 
 
+AUDIO_SUFFIXES = {
+    ".wav",
+    ".mp3",
+    ".ogg",
+    ".opus",
+    ".flac",
+    ".m4a",
+    ".aac",
+    ".mp4",
+}
+
+
+def expand_audio_paths(paths: list[str]) -> list[Path]:
+    """展开目录；保留显式文件路径，交给 transcribe_file 校验。"""
+    expanded: list[Path] = []
+    for raw in paths:
+        path = Path(raw)
+        if path.is_dir():
+            expanded.extend(
+                sorted(
+                    item
+                    for item in path.iterdir()
+                    if item.is_file() and item.suffix.lower() in AUDIO_SUFFIXES
+                )
+            )
+        else:
+            expanded.append(path)
+    return expanded
+
+
+def _exit_code(exc: Exception) -> int:
+    if isinstance(exc, (ConfigError, FileNotFoundError, ValueError)):
+        return 2
+    if isinstance(exc, requests.RequestException):
+        return 3
+    if isinstance(exc, ApiError):
+        return 4
+    return 1
+
+
 def main() -> None:
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--base-url", default=None)
+    common.add_argument("--api-key", default=None)
+    common.add_argument("--timeout", type=float, default=None)
+    common.add_argument("--retries", type=int, default=0)
+
     parser = argparse.ArgumentParser(description="Liber SpeechAPI client")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    health_parser = subparsers.add_parser("health", help="Run health check")
-    health_parser.set_defaults(command="health")
+    subparsers.add_parser("health", parents=[common], help="Run health check")
+    subparsers.add_parser("models", parents=[common], help="List server models")
 
-    asr_parser = subparsers.add_parser("asr", help="Transcribe audio file")
-    asr_parser.add_argument("audio_path", help="Path to local audio file")
+    asr_parser = subparsers.add_parser(
+        "asr", parents=[common], help="Transcribe one or more audio files"
+    )
+    asr_parser.add_argument(
+        "audio_paths", nargs="+", help="Audio file(s) or a directory"
+    )
     asr_parser.add_argument("--language", default=None)
     asr_parser.add_argument("--task", default=None, choices=("transcribe", "translate"))
-    asr_parser.add_argument("--model", default=None, help="large-v3、large-v3-turbo 或 qwen3-asr-1.7b。不传则用配置；配置为 default 时跟随服务端环境变量")
+    asr_parser.add_argument(
+        "--model",
+        default=None,
+        help="large-v3、large-v3-turbo 或 qwen3-asr-1.7b。不传则用配置；配置为 default 时跟随服务端环境变量",
+    )
     asr_parser.add_argument("--output", choices=sorted(VALID_ASR_OUTPUTS), default=None)
 
-    tts_parser = subparsers.add_parser("tts", help="Synthesize text")
+    tts_parser = subparsers.add_parser(
+        "tts", parents=[common], help="Synthesize text"
+    )
     tts_parser.add_argument("text", help="Text to synthesize")
     tts_parser.add_argument("--language", default=None)
     tts_parser.add_argument("--model", default=None)
     tts_parser.add_argument("--format", choices=sorted(VALID_TTS_FORMATS), default=None)
-    tts_parser.add_argument("--clone-audio", default=None, help="参考音频，表单字段名为 prompt")
-    tts_parser.add_argument("--telegram", action="store_true", help="Force Telegram ogg_opus output")
-    tts_parser.add_argument("--output", "-o", default=None, help="Output file path (default: results/tts_YYYYMMDD_HHMMSS.wav)")
+    tts_parser.add_argument(
+        "--clone-audio", default=None, help="参考音频，表单字段名为 prompt"
+    )
+    tts_parser.add_argument(
+        "--telegram", action="store_true", help="Force Telegram ogg_opus output"
+    )
+    tts_parser.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Output file path (default: results/tts_YYYYMMDD_HHMMSS.wav)",
+    )
 
     args = parser.parse_args()
 
     try:
         if args.command == "health":
-            result: Any = check_health(load_env())
-        elif args.command == "asr":
-            result = transcribe_file(
-                audio_path=args.audio_path,
-                language=args.language,
-                task=args.task,
-                model=args.model,
-                output=args.output,
+            result: Any = check_health(
+                load_env(args.base_url, args.api_key),
+                timeout=args.timeout,
+                retries=args.retries,
             )
+        elif args.command == "models":
+            result = list_models(
+                load_env(args.base_url, args.api_key),
+                timeout=args.timeout,
+                retries=args.retries,
+            )
+        elif args.command == "asr":
+            paths = expand_audio_paths(args.audio_paths)
+            if not paths:
+                raise FileNotFoundError("No audio files found")
+            if len(paths) > 1 and args.output:
+                raise ValueError(
+                    "--output 只能用于单个输入；批量结果写在输入文件旁边"
+                )
+
+            items: list[Any] = []
+            for path in paths:
+                item = transcribe_file(
+                    audio_path=str(path),
+                    language=args.language,
+                    task=args.task,
+                    model=args.model,
+                    output=args.output if len(paths) == 1 else None,
+                    base_url=args.base_url,
+                    api_key=args.api_key,
+                    timeout=args.timeout,
+                    retries=args.retries,
+                )
+                if len(paths) > 1:
+                    suffix = ".json" if isinstance(item, dict) else ".txt"
+                    out_path = path.with_suffix(suffix)
+                    out_path.write_text(
+                        json.dumps(item, ensure_ascii=False, indent=2)
+                        if isinstance(item, dict)
+                        else item,
+                        encoding="utf-8",
+                    )
+                    items.append(
+                        {"input": str(path), "output": str(out_path), "result": item}
+                    )
+                else:
+                    items.append(item)
+
+            result = items[0] if len(items) == 1 else items
         elif args.command == "tts":
             result = synthesize_text(
                 text=args.text,
@@ -442,6 +630,10 @@ def main() -> None:
                 clone_audio=args.clone_audio,
                 telegram=args.telegram,
                 output_path=args.output,
+                base_url=args.base_url,
+                api_key=args.api_key,
+                timeout=args.timeout,
+                retries=args.retries,
             )
         else:
             raise RuntimeError(f"Unsupported command: {args.command}")
@@ -452,7 +644,7 @@ def main() -> None:
             print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(_exit_code(exc))
 
 
 if __name__ == "__main__":

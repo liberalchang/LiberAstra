@@ -30,6 +30,10 @@ LIBER_API_KEY=your_api_key_here
 - ASR/TTS 默认参数主要来自 `speechapi_config.json`
 - 如果 skill 目录和当前工作目录都存在 `.env`，优先使用 skill 目录内的 `.env`
 
+### 命令行临时覆盖
+
+所有子命令支持 `--base-url`、`--api-key`、`--timeout`、`--retries`。这些选项只影响本次调用，优先级高于 `.env` 和配置文件；`--retries` 只重试连接错误、超时和 HTTP 5xx。
+
 ---
 
 ## 2. speechapi_config.json 文件（详细参数）

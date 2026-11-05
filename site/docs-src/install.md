@@ -47,9 +47,10 @@ docker compose --profile ollama up -d
 docker compose --profile comfyui up -d
 docker compose --profile postgres up -d
 docker compose --profile speech up -d
+docker compose --profile depth up -d
 ```
 
-ComfyUI / 语音服务需要 NVIDIA Container Toolkit。更推荐把推理服务放到显卡主机，应用主机只跑 LiberAstra。
+ComfyUI / 语音 / 深度服务需要 NVIDIA Container Toolkit。更推荐把推理服务放到显卡主机，应用主机只跑 LiberAstra。
 
 ## 分置部署
 
@@ -89,6 +90,30 @@ cd ../backend && uv run astra serve
 ```
 
 开发模式：后端 `uv run astra serve --reload`，前端 `npm run dev`（5173，代理 `/api` 到 8000）。
+
+## 文件放在哪
+
+后端从 `backend` 启动时：
+
+| 内容 | 路径 |
+|------|------|
+| 数据库 | `backend/data/liberastra.db` |
+| 生成物 | `backend/data/outputs/` |
+| 上传 | `backend/data/uploads/` |
+| 用户工作流包 | `backend/data/workflows/` |
+| 用户模板 | `backend/data/templates/` |
+| 提示词模板 | `backend/data/prompts/` |
+| 音乐库 | `backend/data/bgm/` |
+| 角色图片 | `backend/data/characters/` |
+| 插件状态 | `backend/data/plugins.json` |
+| 插件模型 | `backend/data/plugins/speech/models`、`backend/data/plugins/depth/models` |
+| 插件共用环境 | `%LOCALAPPDATA%\LiberAstra\plugin-runtime`（安装包则在数据目录的 `plugins\runtime`） |
+
+画布的节点图和每次执行记录写在数据库里，没有单独的画布目录。节点产物在 `outputs/`，未「保存到资源库」时资产列表默认不显示。
+
+Windows 安装包的数据目录不是程序目录，而是 `%LOCALAPPDATA%\LiberAstra\data`。上表里的 `backend/data` 换成这个目录。插件模型同样在其中的 `plugins\speech\models` 与 `plugins\depth\models`。
+
+`backend/data` 不要放进网盘/同步目录，否则可能锁库报 `disk I/O error`。
 
 ## 运维
 

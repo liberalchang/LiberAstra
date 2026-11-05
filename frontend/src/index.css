@@ -282,3 +282,129 @@ input[type="file"]::file-selector-button {
   text-align: initial;
   box-shadow: none;
 }
+
+/* 使用文档：react-markdown 输出统一排版 */
+.docs-prose {
+  font-size: 0.925rem;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+
+.docs-prose > * + * {
+  margin-top: 0.9rem;
+}
+
+.docs-prose h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.docs-prose h2 {
+  margin-top: 2rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.docs-prose h3 {
+  margin-top: 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.docs-prose h4 {
+  margin-top: 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.docs-prose p {
+  color: color-mix(in oklab, var(--foreground) 90%, transparent);
+}
+
+.docs-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.docs-prose ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+.docs-prose ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+
+.docs-prose li + li {
+  margin-top: 0.25rem;
+}
+
+.docs-prose code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.docs-prose pre {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: var(--muted);
+  padding: 0.75rem 1rem;
+}
+
+.docs-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.docs-prose .docs-table {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.docs-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.docs-prose th,
+.docs-prose td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-prose th {
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  font-weight: 600;
+}
+
+.docs-prose blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 0.9rem;
+  color: var(--muted-foreground);
+}
+
+.docs-prose img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+
+.docs-prose hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.docs-prose :where(h1, h2, h3, h4) {
+  scroll-margin-top: 1.5rem;
+}

@@ -1,0 +1,100 @@
+{
+  "zh": {
+    "sections": [
+      {
+        "title": "介绍",
+        "items": [
+          { "title": "项目目的与非目标", "slug": "index" },
+          { "title": "快速开始", "slug": "quickstart" }
+        ]
+      },
+      {
+        "title": "安装与部署",
+        "items": [
+          { "title": "安装 / 下载", "slug": "install" }
+        ]
+      },
+      {
+        "title": "指南",
+        "items": [
+          { "title": "图像", "slug": "guides/image" },
+          { "title": "视频", "slug": "guides/video" },
+          { "title": "语音", "slug": "guides/speech" },
+          { "title": "画布与导演台", "slug": "guides/canvas" },
+          { "title": "工具", "slug": "guides/tools" },
+          { "title": "设置", "slug": "guides/settings" },
+          { "title": "作品与任务", "slug": "guides/works" }
+        ]
+      },
+      {
+        "title": "集成",
+        "items": [
+          { "title": "CLI", "slug": "integration/cli" },
+          { "title": "API", "slug": "integration/api" },
+          { "title": "MCP", "slug": "integration/mcp" }
+        ]
+      },
+      {
+        "title": "服务提供方",
+        "items": [
+          { "title": "Providers", "slug": "providers" }
+        ]
+      },
+      {
+        "title": "关于",
+        "items": [
+          { "title": "MIT / 安全 / FAQ", "slug": "about" }
+        ]
+      }
+    ]
+  },
+  "en": {
+    "sections": [
+      {
+        "title": "Introduction",
+        "items": [
+          { "title": "Purpose and non-goals", "slug": "index" },
+          { "title": "Quick start", "slug": "quickstart" }
+        ]
+      },
+      {
+        "title": "Install & Deploy",
+        "items": [
+          { "title": "Install / Download", "slug": "install" }
+        ]
+      },
+      {
+        "title": "Guides",
+        "items": [
+          { "title": "Image", "slug": "guides/image" },
+          { "title": "Video", "slug": "guides/video" },
+          { "title": "Speech", "slug": "guides/speech" },
+          { "title": "Canvas & Director", "slug": "guides/canvas" },
+          { "title": "Tools", "slug": "guides/tools" },
+          { "title": "Settings", "slug": "guides/settings" },
+          { "title": "Works & Tasks", "slug": "guides/works" }
+        ]
+      },
+      {
+        "title": "Integration",
+        "items": [
+          { "title": "CLI", "slug": "integration/cli" },
+          { "title": "API", "slug": "integration/api" },
+          { "title": "MCP", "slug": "integration/mcp" }
+        ]
+      },
+      {
+        "title": "Providers",
+        "items": [
+          { "title": "Providers", "slug": "providers" }
+        ]
+      },
+      {
+        "title": "About",
+        "items": [
+          { "title": "MIT / Security / FAQ", "slug": "about" }
+        ]
+      }
+    ]
+  }
+}

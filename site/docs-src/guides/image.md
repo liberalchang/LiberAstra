@@ -4,7 +4,7 @@ title: 图像
 
 # 图像
 
-从文生图、编辑、修复放大到深度图；先选服务与工作流包，再写提示词。
+从文生图、编辑到深度图；先选服务与工作流包，再写提示词。图片增强在侧栏「工具 → 图片增强」。
 
 当前仓库主推 **Qwen-Image 2.1** 系列（与视频用的 MiniMax H3 **不是同一套模型**）。另有 **FLUX.3 Image Klein** 蒸馏三包，以及传统 SD checkpoint 包作备用。换下拉里的文件名时，按下面「成套」选，不要混系列、混量化、混 GGUF。
 
@@ -25,10 +25,12 @@ title: 图像
 | **FLUX.3 Klein** | `i2i` 多参考 | `flux3_klein_edit_multi` | 同上；2～4 张参考图 |
 | **传统 SD** | `t2i` | `t2i_basic` | 只选 `checkpoints/` 一个整包，无 UNET/TE/VAE |
 | **参考图调色** | `i2i` | `qwen_edit_2511_color_grade` | Edit-2511 + 调色 LoRA；原图 + 参考图。见下文 |
+| **PoseStudio 姿势换姿** | `i2i` | `qwen_image_21_posestudio` | Qwen 2.1 + PoseStudio V1.1 LoRA；人物照 + 线稿/深度，保留身份 |
+| **PoseStudio 姿势生图** | `i2i` | `qwen_image_21_posestudio_gen` | 同上；只上传线稿/深度，身份由提示词决定 |
 | **Union 深度生图** | `i2i` | `qwen_image_21_union_depth` | 2.1 三件套 + Fun ControlNet Union；只上传深度图 |
 | **Union 参考改姿** | `i2i` | `qwen_image_21_union_reference` | 同上；第 1 张人物照，第 2 张深度图 |
 | **换衣** | `i2i` | `qwen_image_21_outfit_swap` | 官方三件套 + Outfit Swap LoRA；第 1 张人物照，第 2 张衣服 |
-| 放大 | `upscale` | `upscale_basic` | `upscale_models/`，非生图 |
+| **图片增强（工具）** | `upscale` | `upscale_basic` / `seedvr2_3b_image_restore` | RealESRGAN 保真放大，或 SeedVR2 生成式修复；见 [工具 → 图片增强](/guides/tools#图片增强) |
 
 官方四包与越狱四包**图结构对应**；差别是默认 UNET 与是否声明 `accel`（LoRA）。不要在官方包里只改 UNET 却指望出现 LoRA 开关——要挂 LoRA 请选 `*_uncensored` 包。
 
@@ -154,26 +156,40 @@ Comfy 环境需要：
 - **FLUX.3 单图编辑**：`flux3_klein_edit`。1 张原图，提示词写修改指令，步数 16。详见上文。
 - **FLUX.3 多图编辑**：`flux3_klein_edit_multi`。2～4 张，也能把多张图里的人物放进同一场景。提示词用「第一张」「第二张」，不用 Qwen 的 `` `<image1>` ``。步数 16。详见上文。
 - **跟参考图调色**：`qwen_edit_2511_color_grade`。第 1 张原图、第 2 张调色参考，提示词留空，步数 20、CFG 4。模型与节点要求见上文「参考图调色」。
+
+### PoseStudio 姿势包
+
+两个包需要 ComfyUI 节点 `TextEncodeQwenImage21`、`QwenImage21Cache`、`GetImageSize`（随 Qwen-Image 2.1 节点包安装）。LoRA 用 `loras/VNCCS_QI2_PoseStudioV1.1.safetensors`；主模型默认 `qwen_image_2.1_int8_convrot.safetensors`，文本编码器 `qwen3vl_8b_int8_convrot.safetensors`，VAE `qwen_image_2.1_vae_bf16.safetensors`。线稿姿势图可以直接用「深度图生成」的结果，也可以从外部导入。
+
+- **姿势换姿**：`qwen_image_21_posestudio`。第 1 张是要保留身份的人物照，第 2 张是线稿或深度姿势图。提示词默认 `Draw character from image2`，通常不用改；要改也只写服装、场景和光线，不要重复描述四肢动作。输出画幅取姿势参考图比例；分辨率取两张图较大者，长边上限 2048；线稿不再裁白边。步数 25、CFG 固定 1、LoRA 强度 1.0。人物脸被带偏时，可以把 LoRA 强度略降。
+- **姿势生图**：`qwen_image_21_posestudio_gen`。只上传 1 张线稿或深度姿势图，人物外观、服装和场景全部写在提示词里。默认提示词是一张全身棚拍；换人物或衣服时改提示词即可。输出尺寸跟随姿势参考图，线稿不裁白边。
+
+### Union 深度与参考包
+
+两个 Union 包需要 ComfyUI ≥ 0.37，并安装节点 [Qwen Image 2.1 Fun ControlNet Union (T8)](https://github.com/T8mars/Comfyui-Qwen-Image-2.1-Fun-Controlnet-Union-T8)。默认主模型是越狱 `qwen-image-2.1-UC-int8_convrot.safetensors`，文本编码器和 VAE 仍与 `qwen_image_21` 相同。另把 `Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors` 放到 `controlnet/`，文件名必须以 `Qwen-Image-2.1-Fun-Controlnet-Union` 开头。权重：[t8star/Qwen-Image-2.1-Fun-Controlnet-Union-Comfy](https://huggingface.co/t8star/Qwen-Image-2.1-Fun-Controlnet-Union-Comfy)。
+
 - **深度图生人**：`qwen_image_21_union_depth`。只上传 1 张深度图，提示词写人物外观和场景，动作跟深度图。步数 40，CFG 固定 1。
 - **人物照按深度图改动作**：`qwen_image_21_union_reference`。第 1 张人物照，第 2 张深度图。控制类型默认 Depth；若第 2 张是 OpenPose 骨架，改成 Pose。脸被带偏时把控制强度降到 0.7–0.8。两张图宽高比尽量一致。
 
-这两个 Union 包需要 ComfyUI ≥ 0.37，并安装节点 [Qwen Image 2.1 Fun ControlNet Union (T8)](https://github.com/T8mars/Comfyui-Qwen-Image-2.1-Fun-Controlnet-Union-T8)。默认主模型是越狱 `qwen-image-2.1-UC-int8_convrot.safetensors`，文本编码器和 VAE 仍与 `qwen_image_21` 相同。另把 `Qwen-Image-2.1-Fun-Controlnet-Union-ComfyUI.safetensors` 放到 `controlnet/`，文件名必须以 `Qwen-Image-2.1-Fun-Controlnet-Union` 开头。权重：[t8star/Qwen-Image-2.1-Fun-Controlnet-Union-Comfy](https://huggingface.co/t8star/Qwen-Image-2.1-Fun-Controlnet-Union-Comfy)。
+### 换衣
 
-- **换衣**：`qwen_image_21_outfit_swap`。第 1 张人物照，第 2 张衣服（平铺或穿在别人身上，尽量裁到衣服本身）。提示词留空会用默认句：把 image 1 的人换成 image 2 的衣服，脸、头发、手、姿势和背景不变。想留鞋子时，把句尾改成 `Keep their own shoes and legwear.`。多人合影把 `the person` 改成位置或发型，不要用衣服来指人。分辨率默认 0，按人物照原尺寸出图。步数 25，CFG 固定 1，LoRA 强度 1.0。主模型默认官方 INT8（这条 LoRA 在官方 2.1 上测过）。把 `qwen-image-2.1-outfit-swap.safetensors` 放到 `loras/`，来源：[ausboss/Qwen-Image-2.1-Outfit-Swap-Consistency-LoRA](https://huggingface.co/ausboss/Qwen-Image-2.1-Outfit-Swap-Consistency-LoRA)。ComfyUI ≥ 0.38。
+`qwen_image_21_outfit_swap`。第 1 张人物照，第 2 张衣服（平铺或穿在别人身上，尽量裁到衣服本身）。提示词留空会用默认句：把 image 1 的人换成 image 2 的衣服，脸、头发、手、姿势和背景不变。想留鞋子时，把句尾改成 `Keep their own shoes and legwear.`。多人合影把 `the person` 改成位置或发型，不要用衣服来指人。分辨率默认 0，按人物照原尺寸出图。步数 25，CFG 固定 1，LoRA 强度 1.0。主模型默认官方 INT8（这条 LoRA 在官方 2.1 上测过）。把 `qwen-image-2.1-outfit-swap.safetensors` 放到 `loras/`，来源：[ausboss/Qwen-Image-2.1-Outfit-Swap-Consistency-LoRA](https://huggingface.co/ausboss/Qwen-Image-2.1-Outfit-Swap-Consistency-LoRA)。ComfyUI ≥ 0.38。
 
-上传可以分多次添加，也能单独删掉某一张。能提交的张数等于当前包的图像槽数量：整图编辑 1 张，多参考 2～4 张，重绘是原图加蒙版。多参考和重绘的缩略图带角标。
+### 上传与槽位
 
-## 修复与放大
+上传可以分多次添加，也能单独删掉某一张；也可以点「从资源库选择」直接挑已有图片。能提交的张数等于当前包的图像槽数量：整图编辑 1 张，多参考 2～4 张，重绘是原图加蒙版。多参考和重绘的缩略图带角标。
 
-侧栏「图像 → 修复与放大」，包 `upscale_basic`。走 Upscale 模型（约 4×），不是生图。权重放在 ComfyUI `upscale_models/`。提示词可留空。
+## 图片增强（已移到工具）
+
+原来的「修复与放大」已并入侧栏「工具 → 图片增强」：`upscale_basic` 做 RealESRGAN 保真放大，`seedvr2_3b_image_restore` 做 SeedVR2 生成式修复。用法见 [工具 → 图片增强](/guides/tools#图片增强)。
 
 ## 深度图生成
 
 侧栏「图像 → 深度图生成」。这里不跑 Comfy 工作流，而是把图片发给已启用的 **Liber Depth**（本机插件或局域网里的深度服务）。越亮表示离镜头越近。一次可以转多张；结果文件名是原名加 `_depth.png`，例如 `photo.jpg` 变成 `photo_depth.png`。
 
-1. 先在「资源 → 插件」安装并启用本机深度插件，或在「服务提供方」里启用一份 Liber Depth 并填上地址（本机默认 `http://127.0.0.1:5556`）。
-2. 页面上选深度服务、深度模型和硬件（`cuda` 或 `cpu`）。下拉里只出现该服务商已启用的模型。
-3. 上传框可多选、可分多次添加，也可以拖拽。下方缩略图可单独删除。同一张图（文件名、大小、修改时间都相同）不会重复加入。
+1. 先在「设置 → 插件」安装并启用本机深度插件，或在「服务提供方」里启用一份 Liber Depth 并填上地址（本机默认 `http://127.0.0.1:5556`）。
+2. 页面上选深度服务、深度模型和硬件（`cuda` 或 `cpu`）。下拉里只出现该服务商已启用的模型。第一次打开会带入「系统设置 → 深度图生成」里保存的默认服务商和模型；那两项留空时用第一个启用的深度服务和 `dpt_swin2_large_384`。
+3. 上传框可多选、可分多次添加，也可以拖拽，或点「从资源库选择」挑已有图片。下方缩略图可单独删除。同一张图（文件名、大小、修改时间都相同）不会重复加入。
 4. 点「开始转换」。本批结果显示在右侧，也可以从历史深度图里再打开或下载。
 
 安装插件时只会下载 `dpt_swin2_large_384.pt`（SwinV2 Large，边长 384）。一次转换只用一个模型。其余 MiDaS 权重要自己放到模型目录，再在服务提供方里打开对应开关，这里才会出现：
@@ -187,6 +203,8 @@ Comfy 环境需要：
 | `dpt_hybrid_384` | DPT Hybrid，体积更小 |
 | `midas_v21_small_256` | MiDaS v2.1 Small，最轻 |
 
-目录里没有对应 `.pt` / `.pth` 时，选这项不会按该权重推理。生成出的深度图可以再拿到「图生图与编辑」的 Union 包里做深度图生人或改动作。
+目录里没有对应 `.pt` / `.pth` 时，选这项不会按该权重推理。生成出的深度图可以再拿到「图生图与编辑」的 Union 包里做深度图生人或改动作，也可以作为 PoseStudio 的姿势参考图。
 
 ---
+
+相关：[工具 → 图片增强](/guides/tools#图片增强)；[设置 → 工作流包](/guides/settings#工作流包)；[视频](/guides/video)。

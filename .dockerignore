@@ -1,0 +1,41 @@
+# Docker 构建上下文基于工作树；.gitignore 不会影响 docker build，这里显式排除。
+.git
+.github
+.cursor
+.impeccable
+参考项目
+docs
+data
+backend/data
+services/*/models
+packaging
+*.exe
+*.zip
+
+# Node 依赖与构建产物
+**/node_modules
+**/dist
+frontend/dist
+frontend/.vite
+**/*.tsbuildinfo
+
+# 文档构建产物；前端只需要 docs-src 里的 Markdown 和 nav.json
+site/docs
+site/docs-src/.vitepress
+
+# Python 缓存与虚拟环境
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
+
+# 密钥
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key

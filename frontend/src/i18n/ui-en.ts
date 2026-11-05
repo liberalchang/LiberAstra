@@ -1735,4 +1735,12 @@ export const UI_EN: Record<string, string> = {
   "未选择音色": "Choose a voice",
   "音色替换节点需要连接音频或视频输入":
     "The voice conversion node needs an audio or video input",
+  "文档不存在": "Document not found",
+  "没有找到这个章节，可能链接已经过期。":
+    "This chapter could not be found. The link may be out of date.",
+  "返回文档首页": "Back to docs",
+  "此页暂无英文翻译，显示中文原文。":
+    "This page has not been translated yet; showing the Chinese original.",
+  "文档目录": "Documentation",
+  "本页目录": "On this page",
 };

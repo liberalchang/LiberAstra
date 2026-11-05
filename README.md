@@ -159,7 +159,7 @@ https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 - **设置**：服务提供方（地址与密钥）、工作流包导入、画布菜单、提示词模板（功能模板 / 场景预设，可导入导出）、默认 LLM / 深度 / 语音与运行参数。
 - **接入**：Web UI（中英文、明暗主题）、`astra` CLI、MCP Server、OpenAI 兼容 `/v1`（chat / audio / images）。单用户，API Token；Provider 密钥加密保存。
 
-模型怎么配对、内置包名单见 [docs/使用文档.md](docs/使用文档.md)。
+模型怎么配对、内置包名单见 [图像指南](site/docs-src/guides/image.md) 和 [视频指南](site/docs-src/guides/video.md)。
 
 </details>
 
@@ -229,7 +229,7 @@ ollama pull huihui_ai/gemma-4-abliterated:12b
 | H3 可选文本编码器（NVFP4） | <https://huggingface.co/sakamakismile/Qwen3-VL-32B-Heretic-MiniMax-H3-NVFP4> | `text_encoders/` |
 | H3 Turbo LoRA | <https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora> 、<https://huggingface.co/lightx2v/Minimax-h3-Turbo> | `loras/` |
 
-成套文件名见 [docs/使用文档.md](docs/使用文档.md)。
+成套文件名见 [视频指南](site/docs-src/guides/video.md)。
 
 **语音与深度（可选）。** 只做在线朗读时可以不装语音插件，用 edge-tts。需要本地合成、识别或深度图时，在「资源 → 插件」安装对应插件。插件和主程序在同一台 Windows 上时，语音地址是 `http://127.0.0.1:5555`，深度是 `http://127.0.0.1:5556`。
 
@@ -392,7 +392,7 @@ Prompt fields share one control: raw and optimized drafts, scene presets, and an
 
 **Platform.** Asset library, job queue with SSE, cancel and retry. Single user. Provider keys are encrypted. Clients: Web UI, `astra` CLI, MCP, OpenAI-compatible `/v1` (chat, audio, images).
 
-The long pairing manual is Chinese: [docs/使用文档.md](docs/使用文档.md). The Web UI itself is bilingual.
+The long pairing manual is Chinese: [image guide](site/docs-src/guides/image.md) and [video guide](site/docs-src/guides/video.md). The Web UI itself is bilingual.
 
 </details>
 

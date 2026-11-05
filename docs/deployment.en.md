@@ -83,7 +83,7 @@ Weights go into the ComfyUI `models\` tree (portable installs: `ComfyUI\models\`
 | H3 optional text encoder (NVFP4) | https://huggingface.co/sakamakismile/Qwen3-VL-32B-Heretic-MiniMax-H3-NVFP4 | `text_encoders/` |
 | H3 Turbo LoRA | https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora and https://huggingface.co/lightx2v/Minimax-h3-Turbo | `loras/` |
 
-Pair official packs with official weights. Filename lists are in the Chinese [使用文档](./使用文档.md). Ollama installers and pull examples are in the [download list](./Liberastra部署相关资源下载.md).
+Pair official packs with official weights. Filename lists are in the Chinese [image guide](../site/docs-src/guides/image.md) and [video guide](../site/docs-src/guides/video.md). Ollama installers and pull examples are in the [download list](./Liberastra部署相关资源下载.md).
 
 ## Run from source
 

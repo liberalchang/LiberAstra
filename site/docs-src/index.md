@@ -25,7 +25,7 @@ LiberAstra 是自托管的 AIGC 编排台（orchestration desk，编排台）。
 
 - 快速开始：见「[快速开始](/quickstart)」
 - 安装 / 下载：见「[安装](/install)」
-- 指南：[图像](/guides/image) / [视频](/guides/video) / [语音](/guides/speech) / [画布与导演台](/guides/canvas) / [设置](/guides/settings) / [作品与任务](/guides/works)
+- 指南：[图像](/guides/image) / [视频](/guides/video) / [语音](/guides/speech) / [画布与导演台](/guides/canvas) / [工具](/guides/tools) / [设置](/guides/settings) / [作品与任务](/guides/works)
 - 集成：[`astra` CLI](/integration/cli) / [API](/integration/api) / [MCP](/integration/mcp)
 - 服务提供方：[Providers](/providers)
 - 关于与安全：[About](/about)

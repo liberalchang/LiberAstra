@@ -58,6 +58,26 @@ Key behavior:
 - direct text-to-speech uses `tts.format` as its default output format
 - direct speech-to-text uses `global.asr_output` as its default output mode
 
+## Command-line overrides and exit codes
+
+Every command accepts these options after the subcommand:
+
+- `--base-url URL` — override `LIBER_API_BASE_URL` for this call
+- `--api-key KEY` — override `LIBER_API_KEY` for this call
+- `--timeout SECONDS` — request timeout; defaults to 120, or 600 for synthesis/transcription
+- `--retries N` — retry connection errors, timeouts, and HTTP 5xx with exponential backoff
+
+Exit codes: `0` success, `2` configuration/argument/input error, `3` network or service unreachable, `4` API error.
+
+## Health and models
+
+```bash
+python scripts/liber_speech_client.py health
+python scripts/liber_speech_client.py models
+```
+
+`models` calls `GET /api/v1/models` and returns the available ASR/TTS packs and defaults. Prefer it over hardcoding model names.
+
 ## Direct text-to-speech
 
 When the user explicitly asks to convert text to speech:
@@ -75,6 +95,7 @@ When the user explicitly asks to convert audio to text:
 3. return plain text only when the caller explicitly wants transcript text only
 4. pass `--model` only when the caller names one of `large-v3`, `large-v3-turbo`, or `qwen3-asr-1.7b`. Otherwise leave it as `default` so the speech service uses `LIBER_SPEECH_ASR_MODEL`
 5. do not use `qwen3-asr-1.7b` when the caller asks to translate speech into English; use `large-v3`
+6. pass multiple files or a directory for batch transcription; each result is written next to its input as `.json` (structured) or `.txt` (text). `--output` is only valid for a single input.
 
 ## Direct text-to-speech defaults
 
@@ -108,6 +129,9 @@ For Telegram voice replies:
 - if TTS clone audio is configured but missing, continue without cloning instead of failing
 - if summarization fails, fall back to conservative truncation rather than blocking the reply
 - default direct ASR output to JSON and default direct TTS output to WAV unless the caller requests otherwise
+- retry only connection errors, timeouts, and HTTP 5xx; do not retry 4xx
+- use the script's exit codes to decide whether to retry or ask the caller: `2` input/config, `3` network/service, `4` API
+- batch ASR writes results next to each input; confirm before overwriting an existing `.json` / `.txt` file
 
 ## Expected outputs
 
@@ -118,3 +142,5 @@ Depending on the task, return one of:
 - TTS result URL
 - saved audio file path
 - a structured JSON object containing transcript, summary, and synthesis result
+- the server model catalog from `models`
+- a list of batch ASR results, each with `input`, `output`, and `result`
