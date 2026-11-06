@@ -32,6 +32,9 @@ build/
 node_modules/
 frontend/dist/
 frontend/.vite/
+
+# VitePress 文档构建产物（CI 重建）
+site/docs/
 # tsc 落到源码旁的 .js。Vite 会优先加载它，从而盖住同名 .tsx
 frontend/src/**/*.js
 frontend/vite.config.js
