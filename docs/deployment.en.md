@@ -48,7 +48,7 @@ Health check: `GET /healthz`.
 
 ## Windows installer
 
-Download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from [Releases](https://github.com/liberalchang/LiberAstra/releases). The installer includes a Python runtime and the built web UI. The target PC does not need a separate Python or Node install. After setup, open `http://127.0.0.1:8000`. Data lives in `%LOCALAPPDATA%\LiberAstra\data`.
+Download [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe) from [Releases](https://github.com/liberalchang/LiberAstra/releases). The installer includes a Python runtime and the built web UI. The target PC does not need a separate Python or Node install. After setup, launch `LiberAstra` from the Start menu or desktop. The launcher stays in the tray and opens the browser once the server is ready; logs are in `%LOCALAPPDATA%\LiberAstra\logs`. Data lives in `%LOCALAPPDATA%\LiberAstra\data`.
 
 The installer allows inbound TCP 8000. Other browsers on the LAN can use `http://<this-pc>:8000`.
 
@@ -62,7 +62,7 @@ Rebuild locally (not required to install):
 powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
 ```
 
-Output: `packaging\windows\output\LiberAstra-Setup.exe`. The build machine needs Node.js 20+, network access, and [Inno Setup 6](https://jrsoftware.org/isdl.php).
+Output: `packaging\windows\output\LiberAstra-Setup.exe`. The build machine needs Node.js 20+, network access, [Inno Setup 6](https://jrsoftware.org/isdl.php), and .NET Framework 4.x (included with Windows) to compile the launcher. HTML frame rendering uses the installed Microsoft Edge/Chrome; Chromium is no longer bundled.
 
 ## Speech and depth
 

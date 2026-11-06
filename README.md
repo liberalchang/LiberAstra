@@ -199,7 +199,7 @@ docker compose --profile postgres up -d    # 额外起 PostgreSQL；同时设置
 
 ### Windows 安装包
 
-从 [Releases](https://github.com/liberalchang/LiberAstra/releases) 下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe)。安装包自带 Python 运行时和已构建的页面，目标电脑不用另装 Python 或 Node。数据在 `%LOCALAPPDATA%\LiberAstra\data`。安装程序会放行本机防火墙的 TCP 8000。
+从 [Releases](https://github.com/liberalchang/LiberAstra/releases) 下载 [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe)。安装包自带 Python 运行时和已构建的页面，目标电脑不用另装 Python 或 Node。数据在 `%LOCALAPPDATA%\LiberAstra\data`。安装完成后从开始菜单或桌面启动 `LiberAstra`，启动器会常驻托盘，服务就绪后自动打开浏览器；日志在 `%LOCALAPPDATA%\LiberAstra\logs`。安装程序会放行本机防火墙的 TCP 8000。
 
 仓库里不提交安装包本体。需要自行重新打包时：
 
@@ -207,7 +207,7 @@ docker compose --profile postgres up -d    # 额外起 PostgreSQL；同时设置
 powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
 ```
 
-产物：`packaging\windows\output\LiberAstra-Setup.exe`。构建机需要 Node.js 20+、外网，以及 [Inno Setup 6](https://jrsoftware.org/isdl.php)。视频成片还需要系统里能找到 [ffmpeg](https://www.gyan.dev/ffmpeg/builds/)（`winget install Gyan.FFmpeg`）。
+产物：`packaging\windows\output\LiberAstra-Setup.exe`。构建机需要 Node.js 20+、外网、[Inno Setup 6](https://jrsoftware.org/isdl.php)，以及 .NET Framework 4.x（Windows 自带，用于编译启动器）。网页出帧优先使用系统 Microsoft Edge/Chrome，安装包不再内置 Chromium。视频成片还需要系统里能找到 [ffmpeg](https://www.gyan.dev/ffmpeg/builds/)（`winget install Gyan.FFmpeg`）。
 
 **Ollama** 安装包：<https://ollama.com/download> ，默认 `http://<主机>:11434`。示例：
 

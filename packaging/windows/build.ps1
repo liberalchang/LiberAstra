@@ -13,6 +13,9 @@ $Output = Join-Path $Here "output"
 $PyVersion = "3.12.10"
 $EmbedZip = Join-Path $Cache "python-$PyVersion-embed-amd64.zip"
 $EmbedUrl = "https://www.python.org/ftp/python/$PyVersion/python-$PyVersion-embed-amd64.zip"
+$Pyproject = Join-Path $Repo "backend\pyproject.toml"
+$Icon = Join-Path $Here "assets\liberastra.ico"
+$Launcher = Join-Path $Here "launcher\Launcher.cs"
 
 function Get-File($Url, $Dest) {
     if (Test-Path $Dest) { return }
@@ -55,12 +58,16 @@ $Python = Join-Path $Runtime "python.exe"
 if ($LASTEXITCODE -ne 0) { throw "get-pip 失败" }
 & $Python -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "升级 pip 失败" }
-# 嵌入式 Python 没有 venv，不能走本地包的构建隔离。只装依赖，源码用 PYTHONPATH 指向 backend。
-& $Python -m pip install -r (Join-Path $Here "requirements.txt")
+
+# backend/pyproject.toml 是依赖和版本号的唯一来源，避免打包清单漂移。
+$Version = (& $Python -c "import sys,tomllib;print(tomllib.load(open(sys.argv[1],'rb'))['project']['version'])" $Pyproject).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $Version) { throw "读取 backend/pyproject.toml 版本失败" }
+$DepsFile = Join-Path $Stage "requirements.build.txt"
+& $Python -c "import sys,tomllib;data=tomllib.load(open(sys.argv[1],'rb'));open(sys.argv[2],'w',encoding='utf-8').write('\n'.join(data['project']['dependencies'])+'\n')" $Pyproject $DepsFile
+if ($LASTEXITCODE -ne 0) { throw "生成依赖清单失败" }
+& $Python -m pip install -r $DepsFile
 if ($LASTEXITCODE -ne 0) { throw "安装 Python 依赖失败" }
-$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $Stage "ms-playwright"
-& $Python -m playwright install chromium
-if ($LASTEXITCODE -ne 0) { throw "安装 Chromium 失败" }
+Remove-Item $DepsFile -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $Runtime "get-pip.py") -ErrorAction SilentlyContinue
 
 Write-Host "拷贝程序与内置资源"
@@ -75,9 +82,28 @@ robocopy (Join-Path $Repo "frontend\dist") (Join-Path $Stage "frontend\dist") /E
 if ($LASTEXITCODE -ge 8) { throw "拷贝前端失败：robocopy $LASTEXITCODE" }
 Copy-Item (Join-Path $Here "start.cmd") (Join-Path $Stage "start.cmd")
 
+Write-Host "编译启动器"
+$Csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if (-not (Test-Path $Csc)) { throw "未找到 csc.exe，需要 .NET Framework 4.x" }
+$Version4 = if ($Version -match '^\d+\.\d+\.\d+$') { "$Version.0" } elseif ($Version -match '^\d+\.\d+\.\d+\.\d+$') { $Version } else { throw "不支持的版本号：$Version" }
+$VersionInfo = Join-Path $Stage "launcher-version.cs"
+@"
+using System.Reflection;
+[assembly: AssemblyTitle("LiberAstra")]
+[assembly: AssemblyDescription("LiberAstra desktop launcher")]
+[assembly: AssemblyCompany("LiberAstra")]
+[assembly: AssemblyProduct("LiberAstra")]
+[assembly: AssemblyCopyright("MIT License")]
+[assembly: AssemblyVersion("$Version4")]
+[assembly: AssemblyFileVersion("$Version4")]
+"@ | Set-Content -Path $VersionInfo -Encoding utf8
+& $Csc /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"$Icon" /out:"$(Join-Path $Stage 'LiberAstra.exe')" /r:System.dll /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Launcher" "$VersionInfo"
+if ($LASTEXITCODE -ne 0) { throw "编译启动器失败" }
+Remove-Item $VersionInfo -ErrorAction SilentlyContinue
+
 $env:LIBERASTRA_DATA_DIR = Join-Path $env:TEMP "la-build-check"
-& $Python -c "import liberastra; from pathlib import Path; root = Path(liberastra.__file__).resolve().parents[1]; assert (root / 'workflows' / 'qwen_image_21' / 'manifest.yaml').exists(), root; from liberastra.core.config import Settings; static = Settings().resolved_static_dir; assert static and (static / 'index.html').exists(), static"
-if ($LASTEXITCODE -ne 0) { throw "嵌入式 Python 无法导入 liberastra、工作流或前端页面" }
+& $Python -c "import liberastra.main; from pathlib import Path; import liberastra; root = Path(liberastra.__file__).resolve().parents[1]; assert (root / 'workflows' / 'qwen_image_21' / 'manifest.yaml').exists(), root; from liberastra.core.config import Settings; static = Settings().resolved_static_dir; assert static and (static / 'index.html').exists(), static"
+if ($LASTEXITCODE -ne 0) { throw "嵌入式 Python 无法导入 liberastra.main、工作流或前端页面" }
 
 $Iscc = @(
     "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
@@ -97,6 +123,6 @@ if (-not $Iscc) {
 
 if (-not $Iscc) { throw "未找到 ISCC.exe。请安装 Inno Setup 6 后重跑本脚本。" }
 
-Write-Host "编译安装包"
-& $Iscc (Join-Path $Here "LiberAstra.iss")
+Write-Host "编译安装包 $Version"
+& $Iscc "/DMyAppVersion=$Version" (Join-Path $Here "LiberAstra.iss")
 Write-Host "完成：$(Join-Path $Output 'LiberAstra-Setup.exe')"
