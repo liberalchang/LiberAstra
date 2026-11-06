@@ -6,14 +6,16 @@ title: 模型相关资源
 
 LiberAstra 本体不运行模型。这一页汇总安装包、Ollama 与 ComfyUI 客户端，以及内置工作流、语音服务需要的权重下载地址。模型目录都相对于对应服务的模型根目录；下载后按表放入，文件名不要改（表中特别说明的除外）。
 
-## 一键整合包
+## 安装包与客户端
+
+### 一键整合包
 
 网盘整合包包含常用运行时与部分模型，按需下载：
 
 - 链接：<https://pan.baidu.com/s/1F8ZeMSUbPOfzgEcYUZzqHQ?pwd=g2v7>
 - 提取码：`g2v7`
 
-## LiberAstra 项目与 Windows 安装包
+### LiberAstra 项目与 Windows 安装包
 
 - 项目地址：<https://github.com/liberalchang/LiberAstra>
 - Windows 安装包：<https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe>
@@ -21,9 +23,9 @@ LiberAstra 本体不运行模型。这一页汇总安装包、Ollama 与 ComfyUI
 
 安装包自带 Python 运行时和已构建页面，目标电脑不用另装 Python 或 Node。装完后浏览器打开 `http://127.0.0.1:8000`。Ollama、ComfyUI 和语音插件不在这个安装包里。
 
-语音插件另下 [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe)。
+语音与深度插件在应用内「资源 → 插件」安装，Release 不再附带 `LiberSpeech-Setup.exe`。
 
-## Ollama
+### Ollama
 
 - 安装包下载页：<https://ollama.com/download>
 - Windows 安装程序：<https://ollama.com/download/OllamaSetup.exe>
@@ -40,7 +42,7 @@ ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M
 ollama pull huihui_ai/gemma-4-abliterated:12b
 ```
 
-## ComfyUI 桌面版
+### ComfyUI 桌面版
 
 - 下载页：<https://www.comfy.org/download/>
 - Windows 安装包：<https://download.comfy.org/windows/nsis/x64>
@@ -49,11 +51,13 @@ ollama pull huihui_ai/gemma-4-abliterated:12b
 
 FLUX.3 Klein 工作流需要 ComfyUI 0.41 或更高版本。
 
-## 工作流与 Comfy 模型
+## Comfy 工作流与模型
 
 目录都相对于 ComfyUI 的 `models/`。桌面版和便携版都是 `ComfyUI\models\` 下面的同名子目录。
 
 同一套权重会被多个工作流共用。下表按内置包的默认文件列出。官方图像包和越狱图像包共用文本编码器与 VAE，差别在 UNET，越狱包还可以再挂 LoRA。
+
+### 图像工作流
 
 | 工作流名称 | 类型 | 描述 | 需要的模型与下载链接 | 放到 Comfy 的目录 |
 | --- | --- | --- | --- | --- |
@@ -74,6 +78,11 @@ FLUX.3 Klein 工作流需要 ComfyUI 0.41 或更高版本。
 | `qwen_edit_2511_color_grade` | i2i | 按参考图调色。还需要 [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes)，以及 `pip install color-matcher` | [UNET](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/blob/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors) `qwen_image_edit_2511_fp8mixed.safetensors` [TE](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/main/split_files) `qwen_2.5_vl_7b_fp8_scaled.safetensors` [VAE](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/main/split_files) `qwen_image_vae.safetensors` [LoRA 仓库](https://huggingface.co/ovi054/QIE-2511-Color-Grade-Transfer-LoRA)。下载 `Color-Grade-Transfer-LoRA.safetensors` 后改名为 `QIE-2511-Color-Grade-Transfer-LoRA.safetensors` | UNET：`diffusion_models/` TE：`text_encoders/` VAE：`vae/` LoRA：`loras/` |
 | `upscale_basic` | upscale | 约 4 倍放大，不用生图模型 | [RealESRGAN_x4plus.pth](https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth)。放到目录后改名为 `RealESRGAN_x4.pth`，与包内默认文件名一致 | `upscale_models/` |
 | `t2i_basic` | t2i | 传统单文件 Checkpoint，适用于 SD1.5、SDXL 或 Flux 整包。包本身不指定文件 | 示例：[SDXL Base](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/sd_xl_base_1.0.safetensors) | `checkpoints/` |
+
+### 视频与素材分析
+
+| 工作流名称 | 类型 | 描述 | 需要的模型与下载链接 | 放到 Comfy 的目录 |
+| --- | --- | --- | --- | --- |
 | `minimax_h3_t2v` | t2v | MiniMax H3 文生视频，官方文本编码器，可选 Turbo | 共用主模型与两个 VAE，见本页「H3 共用文件」；[官方 TE](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders) `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` 可选 [Turbo LoRA](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora)：`minimax_h3_turbo_v4_step600_ema.safetensors`。打开 Turbo 前安装 [ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo) | 主模型：`diffusion_models/` TE：`text_encoders/` VAE：`vae/` LoRA：`loras/` |
 | `minimax_h3_i2v` | i2v | 图生视频，官方文本编码器，可选 Turbo | 与 `minimax_h3_t2v` 相同 | 同上 |
 | `minimax_h3_orbit` | i2v | 360° 环绕。只传一张图时首尾用同一张；再传结束画面可在环绕中换装。768×768、73 帧、28 步、LoRA 强度 1 | H3 共用主模型、官方 TE、音频 VAE。视频 VAE 用 [int8](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae) `minimax_h3_video_vae_int8_convrot.safetensors`，解码发黑再改回 fp16。新增 [360° Orbit LoRA](https://huggingface.co/pablodawson/MiniMax-H3-360-Orbit-LoRA) `minimax_h3_flf2v_lora_v1.safetensors` | 主模型：`diffusion_models/` TE：`text_encoders/` VAE：`vae/` LoRA：`loras/` |
@@ -88,7 +97,7 @@ FLUX.3 Klein 工作流需要 ComfyUI 0.41 或更高版本。
 | `analysis_image_qwenvl` | analysis | 图片素材分析。需要 ComfyUI-AILab 节点 | 节点默认模型 [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)。由节点加载，不放进 `diffusion_models/` | 按该节点自己的模型目录 |
 | `analysis_video_qwenvl` | analysis | 视频素材分析。还需要 [Video Helper Suite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) 抽帧 | 与图片分析相同的 Qwen3-VL-8B-Instruct | 按该节点自己的模型目录 |
 
-### H3 共用文件
+#### H3 共用文件
 
 官方、越狱和增强包都用这一套画面与声音权重。文件在 [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3)。
 
@@ -104,7 +113,7 @@ FL2VA 和 Ref2VA 是两套权重，不要在同一条工作流里混用。图像
 
 RTX 3090 / Ampere 优先用 Comfy-Org 的 `minimax_h3_ref2va_pruned_int8_convrot.safetensors`。社区 NVFP4 权重面向 Blackwell；非 Blackwell 卡上 NVFP4 走模拟，速度和兼容性都不保证。
 
-## Speech 模型
+## 语音模型
 
 语音服务本地没有对应权重时，第一次合成或转写会从 Hugging Face 自动下载。文件写进容器内的 `/models`，也就是宿主机环境变量 `LIBER_SPEECH_MODELS_DIR` 指向的目录；没设置时用 Docker 卷 `speech-models`。`HF_HUB_OFFLINE=1` 时不会自动下载，需要事先把权重放进下表的位置。
 

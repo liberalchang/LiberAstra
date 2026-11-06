@@ -8,7 +8,9 @@ Quick Create, Digital Human, Image-to-Video, Motion Transfer, and Custom Assets.
 
 Sidebar order: **Quick Create** → **Digital Human** → **Image-to-Video** → **Motion Transfer** → **Custom Assets**.
 
-## Which Pack to Pick on Each Page
+## Packs and models
+
+### Which pack to pick on each page
 
 | Sidebar feature | Dropdowns on the page | Pack capability | Built-in packs |
 |-----------------|-----------------------|-----------------|----------------|
@@ -23,7 +25,7 @@ Sidebar order: **Quick Create** → **Digital Human** → **Image-to-Video** →
 
 The sidebar's Tools → Video Enhance is a separate page. It uses a video provider and a `v2v` workflow pack (built in: `seedvr2_3b_video_restore`) and does not depend on the video generation pages above.
 
-## How to Choose on the Page (General)
+### How to choose on the page (general)
 
 1. **Video / image / animation provider**: an enabled provider with a matching capability. After choosing ComfyUI, the model list is fetched from that machine's `/models/...`.
 2. **Workflow pack**: filtered by the capability in the table above. The dropdown first shows the capability name and a one-line description; uncensored packs are marked "Uncensored". The bulb on the right opens the full description. After selecting a pack:
@@ -33,11 +35,11 @@ The sidebar's Tools → Video Enhance is a separate page. It uses a video provid
 3. **Width/height and duration**: Image-to-Video uses an aspect ratio snapped to the pack's `multiple` (usually 32 for H3). Packs with `fps` take a duration in seconds; on submit it is converted to frames and snapped with `align_base` / `align_offset` (H3 uses 17k+5). Digital Human does not show a duration; the picture follows the voice.
 4. H3 / long jobs: set **ComfyUI timeout** in Settings → System Settings → Run Parameters to at least 3600 seconds.
 
-## MiniMax H3: Version = Complete Set of Files (Do Not Mix)
+### MiniMax H3: Version = Complete Set of Files (Do Not Mix)
 
 One "feature" on Comfy often maps to **multiple files**. The dropdowns let you change file names individually, but **the official / uncensored / quantization spec must be chosen as a complete set**; otherwise loading may fail or the result may be wrong.
 
-### Shared Files (Required by Official and Uncensored)
+#### Shared Files (Required by Official and Uncensored)
 
 | Role | Directory | Current recommended files (common remotely) |
 |------|-----------|---------------------------------------------|
@@ -51,7 +53,7 @@ FL2VA and Ref2VA are two separate sets of weights. Do not mix them in one workfl
 
 > RTX 3090 / Ampere: use Comfy-Org's `minimax_h3_ref2va_pruned_int8_convrot.safetensors` (about 21GB). Community NVFP4 weights target Blackwell; on non-Blackwell cards NVFP4 is emulated, so speed and compatibility are not guaranteed.
 
-### Text Side: Official Set vs Uncensored Set
+#### Text Side: Official Set vs Uncensored Set
 
 | Set | Text encoder (TE, `text_encoders/`) | Generation tail (tail, only needed for prompt enhancement) | Matching built-in packs |
 |-----|-------------------------------------|-----------------------------------------------------------|--------------------------|
@@ -65,23 +67,25 @@ Pairing rules:
 - `CLIPLoader` type is `minimax` for all of them; changing files does not change the node type.
 - In `minimax_h3_i2v`, swapping only the TE dropdown to an uncensored file gives you **uncensored output without prompt enhancement** (Guide is still optional). To "rewrite the prompt from an image", you must use an enhancer pack and install the [Guide node pack](https://github.com/ethanfel/ComfyUI-MiniMax-H3-Guide).
 
-### Understanding Quantization
+#### Understanding Quantization
 
 The same role often has several quantization files (for example TE in nvfp4 / int8_convrot / bf16). **Pick one spec and use it throughout.** Do not use pruned-int8 for the main model and then mix in an unverified TE combination. On a 3090 the official nvfp4 runs but is not the fastest; the uncensored TE (about 25G) uses more memory, so on a remote 62G machine watch separately for OOM.
 
 A more detailed file list and download links are in [Model resources](/en/models).
 
-## Custom Assets
+## Other generation modes
+
+### Custom Assets
 
 You already have images or videos; add voiceover and subtitles and join them into one short video in upload order. The picture stays as-is by default.
 
 From top to bottom the page is: Assets → Copy and Title → Asset Animation → Voice → Aspect Ratio, Subtitles, and Background Music. When Asset Animation is on or a video is uploaded, the voice can be switched to **model audio**, keeping the animation or video's own audio track. After clicking **Start Compositing**, the order is: copy is finalized → if there is a title, make a 2-second title card first (no subtitles burned in) → with custom voice, synthesize each segment and write subtitles; with model audio, write subtitles using each clip's own duration → keep images still or animate them according to the toggle → join into one video → mix in background music if selected.
 
-### Assets
+#### Assets
 
 The order is the shot order. You can add multiple times, or click **Choose from Library** to pick existing images or videos. Each video segment is looped or trimmed to the duration of that voiceover line.
 
-### Copy and Title
+#### Copy and Title
 
 The title is optional. If filled in, the video opens with a 2-second title card.
 
@@ -102,7 +106,7 @@ Writing copy from assets also requires:
 
 **Generate Copy** is unavailable when no assets are uploaded. You cannot start compositing if this voiceover is empty.
 
-### Asset Animation
+#### Asset Animation
 
 The toggle is off by default. When on, it takes effect only inside **Start Compositing**, after that segment's voice is ready: each still image goes through `i2v` once to generate a short motion clip, which is then looped or trimmed to the voiceover duration and given subtitles.
 
@@ -110,11 +114,11 @@ Uploaded videos and the title card stay as-is. The toggle is unavailable when th
 
 If the animation prompt is empty, the default is a slight, natural camera push-in. If filled in, your motion description is used. Pick an `i2v` pack as the workflow, for example `minimax_h3_i2v`, `minimax_h3_i2v_uncensored`, or `minimax_h3_i2v_enhancer`; multi-reference and orbit packs can also be used, with images sent to their own image slots. If the pack has `accel`, Turbo can be enabled. Each image runs one image-to-video job; more images take longer.
 
-### Voice, Aspect Ratio, and Background Music
+#### Voice, Aspect Ratio, and Background Music
 
 The voice is synthesized segment by segment following the assets, and subtitle timing follows that voice line. You can turn off burning in, and change subtitle font size and color: font size 0 means automatic, and the color defaults to white. The title card does not get subtitles. If the voice provider is ComfyUI, choose a speech workflow separately; the voiceover text is injected automatically. Local TTS or API TTS can be previewed under the voice, see [Text-to-Speech](/en/guides/speech#text-to-speech). Aspect ratio is 9:16, 1:1, or 16:9. Background music is chosen from the Music Library and mixed in after the whole video is joined.
 
-## Digital Human
+### Digital Human
 
 Character image + voiceover copy → TTS voice → `avatar` workflow pack. Two built-in lip-sync workflows are based on the MiniMax H3 joint audio-video model (no extra lip-sync plugin or audio encoder needed):
 
@@ -127,7 +131,7 @@ Pick a voice provider and voice separately. The picture duration is determined b
 
 The character image can be uploaded, chosen with **Choose from Library**, or picked from Character Library. When a character is selected, **only the first segment** uses the **facial half-body close-up** on the right side of the character sheet as its first frame; it does not use the full-body image or the entire sheet. Uploaded images take precedence over Character Library. If the character has a bound voice, it is used when no other voice is selected.
 
-## Image-to-Video
+### Image-to-Video
 
 First frame + prompt → `i2v`. The `minimax_h3_i2v` pack also declares an optional last-frame slot, `last_frame`; the standalone page only sends the first frame. To use first and last frames, bind the last frame on a canvas function node. The finished video keeps the model-generated audio track; you can also add background music from the Music Library.
 
@@ -144,7 +148,7 @@ The enhancer is slower and uses more memory; it is suitable when the prompt is v
 
 After selecting a character from Character Library, choose the camera view for this shot: facial half-body close-up, full-body front, full-body side, or full-body back. The page automatically sends only one camera-view image for the character. The ending frame for `orbit` and the second reference slot for `i2v_ref` can be uploaded on the page; the last-frame slot for `i2v` and the third and later reference images for `i2v_ref` must be bound on a canvas function node. Use close-ups for near shots and the matching full-body image for full-body motion. Quick Create can rotate views across shots, which uses multiple character sheet images. Images can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
 
-## Motion Transfer
+### Motion Transfer
 
 Reference video + target image + prompt → `motion` workflow pack. The reference video can be uploaded or chosen from the library. Picture duration follows the reference video; you no longer enter seconds on the page. The reference video is split at the motion pack's `length.max` (the current two H3 motion packs use 124 frames, about 5.2 seconds, and satisfy `17k+5`); the next segment uses the previous segment's final frame as `<Picture 1>`, while the side and back references are kept, and the segments are joined into one video. Audio can keep the model-generated track or be replaced with the reference video's entire original audio. Either way, you can add background music from the Music Library. Two built-in motion-transfer workflows are based on MiniMax H3 multimodal reference (`MiniMaxH3ReferenceToVideo`). When a character from Character Library is selected, **full-body front, full-body side, and full-body back** are sent as `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`. The right-side facial close-up is not used for motion transfer, to avoid losing lower-body clothing. The target image can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
 
@@ -259,7 +263,9 @@ Image templates only write the appearance into the prompt and do not send the ch
 
 None of the three accepts a first frame. To give each shot a character image, switch to `minimax_h3_i2v` / `minimax_h3_i2v_uncensored` / `minimax_h3_i2v_enhancer`.
 
-## Character Library
+## Characters and templates
+
+### Character Library
 
 The sidebar's Resources → Character Library stores a character's name, appearance description, and one **16:9 four-panel character sheet**. The sheet has four fixed columns from left to right:
 
@@ -272,13 +278,13 @@ The sidebar's Resources → Character Library stores a character's name, appeara
 
 The full sheet is only for preview and splitting; it is never used as a video frame. Choose one add method on the page; the other method's button does not appear at the same time.
 
-### Generate from Description
+#### Generate from Description
 
 Use this when you have no image and only an appearance. Enter a name, plus age, face shape, hairstyle, and clothing. You can also upload 1 to 3 reference images (or choose them from the library); when reference images are present, the appearance description can be left empty. One image uses the **single-reference workflow** in System Settings; 2 to 3 images use the **multi-reference workflow**. The first image is first pasted onto a 16:9 light-gray canvas to guarantee a landscape character sheet. You can click ✨ to use the default LLM in **System Settings** with the prompt template **Character Library · Four-Panel Character Sheet** (`character_sheet`). Optimization adds matching face shape, headwear, bottoms, shoes, and bags, and writes the fixed four-panel composition and quality requirements.
 
 Click **Generate Character Sheet**. This creates the record and queues image generation itself; you do not need to click Save afterward. The image provider, character sheet workflow pack, single-reference workflow, and multi-reference workflow are all in **System Settings → Default Character Generation**, not on the character page. With no reference images the default pack is `qwen_image_21` at 16:9 (`1536×864`; if the selected pack's width/height limit is smaller, it shrinks automatically). If you did not click optimize, the backend still appends the four-panel composition after the appearance description. If you did optimize and the prompt already contains "16:9" or "full-body front", it is not appended again.
 
-### Upload a Character Sheet
+#### Upload a Character Sheet
 
 Use this when you already have a finished landscape four-panel image. You can also choose one from the library next to the upload box. From left to right it must be full-body front, full-body side, full-body back, and right-side facial close-up. Use a light or solid background and leave vertical gaps between the four figures. The appearance description can be left empty; if filled in, Quick Create prepends that text to every picture.
 
@@ -293,11 +299,13 @@ Split rules: find the gaps between the three figures from the brightness changes
 
 Image files are under `backend/data/characters/`.
 
-## Storyboard Templates
+### Storyboard Templates
 
 Settings → Storyboard Templates. Upload/delete storyboard templates. Filename prefixes: `static_` / `image_` / `video_`. Canvas size must match the aspect-ratio directory. Built-in entries cannot be deleted; user files with the same name override built-in entries.
 
-## ComfyUI Model Directory (Quick Reference)
+## Quick reference
+
+### ComfyUI model directory
 
 | Purpose | Directory (relative to `models/`) | Common files |
 |---------|-----------------------------------|--------------|

@@ -4,9 +4,12 @@ title: API
 
 # LiberAstra API 参考
 
-所有接口（除 `/healthz` 与 `/auth/*`）需要 `Authorization: Bearer <JWT 或 astra_ Token>`。
+## 约定
 
-交互式文档：运行后访问 `/docs`（Swagger UI）。
+- 所有接口（除 `/healthz` 与 `/auth/*`）需要 `Authorization: Bearer <JWT 或 astra_ Token>`。
+- 交互式文档：运行后访问 `/docs`（Swagger UI）。
+- 生成接口默认返回 `202` + Job；加 `?wait=true` 同步等待终态。
+- 任务进度可以用 SSE 订阅 `/api/v1/jobs/{id}/events`。
 
 ## 鉴权
 
@@ -36,9 +39,7 @@ title: API
 | GET | `/api/v1/jobs/{id}/events` | SSE 进度推送（快照 + 增量 + 心跳） |
 | POST | `/api/v1/jobs/{id}/cancel` / `retry` | 取消 / 重试 |
 
-所有生成接口默认 202 返回 Job；加 `?wait=true` 同步等待终态。
-
-## 能力
+## 生成接口
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |

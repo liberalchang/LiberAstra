@@ -4,9 +4,12 @@ title: API
 
 # LiberAstra API reference
 
-All endpoints except `/healthz` and `/auth/*` require `Authorization: Bearer <JWT or astra_ token>`.
+## Conventions
 
-Interactive docs: open `/docs` (Swagger UI) after the app starts.
+- All endpoints except `/healthz` and `/auth/*` require `Authorization: Bearer <JWT or astra_ token>`.
+- Interactive docs: open `/docs` (Swagger UI) after the app starts.
+- Generation endpoints return `202` + a Job by default; add `?wait=true` to wait for the terminal state.
+- Subscribe to job progress with SSE at `/api/v1/jobs/{id}/events`.
 
 ## Auth
 
@@ -36,9 +39,7 @@ Interactive docs: open `/docs` (Swagger UI) after the app starts.
 | GET | `/api/v1/jobs/{id}/events` | SSE progress stream (snapshot + deltas + heartbeat) |
 | POST | `/api/v1/jobs/{id}/cancel` / `retry` | Cancel / retry |
 
-All generation endpoints return `202` with a Job by default. Add `?wait=true` to wait for the terminal state.
-
-## Capabilities
+## Generation endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |

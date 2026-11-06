@@ -6,6 +6,8 @@ title: CLI
 
 `astra` is the LiberAstra command-line client. It calls a running server over HTTP and does not run models in this process.
 
+## Connection and global flags
+
 Global flags usually go before the subcommand, but can also be placed after it:
 
 ```bash
@@ -22,7 +24,9 @@ astra --server http://127.0.0.1:8000 --token astra_... --json job list
 
 Exit codes: `0` success, `2` bad arguments, `3` server unreachable, `4` job failed. `--wait` (default) blocks until the job finishes; `--no-wait` submits and prints the job id. Extra parameters can be `@file.json`, or `-` to read JSON from stdin.
 
-## Local
+## Command reference
+
+### Local
 
 ```bash
 astra serve                 # API and web UI, default 0.0.0.0:8000
@@ -34,9 +38,9 @@ astra config                # Current server and whether a token is saved
 astra logout                # Remove saved credentials
 ```
 
-The Windows setup starts the same server from the Start menu. From a terminal, run `runtime\python.exe -m liberastra.cli.main` inside the install directory, or put `astra` on PATH yourself.
+The Windows setup starts the same server from the Start menu. From a terminal, run `astra.cmd` in the install directory, or `runtime\python.exe -m liberastra.cli.main`; add the install directory to PATH to use `astra` directly.
 
-## Providers
+### Providers
 
 ```bash
 astra provider list
@@ -47,7 +51,7 @@ astra provider models 1
 
 `--type` matches the Providers page: `ollama`, `openai_compatible`, `openai_tts`, `edge_tts`, `comfyui`, `liber_speech`.
 
-## Speech, image, video
+### Speech, image, video
 
 ```bash
 astra tts "Hello" --voice zh-CN-XiaoxiaoNeural -o hello.mp3
@@ -60,7 +64,7 @@ astra video i2v --image first.png --workflow minimax_h3_i2v -o v.mp4
 
 `image gen` also accepts `--width`, `--height`, `--seed`, `--provider-id`, and `--params`. `image edit` takes one or more repeatable `--image` inputs. `video quick` needs either `--topic` or `--script`; `--aspect` defaults to `9:16`. `video i2v` takes the first frame with `--image`; add `--image-2` and `--sub-capability i2v_flf` for first/last-frame mode.
 
-## Jobs and workflows
+### Jobs and workflows
 
 ```bash
 astra job list --limit 20 --status failed --kind image.generate
@@ -71,7 +75,7 @@ astra job cancel <job_id>
 astra workflow list --capability t2i
 ```
 
-## Assets and voices
+### Assets and voices
 
 ```bash
 astra asset list --kind image --limit 20
@@ -83,10 +87,18 @@ astra voices list
 
 `asset download` reads the asset metadata first, then downloads the file; when `-o` is a directory, the server-side basename is used. `asset delete` requires `--yes`.
 
-## MCP
+### MCP
 
 ```bash
 astra mcp
 ```
 
 Starts the MCP server on stdio so an agent can call LiberAstra. Install the extra dependency with `pip install "liberastra[mcp]"`.
+
+## Troubleshooting
+
+**Server unreachable (exit code 3)?** Check that the server is running, the `--server` URL and port are correct, and the token has not expired. `astra config` shows the current address.
+
+**Job failed (exit code 4)?** Run `astra job get <job_id>` to see the error, then `astra job retry <job_id>` if needed.
+
+**No `astra` in the Windows install?** Run `astra.cmd` in the install directory, or add that directory to PATH. `runtime\python.exe -m liberastra.cli.main` also works.

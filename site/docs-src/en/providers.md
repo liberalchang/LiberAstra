@@ -4,9 +4,15 @@ title: Providers
 
 # Provider integration guide
 
-## Concepts
+## Concepts and capabilities
 
-A provider is the connection configuration for one external service. Each type declares capability tags (`llm` / `tts` / `asr` / `image` / `video`); calls are routed by tag, not by vendor.
+### What a provider is
+
+A provider is the connection configuration for one external service.
+
+### Capability tags and routing
+
+Each type declares capability tags (`llm` / `tts` / `asr` / `image` / `video`); calls are routed by tag, not by vendor.
 
 ## Built-in types
 
@@ -20,7 +26,9 @@ A provider is the connection configuration for one external service. Each type d
 | `comfyui` | image, video | LAN ComfyUI, driven by workflow packs | `http://localhost:8188` |
 | `openai_images` | image | OpenAI gpt-image and compatible gateways | `https://api.openai.com/v1` |
 
-## Add a provider
+## Add and verify
+
+### Web UI and CLI
 
 In the Web UI under **Settings → Providers**, or with the CLI:
 
@@ -30,13 +38,17 @@ astra provider test 1
 astra provider models 1
 ```
 
+### Credentials and concurrency
+
 - `api_key` is Fernet-encrypted before storage; the API only returns `has_api_key`.
 - `concurrency` limits concurrent jobs for that provider (default 2).
 - Extra configuration (such as a default model) goes in `extra`: `{"model": "qwen3:8b"}`.
 
 ## ComfyUI workflow packs
 
-A ComfyUI provider is driven by workflow packs. A pack is a `workflow.json` (ComfyUI → Save (API Format)) plus a `manifest.yaml`:
+A ComfyUI provider is driven by workflow packs. A pack is a `workflow.json` (ComfyUI → Save (API Format)) plus a `manifest.yaml`.
+
+### Manifest structure
 
 ```yaml
 name: my_t2i
@@ -57,8 +69,18 @@ requirements:
   nodes: [KSampler]        # used by import preflight
 ```
 
+### Import and override
+
 Import options: Web UI **Settings → Workflow packs** (LiberAstra packs, API Format, and canvas JSON with `nodes`/`links` converted automatically), or write to `data/workflows/<name>/` (a user pack with the same name overrides the built-in one). Video examples: built-in packs `minimax_h3_i2v`, `minimax_h3_i2v_uncensored`, `minimax_h3_i2v_enhancer`.
 
-## Add a provider type (development)
+## Develop a new provider type
 
 Register capability tags in `backend/liberastra/providers` following the existing provider types, and add the type to the capability registry. The Web UI **Providers** page uses capability tags to decide which pages and workflows are available.
+
+## FAQ
+
+**Why is a service missing from the dropdown?** Check that the provider is enabled and that its capability tags match the current page. On a mismatch the workflow-pack dropdown is empty or says "no xxx workflow pack".
+
+**How is the API key stored?** `api_key` is Fernet-encrypted before storage; the API only returns `has_api_key`. Migrate `.secret_key` together with your data.
+
+**What happens with a duplicate workflow pack?** A user pack overrides the built-in pack with the same name; deleting the user pack restores the built-in one.

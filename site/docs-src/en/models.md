@@ -6,14 +6,16 @@ title: Model resources
 
 LiberAstra does not run models itself. This page collects installers, Ollama and ComfyUI clients, and weight download links for the built-in workflows and speech services. Model directories are relative to the model root of each service; put files where the table says and keep filenames unchanged unless noted.
 
-## All-in-one bundle
+## Installers and clients
+
+### All-in-one bundle
 
 The cloud-drive bundle contains common runtimes and some models. Download only what you need:
 
 - Link: <https://pan.baidu.com/s/1F8ZeMSUbPOfzgEcYUZzqHQ?pwd=g2v7>
 - Code: `g2v7`
 
-## LiberAstra and the Windows installer
+### LiberAstra and the Windows installer
 
 - Project: <https://github.com/liberalchang/LiberAstra>
 - Windows installer: <https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe>
@@ -21,9 +23,9 @@ The cloud-drive bundle contains common runtimes and some models. Download only w
 
 The installer bundles a Python runtime and the built UI, so the target machine does not need Python or Node. Open `http://127.0.0.1:8000` after installation. Ollama, ComfyUI, and the speech plugin are not included.
 
-The speech plugin has a separate [LiberSpeech-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberSpeech-Setup.exe).
+Install the speech and depth plugins inside the app under Resources → Plugins; releases no longer include `LiberSpeech-Setup.exe`.
 
-## Ollama
+### Ollama
 
 - Download page: <https://ollama.com/download>
 - Windows installer: <https://ollama.com/download/OllamaSetup.exe>
@@ -40,7 +42,7 @@ ollama pull orcarouter/Qwen3.8-27B-Uncensored:q4_K_M
 ollama pull huihui_ai/gemma-4-abliterated:12b
 ```
 
-## ComfyUI desktop
+### ComfyUI desktop
 
 - Download page: <https://www.comfy.org/download/>
 - Windows installer: <https://download.comfy.org/windows/nsis/x64>
@@ -49,11 +51,13 @@ The default address is `http://<host>:8188`. See <https://docs.comfy.org/install
 
 The FLUX.3 Klein workflows require ComfyUI 0.41 or newer.
 
-## Workflows and ComfyUI models
+## ComfyUI workflows and models
 
 All paths below are relative to ComfyUI's `models/` directory. Desktop and portable builds use the same subdirectories under `ComfyUI\models\`.
 
 Several workflows share the same weights. The table lists the default files used by the built-in packs. The official and uncensored image packs share the text encoder and VAE; the difference is the UNET, and the uncensored pack can also load a LoRA.
+
+### Image workflows
 
 | Workflow | Type | Description | Models and download links | ComfyUI directory |
 | --- | --- | --- | --- | --- |
@@ -74,6 +78,11 @@ Several workflows share the same weights. The table lists the default files used
 | `qwen_edit_2511_color_grade` | i2i | Color-match to a reference image. Also requires [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) and `pip install color-matcher` | [UNET](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/blob/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors) `qwen_image_edit_2511_fp8mixed.safetensors` [TE](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/main/split_files) `qwen_2.5_vl_7b_fp8_scaled.safetensors` [VAE](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/tree/main/split_files) `qwen_image_vae.safetensors` [LoRA repository](https://huggingface.co/ovi054/QIE-2511-Color-Grade-Transfer-LoRA). Download `Color-Grade-Transfer-LoRA.safetensors` and rename it to `QIE-2511-Color-Grade-Transfer-LoRA.safetensors` | UNET: `diffusion_models/` TE: `text_encoders/` VAE: `vae/` LoRA: `loras/` |
 | `upscale_basic` | upscale | About 4× upscale without a generative model | [RealESRGAN_x4plus.pth](https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth). Rename it to `RealESRGAN_x4.pth` after downloading to match the pack's default filename | `upscale_models/` |
 | `t2i_basic` | t2i | Traditional single-file checkpoint for SD1.5, SDXL, or a full Flux package. The pack does not specify a file | Example: [SDXL Base](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/sd_xl_base_1.0.safetensors) | `checkpoints/` |
+
+### Video and analysis
+
+| Workflow | Type | Description | Models and download links | ComfyUI directory |
+| --- | --- | --- | --- | --- |
 | `minimax_h3_t2v` | t2v | MiniMax H3 text-to-video with the official text encoder and optional Turbo | Shares the main models and two VAEs; see "H3 shared files" below; [Official TE](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders) `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` Optional [Turbo LoRA](https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora): `minimax_h3_turbo_v4_step600_ema.safetensors`. Install [ComfyUI-MiniMax-H3-Turbo](https://github.com/Larryvrh/ComfyUI-MiniMax-H3-Turbo) before enabling Turbo | Main model: `diffusion_models/` TE: `text_encoders/` VAE: `vae/` LoRA: `loras/` |
 | `minimax_h3_i2v` | i2v | Image-to-video with the official text encoder and optional Turbo | Same as `minimax_h3_t2v` | Same as above |
 | `minimax_h3_orbit` | i2v | 360° orbit. With one image, the first and last frames are the same; adding an end frame allows an outfit change during the orbit. 768×768, 73 frames, 28 steps, LoRA strength 1 | Shares the H3 main models, official TE, and audio VAE. Use the [int8](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae) video VAE `minimax_h3_video_vae_int8_convrot.safetensors`; if decoding comes out black, switch back to fp16. Additional [360° Orbit LoRA](https://huggingface.co/pablodawson/MiniMax-H3-360-Orbit-LoRA) `minimax_h3_flf2v_lora_v1.safetensors` | Main model: `diffusion_models/` TE: `text_encoders/` VAE: `vae/` LoRA: `loras/` |
@@ -88,7 +97,7 @@ Several workflows share the same weights. The table lists the default files used
 | `analysis_image_qwenvl` | analysis | Image asset analysis. Requires the ComfyUI-AILab node | The node's default model is [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct). It is loaded by the node and does not go into `diffusion_models/` | The node's own model directory |
 | `analysis_video_qwenvl` | analysis | Video asset analysis. Also requires [Video Helper Suite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) for frame extraction | Same Qwen3-VL-8B-Instruct as image analysis | The node's own model directory |
 
-### H3 shared files
+#### H3 shared files
 
 The official, uncensored, and enhancer packs all use this set of video and audio weights. Files are in [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3).
 
