@@ -1,5 +1,7 @@
 import GithubSlugger from "github-slugger";
 
+import { splitHeadingId } from "./headingIds.ts";
+
 export type DocHeading = { level: number; text: string; id: string };
 
 /** 去掉文首的 YAML frontmatter；正文前的空行一并清理。 */
@@ -33,8 +35,13 @@ export function extractHeadings(source: string): DocHeading[] {
 
     const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
     if (!match) continue;
-    const text = plainHeadingText(match[2]);
-    headings.push({ level: match[1].length, text, id: slugger.slug(text) });
+    const parsed = splitHeadingId(match[2]);
+    const text = plainHeadingText(parsed.text);
+    headings.push({
+      level: match[1].length,
+      text,
+      id: parsed.id ?? slugger.slug(text),
+    });
   }
   return headings;
 }

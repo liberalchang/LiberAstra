@@ -29,6 +29,7 @@ Download `LiberAstra-Setup.exe` from [GitHub Releases](https://github.com/libera
 | Program directory | `C:\Program Files\LiberAstra` |
 | Data directory | `%LOCALAPPDATA%\LiberAstra\data` |
 | Logs | `%LOCALAPPDATA%\LiberAstra\logs` |
+| System logs | Right-click the LiberAstra tray icon → System logs |
 | Exit | Right-click the LiberAstra tray icon → Exit |
 | Uninstall | Windows Settings → Apps → LiberAstra; the data directory is kept |
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { applyHeadingIds } from "./headingIds.ts";
 import { docPath, moduleKeyToSlug, resolveDocHref, slugFromPath } from "./links.ts";
 import { extractHeadings, stripFrontmatter, tocHeadings } from "./slug.ts";
 
@@ -35,6 +36,42 @@ test("extractHeadings skips fenced code and matches rehype-slug ids", () => {
       [2, "文生图-1"],
     ],
   );
+});
+
+test("extractHeadings uses VitePress custom ids and strips them from the TOC", () => {
+  const source = [
+    "# 安装",
+    "### Windows 安装包 {#windows-installer}",
+    "### Docker 部署 {#docker}",
+    "## 安装方式",
+  ].join("\n");
+
+  assert.deepEqual(
+    extractHeadings(source).map((heading) => [heading.level, heading.text, heading.id]),
+    [
+      [1, "安装", "安装"],
+      [3, "Windows 安装包", "windows-installer"],
+      [3, "Docker 部署", "docker"],
+      [2, "安装方式", "安装方式"],
+    ],
+  );
+});
+
+test("applyHeadingIds moves a custom id onto the heading", () => {
+  const tree: any = {
+    type: "root",
+    children: [
+      {
+        type: "heading",
+        children: [{ type: "text", value: "Windows 安装包 {#windows-installer}" }],
+      },
+    ],
+  };
+
+  applyHeadingIds(tree);
+
+  assert.equal(tree.children[0].children[0].value, "Windows 安装包");
+  assert.equal(tree.children[0].data.hProperties.id, "windows-installer");
 });
 
 test("tocHeadings keeps H2 and H3 only", () => {

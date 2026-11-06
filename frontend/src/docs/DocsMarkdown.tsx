@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
+import { remarkHeadingIds } from "@/docs/headingIds";
 import { resolveDocHref, type DocLocale } from "@/docs/links";
 import { stripFrontmatter } from "@/docs/slug";
 
@@ -10,7 +11,7 @@ export function DocsMarkdown({ source, locale }: { source: string; locale: DocLo
   return (
     <div className="docs-prose">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkHeadingIds]}
         rehypePlugins={[rehypeSlug]}
         components={{
           a: ({ href, children }) => {

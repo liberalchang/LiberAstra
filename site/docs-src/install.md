@@ -29,6 +29,7 @@ LiberAstra 的模型不在本进程里运行。安装好编排台后，还需要
 | 程序目录 | `C:\Program Files\LiberAstra` |
 | 数据目录 | `%LOCALAPPDATA%\LiberAstra\data` |
 | 日志 | `%LOCALAPPDATA%\LiberAstra\logs` |
+| 系统日志 | 右键托盘中的 LiberAstra 图标 → 系统日志 |
 | 退出 | 右键托盘中的 LiberAstra 图标 → 退出 |
 | 卸载 | Windows 设置 → 应用 → LiberAstra；卸载不会删除数据目录 |
 

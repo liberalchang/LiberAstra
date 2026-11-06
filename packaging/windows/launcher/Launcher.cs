@@ -334,6 +334,7 @@ namespace LiberAstraLauncher
 
             ContextMenuStrip menu = new ContextMenuStrip();
             menu.Items.Add("打开界面", null, delegate { Program.OpenBrowser(_port); });
+            menu.Items.Add("系统日志", null, delegate { LogForm.ShowSingleton(_dataDir); });
             menu.Items.Add("打开数据目录", null, delegate { Program.OpenFolder(_dataDir); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("退出", null, delegate { Exit(); });
@@ -391,6 +392,7 @@ namespace LiberAstraLauncher
         private void Exit()
         {
             _exiting = true;
+            LogForm.CloseSingleton();
             Program.KillTree(_process);
             HideTray();
             try
@@ -427,6 +429,7 @@ namespace LiberAstraLauncher
                 catch
                 {
                 }
+                LogForm.CloseSingleton();
                 if (!_exiting)
                 {
                     Program.KillTree(_process);

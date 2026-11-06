@@ -16,6 +16,7 @@ $EmbedUrl = "https://www.python.org/ftp/python/$PyVersion/python-$PyVersion-embe
 $Pyproject = Join-Path $Repo "backend\pyproject.toml"
 $Icon = Join-Path $Here "assets\liberastra.ico"
 $Launcher = Join-Path $Here "launcher\Launcher.cs"
+$LogForm = Join-Path $Here "launcher\LogForm.cs"
 $UvVersion = "0.12.17"
 $UvZip = Join-Path $Cache "uv-$UvVersion-x86_64-pc-windows-msvc.zip"
 $UvUrl = "https://github.com/astral-sh/uv/releases/download/$UvVersion/uv-x86_64-pc-windows-msvc.zip"
@@ -127,7 +128,7 @@ using System.Reflection;
 [assembly: AssemblyVersion("$Version4")]
 [assembly: AssemblyFileVersion("$Version4")]
 "@ | Set-Content -Path $VersionInfo -Encoding utf8
-& $Csc /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"$Icon" /out:"$(Join-Path $Stage 'LiberAstra.exe')" /r:System.dll /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Launcher" "$VersionInfo"
+& $Csc /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"$Icon" /out:"$(Join-Path $Stage 'LiberAstra.exe')" /r:System.dll /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Launcher" "$LogForm" "$VersionInfo"
 if ($LASTEXITCODE -ne 0) { throw "编译启动器失败" }
 Remove-Item $VersionInfo -ErrorAction SilentlyContinue
 
