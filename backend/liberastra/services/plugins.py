@@ -426,7 +426,7 @@ def _create_venv(dest: Path) -> None:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise RuntimeError(detail or "无法创建插件虚拟环境")
     again = subprocess.run(  # noqa: S603
-        [uv, "venv", str(dest), "--python", sys.executable],
+        [uv, "venv", str(dest), "--python", sys.executable, "--seed"],
         capture_output=True,
         text=True,
         check=False,

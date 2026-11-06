@@ -118,6 +118,7 @@ namespace LiberAstraLauncher
             info.EnvironmentVariables["PYTHONPATH"] = Path.Combine(root, "backend");
             info.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
             info.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+            info.EnvironmentVariables["PATH"] = Path.Combine(root, "runtime") + ";" + Environment.GetEnvironmentVariable("PATH");
 
             Process process = new Process();
             process.StartInfo = info;

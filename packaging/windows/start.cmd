@@ -6,6 +6,7 @@ set "LIBERASTRA_DATA_DIR=%LOCALAPPDATA%\LiberAstra\data"
 set "LIBERASTRA_HOST=0.0.0.0"
 set "LIBERASTRA_PORT=8000"
 set "PLAYWRIGHT_BROWSERS_PATH=%ROOT%ms-playwright"
+set "PATH=%ROOT%runtime;%PATH%"
 set "PYTHONPATH=%ROOT%backend"
 cd /d "%ROOT%"
 

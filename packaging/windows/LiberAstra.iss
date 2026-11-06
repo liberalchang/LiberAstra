@@ -1,7 +1,7 @@
 ﻿; LiberAstra Windows 安装包。由 build.ps1 调用 Inno Setup 编译。
 
 #ifndef MyAppVersion
-#define MyAppVersion "2.0.4"
+#define MyAppVersion "2.0.5"
 #endif
 
 #define MyAppName "LiberAstra"
@@ -41,7 +41,7 @@ Name: "{group}\LiberAstra"; Filename: "{app}\LiberAstra.exe"; IconFilename: "{ap
 Name: "{autodesktop}\LiberAstra"; Filename: "{app}\LiberAstra.exe"; IconFilename: "{app}\LiberAstra.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "netsh"; Parameters: "advfirewall firewall add rule name=""LiberAstra 8000"" dir=in action=allow protocol=TCP localport=8000"; Flags: runhidden
+Filename: "cmd.exe"; Parameters: "/c netsh advfirewall firewall delete rule name=""LiberAstra 8000"" >nul 2>&1 & netsh advfirewall firewall add rule name=""LiberAstra 8000"" dir=in action=allow protocol=TCP localport=8000"; Flags: runhidden
 Filename: "{app}\LiberAstra.exe"; Description: "启动 LiberAstra"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
