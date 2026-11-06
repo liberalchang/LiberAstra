@@ -69,7 +69,7 @@ FL2VA 和 Ref2VA 是两套权重，不要在同一条工作流里混用：`minim
 
 同一角色常有多种量化文件（如 TE 的 nvfp4 / int8_convrot / bf16）。**选一个规格用到底**，不要主模型用 pruned-int8、TE 却随便混一个未验证组合。3090 上官方 nvfp4 可跑但非最快；越狱 TE（约 25G）更吃内存，远程 62G 机器上建议单独观察是否 OOM。
 
-更细的文件清单与下载地址见 [部署相关资源下载](https://github.com/liberalchang/LiberAstra/blob/main/docs/Liberastra部署相关资源下载.md)。
+更细的文件清单与下载地址见 [模型相关资源](/models)。
 
 ## 自定义素材
 

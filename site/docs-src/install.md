@@ -4,7 +4,7 @@ title: 安装 / 下载
 
 # 安装 / 下载
 
-LiberAstra 的模型不在本进程里运行。安装好编排台后，还需要接入你自己的 ComfyUI、Ollama、语音服务或 OpenAI 兼容 API。
+LiberAstra 的模型不在本进程里运行。安装好编排台后，还需要接入你自己的 ComfyUI、Ollama、语音服务或 OpenAI 兼容 API。各工作流与语音服务的权重下载地址见 [模型相关资源](/models)。
 
 ## Docker（推荐）
 

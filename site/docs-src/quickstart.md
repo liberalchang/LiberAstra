@@ -33,7 +33,7 @@ uv run astra serve --reload
 
 一个账号可多浏览器同时登录；每张令牌约 12 小时，过期后重新登录。
 
-安装包、Ollama、ComfyUI 和各工作流模型的下载地址见 [部署相关资源下载](https://github.com/liberalchang/LiberAstra/blob/main/docs/Liberastra部署相关资源下载.md)。
+安装包、Ollama、ComfyUI 和各工作流模型的下载地址见 [模型相关资源](/models)。
 
 ## 2. 接入服务提供方
 

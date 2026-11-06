@@ -4,7 +4,7 @@ title: Install / Download
 
 # Install / Download
 
-LiberAstra's models do not run in this process. After installing the orchestration desk, connect your own ComfyUI, Ollama, speech service, or OpenAI-compatible API.
+LiberAstra's models do not run in this process. After installing the orchestration desk, connect your own ComfyUI, Ollama, speech service, or OpenAI-compatible API. Weight download links for the built-in workflows and speech services are in [Model resources](/en/models).
 
 ## Docker (recommended)
 

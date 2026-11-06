@@ -33,7 +33,7 @@ When changing the UI, start the frontend dev server at `http://127.0.0.1:5173/`;
 
 One account can sign in from several browsers at the same time. Each token lasts about 12 hours; sign in again after it expires.
 
-Download links for the installer, Ollama, ComfyUI, and workflow model files are in [deployment resources](https://github.com/liberalchang/LiberAstra/blob/main/docs/Liberastra部署相关资源下载.md).
+Download links for the installer, Ollama, ComfyUI, and workflow model files are in [model resources](/en/models).
 
 ## 2. Connect service providers
 

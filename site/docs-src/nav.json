@@ -11,7 +11,8 @@
       {
         "title": "安装与部署",
         "items": [
-          { "title": "安装 / 下载", "slug": "install" }
+          { "title": "安装 / 下载", "slug": "install" },
+          { "title": "模型相关资源", "slug": "models" }
         ]
       },
       {
@@ -60,7 +61,8 @@
       {
         "title": "Install & Deploy",
         "items": [
-          { "title": "Install / Download", "slug": "install" }
+          { "title": "Install / Download", "slug": "install" },
+          { "title": "Model resources", "slug": "models" }
         ]
       },
       {

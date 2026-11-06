@@ -69,7 +69,7 @@ Pairing rules:
 
 The same role often has several quantization files (for example TE in nvfp4 / int8_convrot / bf16). **Pick one spec and use it throughout.** Do not use pruned-int8 for the main model and then mix in an unverified TE combination. On a 3090 the official nvfp4 runs but is not the fastest; the uncensored TE (about 25G) uses more memory, so on a remote 62G machine watch separately for OOM.
 
-A more detailed file list and download links are in [Deployment Resources](https://github.com/liberalchang/LiberAstra/blob/main/docs/Liberastra部署相关资源下载.md).
+A more detailed file list and download links are in [Model resources](/en/models).
 
 ## Custom Assets
 
