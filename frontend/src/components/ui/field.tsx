@@ -15,17 +15,36 @@ export function Field({
   children: ReactNode;
 }) {
   const autoId = useId();
-  // 控件是唯一子元素时注入 id，让 <label htmlFor> 真正指向它；组合控件保持原样
-  const control = isValidElement(children)
-    ? cloneElement(children as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
-        id: (children.props as { id?: string }).id ?? autoId,
-      })
+  const isElement = isValidElement(children);
+  const canClone =
+    isElement && (typeof children.type === "string" || typeof children.type === "function");
+  const isNativeControl =
+    canClone &&
+    typeof children.type === "string" &&
+    ["input", "select", "textarea"].includes(children.type);
+  const childProps = isElement
+    ? (children.props as { id?: string; "aria-label"?: string })
+    : ({} as { id?: string; "aria-label"?: string });
+  const controlId = childProps.id ?? autoId;
+  // 原生控件用 label htmlFor 关联；自定义组件可能有自己的 aria-label，
+  // 不生成指向不存在 id 的 for，避免浏览器 a11y 警告。
+  const control = canClone
+    ? cloneElement(
+        children as React.ReactElement<{ id?: string; "aria-label"?: string }>,
+        isNativeControl
+          ? { id: controlId }
+          : { "aria-label": childProps["aria-label"] ?? label },
+      )
     : children;
   return (
     <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <label htmlFor={autoId} className="text-sm font-medium text-foreground">
-        {label}
-      </label>
+      {isNativeControl ? (
+        <label htmlFor={controlId} className="text-sm font-medium text-foreground">
+          {label}
+        </label>
+      ) : (
+        <span className="text-sm font-medium text-foreground">{label}</span>
+      )}
       {control}
       {hint ? <span className="text-xs leading-relaxed text-muted-foreground">{hint}</span> : null}
     </div>

@@ -980,6 +980,7 @@ export const UI_EN: Record<string, string> = {
     "The template sets each shot: a static layout, a generated still, or a generated clip.",
   "管理模板": "Manage templates",
   "当前画幅没有模板，请到「分镜模板」上传。": "No template for this aspect. Upload one under Storyboard Templates.",
+  "模板加载失败：{err}": "Failed to load templates: {err}",
   "该模式下当前画幅没有模板，可到「分镜模板」上传。":
     "No template for this mode and aspect. Upload one under Storyboard Templates.",
   "注意：视频模式每个分镜都会跑一遍文生视频工作流，{count} 镜约等于 {count} 次本地/远程视频生成，整体耗时较长。":

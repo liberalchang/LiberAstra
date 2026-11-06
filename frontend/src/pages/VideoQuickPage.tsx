@@ -2,7 +2,7 @@ import { Clapperboard, FileText, Image as ImageIcon, RefreshCw, Volume2 } from "
 import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { api, fetchAssetBlob, TERMINAL_STATUSES, type TemplateOut } from "@/api/client";
@@ -181,17 +181,39 @@ export function VideoQuickPage() {
     .slice(0, 100);
 
   // ---- ② 分镜模板 ----
-  const [aspect, setAspect] = usePersistentState("video-quick:aspect", "9:16");
-  const { data: templates } = useQuery({
+  const [aspectStored, setAspect] = usePersistentState("video-quick:aspect", "9:16");
+  const aspect = ASPECTS.some((a) => a.value === aspectStored) ? aspectStored : "9:16";
+  useEffect(() => {
+    if (aspectStored !== aspect) setAspect(aspect);
+  }, [aspectStored, aspect, setAspect]);
+  const {
+    data: templates,
+    isError: templatesError,
+    error: templatesErrorDetail,
+    refetch: refetchTemplates,
+  } = useQuery({
     queryKey: ["templates", aspect],
     queryFn: () => api.listTemplates(aspect),
   });
   const usableTemplates = templates?.filter((t) => t.type !== "asset");
   const [templateName, setTemplateName] = usePersistentState("video-quick:template", "");
+  const [templateType, setTemplateType] = usePersistentState<"static" | "image" | "video">(
+    "video-quick:template-type",
+    "static",
+  );
   const tpl: TemplateOut | undefined =
-    usableTemplates?.find((t) => t.name === templateName) ??
-    usableTemplates?.find((t) => t.type === "static") ??
-    usableTemplates?.[0];
+    usableTemplates?.find((t) => t.name === templateName && t.type === templateType) ??
+    usableTemplates?.find((t) => t.type === templateType);
+  // 旧存档可能只保存了模板名（没有 template-type）；首次加载时把模式同步过去
+  const templateTypeSynced = useRef(false);
+  useEffect(() => {
+    if (templateTypeSynced.current || !usableTemplates || !templateName) return;
+    const named = usableTemplates.find((t) => t.name === templateName);
+    if (named && named.type !== "asset" && named.type !== templateType) {
+      setTemplateType(named.type as "static" | "image" | "video");
+    }
+    templateTypeSynced.current = true;
+  }, [usableTemplates, templateName, templateType, setTemplateType]);
   const [imageProviderId, setImageProviderId] = usePersistentState<number | "">("video-quick:image-provider", "");
   const imageProvider = imageProviders?.find((p) => p.id === imageProviderId) ?? imageProviders?.[0];
   const [imageWorkflow, setImageWorkflow] = usePersistentState("video-quick:image-workflow", "");
@@ -246,10 +268,13 @@ export function VideoQuickPage() {
   const [textScale, setTextScale] = usePersistentState("video-quick:text-scale", 1);
   const [subtitleSize, setSubtitleSize] = usePersistentState("video-quick:subtitle-size", 0);
   const [subtitleColor, setSubtitleColor] = usePersistentState("video-quick:subtitle-color", "#FFFFFF");
-  /** 当前模板模式（asset 不参与快速创作）；切换模式时选中该模式的第一个模板。 */
-  const modeType = tpl?.type === "asset" ? "static" : (tpl?.type ?? "static");
+  /** 当前模板模式；切换模式时选中该模式的第一个模板（没有模板也保留模式）。 */
+  const modeType = templateType;
   const switchModeType = (t: string) => {
-    const first = usableTemplates?.find((x) => x.type === t);
+    const next: "static" | "image" | "video" = t === "image" || t === "video" ? t : "static";
+    templateTypeSynced.current = true;
+    setTemplateType(next);
+    const first = usableTemplates?.find((x) => x.type === next);
     if (first) setTemplateName(first.name);
   };
 
@@ -669,7 +694,15 @@ export function VideoQuickPage() {
               ))}
             </select>
           </Field>
-          {usableTemplates && usableTemplates.length === 0 && (
+          {templatesError && (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-danger">
+              <span>{tx("模板加载失败：{err}", { err: String(templatesErrorDetail ?? "") })}</span>
+              <Button variant="outline" size="sm" onClick={() => refetchTemplates()}>
+                {tx("重试")}
+              </Button>
+            </div>
+          )}
+          {!templatesError && usableTemplates && usableTemplates.length === 0 && (
             <p className="text-sm text-muted-foreground">{tx("当前画幅没有模板，请到「分镜模板」上传。")}</p>
           )}
           {/* 已选模板摘要：缩略图 + 名称 + 类型，默认折叠不占空间 */}
