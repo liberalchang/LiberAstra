@@ -14,6 +14,9 @@ SPECS: dict[str, tuple[int, int, int]] = {
     "api_wait_timeout_seconds": (300, 30, 3600),
     # LLM（Ollama / OpenAI 兼容）单次 chat 读超时；大模型冷启动易超过 60s
     "llm_request_timeout_seconds": (300, 30, 3600),
+    # Liber Speech 单次 ASR 读超时：large-v3 约按音频时长的 1/10 耗时，
+    # 80 分钟会议音频需要 7–8 分钟；默认 1800 秒
+    "asr_request_timeout_seconds": (1800, 60, 14400),
     # 同主机服务串行执行：0=并行（默认），1=同一台主机上的 Provider 任务互斥
     "serial_same_host": (0, 0, 1),
     # 默认 LLM Provider id；0=自动取第一个启用的 llm Provider

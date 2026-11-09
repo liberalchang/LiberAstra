@@ -3,13 +3,15 @@
 import asyncio
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from liberastra.core.db import SessionLocal
 from liberastra.models import Provider
+from liberastra.providers.base import ProviderError
 from liberastra.providers.llm.ollama import OllamaLLM
 from liberastra.providers.llm.openai_compatible import OpenAICompatibleLLM
-from liberastra.services.providers import decrypt_api_key
+from liberastra.services.providers import build_asr_adapter, decrypt_api_key
 
 
 def test_capabilities(client: TestClient, auth_header: dict[str, str]) -> None:
@@ -90,5 +92,105 @@ def test_ollama_adapter_models() -> None:
             adapter = OllamaLLM("http://mock:11434", client=client)
             assert await adapter.list_models() == ["qwen3:8b"]
             assert "1 个" in await adapter.test()
+
+    asyncio.run(run())
+
+
+def test_asr_adapter_uses_request_timeout_pref(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    """系统设置的 ASR 超时会传给 Liber Speech 适配器。"""
+    resp = client.patch(
+        "/api/v1/system/preferences",
+        json={"asr_request_timeout_seconds": 900},
+        headers=auth_header,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["asr_request_timeout_seconds"] == 900
+    db = SessionLocal()
+    try:
+        record = Provider(
+            name="speech", type="liber_speech", base_url="http://speech:5555", extra={}
+        )
+        adapter = build_asr_adapter(record, db=db)
+        assert adapter._timeout == 900
+        stt = Provider(name="stt", type="openai_stt", base_url="http://stt/v1", extra={})
+        assert build_asr_adapter(stt, db=db)._timeout == 900
+    finally:
+        client.patch(
+            "/api/v1/system/preferences",
+            json={"asr_request_timeout_seconds": 1800},
+            headers=auth_header,
+        )
+        db.close()
+
+
+def test_llm_request_timeout_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAICompatibleLLM("http://mock/v1", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as info:
+                await adapter.chat(model="m", messages=[])
+        message = str(info.value)
+        assert "请求超时" in message
+        assert "ReadTimeout" in message
+        assert "无法连接" not in message
+
+    asyncio.run(run())
+
+
+def test_llm_connect_timeout_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAICompatibleLLM("http://mock/v1", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as info:
+                await adapter.chat(model="m", messages=[])
+        message = str(info.value)
+        assert "连接超时" in message
+        assert "ConnectTimeout" in message
+        assert "无法连接" not in message
+
+    asyncio.run(run())
+
+
+def test_llm_connection_error_message() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAICompatibleLLM("http://mock/v1", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as info:
+                await adapter.chat(model="m", messages=[])
+        message = str(info.value)
+        assert "无法连接" in message
+        assert "ConnectError" in message
+
+    asyncio.run(run())
+
+
+def test_llm_stream_timeout_messages() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAICompatibleLLM("http://mock/v1", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as stream_info:
+                async for _ in adapter.chat_stream(model="m", messages=[]):
+                    pass
+            with pytest.raises(ProviderError) as full_info:
+                async for _ in adapter.chat_full(model="m", messages=[]):
+                    pass
+        for message in (str(stream_info.value), str(full_info.value)):
+            assert "请求超时" in message
+            assert "ReadTimeout" in message
+            assert "无法连接" not in message
 
     asyncio.run(run())

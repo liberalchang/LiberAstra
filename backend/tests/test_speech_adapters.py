@@ -230,6 +230,50 @@ def test_liber_speech_asr_model_passthrough(tmp_path) -> None:  # noqa: ANN001
     assert b"faster-whisper" not in seen[3]
 
 
+def test_openai_stt_timeout_reports_timeout(tmp_path) -> None:  # noqa: ANN001
+    """OpenAI 兼容 ASR 也要把超时和连接失败分开。"""
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"RIFFfake")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = OpenAISTT("http://mock/v1", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as info:
+                await adapter.transcribe(file_path=str(audio))
+        message = str(info.value)
+        assert "超时" in message
+        assert "ReadTimeout" in message
+        assert "1800" in message
+        assert "无法连接" not in message
+
+    asyncio.run(run())
+
+
+def test_liber_speech_timeout_reports_timeout(tmp_path) -> None:  # noqa: ANN001
+    """ReadTimeout 的 str 为空，错误信息要带类型名和实际超时秒数。"""
+    audio = tmp_path / "in.wav"
+    audio.write_bytes(b"RIFFfake")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", client=client, timeout=1800)
+            with pytest.raises(ProviderError) as info:
+                await adapter.transcribe(file_path=str(audio))
+        message = str(info.value)
+        assert "超时" in message
+        assert "ReadTimeout" in message
+        assert "1800" in message
+        assert "无法连接" not in message
+
+    asyncio.run(run())
+
+
 def test_liber_speech_default_asr_model(tmp_path) -> None:  # noqa: ANN001
     """系统设置里的识别模型会在请求未指定时写入表单。"""
     audio = tmp_path / "in.wav"

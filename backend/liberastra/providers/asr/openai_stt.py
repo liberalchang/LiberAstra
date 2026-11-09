@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from liberastra.providers.base import ASRResult, ASRSegment, ProviderError
+from liberastra.providers.http_errors import http_provider_error
 from liberastra.providers.llm.openai_compatible import _json_request
 
 
@@ -54,7 +55,7 @@ class OpenAISTT:
             data["language"] = language
 
         own_client = self._client is None
-        http = self._client or httpx.AsyncClient(timeout=self._timeout)
+        http = self._client or httpx.AsyncClient(timeout=httpx.Timeout(self._timeout, connect=10.0))
         try:
             with path.open("rb") as fh:
                 resp = await http.post(
@@ -67,7 +68,9 @@ class OpenAISTT:
                 raise ProviderError(f"HTTP {resp.status_code}: {resp.text[:500]}")
             payload = resp.json()
         except httpx.HTTPError as exc:
-            raise ProviderError(f"无法连接 {self.base_url}: {exc}") from exc
+            raise http_provider_error(
+                f"{self.base_url}/audio/{endpoint}", self._timeout, exc
+            ) from exc
         finally:
             if own_client:
                 await http.aclose()

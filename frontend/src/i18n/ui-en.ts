@@ -731,6 +731,10 @@ export const UI_EN: Record<string, string> = {
   "Ollama / OpenAI 兼容接口单次对话的读超时。大模型（如 32B）冷启动容易超过 60 秒；默认 300，范围 30 到 3600。":
     "Read timeout for one Ollama or OpenAI-compatible chat. Large models can exceed 60s on a cold start. Default 300, range 30 to 3600.",
   "LLM 请求超时": "LLM request timeout",
+  "语音转文字超时（秒）": "Speech-to-text timeout (sec)",
+  "Liber Speech 单次转写请求的读超时。large-v3 约按音频时长的 1/10 耗时，80 分钟会议音频需要 7–8 分钟；默认 1800，范围 60 到 14400。":
+    "Read timeout for one Liber Speech transcription. large-v3 takes roughly a tenth of the audio duration, so an 80-minute meeting needs 7–8 minutes. Default 1800, range 60 to 14400.",
+  "语音转文字超时": "Speech-to-text timeout",
 
   "支持 LiberAstra 包、ComfyUI API Format，以及画布 JSON（自动转换）。":
     "Import a LiberAstra pack, ComfyUI API Format, or a canvas JSON file (converted automatically).",

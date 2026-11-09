@@ -29,6 +29,8 @@ class PreferencesUpdate(BaseModel):
     comfy_wait_timeout_seconds: int | None = Field(default=None, ge=60, le=14400)
     api_wait_timeout_seconds: int | None = Field(default=None, ge=30, le=3600)
     llm_request_timeout_seconds: int | None = Field(default=None, ge=30, le=3600)
+    # Liber Speech 单次 ASR 请求的读超时
+    asr_request_timeout_seconds: int | None = Field(default=None, ge=60, le=14400)
     # 0=并行（默认），1=同一台主机上的 Provider 任务互斥串行
     serial_same_host: int | None = Field(default=None, ge=0, le=1)
     # 0=自动取第一个启用的 llm Provider

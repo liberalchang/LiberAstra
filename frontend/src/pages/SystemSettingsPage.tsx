@@ -73,6 +73,7 @@ export function SystemSettingsPage() {
   const [comfyTimeout, setComfyTimeout] = useState(600);
   const [apiTimeout, setApiTimeout] = useState(300);
   const [llmTimeout, setLlmTimeout] = useState(300);
+  const [asrTimeout, setAsrTimeout] = useState(1800);
   const [serialSameHost, setSerialSameHost] = useState(false);
   const [llmProviderId, setLlmProviderId] = useState(0);
   const [llmModel, setLlmModel] = useState("");
@@ -156,6 +157,7 @@ export function SystemSettingsPage() {
       setComfyTimeout(prefs.comfy_wait_timeout_seconds);
       setApiTimeout(prefs.api_wait_timeout_seconds);
       setLlmTimeout(prefs.llm_request_timeout_seconds);
+      setAsrTimeout(prefs.asr_request_timeout_seconds);
       setSerialSameHost(prefs.serial_same_host === 1);
       setLlmProviderId(prefs.default_llm_provider_id ?? 0);
       setLlmModel(prefs.default_llm_model ?? "");
@@ -177,6 +179,7 @@ export function SystemSettingsPage() {
         comfy_wait_timeout_seconds: comfyTimeout,
         api_wait_timeout_seconds: apiTimeout,
         llm_request_timeout_seconds: llmTimeout,
+        asr_request_timeout_seconds: asrTimeout,
         serial_same_host: serialSameHost ? 1 : 0,
         default_llm_provider_id: llmProviderId,
         default_llm_model: llmModel,
@@ -644,6 +647,19 @@ export function SystemSettingsPage() {
                 step={30}
                 value={llmTimeout}
                 onChange={setLlmTimeout}
+              />
+            </Field>
+            <Field
+              label={tx("语音转文字超时（秒）")}
+              hint={tx("Liber Speech 单次转写请求的读超时。large-v3 约按音频时长的 1/10 耗时，80 分钟会议音频需要 7–8 分钟；默认 1800，范围 60 到 14400。")}
+            >
+              <NumberStepper
+                ariaLabel={tx("语音转文字超时")}
+                min={60}
+                max={14400}
+                step={60}
+                value={asrTimeout}
+                onChange={setAsrTimeout}
               />
             </Field>
             <div className="sm:col-span-2">

@@ -40,7 +40,7 @@ def build_adapter(
     client: httpx.AsyncClient | None = None,
     timeout: float | None = None,
 ) -> Any:
-    """按 Provider 类型构造能力适配器。timeout 仅对 LLM 类生效。"""
+    """按 Provider 类型构造能力适配器。timeout 对 LLM 类与 OpenAI STT 生效。"""
     api_key = decrypt_api_key(record)
     default_model = record.extra.get("model") if record.extra else None
     llm_kw: dict[str, Any] = {"client": client}
@@ -55,7 +55,10 @@ def build_adapter(
     if record.type == "edge_tts":
         return EdgeTTS(default_voice=default_model or "zh-CN-XiaoxiaoNeural")
     if record.type == "openai_stt":
-        return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", client=client)
+        stt_kw: dict[str, Any] = {"client": client}
+        if timeout is not None:
+            stt_kw["timeout"] = timeout
+        return OpenAISTT(record.base_url, api_key, default_model or "whisper-1", **stt_kw)
     if record.type == "liber_speech":
         return LiberSpeech(record.base_url, api_key, default_model or "multilingual", client=client)
     if record.type == "liber_depth":
@@ -145,6 +148,15 @@ def _speech_default_asr_model(db: Session | None, extra_model: str | None) -> st
     return str(extra_model or "").strip()
 
 
+def _asr_request_timeout(db: Session | None) -> float:
+    """ASR 单次请求的读超时；未连库时用默认值。"""
+    from liberastra.services.preferences import SPECS, get_pref
+
+    if db is None:
+        return float(SPECS["asr_request_timeout_seconds"][0])
+    return float(get_pref(db, "asr_request_timeout_seconds"))
+
+
 def build_asr_adapter(
     record: Provider,
     *,
@@ -159,9 +171,10 @@ def build_asr_adapter(
             decrypt_api_key(record),
             _speech_default_model(db, extra_model),
             client=client,
+            timeout=_asr_request_timeout(db),
             default_asr_model=_speech_default_asr_model(db, extra_asr),
         )
-    return build_adapter(record, client=client)
+    return build_adapter(record, client=client, timeout=_asr_request_timeout(db))
 
 
 def _speech_default_vc_model(db: Session | None, extra_model: str | None) -> str:
@@ -189,6 +202,7 @@ def build_vc_adapter(
             decrypt_api_key(record),
             _speech_default_model(db, extra.get("model")),
             client=client,
+            timeout=_asr_request_timeout(db),
             default_asr_model=_speech_default_asr_model(db, extra.get("asr_model")),
         )
     return build_adapter(record, client=client)

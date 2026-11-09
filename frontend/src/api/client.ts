@@ -304,6 +304,8 @@ export interface SystemPreferences {
   api_wait_timeout_seconds: number;
   /** LLM（Ollama / OpenAI 兼容）单次 chat 读超时（秒） */
   llm_request_timeout_seconds: number;
+  /** Liber Speech 单次语音转文字请求的读超时（秒） */
+  asr_request_timeout_seconds: number;
   /** 同主机服务串行执行：0=并行（默认），1=同一主机上的 Provider 任务互斥 */
   serial_same_host: number;
   /** 默认 LLM Provider id；0=自动取第一个启用的 llm */

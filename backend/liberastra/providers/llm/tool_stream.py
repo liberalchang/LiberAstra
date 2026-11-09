@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from liberastra.providers.base import ProviderError
+from liberastra.providers.http_errors import http_provider_error
 
 
 def _merge_tool_delta(
@@ -130,10 +131,8 @@ async def iter_openai_chat(
                         _merge_tool_delta(calls, tool_delta)
     except ProviderError:
         raise
-    except httpx.TimeoutException as exc:
-        raise ProviderError(f"请求超时 {url}（>{timeout:.0f}s）: {exc}") from exc
     except httpx.HTTPError as exc:
-        raise ProviderError(f"无法连接 {url}: {exc}") from exc
+        raise http_provider_error(url, timeout, exc) from exc
     finally:
         if own_client:
             await client.aclose()

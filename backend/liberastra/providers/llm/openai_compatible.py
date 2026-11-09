@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from liberastra.providers.base import ProviderError
+from liberastra.providers.http_errors import http_provider_error
 from liberastra.providers.llm.tool_stream import iter_openai_chat
 
 
@@ -27,10 +28,8 @@ async def _json_request(
         if resp.status_code >= 400:
             raise ProviderError(f"HTTP {resp.status_code}: {resp.text[:500]}")
         return resp.json()
-    except httpx.TimeoutException as exc:
-        raise ProviderError(f"请求超时 {url}（>{timeout:.0f}s）: {exc}") from exc
     except httpx.HTTPError as exc:
-        raise ProviderError(f"无法连接 {url}: {exc}") from exc
+        raise http_provider_error(url, timeout, exc) from exc
     finally:
         if own_client:
             await http.aclose()
@@ -120,10 +119,8 @@ class OpenAICompatibleLLM:
                         yield text
         except ProviderError:
             raise
-        except httpx.TimeoutException as exc:
-            raise ProviderError(f"请求超时 {url}（>{self._timeout:.0f}s）: {exc}") from exc
         except httpx.HTTPError as exc:
-            raise ProviderError(f"无法连接 {url}: {exc}") from exc
+            raise http_provider_error(url, self._timeout, exc) from exc
         finally:
             if own_client:
                 await http.aclose()

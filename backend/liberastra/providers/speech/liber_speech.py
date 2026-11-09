@@ -206,11 +206,24 @@ class LiberSpeech:
     async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         own_client = self._client is None
         http = self._client or httpx.AsyncClient(timeout=self._timeout)
+        limit = kwargs.pop("timeout", self._timeout)
         try:
-            resp = await http.request(method, url, headers=self._headers(), **kwargs)
+            resp = await http.request(
+                method,
+                url,
+                headers=self._headers(),
+                timeout=httpx.Timeout(limit, connect=10.0),
+                **kwargs,
+            )
             await resp.aread()
+        except httpx.TimeoutException as exc:
+            # ReadTimeout 的 str 经常为空，必须带上类型名和实际秒数
+            raise ProviderError(
+                f"Liber Speech API 请求超时 {url}（{limit:g} 秒，{type(exc).__name__}）"
+            ) from exc
         except httpx.HTTPError as exc:
-            raise ProviderError(f"无法连接 Liber Speech API {self.api_root}: {exc}") from exc
+            detail = str(exc).strip() or type(exc).__name__
+            raise ProviderError(f"无法连接 Liber Speech API {self.api_root}: {detail}") from exc
         finally:
             if own_client:
                 await http.aclose()
