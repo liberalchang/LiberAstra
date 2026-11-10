@@ -435,6 +435,19 @@ export interface WorkflowAccelSpec {
   preset?: Record<string, unknown>;
 }
 
+export interface DurationLimits {
+  unit: "seconds";
+  min?: number | null;
+  max?: number | null;
+  align_base?: number;
+  align_offset?: number;
+  fps?: number;
+  aligned?: boolean;
+  step?: number;
+  auto?: boolean;
+  hint?: string;
+}
+
 export interface WorkflowPackOut {
   name: string;
   capability: string;
@@ -447,6 +460,8 @@ export interface WorkflowPackOut {
   fps?: number | null;
   /** 加速 LoRA 声明；空=无加速能力（前端有值时再渲染开关） */
   accel?: WorkflowAccelSpec;
+  /** 秒/帧对齐规则；有值时优先用于时长输入 */
+  duration_limits?: DurationLimits | null;
 }
 
 export interface TemplateOut {

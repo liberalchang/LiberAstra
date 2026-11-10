@@ -1033,16 +1033,25 @@ function ModelSettings({
                 <label key={field.key} className="flex flex-col gap-1.5 text-sm">
                   <span>{tx(field.label)}</span>
                   {field.type === "int" ? (
-                    <Input
-                      type="number"
-                      min={field.min ?? undefined}
-                      max={field.max ?? undefined}
-                      value={defaults[field.key] ?? ""}
-                      placeholder={tx("留空使用默认")}
-                      onChange={(event) =>
-                        setDefaults((current) => ({ ...current, [field.key]: event.target.value }))
-                      }
-                    />
+                    <>
+                      <Input
+                        type="number"
+                        min={field.min ?? undefined}
+                        max={field.max ?? undefined}
+                        value={defaults[field.key] ?? ""}
+                        placeholder={tx("留空使用默认")}
+                        onChange={(event) =>
+                          setDefaults((current) => ({ ...current, [field.key]: event.target.value }))
+                        }
+                      />
+                      {field.duration_limits && (
+                        <span className="text-xs text-muted-foreground">
+                          {field.duration_limits.auto
+                            ? tx("最长 {max} 秒；-1 = 自动", { max: field.duration_limits.max ?? "—" })
+                            : tx("最长 {max} 秒", { max: field.duration_limits.max ?? "—" })}
+                        </span>
+                      )}
+                    </>
                   ) : field.options && field.options.length > 0 ? (
                     <select
                       className={selectClass}

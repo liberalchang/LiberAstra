@@ -74,6 +74,15 @@ def _param_field(key: str, spec: dict[str, Any], *, when_sub: str = "") -> dict[
         row["max"] = spec["max"]
     if when_sub:
         row["when_sub"] = when_sub
+    if key == "duration":
+        row["duration_limits"] = {
+            "unit": "seconds",
+            "min": spec.get("min"),
+            "max": spec.get("max"),
+            "step": 1,
+            "auto": spec.get("min") == -1,
+            "aligned": False,
+        }
     return row
 
 

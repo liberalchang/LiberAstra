@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { api, type WorkflowInputSpec } from "@/api/client";
+import { api, type DurationLimits, type WorkflowInputSpec } from "@/api/client";
 import { AspectSelect, ASPECT_OPTIONS, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
 import { Field, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useTx } from "@/i18n/tx";
+import { snapFramesCeil } from "@/lib/duration";
 
 interface Props {
   inputs: Record<string, WorkflowInputSpec>;
@@ -18,6 +19,8 @@ interface Props {
   providerId?: number;
   /** 视频包帧率：给了它，length/frames 帧数参数按"时长（秒）"设置，自动换算帧数 */
   fps?: number | null;
+  /** 秒/帧对齐规则；有值时优先于 spec.align_base */
+  durationLimits?: DurationLimits | null;
   /** 窄容器（如画布属性面板）强制单列，避免两列挤压截断 */
   singleColumn?: boolean;
   /** all：宽高比和其余字段一起渲染。aspect：只留宽高比。rest：跳过宽高比。吸附逻辑两种都跑。 */
@@ -174,17 +177,17 @@ export function WorkflowInputs({
   exclude = [],
   providerId,
   fps,
+  durationLimits,
   singleColumn,
   part = "all",
 }: Props) {
   const tx = useTx();
   // 帧数对齐：有效帧数 = align_base × k + align_offset（如 MiniMax 的 17k+5、Wan 的 4k+1）
-  const snapFrames = (n: number, spec: WorkflowInputSpec) => {
-    if (!spec.align_base) return n;
-    const off = spec.align_offset ?? 0;
-    const k = Math.max(0, Math.round((n - off) / spec.align_base));
-    return spec.align_base * k + off;
-  };
+  const snapFrames = (n: number, spec: WorkflowInputSpec) =>
+    snapFramesCeil(n, {
+      align_base: durationLimits?.align_base ?? spec.align_base,
+      align_offset: durationLimits?.align_offset ?? spec.align_offset,
+    });
   // 已记忆的帧数若不对齐，进入页面时自动吸附一次
   useEffect(() => {
     if (!fps) return;
@@ -196,7 +199,7 @@ export function WorkflowInputs({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fps, inputs]);
+  }, [fps, inputs, durationLimits]);
   // 宽高同时在场且未被排除时合并为一个宽高比控件，长边对齐包默认尺寸
   const widthSpec = inputs.width;
   const heightSpec = inputs.height;
@@ -267,15 +270,30 @@ export function WorkflowInputs({
         // 视频包给了 fps：帧数参数改按"时长（秒）"设置，提交时换算回帧数并按包声明对齐
         const isFramesParam = (key === "length" || key === "frames") && spec.type === "int" && !!fps;
         const framesNow = isFramesParam ? intValueOf(values[key], spec) : 0;
+        const fpsValue = fps || 24;
+        const limitMin = durationLimits?.min ?? (spec.min != null ? spec.min / fpsValue : 1);
+        const limitMax = durationLimits?.max ?? (spec.max != null ? spec.max / fpsValue : 300);
+        const minSeconds = durationLimits
+          ? Math.max(1, Math.floor(limitMin))
+          : Math.max(1, Math.round((spec.min ?? fpsValue) / fpsValue));
+        const maxSeconds = durationLimits
+          ? Math.max(minSeconds, Math.floor(limitMax))
+          : Math.max(2, Math.round((spec.max ?? 300) / fpsValue));
+        const actualSeconds = framesNow / fpsValue;
+        const alignBase = durationLimits?.align_base ?? spec.align_base ?? 0;
+        const alignOffset = durationLimits?.align_offset ?? spec.align_offset ?? 0;
         return (
           <Field
             key={key}
             label={tx(isFramesParam ? tx("时长（秒）") : labelOf(key, spec)) + (spec.required ? " *" : "")}
             hint={
               isFramesParam
-                ? tx("帧数 = 秒 × {fps}fps，当前 {frames} 帧", { fps, frames: framesNow }) +
-                  (spec.align_base
-                    ? tx("，按 {base}k+{off} 对齐", { base: spec.align_base, off: spec.align_offset ?? 0 })
+                ? tx("当前 {frames} 帧 / {seconds} 秒", {
+                    frames: framesNow,
+                    seconds: actualSeconds.toFixed(2),
+                  }) +
+                  (alignBase
+                    ? tx("，按 {base}n+{off} 对齐", { base: alignBase, off: alignOffset })
                     : "")
                 : tx(spec.description || tx("来自工作流包 manifest 的参数"))
             }
@@ -305,10 +323,10 @@ export function WorkflowInputs({
             ) : isFramesParam ? (
               <NumberStepper
                 ariaLabel={tx("时长（秒）")}
-                min={Math.max(1, Math.round((spec.min ?? fps) / fps))}
-                max={Math.max(2, Math.round((spec.max ?? 300) / fps))}
-                value={Math.max(1, Math.round(framesNow / fps))}
-                onChange={(s) => onChange(key, String(snapFrames(s * fps, spec)))}
+                min={minSeconds}
+                max={maxSeconds}
+                value={Math.max(1, Math.min(maxSeconds, Math.round(framesNow / fpsValue)))}
+                onChange={(s) => onChange(key, String(snapFrames(s * fpsValue, spec)))}
               />
             ) : spec.type === "int" ? (
               <NumberStepper

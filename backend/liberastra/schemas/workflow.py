@@ -17,6 +17,7 @@ class WorkflowPackOut(BaseModel):
     requirements: dict[str, Any]
     fps: int | None = None  # 视频包帧率；有它前端可按秒设置时长
     accel: dict[str, Any] = Field(default_factory=dict)  # 加速 LoRA 声明；空=无加速能力
+    duration_limits: dict[str, Any] | None = None  # 秒/帧对齐规则；前端据此显示时长
 
 
 class WorkflowImportOut(WorkflowPackOut):

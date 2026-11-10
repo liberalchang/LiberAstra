@@ -15,6 +15,14 @@ export interface components {
       min?: number | null;
       max?: number | null;
       when_sub?: string;
+      duration_limits?: {
+        unit: "seconds";
+        min?: number | null;
+        max?: number | null;
+        step?: number;
+        auto?: boolean;
+        aligned?: boolean;
+      } | null;
     };
     ProviderTypeInfo: {
       type: string;

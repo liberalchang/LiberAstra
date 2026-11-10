@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.media.timeline import duration_limits_for_pack
 from liberastra.models import Provider
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.workflow import (
@@ -49,6 +50,7 @@ def _to_out(pack) -> WorkflowPackOut:  # noqa: ANN001, ANN202
         requirements=pack.requirements,
         fps=pack.fps,
         accel=pack.accel or {},
+        duration_limits=duration_limits_for_pack(pack),
     )
 
 

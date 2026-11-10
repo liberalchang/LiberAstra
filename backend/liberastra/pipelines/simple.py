@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -18,6 +17,7 @@ from sqlalchemy.orm import Session
 from liberastra.jobs.manager import JobContext
 from liberastra.media import ffmpeg
 from liberastra.media.htmlframe import render_html
+from liberastra.media.timeline import frames_for_duration, max_aligned_seconds
 from liberastra.models import Job
 from liberastra.pipelines.quick import (
     _chat_json,
@@ -91,7 +91,7 @@ async def _run_video_pack(
 
 async def _run_model_video(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """火山方舟等云端视频模型。产物保存方式与工作流包视频一致。"""
-    from liberastra.services.model_media import generate_model_media
+    from liberastra.services.model_media import generate_model_media, resolve_video_duration
 
     params = job.params
     provider = pick_provider(db, "video", job.provider_id)
@@ -112,6 +112,9 @@ async def _run_model_video(db: Session, job: Job, ctx: JobContext) -> list[dict[
         inputs.setdefault("first_frame", paths[0])
     ctx.report(db, job, progress=0.1, step="ark")
     started = time.monotonic()
+    resolved = resolve_video_duration(provider, inputs)
+    if resolved is not None:
+        job.params = {**params, "inputs": inputs, "__duration": resolved}
     videos = await generate_model_media(
         provider,
         model=str(job.model or params.get("model") or ""),
@@ -473,46 +476,6 @@ def estimate_speech_seconds(text: str) -> float:
     if seconds <= 0 and text.strip():
         seconds = max(len(text.strip()) / _CJK_PER_SEC, 0.4)
     return seconds
-
-
-def frames_for_duration(duration: float, fps: float, spec: dict[str, Any]) -> int:
-    """把秒数向上吸附到工作流允许的帧数。MiniMax H3 为 17k+5。"""
-    if fps <= 0:
-        fps = 24.0
-    base = int(spec.get("align_base") or 0)
-    offset = int(spec.get("align_offset") or 0)
-    minimum = int(spec.get("min") or 1)
-    maximum = int(spec.get("max") or 0) or 10**9
-    target = max(1, math.ceil(max(0.0, duration) * fps))
-    if base > 0:
-        k = math.ceil(max(0, target - offset) / base)
-        frames = base * k + offset
-        if frames < minimum:
-            k = math.ceil(max(0, minimum - offset) / base)
-            frames = base * k + offset
-    else:
-        frames = target
-    return max(minimum, min(maximum, frames))
-
-
-def max_aligned_seconds(fps: float, spec: dict[str, Any]) -> float:
-    """单段能完整播完的最长秒数：不超过 max、且满足对齐规则的最大帧数 / fps。"""
-    if fps <= 0:
-        fps = 24.0
-    maximum = int(spec.get("max") or 0)
-    if maximum <= 0:
-        return 600.0
-    base = int(spec.get("align_base") or 0)
-    offset = int(spec.get("align_offset") or 0)
-    minimum = int(spec.get("min") or 1)
-    if base > 0:
-        k = max(0, (maximum - offset) // base)
-        frames = base * k + offset
-        if frames < minimum:
-            frames = minimum
-    else:
-        frames = maximum
-    return frames / fps
 
 
 def _text_pieces(text: str, pattern: re.Pattern[str]) -> list[str]:

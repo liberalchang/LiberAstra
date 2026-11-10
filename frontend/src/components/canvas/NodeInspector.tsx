@@ -960,6 +960,7 @@ function FunctionInspector({
                   exclude={[...MEDIA_TYPES, "prompt"]}
                   providerId={providerId}
                   fps={pack.fps}
+                  durationLimits={pack.duration_limits}
                   singleColumn
                   onChange={(key, value) =>
                     store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
@@ -977,6 +978,7 @@ function FunctionInspector({
                       exclude={paramExclude}
                       providerId={providerId}
                       fps={pack.fps}
+                  durationLimits={pack.duration_limits}
                       singleColumn
                       part="aspect"
                       onChange={(key, value) =>
@@ -1075,6 +1077,7 @@ function FunctionInspector({
                       exclude={paramExclude}
                       providerId={providerId}
                       fps={pack.fps}
+                  durationLimits={pack.duration_limits}
                       singleColumn
                       part={pack.capability === "t2i" ? "rest" : "all"}
                       onChange={(key, value) =>

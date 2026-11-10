@@ -13,12 +13,12 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from liberastra.jobs.manager import JobContext, JobManager
+from liberastra.media.timeline import max_aligned_seconds
 from liberastra.models import Job
 from liberastra.pipelines.quick import job_path
 from liberastra.pipelines.simple import (
     _apply_soundtrack,
     _rel_of,
-    max_aligned_seconds,
     motion_prompt,
     motion_windows,
     render_avatar_takes,
@@ -277,7 +277,11 @@ async def _run_canvas_analysis(
 
 async def _run_model_node(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     """云端模型节点：按 sub_capability 调用图像或视频适配器。"""
-    from liberastra.services.model_media import generate_model_media, output_kind
+    from liberastra.services.model_media import (
+        generate_model_media,
+        output_kind,
+        resolve_video_duration,
+    )
 
     params = job.params
     sub = str(params.get("sub_capability") or "")
@@ -286,12 +290,17 @@ async def _run_model_node(db: Session, job: Job, ctx: JobContext) -> list[dict[s
     provider = pick_provider(db, capability, job.provider_id)
     ctx.report(db, job, progress=0.05, step="generate")
     started = time.monotonic()
+    inputs = dict(params.get("inputs") or {})
+    if kind == "video":
+        resolved = resolve_video_duration(provider, inputs)
+        if resolved is not None:
+            job.params = {**params, "inputs": inputs, "__duration": resolved}
     files = await generate_model_media(
         provider,
         model=str(params.get("model") or job.model or ""),
         sub_capability=sub,
         prompt=str(params.get("prompt") or ""),
-        inputs=dict(params.get("inputs") or {}),
+        inputs=inputs,
         on_progress=lambda progress: ctx.report(db, job, progress=0.05 + 0.85 * progress),
         wait_timeout=float(get_pref(db, "comfy_wait_timeout_seconds")),
     )

@@ -612,6 +612,7 @@ export function VideoAssetsPage() {
                     exclude={["image", "prompt", "width", "height"]}
                     providerId={videoProvider?.id}
                     fps={videoPack.fps}
+                    durationLimits={videoPack.duration_limits}
                   />
                 )}
               </>

@@ -620,6 +620,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 }
                 providerId={provider?.id}
                 fps={pack.fps}
+                durationLimits={pack.duration_limits}
               />
             )}
           </AdvancedPanel>

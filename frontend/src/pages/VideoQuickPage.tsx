@@ -1119,6 +1119,7 @@ export function VideoQuickPage() {
             exclude={["prompt", "width", "height", "image"]}
             providerId={videoProvider?.id}
             fps={videoPack.fps}
+            durationLimits={videoPack.duration_limits}
           />
         )}
         {!nativeAudio && ttsIsComfy && ttsPack && (

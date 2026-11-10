@@ -8,13 +8,39 @@ from __future__ import annotations
 import base64
 from typing import Any
 
+from liberastra.media.timeline import duration_spec_for_model, resolve_duration
 from liberastra.providers.base import ProviderError
-from liberastra.providers.vendors.volcengine.schemas import data_url
+from liberastra.providers.vendors.volcengine.schemas import VIDEO_FIELDS, data_url
 from liberastra.services.providers import build_adapter
 from liberastra.storage import resolve
 
 IMAGE_SUBS = {"t2i", "i2i_single", "i2i_multi", "upscale"}
 VIDEO_SUBS = {"t2v", "i2v_first", "i2v_flf", "v2v_ref"}
+
+
+def resolve_video_duration(provider, inputs: dict[str, Any]) -> dict[str, Any] | None:  # noqa: ANN001
+    """云端视频的 duration 统一走 IR，并给 job.params 留下 __duration。"""
+    if getattr(provider, "type", "") != "volcengine_ark":
+        return None
+    field = VIDEO_FIELDS.get("duration")
+    spec = duration_spec_for_model(field)
+    if spec is None or field is None:
+        return None
+    raw = inputs.get("duration", field.get("default", 5))
+    try:
+        desired = float(raw)
+    except (TypeError, ValueError):
+        desired = float(field.get("default", 5))
+    resolved = resolve_duration(spec, desired)
+    if resolved.reason != "auto":
+        inputs["duration"] = int(resolved.value)
+    return {
+        "value": resolved.value,
+        "seconds": resolved.seconds,
+        "frames": resolved.frames,
+        "clamped": resolved.clamped,
+        "reason": resolved.reason,
+    }
 
 
 def output_kind(sub_capability: str) -> str:

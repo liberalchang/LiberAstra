@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -65,6 +66,7 @@ class ModelParamFieldOut(BaseModel):
     min: int | None = None
     max: int | None = None
     when_sub: str = ""
+    duration_limits: dict[str, Any] | None = None
 
 
 class ProviderTypeInfoOut(BaseModel):

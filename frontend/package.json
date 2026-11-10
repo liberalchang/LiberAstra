@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test src/canvas/layout.test.ts src/canvas/bindings.test.ts src/canvas/preflight.test.ts src/canvas/runState.test.ts src/canvas/functionRules.test.ts src/docs/docs.test.ts src/nav/model.test.ts src/components/ui/galaxy.test.ts src/lib/promptTemplates.test.ts src/lib/fileAccept.test.ts",
+    "test": "node --test src/canvas/layout.test.ts src/canvas/bindings.test.ts src/canvas/preflight.test.ts src/canvas/runState.test.ts src/canvas/functionRules.test.ts src/docs/docs.test.ts src/nav/model.test.ts src/components/ui/galaxy.test.ts src/lib/promptTemplates.test.ts src/lib/fileAccept.test.ts src/lib/duration.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "preview": "vite preview"
