@@ -13,6 +13,7 @@ class CharacterOut(BaseModel):
     description: str
     portrait_path: str | None
     turnaround_path: str | None
+    turnaround_grid_path: str | None
     front_path: str | None
     side_path: str | None
     back_path: str | None

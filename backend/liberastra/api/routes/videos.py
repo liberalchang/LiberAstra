@@ -421,7 +421,7 @@ async def motion(
         image,
         _character(db, user, character_id),
         character_view,
-        multi=character_view != "turnaround",
+        multi=character_view not in ("turnaround", "turnaround_grid"),
     )
     job = _submit(
         request, db, user, "video.motion",

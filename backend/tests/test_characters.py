@@ -1,19 +1,31 @@
-"""角色库：三视图切分，以及上传后能按正/侧/背取出单人图。"""
+"""角色库：四段式/四宫格切分、排版提示词和生成任务。"""
 
+import asyncio
 import io
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy import select
 
-from liberastra.models import Character
+from liberastra.core.db import SessionLocal
+from liberastra.jobs.manager import JobContext, JobManager
+from liberastra.models import Character, Job, User
+from liberastra.providers.base import ProviderError
+from liberastra.services import characters as characters_service
 from liberastra.services.characters import (
+    build_wide_sheet_reference,
     clean_appearance,
     expand_reference_paths,
     paths_for_task,
+    prepare_character_ref_images,
     reference_paths,
     reference_views,
+    run_character_generate_job,
     sheet_prompt,
     split_turnaround,
+    split_turnaround_grid,
 )
 from liberastra.storage import resolve
 
@@ -46,6 +58,44 @@ def _colors(content: bytes) -> set[tuple[int, int, int]]:
             if pixel != (255, 255, 255):
                 found.add(pixel)
     return found
+
+
+def _solid(width: int, height: int, color: tuple[int, int, int]) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (width, height), color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _grid_sheet() -> bytes:
+    width, height = 576, 1024
+    image = Image.new("RGB", (width, height), "white")
+    image.paste((200, 40, 40), (0, 0, width // 2, height // 2))
+    image.paste((40, 160, 40), (width // 2, 0, width, height // 2))
+    image.paste((40, 40, 200), (0, height // 2, width // 2, height))
+    image.paste((180, 140, 40), (width // 2, height // 2, width, height))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_split_turnaround_grid_returns_four_9x16() -> None:
+    normalized, portrait, front, side, back = split_turnaround_grid(_grid_sheet())
+    assert Image.open(io.BytesIO(normalized)).size == (576, 1024)
+    for color, part in (
+        ((200, 40, 40), portrait),
+        ((40, 160, 40), front),
+        ((40, 40, 200), side),
+        ((180, 140, 40), back),
+    ):
+        panel = Image.open(io.BytesIO(part))
+        assert panel.size == (288, 512)
+        assert panel.size[0] * 16 == panel.size[1] * 9
+        assert _colors(part) == {color}
+
+
+def test_split_turnaround_grid_rejects_non_9x16() -> None:
+    with pytest.raises(ProviderError):
+        split_turnaround_grid(_solid(400, 400, (1, 2, 3)))
 
 
 def test_split_turnaround_finds_four_panels() -> None:
@@ -151,6 +201,50 @@ def test_sheet_prompt_keeps_layout_for_aspect_only() -> None:
     assert "俏皮" not in prompt
 
 
+def test_sheet_prompt_builds_grid_layout_and_cleans_it() -> None:
+    prompt = sheet_prompt("20岁，黑长发", layout="grid")
+    for marker in ("9:16", "2×2", "四宫格", "左上", "右上", "左下", "右下", "正面面部"):
+        assert marker in prompt
+    assert "16:9横版" not in prompt
+    cleaned = clean_appearance(prompt)
+    assert "20岁" in cleaned
+    assert "四宫格" not in cleaned
+    assert "9:16" not in cleaned
+    assert sheet_prompt(prompt, layout="grid") == prompt
+
+    wide = sheet_prompt("20岁，黑长发")
+    switched = sheet_prompt(wide, layout="grid")
+    assert "四宫格" in switched
+    assert "16:9横版" not in switched
+
+
+def test_prepare_character_ref_images_uses_target_aspect() -> None:
+    raw = _solid(400, 300, (10, 20, 30))
+    prepared = prepare_character_ref_images([raw], target=(1152, 2048))
+    image = Image.open(io.BytesIO(prepared[0]))
+    assert image.size == (1152, 2048)
+    assert image.getpixel((0, 0)) == (230, 230, 230)
+    pair = prepare_character_ref_images([raw, raw], target=(1152, 2048))
+    assert Image.open(io.BytesIO(pair[1])).size == (400, 300)
+
+
+def test_build_wide_sheet_reference_places_four_views() -> None:
+    parts = {
+        "front": _solid(90, 160, (200, 40, 40)),
+        "side": _solid(90, 160, (40, 160, 40)),
+        "back": _solid(90, 160, (40, 40, 200)),
+        "portrait": _solid(90, 160, (180, 140, 40)),
+    }
+    image = Image.open(io.BytesIO(build_wide_sheet_reference(parts)))
+    assert image.size == (1920, 1080)
+    assert [image.getpixel((480 * index + 240, 540)) for index in range(4)] == [
+        (200, 40, 40),
+        (40, 160, 40),
+        (40, 40, 200),
+        (180, 140, 40),
+    ]
+
+
 def test_character_sheet_task_does_not_force_expression() -> None:
     from liberastra.services.prompts import build_system_prompt
 
@@ -158,6 +252,7 @@ def test_character_sheet_task_does_not_force_expression() -> None:
     assert "眨眼" not in text
     assert "俏皮" not in text
     assert "用户未指定时" in text
+    assert "16:9" not in text
 
 
 def test_reference_views_follow_slot_count() -> None:
@@ -169,6 +264,8 @@ def test_reference_views_follow_slot_count() -> None:
     assert "turnaround" not in reference_views("i2v", 4, "front")
     assert reference_views("i2v", 3, "turnaround") == ["turnaround"]
     assert reference_views("motion", 3, "turnaround") == ["turnaround"]
+    assert reference_views("i2v", 1, "turnaround_grid") == ["turnaround_grid"]
+    assert reference_views("motion", 3, "turnaround_grid") == ["turnaround_grid"]
 
 
 def test_reference_paths_skip_missing_and_sheet() -> None:
@@ -180,9 +277,13 @@ def test_reference_paths_skip_missing_and_sheet() -> None:
         side_path=None,
         back_path="b.png",
         turnaround_path="sheet.png",
+        turnaround_grid_path="grid.png",
     )
     assert reference_paths(character, "motion", 3, "front") == ["f.png", "b.png"]
     assert reference_paths(character, "i2v", 1, "turnaround") == ["sheet.png"]
+    assert reference_paths(character, "i2v", 1, "turnaround_grid") == ["grid.png"]
+    assert paths_for_task(character, "turnaround", multi=False) == ["sheet.png"]
+    assert paths_for_task(character, "turnaround_grid", multi=False) == ["grid.png"]
     # 侧面缺失时，单槽只要这一张，没有可回退的其他视角。
     try:
         reference_paths(character, "i2v", 1, "side")
@@ -214,6 +315,142 @@ def test_reference_paths_skip_missing_and_sheet() -> None:
         [{"type": "character", "primary": "turnaround", "paths": {**first, "turnaround": "sheet.png"}}],
     )
     assert sheet_only == ["sheet.png"]
+
+
+def test_upload_grid_sheet_splits_four_9x16(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    created = client.post(
+        "/api/v1/characters",
+        headers=auth_header,
+        data={"name": "四宫格角色", "description": "", "auto_split": "true", "sheet_layout": "grid"},
+        files={"turnaround": ("grid.png", _grid_sheet(), "image/png")},
+    )
+    assert created.status_code == 201, created.text
+    character = created.json()
+    assert character["turnaround_grid_path"]
+    assert character["turnaround_path"] is None
+    for slot, color in (
+        ("portrait", (200, 40, 40)),
+        ("front", (40, 160, 40)),
+        ("side", (40, 40, 200)),
+        ("back", (180, 140, 40)),
+    ):
+        assert character[f"{slot}_path"]
+        response = client.get(
+            f"/api/v1/characters/{character['id']}/image/{slot}", headers=auth_header
+        )
+        assert response.status_code == 200
+        panel = Image.open(io.BytesIO(response.content)).convert("RGB")
+        assert panel.size == (288, 512)
+        assert panel.getpixel((144, 256)) == color
+
+    grid = client.get(
+        f"/api/v1/characters/{character['id']}/image/turnaround_grid", headers=auth_header
+    )
+    assert grid.status_code == 200
+    assert Image.open(io.BytesIO(grid.content)).size == (576, 1024)
+
+
+def _generate_job(db, owner_id: int, character_id: int) -> Job:
+    job = Job(
+        kind="character.generate",
+        params={
+            "character_id": character_id,
+            "description": "黑长直，白衬衫",
+            "prompt": "20岁，黑长直，白衬衫",
+            "t2i_workflow": "qwen_image_21",
+        },
+        owner_id=owner_id,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def _run_generate(
+    db, monkeypatch: pytest.MonkeyPatch, character_id: int, owner_id: int, *, wide_fails: bool = False
+):
+    calls: list[dict] = []
+
+    async def fake_produce(provider, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(kwargs)
+        await asyncio.sleep(0)
+        if len(calls) == 1:
+            return [("grid.png", _grid_sheet())]
+        if wide_fails:
+            raise ProviderError("wide failed")
+        return [("wide.png", _solid(1536, 864, (12, 34, 56)))]
+
+    monkeypatch.setattr(characters_service, "produce_images", fake_produce)
+    monkeypatch.setattr(
+        characters_service,
+        "pick_provider",
+        lambda *args, **kwargs: SimpleNamespace(type="comfyui", name="fake"),
+    )
+    job = _generate_job(db, owner_id, character_id)
+    result = asyncio.run(
+        run_character_generate_job(db, job, JobContext(JobManager(), job.id))
+    )
+    return calls, result
+
+
+def test_character_generate_writes_grid_views_and_native_wide(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with SessionLocal() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        assert admin is not None
+        character = Character(name="双排版角色", description="黑长直，白衬衫", owner_id=admin.id)
+        db.add(character)
+        db.commit()
+        db.refresh(character)
+        calls, result = _run_generate(db, monkeypatch, character.id, admin.id)
+        db.refresh(character)
+
+        assert len(calls) == 2
+        assert calls[0]["inputs"]["width"] == 1152
+        assert calls[0]["inputs"]["height"] == 2048
+        assert "四宫格" in calls[0]["prompt"]
+        assert calls[1]["workflow"] == "qwen_image_21_edit_multi"
+        assert {"image", "image_2", "image_3", "image_4"} <= set(calls[1]["inputs"])
+        assert "16:9" in calls[1]["prompt"]
+        assert "四栏" in calls[1]["prompt"]
+        assert "参考图 1" in calls[1]["prompt"]
+        assert character.turnaround_grid_path
+        assert character.turnaround_path
+        assert all(
+            character.__getattribute__(f"{slot}_path")
+            for slot in ("portrait", "front", "side", "back")
+        )
+        assert Image.open(resolve(character.turnaround_path)).size == (1536, 864)
+        assert Image.open(resolve(character.portrait_path)).size == (288, 512)
+        assert result and "16:9" in result[0]["content"]
+
+
+def test_character_generate_keeps_views_when_wide_fails(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with SessionLocal() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        assert admin is not None
+        character = Character(name="宽图失败角色", description="短发", owner_id=admin.id)
+        db.add(character)
+        db.commit()
+        db.refresh(character)
+        calls, result = _run_generate(
+            db, monkeypatch, character.id, admin.id, wide_fails=True
+        )
+        db.refresh(character)
+
+        assert len(calls) == 2
+        assert character.turnaround_grid_path
+        assert character.turnaround_path
+        assert Image.open(resolve(character.turnaround_path)).size == (1920, 1080)
+        assert character.portrait_path
+        assert result and "16:9" in result[0]["content"]
+        assert "失败" in result[0]["content"]
 
 
 def test_character_asset_is_idempotent(client: TestClient, auth_header: dict[str, str]) -> None:

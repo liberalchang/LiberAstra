@@ -18,6 +18,7 @@ class Character(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     portrait_path: Mapped[str | None] = mapped_column(String(512), default=None)
     turnaround_path: Mapped[str | None] = mapped_column(String(512), default=None)
+    turnaround_grid_path: Mapped[str | None] = mapped_column(String(512), default=None)
     front_path: Mapped[str | None] = mapped_column(String(512), default=None)
     side_path: Mapped[str | None] = mapped_column(String(512), default=None)
     back_path: Mapped[str | None] = mapped_column(String(512), default=None)

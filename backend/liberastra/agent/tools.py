@@ -228,7 +228,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _fn(
         "create_character",
-        "创建角色并生成四段式定妆照。占用 GPU，调用前必须得到用户确认。",
+        "创建角色并生成 9:16 四视图与 16:9 定妆照。占用 GPU，调用前必须得到用户确认。",
         {
             "name": _STR,
             "description": _STR,
@@ -609,6 +609,7 @@ async def run_server_tool(
                         "views": {
                             "portrait": row.portrait_path,
                             "turnaround": row.turnaround_path,
+                            "turnaround_grid": row.turnaround_grid_path,
                             "front": row.front_path,
                             "side": row.side_path,
                             "back": row.back_path,

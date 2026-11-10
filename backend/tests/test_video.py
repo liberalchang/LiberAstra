@@ -73,6 +73,13 @@ def video_providers(client: TestClient, auth_header: dict[str, str], monkeypatch
         assert resp.status_code == 201
 
 
+def test_quick_video_request_accepts_grid_character_view() -> None:
+    from liberastra.schemas.video import QuickVideoRequest
+
+    request = QuickVideoRequest(topic="测试", character_view="turnaround_grid")
+    assert request.character_view == "turnaround_grid"
+
+
 def test_quick_video_with_script(
     client: TestClient, auth_header: dict[str, str], video_providers: None
 ) -> None:

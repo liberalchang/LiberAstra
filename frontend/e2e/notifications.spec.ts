@@ -7,6 +7,7 @@ test("通知页：通用设置、渠道、规则和投递记录", async ({ page 
   const rules: Record<string, unknown>[] = [];
   const chatLookups: Record<string, unknown>[] = [];
   let preferencePatch: Record<string, unknown> | null = null;
+  let rulePatch: Record<string, unknown> | null = null;
 
   await page.route("**/api/v1/system/preferences", async (route) => {
     if (route.request().method() === "PATCH") {
@@ -117,6 +118,16 @@ test("通知页：通用设置、渠道、规则和投递记录", async ({ page 
     await route.fulfill({ json: rules });
   });
 
+  await page.route("**/api/v1/notifications/rules/1", async (route) => {
+    if (route.request().method() === "PATCH") {
+      rulePatch = route.request().postDataJSON() as Record<string, unknown>;
+      Object.assign(rules[0], rulePatch);
+      await route.fulfill({ json: rules[0] });
+      return;
+    }
+    await route.fulfill({ status: 404 });
+  });
+
   const deliveries = [
     {
       id: 7,
@@ -220,7 +231,18 @@ test("通知页：通用设置、渠道、规则和投递记录", async ({ page 
   await page.getByRole("button", { name: "保存规则" }).click();
   const ruleBody = (await ruleReq).postDataJSON() as Record<string, unknown>;
   expect(ruleBody).toMatchObject({ name: "默认规则", channel_ids: [1] });
+  expect(ruleBody).not.toHaveProperty("enabled");
   await expect(page.getByText("默认规则", { exact: true })).toBeVisible();
+
+  const ruleToggleReq = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/v1/notifications/rules/1") &&
+      request.method() === "PATCH",
+  );
+  await page.getByRole("switch", { name: /启用规则/ }).click();
+  expect((await ruleToggleReq).postDataJSON()).toMatchObject({ enabled: false });
+  expect(rulePatch).toMatchObject({ enabled: false });
+  await expect(page.getByRole("status")).toContainText("规则已停用");
 
   await page.getByRole("tab", { name: "投递记录" }).click();
   await expect(page.getByText("[失败] 测试任务")).toBeVisible();

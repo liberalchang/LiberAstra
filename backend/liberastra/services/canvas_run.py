@@ -223,7 +223,7 @@ def _materialize_input(db: Session, node: dict[str, Any], row: CanvasNodeRun, ow
         if character is None or character.owner_id != owner_id:
             raise ProviderError("角色输入还没有选择角色")
         asset_ids: list[int] = []
-        for slot in ("turnaround", "portrait", "front", "side", "back"):
+        for slot in ("turnaround", "turnaround_grid", "portrait", "front", "side", "back"):
             if not slot_path(character, slot):
                 continue
             asset_ids.append(ensure_character_asset(db, character, slot).id)

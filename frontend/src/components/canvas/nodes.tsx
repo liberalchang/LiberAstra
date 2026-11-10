@@ -301,6 +301,7 @@ const CHARACTER_VIEW_KEYS = new Set<CharacterView>([
   "side",
   "back",
   "turnaround",
+  "turnaround_grid",
 ]);
 
 /** 角色节点展示所选视角的图片，不把角色名和视角写成正文。 */

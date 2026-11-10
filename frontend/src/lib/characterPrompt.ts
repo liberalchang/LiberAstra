@@ -2,11 +2,23 @@
 
 const LAYOUT_MARKERS = [
   "16:9",
+  "9:16",
   "横版角色设定",
+  "竖版角色设定",
   "画面依次展示",
   "画面从左到右",
   "四个视角",
+  "四宫格",
+  "2×2",
+  "2x2",
+  "左上格",
+  "右上格",
+  "左下格",
+  "右下格",
+  "四格等大",
+  "每格为",
   "完整全身正面",
+  "正面面部半身",
   "右侧超大面部",
   "右侧特写",
   "不裁脚",
@@ -14,6 +26,7 @@ const LAYOUT_MARKERS = [
   "影棚背景",
   "空白间隔",
   "不要伸进",
+  "不要越过",
   "Lookbook",
   "8K",
   "写实真人质感",
@@ -26,11 +39,15 @@ const LAYOUT_PHRASES = [
   "三视图设定",
   "四段式角色设定图",
   "四段式定妆照",
+  "四宫格角色设定图",
+  "9:16四宫格",
+  "四宫格定妆照",
   "角色定妆照",
 ];
 
 export const CHARACTER_VIEWS = [
-  ["turnaround", "定妆照"],
+  ["turnaround", "16:9 定妆照"],
+  ["turnaround_grid", "9:16 四宫格"],
   ["portrait", "面部特写"],
   ["front", "正面全身"],
   ["side", "侧面全身"],
@@ -64,7 +81,8 @@ export function characterPromptContext(
 ): string {
   const detail = cleanAppearance(description);
   const base = `登场角色：${name}。固定外观：${detail}。当前参考图视角：${viewLabel(view)}`;
-  if (view === "turnaround") return `${base}。参考图是整张四段式定妆照。`;
+  if (view === "turnaround") return `${base}。参考图是整张 16:9 四段式定妆照。`;
+  if (view === "turnaround_grid") return `${base}。参考图是整张 9:16 四宫格定妆照。`;
   if (!motion) return `${base}。`;
   return `${base}。<Picture 1> 是正面，<Picture 2> 是侧面，<Picture 3> 是背面，都是同一个人。`;
 }

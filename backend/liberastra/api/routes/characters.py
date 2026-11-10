@@ -16,6 +16,7 @@ from liberastra.schemas.character import CharacterOut
 from liberastra.schemas.job import JobOut
 from liberastra.services.characters import (
     SLOTS,
+    apply_grid_split,
     apply_split,
     ensure_character_asset,
     remove_character_assets,
@@ -64,6 +65,7 @@ async def create_character(
     voice_record_id: Annotated[int | None, Form()] = None,
     voice_name: Annotated[str, Form()] = "",
     auto_split: Annotated[bool, Form()] = True,
+    sheet_layout: Annotated[str, Form()] = "wide",
     portrait: Annotated[UploadFile | None, File()] = None,
     turnaround: Annotated[UploadFile | None, File()] = None,
     front: Annotated[UploadFile | None, File()] = None,
@@ -91,13 +93,23 @@ async def create_character(
         record.side_path = save_character_bytes(side_bytes, _suffix(side))
     if back_bytes:
         record.back_path = save_character_bytes(back_bytes, _suffix(back))
+    if sheet_layout not in ("wide", "grid"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="未知定妆照排版")
     if turnaround_bytes and auto_split:
         try:
-            apply_split(record, turnaround_bytes)
+            if sheet_layout == "grid":
+                apply_grid_split(record, turnaround_bytes)
+            else:
+                apply_split(record, turnaround_bytes)
         except ProviderError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     elif turnaround_bytes:
-        record.turnaround_path = save_character_bytes(turnaround_bytes, _suffix(turnaround))
+        if sheet_layout == "grid":
+            record.turnaround_grid_path = save_character_bytes(
+                turnaround_bytes, _suffix(turnaround)
+            )
+        else:
+            record.turnaround_path = save_character_bytes(turnaround_bytes, _suffix(turnaround))
     if not record.portrait_path and record.front_path:
         record.portrait_path = record.front_path
     db.add(record)

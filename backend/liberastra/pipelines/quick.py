@@ -55,12 +55,13 @@ def _storyboard_system(db: Session, params: dict[str, Any], workflow: str | None
         character = db.get(Character, int(character_id))
         if character is not None:
             view = str(params.get("character_view") or "front")
+            fixed_sheet = view in ("turnaround", "turnaround_grid")
             extra = (
                 f"{appearance_prefix(character).rstrip('。')}。"
                 f"当前参考图视角：{view}。"
                 "各镜 view 可在 portrait、front、side、back 之间轮换。"
-                if str(params.get("character_view") or "") != "turnaround"
-                else "各镜 view 固定为 turnaround，使用整张定妆照，不要改成单视角。"
+                if not fixed_sheet
+                else f"各镜 view 固定为 {view}，使用整张定妆照，不要改成单视角。"
             )
     system = build_system_prompt(
         "quick_visual",
@@ -72,7 +73,7 @@ def _storyboard_system(db: Session, params: dict[str, Any], workflow: str | None
         system
         + "\n\n只输出 JSON："
         + '{"frames":[{"text":"这一句配音","visual":"这一镜画面","view":"front"}]}'
-        + "。view 只能是 portrait、front、side、back、turnaround 之一。"
+        + "。view 只能是 portrait、front、side、back、turnaround、turnaround_grid 之一。"
     )
 
 
@@ -107,8 +108,8 @@ def _frame_video_inputs(
     character = db.get(Character, int(character_id))
     if character is None:
         return inputs
-    if str(params.get("character_view") or "") == "turnaround":
-        view = "turnaround"
+    if str(params.get("character_view") or "") in ("turnaround", "turnaround_grid"):
+        view = str(params.get("character_view"))
     else:
         view = str(frame.get("view") or params.get("character_view") or "front")
         if view not in ("portrait", "front", "side", "back"):

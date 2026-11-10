@@ -36,7 +36,7 @@ const CAP_LABELS: Record<string, string> = {
   motion: "动作迁移",
   quick_topic: "快速创作主题",
   assets_topic: "自定义素材主题",
-  character_sheet: "角色三视图",
+  character_sheet: "角色外观",
 };
 
 interface TaskDraft {

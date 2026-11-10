@@ -1109,6 +1109,8 @@ export const UI_EN: Record<string, string> = {
   "目标人物或画面。选了角色时用角色库里的单人图。": "The target person. A saved character uses the single-view images.",
   "口播人物图。选了角色时用定妆照右侧的面部半身特写。":
     "The talking-head image. A saved character uses the face close-up from the sheet.",
+  "口播人物图。选了角色时用 9:16 四宫格切出的面部半身特写。":
+    "The talking-head image. A saved character uses the facial close-up split from the 9:16 four-grid.",
   "目标人物。选了角色时用正面、侧面、背面三张全身图。":
     "The target person. A saved character uses the full-body front, side, and back.",
   "参考视频 + 目标图片 + 提示词 → motion 工作流。时长跟随参考视频，超过单段上限会自动分段衔接。":
@@ -1895,4 +1897,29 @@ export const UI_EN: Record<string, string> = {
   "频道": "Channel",
   "未知会话": "Unknown chat",
   "填入": "Use",
+  "角色外观": "Character appearance",
+  "16:9 定妆照": "16:9 character sheet",
+  "9:16 四宫格": "9:16 four-grid sheet",
+  "定妆照排版": "Sheet layout",
+  "16:9 横版四段": "16:9 four-column",
+  "16:9 横版四段设定图": "16:9 four-column sheet",
+  "9:16 四宫格设定图": "9:16 four-grid sheet",
+  "保存角色外观、9:16 四宫格和 16:9 定妆照。视频任务按镜头取一张 9:16 单人图，不会把整张设定图当成画面。":
+    "Save the character appearance, a 9:16 four-grid sheet, and a 16:9 character sheet. Each video shot uses one 9:16 view, never the whole sheet.",
+  "只写年龄、脸型、发型和服装。先生成 9:16 四宫格并拆成四视图，再以四视图为参考生成 16:9 定妆照。":
+    "Describe age, face, hair, and clothes. The app generates a 9:16 four-grid, splits it into four views, then uses those views to generate a 16:9 sheet.",
+  "上传已经做好的设定图：16:9 横版四段，或 9:16 四宫格。":
+    "Upload a finished 16:9 four-column sheet or a 9:16 four-grid sheet.",
+  "左上正面特写、右上正面全身、左下侧面全身、右下背面全身；四格等大并留浅灰间隔。":
+    "Top-left face close-up, top-right full-body front, bottom-left full-body side, bottom-right full-body back. Equal cells with light gray gutters.",
+  "可先写年龄、脸型、发型、服装，再点优化补全外观；生成时会自动套用两套排版。":
+    "Start with age, face, hair, and clothes, then optimize the appearance. Generation applies both layouts.",
+  "规则已停用": "Rule disabled",
+  "规则已启用": "Rule enabled",
+  "启用规则「{name}」": 'Enable rule "{name}"',
+  "只覆盖消息正文；留空使用默认模板；同一规则的所有渠道共用。":
+    "Overrides only the message body. Empty uses the default template. Every channel in this rule shares it.",
+  "可用占位符：{job_name} {status} {progress} {elapsed} {error} {link} {outputs}":
+    "Available placeholders: {job_name} {status} {progress} {elapsed} {error} {link} {outputs}",
+  "消息包含输出数与任务链接": "Include output count and job link",
 };

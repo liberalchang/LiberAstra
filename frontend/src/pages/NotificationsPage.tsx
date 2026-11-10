@@ -34,7 +34,6 @@ interface ChannelDraft {
 interface RuleDraft {
   id: number | null;
   name: string;
-  enabled: boolean;
   events: NotificationEvent[];
   interval: string;
   jobKinds: string;
@@ -89,7 +88,6 @@ const EMPTY_CHANNEL: ChannelDraft = {
 const EMPTY_RULE: RuleDraft = {
   id: null,
   name: "",
-  enabled: true,
   events: ["job.succeeded", "job.failed"],
   interval: "900",
   jobKinds: "",
@@ -252,6 +250,7 @@ export function NotificationsPage() {
   const [savingRule, setSavingRule] = useState(false);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [togglingRuleId, setTogglingRuleId] = useState<number | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [ruleError, setRuleError] = useState<string | null>(null);
   const [chatCandidates, setChatCandidates] = useState<TelegramChatCandidate[]>([]);
@@ -334,6 +333,20 @@ export function NotificationsPage() {
       setNotice(error instanceof Error ? error.message : String(error));
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const toggleRule = async (rule: NotificationRuleOut) => {
+    setTogglingRuleId(rule.id);
+    setNotice(null);
+    try {
+      await api.updateNotificationRule(rule.id, { enabled: !rule.enabled });
+      await refresh();
+      setNotice(rule.enabled ? tx("规则已停用") : tx("规则已启用"));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setTogglingRuleId(null);
     }
   };
 
@@ -452,7 +465,6 @@ export function NotificationsPage() {
     setRuleDraft({
       id: rule.id,
       name: rule.name,
-      enabled: rule.enabled,
       events: rule.events,
       interval: String(rule.progress_interval_seconds),
       jobKinds: rule.job_kinds.join(", "),
@@ -487,7 +499,6 @@ export function NotificationsPage() {
     try {
       const body: Record<string, unknown> = {
         name: ruleDraft.name.trim(),
-        enabled: ruleDraft.enabled,
         events: ruleDraft.events,
         progress_interval_seconds: Number(ruleDraft.interval),
         job_kinds: ruleDraft.jobKinds
@@ -1137,13 +1148,6 @@ export function NotificationsPage() {
                       onChange={(event) => setRuleDraft((draft) => (draft ? { ...draft, name: event.target.value } : draft))}
                     />
                   </Field>
-                  <div className="flex items-end pb-3">
-                    <CheckRow
-                      label={tx("启用")}
-                      checked={ruleDraft.enabled}
-                      onChange={(checked) => setRuleDraft((draft) => (draft ? { ...draft, enabled: checked } : draft))}
-                    />
-                  </div>
                 </div>
 
                 <Field label={tx("事件")}>
@@ -1271,7 +1275,7 @@ export function NotificationsPage() {
 
                 <div className="flex items-center gap-4">
                   <CheckRow
-                    label={tx("完成消息带输出链接")}
+                    label={tx("消息包含输出数与任务链接")}
                     checked={ruleDraft.includeOutputs}
                     onChange={(checked) => setRuleDraft((draft) => (draft ? { ...draft, includeOutputs: checked } : draft))}
                   />
@@ -1279,8 +1283,14 @@ export function NotificationsPage() {
 
                 <details className="rounded-xl border border-border p-3">
                   <summary className="cursor-pointer text-sm font-medium">{tx("高级：模板覆盖")}</summary>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {tx("只覆盖消息正文；留空使用默认模板；同一规则的所有渠道共用。")}
+                  </p>
                   <div className="mt-3 grid gap-3">
-                    <Field label={tx("成功模板")}>
+                    <Field
+                      label={tx("成功模板")}
+                      hint={tx("可用占位符：{job_name} {status} {progress} {elapsed} {error} {link} {outputs}")}
+                    >
                       <textarea
                         className={areaClass}
                         rows={3}
@@ -1290,7 +1300,10 @@ export function NotificationsPage() {
                         }
                       />
                     </Field>
-                    <Field label={tx("失败模板")}>
+                    <Field
+                      label={tx("失败模板")}
+                      hint={tx("可用占位符：{job_name} {status} {progress} {elapsed} {error} {link} {outputs}")}
+                    >
                       <textarea
                         className={areaClass}
                         rows={3}
@@ -1360,10 +1373,27 @@ export function NotificationsPage() {
                         })}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-xs ${statusClass(rule.enabled ? "sent" : "skipped")}`}>
-                        {rule.enabled ? tx("启用") : tx("停用")}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {rule.enabled ? tx("已启用") : tx("已停用")}
                       </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={rule.enabled}
+                        aria-label={tx("启用规则「{name}」", { name: rule.name })}
+                        disabled={togglingRuleId === rule.id}
+                        onClick={() => toggleRule(rule)}
+                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                          rule.enabled ? "bg-primary" : "bg-muted-foreground/30"
+                        } disabled:opacity-50`}
+                      >
+                        <span
+                          className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-[left] ${
+                            rule.enabled ? "left-[22px]" : "left-0.5"
+                          }`}
+                        />
+                      </button>
                       <Button size="sm" variant="outline" onClick={() => openEditRule(rule)}>
                         {tx("编辑")}
                       </Button>

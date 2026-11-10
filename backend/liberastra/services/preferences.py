@@ -33,7 +33,7 @@ STR_SPECS: dict[str, str] = {
     "default_llm_model": "",
     # 深度图模型名；空则由深度服务使用 dpt_swin2_large_384
     "default_depth_model": "",
-    # 角色四段式定妆照使用的文生图工作流包
+    # 角色 9:16 四宫格使用的文生图工作流包
     "default_character_workflow": "qwen_image_21",
     # 一张参考图时用的图生图工作流包
     "default_character_i2i_workflow": "qwen_image_21_edit",

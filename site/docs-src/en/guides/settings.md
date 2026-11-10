@@ -62,7 +62,7 @@ Each page and the canvas pass a fixed template ID to the optimization endpoint. 
 | `motion` | Motion Transfer | Motion Transfer page |
 | `quick_topic` | Quick Create · Topic Expansion | Quick Create topics |
 | `assets_topic` | Custom Assets · Topic Expansion | Custom Assets topics |
-| `character_sheet` | Characters · Four-Panel Character Sheet | Characters "Generate from description" |
+| `character_sheet` | Characters · Character Appearance | Characters "Generate from description" |
 
 Canvas function nodes use the template with the same name as the selected pack's capability. When there is no matching template, they fall back to `t2i`. Visual analysis does not use this prompt field; the analysis angle is written in the pack parameters. Characters always use `character_sheet` and does not share `t2i` with the Text to Image page. The `upscale` template only applies to custom upscale packs that declare a prompt slot; the built-in `upscale_basic` and SeedVR2 image enhance have no prompt field.
 
@@ -104,11 +104,11 @@ Change account password.
 
 **Speech synthesis (Liber Speech)**: choose the text-to-speech model, speech-to-text model, and voice conversion model separately. Text-to-speech defaults to `multilingual_v3` (Chatterbox-Multilingual V3); speech-to-text and voice conversion follow the speech service configuration (`.env`) by default, and you can also specify them here. Text to Speech, Speech to Text, Voice Conversion, Quick Create, Custom Assets, and Digital Human all use these defaults; function pages can still override them.
 
-**Default Character Generation**: used only by Characters "Generate from description". The image provider defaults to the first enabled `image` service; the three packs below correspond to no reference image, one reference image, and two to three reference images:
+**Default Character Generation**: used only by Characters "Generate from description". The image provider defaults to the first enabled `image` service; the three packs below cover the primary four-grid, one reference image, and two to three reference images:
 
-- Character sheet workflow pack: lists only `t2i` packs; defaults to `qwen_image_21`.
-- Single-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit`.
-- Multi-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit_multi`.
+- Character sheet workflow pack: lists only `t2i` packs; defaults to `qwen_image_21`; generates the 9:16 four-grid.
+- Single-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit`; used for a single reference image and as the fallback for the 16:9 second pass when multi-image editing is unavailable.
+- Multi-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit_multi`; used for two to three references and for the 16:9 sheet generated from the four views.
 
 Change official or uncensored image models here instead of going back to the Characters page.
 

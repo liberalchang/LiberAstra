@@ -247,6 +247,7 @@ export interface CharacterOut {
   description: string;
   portrait_path: string | null;
   turnaround_path: string | null;
+  turnaround_grid_path: string | null;
   front_path: string | null;
   side_path: string | null;
   back_path: string | null;
@@ -318,7 +319,7 @@ export interface SystemPreferences {
   default_depth_model: string;
   /** 角色定妆照图像 Provider id；0=自动取第一个启用的 image */
   default_character_provider_id: number;
-  /** 角色四段式定妆照使用的文生图工作流包 */
+  /** 角色 9:16 四宫格使用的文生图工作流包 */
   default_character_workflow: string;
   /** 一张参考图时使用的图生图工作流包 */
   default_character_i2i_workflow: string;

@@ -14,6 +14,7 @@ const VIEW_ORDER: CharacterView[] = [
   "side",
   "back",
   "turnaround",
+  "turnaround_grid",
 ];
 
 export function presentSlots(character: CharacterOut): CharacterView[] {

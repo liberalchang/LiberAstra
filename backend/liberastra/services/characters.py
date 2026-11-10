@@ -1,4 +1,4 @@
-"""角色库：三视图切分、按任务取单视角图、生成主图与三视图。"""
+"""角色库：四段式/四宫格切分、按任务取单视角图、生成双排版定妆照。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import re
 import uuid
 from typing import Any
 
+from loguru import logger
 from PIL import Image
 from sqlalchemy.orm import Session
 
@@ -19,10 +20,11 @@ from liberastra.services.providers import pick_provider
 from liberastra.services.workflows import get_pack
 from liberastra.storage import resolve, save_bytes
 
-SLOTS = ("portrait", "turnaround", "front", "side", "back")
+SLOTS = ("portrait", "turnaround", "turnaround_grid", "front", "side", "back")
 _SLOT_ATTR = {
     "portrait": "portrait_path",
     "turnaround": "turnaround_path",
+    "turnaround_grid": "turnaround_grid_path",
     "front": "front_path",
     "side": "side_path",
     "back": "back_path",
@@ -38,16 +40,43 @@ SHEET_PROMPT = (
     "右侧特写展示面部，表情和视线按用户描述，未指定时中性自然；不要主动添加具体表情。"
     "写实真人质感，柔和棚拍光，皮肤细腻通透，发丝清晰，服装面料真实，高级人像质感，8K超高清。"
 )
+SHEET_GRID_PROMPT = (
+    "9:16竖版角色设定图，2×2等大四宫格，每格为9:16竖构图，四格使用同一浅灰纯色影棚背景，"
+    "格与格之间留出空白间隔，头发、披帛、手臂和服装不要越过中线、横线或进入其他格。"
+    "左上格为正面面部半身特写；右上格为完整全身正面；左下格为完整全身侧面；右下格为完整全身背面。"
+    "四格保持同一人物、同一脸型、同一发型、同一服装与配饰。三张全身图人物完整入镜，不裁脚；"
+    "正面站姿按用户描述，未指定时自然站立。左上特写展示面部，表情和视线按用户描述，未指定时中性自然；"
+    "不要主动添加具体表情。写实真人质感，柔和棚拍光，皮肤细腻通透，发丝清晰，服装面料真实，"
+    "高级人像质感，8K超高清。"
+)
+WIDE_REFERENCE_PROMPT = (
+    "参考图 1 是四张 9:16 视角拼成的底图，只用于确定四个视角；其余参考图提供同一人物细节。"
+    "请重新绘制为连续横版定妆照，四栏等宽，人物填满各自一栏，不要保留四宫格、拼图边框或灰色留白。"
+)
 SHEET_WIDTH = 1536
 SHEET_HEIGHT = 864
+SHEET_GRID_WIDTH = 1152
+SHEET_GRID_HEIGHT = 2048
 # 这些句子是设定图排版，不能写进分镜画面提示词。
 _LAYOUT_MARKERS = (
     "16:9",
+    "9:16",
     "横版角色设定",
+    "竖版角色设定",
     "画面依次展示",
     "画面从左到右",
     "四个视角",
+    "四宫格",
+    "2×2",
+    "2x2",
+    "左上格",
+    "右上格",
+    "左下格",
+    "右下格",
+    "四格等大",
+    "每格为",
     "完整全身正面",
+    "正面面部半身",
     "右侧超大面部",
     "右侧特写",
     "不裁脚",
@@ -55,6 +84,7 @@ _LAYOUT_MARKERS = (
     "影棚背景",
     "空白间隔",
     "不要伸进",
+    "不要越过",
     "Lookbook",
     "8K",
     "写实真人质感",
@@ -66,14 +96,28 @@ _LAYOUT_PHRASES = (
     "三视图设定",
     "四段式角色设定图",
     "四段式定妆照",
+    "四宫格角色设定图",
+    "9:16四宫格",
+    "四宫格定妆照",
     "角色定妆照",
 )
-_SHEET_LAYOUT_MARKERS = (
+_WIDE_LAYOUT_MARKERS = (
     "横版角色设定",
     "四段式角色",
     "画面从左到右",
     "四个视角",
     "完整全身正面",
+    "右侧超大面部",
+)
+_GRID_LAYOUT_MARKERS = (
+    "竖版角色设定",
+    "四宫格",
+    "2×2",
+    "左上格",
+    "右上格",
+    "左下格",
+    "右下格",
+    "正面面部半身",
 )
 
 
@@ -108,6 +152,49 @@ def split_turnaround(content: bytes) -> tuple[bytes, bytes, bytes, bytes]:
     return parts[0], parts[1], parts[2], parts[3]
 
 
+def _encode_png(image: Image.Image) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _normalize_aspect_sheet(
+    image: Image.Image, ratio_width: int, ratio_height: int, label: str
+) -> Image.Image:
+    width, height = image.size
+    if width < ratio_width * 8 or height < ratio_height * 8:
+        raise ProviderError(f"{label}尺寸过小，无法拆分")
+    ratio = width / height
+    target = ratio_width / ratio_height
+    if abs(ratio - target) > 0.03:
+        raise ProviderError(f"{label}必须是 {ratio_width}:{ratio_height}")
+    scale = min(width // ratio_width, height // ratio_height)
+    scale = max(2, (scale // 2) * 2)
+    target_size = (ratio_width * scale, ratio_height * scale)
+    if image.size != target_size:
+        image = image.resize(target_size, Image.Resampling.LANCZOS)
+    return image
+
+
+def split_turnaround_grid(content: bytes) -> tuple[bytes, bytes, bytes, bytes, bytes]:
+    """把 9:16 四宫格切成左上特写、右上正面、左下侧面、右下背面。
+
+    返回 (归一化四宫格, portrait, front, side, back)。固定四等分，每张仍是 9:16。
+    """
+    image = Image.open(io.BytesIO(content)).convert("RGB")
+    image = _normalize_aspect_sheet(image, 9, 16, "9:16 四宫格定妆照")
+    width, height = image.size
+    half_width, half_height = width // 2, height // 2
+    boxes = (
+        (0, 0, half_width, half_height),
+        (half_width, 0, width, half_height),
+        (0, half_height, half_width, height),
+        (half_width, half_height, width, height),
+    )
+    parts = [_encode_png(image.crop(box)) for box in boxes]
+    return _encode_png(image), parts[0], parts[1], parts[2], parts[3]
+
+
 def apply_split(character: Character, turnaround: bytes) -> None:
     """保存四段式原图，并写入正面、侧面、背面和面部特写。"""
     front, side, back, portrait = split_turnaround(turnaround)
@@ -118,19 +205,43 @@ def apply_split(character: Character, turnaround: bytes) -> None:
     character.portrait_path = save_character_bytes(portrait, ".png")
 
 
+def apply_grid_split(character: Character, turnaround: bytes) -> dict[str, bytes]:
+    """保存 9:16 四宫格，并把四格写入角色视角。"""
+    normalized, portrait, front, side, back = split_turnaround_grid(turnaround)
+    character.turnaround_grid_path = save_character_bytes(normalized, ".png")
+    character.portrait_path = save_character_bytes(portrait, ".png")
+    character.front_path = save_character_bytes(front, ".png")
+    character.side_path = save_character_bytes(side, ".png")
+    character.back_path = save_character_bytes(back, ".png")
+    return {
+        "grid": normalized,
+        "portrait": portrait,
+        "front": front,
+        "side": side,
+        "back": back,
+    }
+
+
+def apply_wide_sheet(character: Character, content: bytes) -> None:
+    """归一化并保存 16:9 横版定妆照。"""
+    image = Image.open(io.BytesIO(content)).convert("RGB")
+    image = _normalize_aspect_sheet(image, 16, 9, "16:9 定妆照")
+    character.turnaround_path = save_character_bytes(_encode_png(image), ".png")
+
+
 BODY_VIEWS = ("front", "side", "back")
-REF_VIEWS = ("portrait", "front", "side", "back")
+REF_VIEWS = ("portrait", "front", "side", "back", "turnaround", "turnaround_grid")
 
 
 def reference_views(capability: str, slot_count: int, primary: str) -> list[str]:
     """按下游图片槽位数决定送哪些视角。口播只送特写；动作迁移只送全身。
 
-    选了定妆照时只送整张四段式原图，不再拆成正面、侧面、背面或特写。
+    选整张定妆照时只送对应排版原图，不再拆成正面、侧面、背面或特写。
     """
     if slot_count <= 0:
         return []
-    if primary == "turnaround":
-        return ["turnaround"]
+    if primary in ("turnaround", "turnaround_grid"):
+        return [primary]
     primary = primary if primary in REF_VIEWS else "front"
     if capability == "avatar":
         return ["portrait"]
@@ -242,12 +353,21 @@ def ensure_character_asset(db: Session, character: Character, slot: str):  # noq
 def paths_for_task(character: Character, view: str, *, multi: bool) -> list[str]:
     """按任务取图。多视角任务只用正/侧/背全身图，单图任务按所选视角取一张。
 
-    定妆照是整张四段式原图，选中后不再改送切分后的单人图。
+    整张定妆照选中后不再改送切分后的单人图；对应排版缺失时回退到另一种排版。
     """
-    if view == "turnaround":
-        if not character.turnaround_path:
+    if view in ("turnaround", "turnaround_grid"):
+        path = (
+            character.turnaround_path
+            if view == "turnaround"
+            else character.turnaround_grid_path
+        ) or (
+            character.turnaround_grid_path
+            if view == "turnaround"
+            else character.turnaround_path
+        )
+        if not path:
             raise ProviderError("这个角色还没有定妆照")
-        return [character.turnaround_path]
+        return [path]
     if multi:
         ordered = [character.front_path or character.portrait_path, character.side_path, character.back_path]
         paths = [path for path in ordered if path]
@@ -266,7 +386,7 @@ def paths_for_task(character: Character, view: str, *, multi: bool) -> list[str]
 
 
 def clean_appearance(text: str) -> str:
-    """去掉四段式排版句，只留能写进分镜的人物外观。"""
+    """去掉横版/四宫格排版句，只留能写进分镜的人物外观。"""
     kept: list[str] = []
     for chunk in re.split(r"[。\n]", text):
         piece = chunk.strip(" ，,;；")
@@ -280,38 +400,51 @@ def clean_appearance(text: str) -> str:
     return "。".join(kept)
 
 
-def sheet_prompt(text: str, *, references: int = 0) -> str:
-    """用户没写四段式构图时，补上固定的定妆照要求。有参考图时先写明要保住的外观。"""
+def sheet_prompt(text: str, *, references: int = 0, layout: str = "wide") -> str:
+    """用户没写目标排版时，补上对应定妆照要求。有参考图时先写明要保住的外观。"""
+    layout = "grid" if layout == "grid" else "wide"
+    markers = _GRID_LAYOUT_MARKERS if layout == "grid" else _WIDE_LAYOUT_MARKERS
+    prompt = SHEET_GRID_PROMPT if layout == "grid" else SHEET_PROMPT
     body = text.strip()
+    if body and any(marker in body for marker in markers):
+        return body
+    if body and any(marker in body for marker in (*_WIDE_LAYOUT_MARKERS, *_GRID_LAYOUT_MARKERS)):
+        body = clean_appearance(body)
     if references == 1:
         anchor = "保持参考图中的人物面部五官、发型与核心穿搭一致。"
     elif references > 1:
         anchor = "综合参考图中的正面、侧面、背面形象，保持同一人物与服装。"
     else:
         anchor = ""
-    if anchor:
+    if anchor and anchor not in body:
         body = f"{anchor}{body}" if body else anchor
-    if any(marker in body for marker in _SHEET_LAYOUT_MARKERS):
-        return body
+    if not body:
+        return prompt
     if body.endswith("。"):
-        return body + SHEET_PROMPT
-    return f"{body}。{SHEET_PROMPT}"
+        return body + prompt
+    return f"{body}。{prompt}"
 
 
-def prepare_character_ref_images(ref_bytes_list: list[bytes]) -> list[bytes]:
-    """第一张贴进 16:9 浅灰画布，让图生图的输出画幅固定为横版定妆照。"""
+def prepare_character_ref_images(
+    ref_bytes_list: list[bytes], *, target: tuple[int, int] = (1920, 1080)
+) -> list[bytes]:
+    """第一张贴进目标比例浅灰画布，让图生图的输出画幅固定。"""
+    target_width, target_height = target
     prepared: list[bytes] = []
-    for index, raw in enumerate(ref_bytes_list[:3]):
+    for index, raw in enumerate(ref_bytes_list):
         image = Image.open(io.BytesIO(raw))
         if index == 0:
-            canvas = Image.new("RGB", (1920, 1080), (230, 230, 230))
+            canvas = Image.new("RGB", (target_width, target_height), (230, 230, 230))
             source = image.convert("RGB")
-            scale = min(1920 / source.width, 1080 / source.height)
+            scale = min(target_width / source.width, target_height / source.height)
             fitted = source.resize(
                 (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
                 Image.Resampling.LANCZOS,
             )
-            canvas.paste(fitted, ((1920 - fitted.width) // 2, (1080 - fitted.height) // 2))
+            canvas.paste(
+                fitted,
+                ((target_width - fitted.width) // 2, (target_height - fitted.height) // 2),
+            )
             image = canvas
         else:
             image = image.convert("RGB")
@@ -319,6 +452,30 @@ def prepare_character_ref_images(ref_bytes_list: list[bytes]) -> list[bytes]:
         image.save(buffer, format="PNG")
         prepared.append(buffer.getvalue())
     return prepared
+
+
+def build_wide_sheet_reference(
+    parts: dict[str, bytes], *, size: tuple[int, int] = (1920, 1080)
+) -> bytes:
+    """把四张 9:16 视角拼成 16:9 参考底图，供第二次图生图重排。"""
+    width, height = size
+    canvas = Image.new("RGB", size, (230, 230, 230))
+    cell_width = width // 4
+    for index, key in enumerate(("front", "side", "back", "portrait")):
+        raw = parts.get(key)
+        if not raw:
+            continue
+        source = Image.open(io.BytesIO(raw)).convert("RGB")
+        scale = min(cell_width / source.width, height / source.height)
+        fitted = source.resize(
+            (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+        canvas.paste(
+            fitted,
+            (index * cell_width + (cell_width - fitted.width) // 2, (height - fitted.height) // 2),
+        )
+    return _encode_png(canvas)
 
 
 def appearance_prefix(character: Character) -> str:
@@ -336,21 +493,133 @@ def slot_path(character: Character, slot: str) -> str | None:
     return getattr(character, attr, None)
 
 
-def _sheet_inputs(pack_name: str, prompt: str) -> dict[str, Any]:
-    """按工作流包的宽高上限，给出 16:9 四段式定妆照参数。"""
+def _fit_sheet_size(
+    pack: Any, width: int, height: int
+) -> tuple[int, int]:
+    """按工作流宽高上限等比缩小；保持 16:9 或 9:16 的精确比例。"""
+    max_width = int((pack.inputs.get("width") or {}).get("max") or width)
+    max_height = int((pack.inputs.get("height") or {}).get("max") or height)
+    if width * 16 == height * 9:
+        scale = min(width // 9, height // 16, max_width // 9, max_height // 16)
+        scale = max(2, (scale // 2) * 2)
+        return 9 * scale, 16 * scale
+    if width * 9 == height * 16:
+        scale = min(width // 16, height // 9, max_width // 16, max_height // 9)
+        scale = max(2, (scale // 2) * 2)
+        return 16 * scale, 9 * scale
+    factor = min(1.0, max_width / width, max_height / height)
+    return (
+        max(256, int(width * factor) // 32 * 32),
+        max(256, int(height * factor) // 32 * 32),
+    )
+
+
+def _sheet_inputs(
+    pack_name: str,
+    prompt: str,
+    *,
+    width: int = SHEET_WIDTH,
+    height: int = SHEET_HEIGHT,
+) -> dict[str, Any]:
+    """按工作流包的宽高上限，给出目标排版尺寸。"""
     pack = get_pack(pack_name)
     inputs: dict[str, Any] = {"prompt": prompt}
-    if "width" in pack.inputs:
-        limit = int(pack.inputs["width"].get("max") or SHEET_WIDTH)
-        inputs["width"] = min(SHEET_WIDTH, limit)
-    if "height" in pack.inputs:
-        limit = int(pack.inputs["height"].get("max") or SHEET_HEIGHT)
-        inputs["height"] = min(SHEET_HEIGHT, limit)
+    if "width" in pack.inputs and "height" in pack.inputs:
+        inputs["width"], inputs["height"] = _fit_sheet_size(pack, width, height)
+    else:
+        if "width" in pack.inputs:
+            inputs["width"] = min(width, int(pack.inputs["width"].get("max") or width))
+        if "height" in pack.inputs:
+            inputs["height"] = min(height, int(pack.inputs["height"].get("max") or height))
     return inputs
 
 
+def _image_keys(pack: Any) -> list[str]:
+    return [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
+
+
+def _save_temp_refs(job: Job, prepared: list[bytes], prefix: str) -> list[str]:
+    saved: list[str] = []
+    for index, content in enumerate(prepared):
+        rel = f"outputs/{job.id}/{prefix}_{index}.png"
+        save_bytes(content, rel)
+        saved.append(rel)
+    return saved
+
+
+async def _generate_wide_sheet(
+    db: Session,
+    job: Job,
+    ctx: JobContext,
+    provider: Any,
+    timeout: float,
+    description: str,
+    parts: dict[str, bytes],
+) -> bytes | None:
+    """用四张 9:16 视角作参考，再跑一次图生图得到原生 16:9 定妆照。"""
+    if provider.type != "comfyui":
+        return None
+    composite = build_wide_sheet_reference(parts)
+    refs = [composite]
+    refs.extend(parts[key] for key in ("front", "side", "back") if parts.get(key))
+    prepared = prepare_character_ref_images(refs, target=(1920, 1080))
+    saved = _save_temp_refs(job, prepared, "wide_ref")
+
+    multi_name = (
+        get_str_pref(db, "default_character_i2i_multi_workflow").strip()
+        or "qwen_image_21_edit_multi"
+    )
+    single_name = (
+        get_str_pref(db, "default_character_i2i_workflow").strip()
+        or "qwen_image_21_edit"
+    )
+    workflow = ""
+    keys: list[str] = []
+    image_paths: list[str] = []
+    try:
+        pack = get_pack(multi_name)
+        keys = _image_keys(pack)
+        if len(keys) < 2:
+            raise ProviderError("多图工作流没有足够的图片槽")
+        workflow = multi_name
+        image_paths = saved
+    except ProviderError:
+        try:
+            pack = get_pack(single_name)
+            keys = _image_keys(pack)
+            if not keys:
+                raise ProviderError("单图工作流没有图片槽")
+            workflow = single_name
+            image_paths = saved[:1]
+        except ProviderError:
+            return None
+
+    prompt = (
+        sheet_prompt(description, references=len(image_paths), layout="wide").rstrip("。")
+        + "。"
+        + WIDE_REFERENCE_PROMPT
+    )
+    inputs: dict[str, Any] = {"prompt": prompt}
+    for key, path in zip(keys, image_paths, strict=False):
+        inputs[key] = path
+    ctx.report(db, job, progress=0.62, step="sheet_wide")
+    images = await produce_images(
+        provider,
+        workflow=workflow,
+        inputs=inputs,
+        prompt=prompt,
+        wait_timeout=timeout,
+        on_progress=lambda progress: ctx.report(
+            db, job, progress=0.62 + 0.33 * progress, step="sheet_wide"
+        ),
+    )
+    if not images:
+        raise ProviderError("16:9 定妆照生成失败")
+    return images[0][1]
+
+
 async def run_character_generate_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """外观描述 → 16:9 四段式定妆照 → 切成正/侧/背/面部特写。"""
+    """外观描述 → 9:16 四宫格与四张单人图 → 再生成 16:9 定妆照。"""
     params = job.params
     character = db.get(Character, params["character_id"])
     if character is None or character.owner_id != job.owner_id:
@@ -364,45 +633,71 @@ async def run_character_generate_job(db: Session, job: Job, ctx: JobContext) -> 
         params.get("prompt") or params.get("description") or character.description or character.name
     )
     ref_paths = [path for path in params.get("ref_image_paths") or [] if path][:3]
-    prompt = sheet_prompt(description, references=len(ref_paths))
-    inputs = {"prompt": prompt}
+    grid_prompt = sheet_prompt(description, references=len(ref_paths), layout="grid")
     if ref_paths:
-        prepared = prepare_character_ref_images([resolve(path).read_bytes() for path in ref_paths])
-        saved: list[str] = []
-        for index, content in enumerate(prepared):
-            rel = f"outputs/{job.id}/ref_{index}.png"
-            save_bytes(content, rel)
-            saved.append(rel)
+        prepared = prepare_character_ref_images(
+            [resolve(path).read_bytes() for path in ref_paths],
+            target=(SHEET_GRID_WIDTH, SHEET_GRID_HEIGHT),
+        )
+        saved = _save_temp_refs(job, prepared, "ref")
         if len(saved) == 1:
-            workflow = get_str_pref(db, "default_character_i2i_workflow").strip() or "qwen_image_21_edit"
+            workflow = (
+                get_str_pref(db, "default_character_i2i_workflow").strip()
+                or "qwen_image_21_edit"
+            )
         else:
             workflow = (
                 get_str_pref(db, "default_character_i2i_multi_workflow").strip()
                 or "qwen_image_21_edit_multi"
             )
         pack = get_pack(workflow)
-        image_keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
-        inputs = {"prompt": prompt}
-        for key, path in zip(image_keys, saved, strict=False):
+        inputs = {"prompt": grid_prompt}
+        for key, path in zip(_image_keys(pack), saved, strict=False):
             inputs[key] = path
     else:
-        inputs = _sheet_inputs(workflow, prompt)
+        inputs = _sheet_inputs(
+            workflow,
+            grid_prompt,
+            width=SHEET_GRID_WIDTH,
+            height=SHEET_GRID_HEIGHT,
+        )
 
-    ctx.report(db, job, progress=0.1, step="sheet")
+    ctx.report(db, job, progress=0.05, step="grid")
     images = await produce_images(
         provider,
         workflow=workflow,
         inputs=inputs,
-        prompt=prompt,
+        prompt=grid_prompt,
         wait_timeout=timeout,
-        on_progress=lambda progress: ctx.report(db, job, progress=0.1 + 0.8 * progress, step="sheet"),
+        on_progress=lambda progress: ctx.report(
+            db, job, progress=0.05 + 0.45 * progress, step="grid"
+        ),
     )
     if ctx.cancelled() or not images:
         return []
-    apply_split(character, images[0][1])
+    grid_parts = apply_grid_split(character, images[0][1])
+    db.commit()
+    ctx.report(db, job, progress=0.55, step="grid_split")
+    if ctx.cancelled():
+        return []
+
+    warning = ""
+    try:
+        wide = await _generate_wide_sheet(
+            db, job, ctx, provider, timeout, description, grid_parts
+        )
+        if wide is None:
+            raise ProviderError("没有可用的 16:9 图生图工作流")
+        apply_wide_sheet(character, wide)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("角色 {} 的 16:9 定妆照生成失败: {}", character.id, exc)
+        apply_wide_sheet(character, build_wide_sheet_reference(grid_parts))
+        warning = f"16:9 定妆照生成失败，已改用四视图合成（{exc}）"
     db.commit()
     ctx.report(db, job, progress=1.0, step="done")
-    return [{"type": "text", "content": f"角色 {character.name} 的四段式定妆照已生成"}]
+    content = f"角色 {character.name} 的 9:16 四视图已生成"
+    content += f"；{warning}" if warning else "，16:9 定妆照已生成"
+    return [{"type": "text", "content": content}]
 
 
 def register_character_jobs(manager: JobManager) -> None:

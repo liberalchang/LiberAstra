@@ -129,7 +129,7 @@ Character image + voiceover copy → TTS voice → `avatar` workflow pack. Two b
 
 Pick a voice provider and voice separately. The picture duration is determined by this voice; you no longer enter seconds on the page. Frame count is rounded up to `17k+5` and then trimmed back to the voice length, leaving only about one extra frame. If the estimate exceeds about 12 seconds, or the result still exceeds the per-segment limit (362 frames, about 15 seconds), it is split by sentence; the next segment uses the previous segment's last frame as its first frame, and the segments are joined into one video. Later segments no longer return to the character sheet, so with many segments the character may still drift. After compositing, you can add background music from the Music Library. Local TTS or API TTS can be previewed under the voice, see [Text-to-Speech](/en/guides/speech#text-to-speech).
 
-The character image can be uploaded, chosen with **Choose from Library**, or picked from Character Library. When a character is selected, **only the first segment** uses the **facial half-body close-up** on the right side of the character sheet as its first frame; it does not use the full-body image or the entire sheet. Uploaded images take precedence over Character Library. If the character has a bound voice, it is used when no other voice is selected.
+The character image can be uploaded, chosen with **Choose from Library**, or picked from Character Library. When a character is selected, **only the first segment** uses the character's **facial half-body close-up** (the 9:16 single view split from the four-grid) as its first frame; it does not use the full-body image or the entire sheet. Uploaded images take precedence over Character Library. If the character has a bound voice, it is used when no other voice is selected.
 
 ### Image-to-Video
 
@@ -240,7 +240,7 @@ The character is optional. All three script modes can pick one, and Batch Create
 
 After selecting one, two different things happen.
 
-The first always happens: the character's appearance description is prepended to each shot's visual prompt, so the shots are textually the same person. Layout sentences such as "16:9 landscape, four views" in the character sheet description are removed first, to avoid the picture being drawn as a four-panel collage. The style prefix you enter on the page is placed after this appearance text.
+The first always happens: the character's appearance description is prepended to each shot's visual prompt, so the shots are textually the same person. Layout sentences such as "16:9 landscape, 9:16 four-grid, four views" in the character sheet description are removed first, to avoid the picture being drawn as a collage. The style prefix you enter on the page is placed after this appearance text.
 
 The second happens only when the video pack actually has an image input slot. Pure text-to-video packs have no image slot, so the character image is not uploaded. In that case the **camera view** is only a text hint to the LLM, for example that the current reference view is front, so it can write the visual description from that angle.
 
@@ -248,7 +248,7 @@ After selecting a character, you can switch the video workflow to an image-to-vi
 
 - By default the view you selected is used: facial half-body close-up, full-body front, full-body side, or full-body back.
 - When the LLM writes the storyboard, it can switch a particular shot to another view, which uses multiple character sheet images.
-- Choosing **Character sheet** sends the entire four-view image for every shot instead of splitting it into individual views.
+- Choosing **16:9 character sheet** or **9:16 four-grid** sends that entire sheet for every shot instead of splitting it into individual views.
 - If that view has no image yet while the workflow requires a reference image, the job fails directly.
 
 Image templates only write the appearance into the prompt and do not send the character image into the text-to-image pack.
@@ -267,35 +267,46 @@ None of the three accepts a first frame. To give each shot a character image, sw
 
 ### Character Library
 
-The sidebar's Resources → Character Library stores a character's name, appearance description, and one **16:9 four-panel character sheet**. The sheet has four fixed columns from left to right:
+The sidebar's Resources → Character Library stores a character's name, appearance description, two sheet layouts, and four individual views:
 
-| From left to right | Content | Stored as | Used by |
-|--------------------|---------|-----------|---------|
-| Column 1 | Full-body front | Full-body front | Image-to-Video camera view, Motion Transfer `<Picture 1>` |
-| Column 2 | Full-body side | Full-body side | Motion Transfer `<Picture 2>`; fills multi-reference packs |
-| Column 3 | Full-body back | Full-body back | Motion Transfer `<Picture 3>`; fills multi-reference packs |
-| Column 4 | Oversized right-side facial half-body close-up | Facial close-up | Digital Human, Image-to-Video close shots |
+- **9:16 four-grid (primary)**: `1152×2048`, a 2×2 grid where each `576×1024` cell is still 9:16. Top-left face half-body close-up, top-right full-body front, bottom-left full-body side, bottom-right full-body back. The app splits fixed quadrants into four 9:16 views used as the facial close-up, full-body front, full-body side, and full-body back. Portrait video, motion transfer, and digital human prefer these four.
+- **16:9 character sheet**: `1536×864`, four landscape columns from left to right: full-body front, full-body side, full-body back, and a right-side face half-body close-up. It is generated after the four 9:16 views: the app composes them into a 16:9 reference, then uses a multi-image edit workflow to redraw a native landscape sheet. It is used for preview, whole-sheet reference, and 16:9 image-to-video.
 
-The full sheet is only for preview and splitting; it is never used as a video frame. Choose one add method on the page; the other method's button does not appear at the same time.
+The whole sheet is only for preview and whole-sheet reference; it is never used directly as a video frame. Video uses one 9:16 view per shot by default. If a 16:9 video must lock its first frame, use a reference-only pack such as `i2v_ref`, or generate a separate 16:9 first-frame still; the four 9:16 views are not 16:9 first frames.
+
+Choose one add method on the page; the other method's button does not appear at the same time.
 
 #### Generate from Description
 
-Use this when you have no image and only an appearance. Enter a name, plus age, face shape, hairstyle, and clothing. You can also upload 1 to 3 reference images (or choose them from the library); when reference images are present, the appearance description can be left empty. One image uses the **single-reference workflow** in System Settings; 2 to 3 images use the **multi-reference workflow**. The first image is first pasted onto a 16:9 light-gray canvas to guarantee a landscape character sheet. You can click ✨ to use the default LLM in **System Settings** with the prompt template **Character Library · Four-Panel Character Sheet** (`character_sheet`). Optimization adds matching face shape, headwear, bottoms, shoes, and bags, and writes the fixed four-panel composition and quality requirements.
+Use this when you have no image and only an appearance. Enter a name, plus age, face shape, hairstyle, and clothing. You can also upload 1 to 3 reference images (or choose them from the library); when reference images are present, the appearance description can be left empty. One image uses the **single-reference workflow** in System Settings; 2 to 3 images use the **multi-reference workflow**. References are first pasted onto a 9:16 light-gray canvas to keep the four-grid portrait.
 
-Click **Generate Character Sheet**. This creates the record and queues image generation itself; you do not need to click Save afterward. The image provider, character sheet workflow pack, single-reference workflow, and multi-reference workflow are all in **System Settings → Default Character Generation**, not on the character page. With no reference images the default pack is `qwen_image_21` at 16:9 (`1536×864`; if the selected pack's width/height limit is smaller, it shrinks automatically). If you did not click optimize, the backend still appends the four-panel composition after the appearance description. If you did optimize and the prompt already contains "16:9" or "full-body front", it is not appended again.
+You can click ✨ to use the default LLM in **System Settings** with the prompt template **Character Library · Character Appearance** (`character_sheet`). Optimization only completes the face, headwear, bottoms, shoes, and quality; it no longer hard-codes the layout. Generation appends the four-grid and landscape compositions separately.
+
+**Generate Character Sheet** runs these steps:
+
+1. Generate the 9:16 four-grid and split it into four 9:16 views, saving them immediately.
+2. Use those four views as references for a second image-to-image pass that generates the native 16:9 four-column sheet. By default it composes a 16:9 reference image, then uses the **multi-reference workflow**; if unavailable it falls back to single-image editing.
+3. If the 16:9 pass fails, the four 9:16 views are kept; the app composes a 16:9 overview from them and notes the failure in the job result.
+
+The image provider, four-grid workflow pack, single-reference workflow, and multi-reference workflow are all in **System Settings → Default Character Generation**, not on the character page. With no reference images the default pack is `qwen_image_21`, targeting `1152×2048`; if the selected pack's width/height limit is smaller, it shrinks proportionally while keeping 9:16.
 
 #### Upload a Character Sheet
 
-Use this when you already have a finished landscape four-panel image. You can also choose one from the library next to the upload box. From left to right it must be full-body front, full-body side, full-body back, and right-side facial close-up. Use a light or solid background and leave vertical gaps between the four figures. The appearance description can be left empty; if filled in, Quick Create prepends that text to every picture.
+Use this when you already have a finished sheet. Choose the layout first:
 
-Click **Save and Auto-Split**. It splits and creates the record immediately without calling the image provider.
+- **16:9 four-column**: from left to right, full-body front, full-body side, full-body back, and right-side facial close-up. It detects vertical gaps and splits dynamically.
+- **9:16 four-grid**: top-left face close-up, top-right full-body front, bottom-left full-body side, bottom-right full-body back. Equal cells with light-gray gutters. It splits fixed quadrants, and each output stays 9:16.
 
-Do not put these two kinds of image into this upload box:
+You can also choose an image from the library next to the upload box. The appearance description can be left empty; if filled in, Quick Create prepends that text to every picture. Click **Save and Auto-Split** to split and create the record immediately without calling the image provider.
 
-- A three-panel front/side/back turnaround. The fourth column is treated as the facial close-up, and the back may be cut into the side.
-- A single front-facing portrait. Without vertical gaps it is split into four proportional strips, and the cuts may land on the person.
+Do not upload a single portrait, a three-panel turnaround, or a layout that does not match the selected type; cuts may land on the person or bring neighboring cells along.
 
-Split rules: find the gaps between the three figures from the brightness changes in each column, and cut at the midpoint of each gap. If there are fewer than three gaps, fall back to roughly `23% / 22% / 23% / 32%`. If the right-side close-up still carries a gray edge from the neighboring column, move the cut right along the top color-block boundary. Click a card thumbnail to open the large view and switch left/right among the facial close-up, full-body front, full-body side, full-body back, and the original sheet.
+Split rules:
+
+- 16:9 landscape: find gaps between the three figures from column brightness changes and cut at each gap midpoint; if there are fewer than three gaps, fall back to roughly `23% / 22% / 23% / 32%`. If the right close-up still has a gray edge, move the cut right along the top color-block boundary.
+- 9:16 four-grid: do not analyze gaps; split at the exact width/height midlines. Generation and uploads must therefore keep figures from crossing the center lines.
+
+Click a card thumbnail to open the large view and switch left/right among the facial close-up, full-body front, full-body side, full-body back, 16:9 sheet, and 9:16 four-grid sheet.
 
 Image files are under `backend/data/characters/`.
 

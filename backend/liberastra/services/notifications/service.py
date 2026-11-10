@@ -20,6 +20,7 @@ from liberastra.models import (
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.services.notifications.render import (
     elapsed_text,
+    redact,
     render_canvas_run,
     render_terminal,
 )
@@ -49,7 +50,7 @@ def _apply_template(template: str | None, title: str, body: str, job: Job, link:
         "status": job.status,
         "progress": f"{round((job.progress or 0) * 100)}%",
         "elapsed": elapsed_text(job),
-        "error": job.error or "",
+        "error": redact(job.error),
         "link": link or "",
         "outputs": str(len(job.outputs or [])),
     }

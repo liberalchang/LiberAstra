@@ -262,6 +262,26 @@ def test_telegram_chat_lookup(
     assert wrong_type.status_code == 400
 
 
+def test_template_error_is_redacted() -> None:
+    from liberastra.services.notifications.service import _apply_template
+
+    job = Job(
+        kind="image.generate",
+        status="failed",
+        progress=0.5,
+        error="request failed Authorization: Bearer secret-token",
+        outputs=[],
+        created_at=utcnow(),
+        updated_at=utcnow(),
+        finished_at=utcnow(),
+    )
+    body = _apply_template("{job_name} {status} {error}", "任务", "默认正文", job, None)
+    assert "任务" in body
+    assert "failed" in body
+    assert "secret-token" not in body
+    assert "Bearer ***" in body
+
+
 def test_rule_crud_and_validation(
     client: TestClient, auth_header: dict[str, str]
 ) -> None:

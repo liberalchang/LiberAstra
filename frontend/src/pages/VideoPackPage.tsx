@@ -190,8 +190,11 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
       if (character) {
         form.set("character_id", String(character.id));
         if (kind === "i2v") form.set("character_view", characterView);
-        if ((kind === "avatar" || kind === "motion") && characterView === "turnaround") {
-          form.set("character_view", "turnaround");
+        if (
+          (kind === "avatar" || kind === "motion") &&
+          (characterView === "turnaround" || characterView === "turnaround_grid")
+        ) {
+          form.set("character_view", characterView);
         }
       }
       form.set("workflow", isArk ? "" : (pack?.name ?? ""));
@@ -350,7 +353,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               kind === "i2v"
                 ? tx(pack?.inputs.image?.description || "作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。")
                 : kind === "avatar"
-                  ? tx("口播人物图。选了角色时用定妆照右侧的面部半身特写。")
+                  ? tx("口播人物图。选了角色时用 9:16 四宫格切出的面部半身特写。")
                   : tx("目标人物。选了角色时用正面、侧面、背面三张全身图。")
             }
           >
@@ -374,21 +377,31 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             {kind === "avatar" && character && (
               <select
                 className={`${selectClass} mb-2`}
-                value={characterView === "turnaround" ? "turnaround" : "portrait"}
+                value={
+                  characterView === "turnaround" || characterView === "turnaround_grid"
+                    ? characterView
+                    : "portrait"
+                }
                 onChange={(e) => setCharacterView(e.target.value)}
               >
                 <option value="portrait">{tx("面部半身特写")}</option>
-                <option value="turnaround">{tx("定妆照")}</option>
+                <option value="turnaround">{tx("16:9 定妆照")}</option>
+                <option value="turnaround_grid">{tx("9:16 四宫格")}</option>
               </select>
             )}
             {kind === "motion" && character && (
               <select
                 className={`${selectClass} mb-2`}
-                value={characterView === "turnaround" ? "turnaround" : "front"}
+                value={
+                  characterView === "turnaround" || characterView === "turnaround_grid"
+                    ? characterView
+                    : "front"
+                }
                 onChange={(e) => setCharacterView(e.target.value)}
               >
                 <option value="front">{tx("正面、侧面、背面三张全身图")}</option>
-                <option value="turnaround">{tx("定妆照")}</option>
+                <option value="turnaround">{tx("16:9 定妆照")}</option>
+                <option value="turnaround_grid">{tx("9:16 四宫格")}</option>
               </select>
             )}
             <FileDrop
@@ -562,8 +575,14 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                   ? characterPromptContext(
                       character.name,
                       character.description,
-                      kind === "motion" && characterView !== "turnaround" ? "front" : characterView,
-                      kind === "motion" && characterView !== "turnaround",
+                      kind === "motion" &&
+                      characterView !== "turnaround" &&
+                      characterView !== "turnaround_grid"
+                        ? "front"
+                        : characterView,
+                      kind === "motion" &&
+                        characterView !== "turnaround" &&
+                        characterView !== "turnaround_grid",
                     )
                   : undefined
               }

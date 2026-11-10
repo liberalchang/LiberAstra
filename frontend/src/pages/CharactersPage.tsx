@@ -37,7 +37,7 @@ function CharacterCard({ character, onDelete }: { character: CharacterOut; onDel
           <Trash2 className="size-4" />
         </Button>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {slots.map((slot) =>
           urls[slot] ? (
             <button
@@ -80,6 +80,7 @@ export function CharactersPage() {
   });
   const characterPack = characterPacks?.find((item) => item.name === characterWorkflow);
   const [mode, setMode] = useState<"generate" | "upload">("generate");
+  const [sheetLayout, setSheetLayout] = useState<"wide" | "grid">("wide");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [promptValue, setPromptValue] = useState<PromptFieldValue>(emptyPromptValue());
@@ -111,6 +112,7 @@ export function CharactersPage() {
       form.set("name", name);
       form.set("description", description);
       form.set("auto_split", "true");
+      form.set("sheet_layout", sheetLayout);
       if (turnaround) form.set("turnaround", turnaround);
       return api.createCharacter(form);
     },
@@ -157,15 +159,15 @@ export function CharactersPage() {
         kind="characters"
         icon={UsersRound}
         title={tx("角色库")}
-        description={tx("保存角色外观和四段式定妆照。视频任务按镜头取一张单人图，不会把整张设定图当成画面。")}
+        description={tx("保存角色外观、9:16 四宫格和 16:9 定妆照。视频任务按镜头取一张 9:16 单人图，不会把整张设定图当成画面。")}
       />
       <Card>
         <CardHeader>
           <CardTitle>{tx("新建角色")}</CardTitle>
           <CardDescription>
             {mode === "generate"
-              ? tx("只写年龄、脸型、发型和服装。也可以上传 1 到 3 张参考图，生成时会补上四段式构图。")
-              : tx("上传已经做好的横版设定图，从左到右是正面全身、侧面全身、背面全身、右侧面部特写。")}
+              ? tx("只写年龄、脸型、发型和服装。先生成 9:16 四宫格并拆成四视图，再以四视图为参考生成 16:9 定妆照。")
+              : tx("上传已经做好的设定图：16:9 横版四段，或 9:16 四宫格。")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -181,17 +183,33 @@ export function CharactersPage() {
           <Field label={tx("名称")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
+          {mode === "upload" ? (
+            <Field label={tx("定妆照排版")}>
+              <Segmented
+                ariaLabel={tx("定妆照排版")}
+                value={sheetLayout}
+                onChange={(value) => {
+                  if (value !== "wide" && value !== "grid") return;
+                  setSheetLayout(value);
+                  setTurnaround(null);
+                }}
+                options={[
+                  { value: "wide", label: tx("16:9 横版四段") },
+                  { value: "grid", label: tx("9:16 四宫格") },
+                ]}
+              />
+            </Field>
+          ) : null}
           {mode === "generate" ? (
             <>
             <PromptField
               label={tx("外观描述")}
-              hint={tx("可先写年龄、脸型、发型、服装，再点优化补成四段式定妆照提示词。")}
+              hint={tx("可先写年龄、脸型、发型、服装，再点优化补全外观；生成时会自动套用两套排版。")}
               value={promptValue}
               onChange={setPromptValue}
               jobScope="character-sheet:prompt-opt"
               task="character_sheet"
               workflow={characterWorkflow}
-              aspect="16:9"
               placeholder={workflowPromptPlaceholder(tx, characterPack, {
                 fallback: "例如：20岁左右，冷白皮，黑色长卷发，奶油白衬衫",
               })}
@@ -222,7 +240,14 @@ export function CharactersPage() {
             </>
           ) : (
             <>
-              <Field label={tx("四段式设定图")} hint={tx("从左到右：正面全身、侧面全身、背面全身、右侧面部特写。人物之间留出浅色空隙。")}>
+              <Field
+                label={sheetLayout === "grid" ? tx("9:16 四宫格设定图") : tx("16:9 横版四段设定图")}
+                hint={
+                  sheetLayout === "grid"
+                    ? tx("左上正面特写、右上正面全身、左下侧面全身、右下背面全身；四格等大并留浅灰间隔。")
+                    : tx("从左到右：正面全身、侧面全身、背面全身、右侧面部特写。人物之间留出浅色空隙。")
+                }
+              >
                 <FileDrop
                   accept="image/*"
                   title={tx("点击或拖拽上传设定图")}
