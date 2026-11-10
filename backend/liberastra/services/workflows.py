@@ -53,7 +53,7 @@ def _user_dir() -> Path:
     return get_settings().data_dir / "workflows"
 
 
-def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
+def _load_pack(pack_dir: Path, source: str, *, validate: bool = True) -> WorkflowPack | None:
     workflow_file = pack_dir / "workflow.json"
     manifest_file = pack_dir / "manifest.yaml"
     if not workflow_file.exists() or not manifest_file.exists():
@@ -78,8 +78,25 @@ def _load_pack(pack_dir: Path, source: str) -> WorkflowPack | None:
         llm_note=str(manifest.get("llm_note") or ""),
         size=manifest.get("size") or {},
     )
-    validate_pack(pack)
+    if validate:
+        validate_pack(pack)
     return pack
+
+
+def load_pack_raw(name: str) -> WorkflowPack:
+    """按目录名加载包，不跑 validate_pack；供体检把结构错误报告为 FAIL。"""
+    found = False
+    for directory, source in ((_user_dir(), "user"), (_builtin_dir(), "builtin")):
+        pack_dir = directory / name
+        if not pack_dir.is_dir():
+            continue
+        found = True
+        pack = _load_pack(pack_dir, source, validate=False)
+        if pack is not None:
+            return pack
+    if found:
+        raise ProviderError(f"工作流包 {name} 缺少 workflow.json 或 manifest.yaml")
+    raise ProviderError(f"工作流包不存在: {name}")
 
 
 def list_packs(capability: str | None = None) -> list[WorkflowPack]:

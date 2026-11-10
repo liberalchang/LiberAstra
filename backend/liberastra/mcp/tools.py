@@ -120,6 +120,15 @@ def list_providers(client: ApiClient) -> list[dict]:
     return client.request("GET", "/api/v1/providers")  # type: ignore[no-any-return]
 
 
+def workflow_doctor(
+    client: ApiClient, name: str, provider_id: int | None = None
+) -> dict:
+    params = {"provider_id": provider_id} if provider_id is not None else None
+    return client.request(  # type: ignore[no-any-return]
+        "GET", f"/api/v1/workflows/{name}/doctor", params=params
+    )
+
+
 def list_assets(
     client: ApiClient,
     *,

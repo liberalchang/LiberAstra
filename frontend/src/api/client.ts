@@ -470,6 +470,41 @@ export interface BgmOut {
 }
 
 /** 导出的完整工作流包（含 workflow JSON），可用于编辑与再导入。 */
+export interface WorkflowImportResult extends WorkflowPackOut {
+  /** 导入/更新后离线体检的提示；不阻止保存 */
+  warnings?: string[];
+}
+
+export interface WorkflowDoctorProvider {
+  id: number;
+  name: string;
+  base_url: string;
+}
+
+export interface WorkflowDoctorItem {
+  name: string;
+  status: string;
+  optional?: boolean;
+  hint?: string;
+}
+
+export interface WorkflowDoctorCheck {
+  id: string;
+  label: string;
+  status: string;
+  detail?: string;
+  items?: WorkflowDoctorItem[];
+}
+
+export interface WorkflowDoctorResult {
+  pack: string;
+  provider?: WorkflowDoctorProvider | null;
+  status: string;
+  checked_at: string;
+  summary: Record<string, number>;
+  checks: WorkflowDoctorCheck[];
+}
+
 export interface WorkflowPackBundle extends WorkflowPackOut {
   workflow: Record<string, unknown>;
   /** 优化器技术说明(后端 export 时透传,空=未设置) */
@@ -850,17 +885,24 @@ export const api = {
   listWorkflows: (capability?: string) =>
     request<WorkflowPackOut[]>(`/api/v1/workflows${capability ? `?capability=${capability}` : ""}`),
   importWorkflow: (body: Record<string, unknown>) =>
-    request<WorkflowPackOut>("/api/v1/workflows/import", {
+    request<WorkflowImportResult>("/api/v1/workflows/import", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   deleteWorkflow: (name: string) =>
     request<void>(`/api/v1/workflows/${name}`, { method: "DELETE" }),
   updateWorkflow: (name: string, body: Record<string, unknown>) =>
-    request<WorkflowPackOut>(`/api/v1/workflows/${name}`, {
+    request<WorkflowImportResult>(`/api/v1/workflows/${name}`, {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  /** 工作流包体检：检查节点、模型、默认值、对齐和输出 */
+  workflowDoctor: (name: string, providerId?: number) =>
+    request<WorkflowDoctorResult>(
+      `/api/v1/workflows/${encodeURIComponent(name)}/doctor${
+        providerId != null ? `?provider_id=${providerId}` : ""
+      }`,
+    ),
   exportWorkflow: (name: string) =>
     request<WorkflowPackBundle>(`/api/v1/workflows/${name}/export`),
   /** 画布或 API Format → LiberAstra 包草稿（不落盘） */

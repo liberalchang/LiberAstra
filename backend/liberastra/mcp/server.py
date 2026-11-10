@@ -268,6 +268,16 @@ def create_mcp() -> Any:
         return _call(run)
 
     @mcp.tool()
+    def doctor_workflow(name: str, provider_id: int | None = None) -> Any:
+        """体检工作流包：检查节点、模型、默认值、对齐和输出。"""
+
+        def run() -> Any:
+            with _client() as client:
+                return tools.workflow_doctor(client, name, provider_id)
+
+        return _call(run)
+
+    @mcp.tool()
     def list_providers() -> Any:
         """列出服务提供方。"""
 

@@ -320,6 +320,53 @@ def provider_models(provider_id: int) -> None:
 # ---------- TTS / ASR ----------
 
 
+pack_app = typer.Typer(help="工作流包管理", no_args_is_help=True)
+app.add_typer(pack_app, name="pack")
+
+
+@pack_app.command("doctor")
+def pack_doctor(
+    name: str = typer.Argument(..., help="工作流包名"),
+    provider: int | None = typer.Option(None, "--provider", help="ComfyUI Provider id"),
+    strict: bool = typer.Option(False, "--strict", help="WARN 也返回非零"),
+) -> None:
+    """对工作流包做运行前体检。"""
+
+    def action() -> None:
+        params: dict[str, int] = {} if provider is None else {"provider_id": provider}
+        with _client() as client:
+            data = client.request("GET", f"/api/v1/workflows/{name}/doctor", params=params)
+
+        def render(result: dict) -> None:
+            table = Table(title=f"工作流包体检：{name}")
+            table.add_column("检查项")
+            table.add_column("结果")
+            table.add_column("详情")
+            marks = {
+                "pass": "[green]通过[/green]",
+                "warn": "[yellow]警告[/yellow]",
+                "fail": "[red]失败[/red]",
+                "skip": "[dim]跳过[/dim]",
+            }
+            for check in result.get("checks", []):
+                table.add_row(
+                    check.get("label", ""),
+                    marks.get(check.get("status"), check.get("status", "")),
+                    check.get("detail", ""),
+                )
+            console.print(table)
+            console.print(f"结论：{marks.get(result.get('status'), result.get('status', ''))}")
+
+        _emit(data, render)
+        status = data.get("status")
+        if status == "fail" or (strict and status == "warn"):
+            raise typer.Exit(5)
+        if status == "warn":
+            raise typer.Exit(1)
+
+    _run(action)
+
+
 @app.command()
 def tts(
     text: str,

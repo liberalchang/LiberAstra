@@ -5,22 +5,33 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from liberastra.api.deps import CurrentUser
+from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.models import Provider
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.workflow import (
     WorkflowConvertOut,
     WorkflowConvertRequest,
+    WorkflowDoctorOut,
+    WorkflowImportOut,
     WorkflowImportRequest,
     WorkflowPackOut,
 )
 from liberastra.services.canvas_convert import convert_comfy_json
+from liberastra.services.pack_doctor import (
+    diagnose_pack,
+    doctor_error_result,
+    offline_pack_warnings,
+)
 from liberastra.services.workflows import (
     delete_pack,
     export_pack,
     get_pack,
     import_pack,
     list_packs,
+    load_pack_raw,
     update_pack,
 )
 
@@ -69,6 +80,32 @@ def _manifest_from_body(
     return data
 
 
+def _doctor_provider(db: Session, provider_id: int | None) -> Provider:
+    if provider_id is not None:
+        record = db.get(Provider, provider_id)
+        if record is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider 不存在")
+        if not record.enabled:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider 已停用")
+        if record.type != "comfyui":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="工作流包体检只支持 ComfyUI Provider",
+            )
+        return record
+    record = db.scalar(
+        select(Provider)
+        .where(Provider.enabled.is_(True), Provider.type == "comfyui")
+        .order_by(Provider.id)
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="尚未配置启用的 ComfyUI Provider",
+        )
+    return record
+
+
 @router.get("", response_model=list[WorkflowPackOut])
 def list_workflows(user: CurrentUser, capability: str | None = None) -> list[WorkflowPackOut]:
     return [_to_out(p) for p in list_packs(capability)]
@@ -106,8 +143,8 @@ def convert_workflow(body: WorkflowConvertRequest, user: CurrentUser) -> Workflo
     )
 
 
-@router.post("/import", response_model=WorkflowPackOut, status_code=status.HTTP_201_CREATED)
-def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowPackOut:
+@router.post("/import", response_model=WorkflowImportOut, status_code=status.HTTP_201_CREATED)
+def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowImportOut:
     try:
         pack = import_pack(
             body.name,
@@ -117,11 +154,14 @@ def import_workflow(body: WorkflowImportRequest, user: CurrentUser) -> WorkflowP
         )
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return _to_out(pack)
+    return WorkflowImportOut(
+        **_to_out(pack).model_dump(),
+        warnings=offline_pack_warnings(pack),
+    )
 
 
-@router.put("/{name}", response_model=WorkflowPackOut)
-def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -> WorkflowPackOut:
+@router.put("/{name}", response_model=WorkflowImportOut)
+def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -> WorkflowImportOut:
     try:
         existing = get_pack(name)
         pack = update_pack(
@@ -136,7 +176,29 @@ def update_workflow(name: str, body: WorkflowImportRequest, user: CurrentUser) -
         )
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return _to_out(pack)
+    return WorkflowImportOut(
+        **_to_out(pack).model_dump(),
+        warnings=offline_pack_warnings(pack),
+    )
+
+
+@router.get("/{name}/doctor", response_model=WorkflowDoctorOut)
+async def doctor_workflow(
+    name: str,
+    user: CurrentUser,
+    db: DbSession,
+    provider_id: int | None = None,
+) -> WorkflowDoctorOut:
+    """对指定工作流包和 ComfyUI Provider 做运行前体检。"""
+    provider = _doctor_provider(db, provider_id)
+    try:
+        pack = load_pack_raw(name)
+    except ProviderError as exc:
+        if str(exc).startswith("工作流包不存在"):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        return WorkflowDoctorOut(**doctor_error_result(name, provider, str(exc)))
+    result = await diagnose_pack(pack, provider)
+    return WorkflowDoctorOut(**result)
 
 
 @router.get("/{name}/export")

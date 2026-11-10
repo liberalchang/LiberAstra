@@ -1,14 +1,15 @@
 import { Workflow } from "lucide-react";
 import { PageHeader } from "@/components/PageShell";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileUp, Pencil, Trash2, WandSparkles, X } from "lucide-react";
+import { Download, FileUp, Pencil, Stethoscope, Trash2, WandSparkles, X } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { api, type WorkflowPackBundle, type WorkflowPackOut } from "@/api/client";
+import { api, type WorkflowDoctorResult, type WorkflowPackBundle, type WorkflowPackOut } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { WorkflowDoctorPanel } from "@/components/workflows/WorkflowDoctorPanel";
 import { useTx } from "@/i18n/tx";
 
 const INPUTS_PLACEHOLDER = `{
@@ -40,6 +41,7 @@ export function WorkflowsPage() {
   const tx = useTx();
   const queryClient = useQueryClient();
   const { data: packs } = useQuery({ queryKey: ["workflows"], queryFn: () => api.listWorkflows() });
+  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: () => api.listProviders() });
 
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -53,8 +55,38 @@ export function WorkflowsPage() {
   const [accelJson, setAccelJson] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [doctorTarget, setDoctorTarget] = useState<string | null>(null);
+  const [doctorProviderId, setDoctorProviderId] = useState<number | undefined>(undefined);
+  const [doctorResult, setDoctorResult] = useState<WorkflowDoctorResult | undefined>(undefined);
+  const [doctorError, setDoctorError] = useState<Error | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
+
+  const comfyProviders = (providers ?? [])
+    .filter((provider) => provider.enabled && provider.type === "comfyui")
+    .map((provider) => ({ id: provider.id, name: provider.name, base_url: provider.base_url }));
+
+  const doctor = useMutation({
+    mutationFn: ({ name, providerId }: { name: string; providerId?: number }) =>
+      api.workflowDoctor(name, providerId),
+    onSuccess: (result) => {
+      setDoctorResult(result);
+      setDoctorError(null);
+    },
+    onError: (err) => {
+      setDoctorError(err as Error);
+      setDoctorResult(undefined);
+    },
+  });
+
+  const runDoctor = (name: string, providerId = doctorProviderId) => {
+    setDoctorTarget(name);
+    setDoctorResult(undefined);
+    setDoctorError(null);
+    doctor.mutate({ name, providerId });
+  };
+  const doctorLoading = doctor.isPending && doctor.variables?.name === doctorTarget;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["workflows"] });
 
@@ -69,6 +101,7 @@ export function WorkflowsPage() {
     setOutputsJson(DEFAULT_OUTPUTS);
     setFps("");
     setAccelJson("");
+    setImportWarnings([]);
   };
 
   /** 把转换结果填进表单。 */
@@ -77,6 +110,7 @@ export function WorkflowsPage() {
     opts?: { packName?: string; fileName?: string },
   ) => {
     setEditing(null);
+    setImportWarnings([]);
     if (opts?.packName) setName(opts.packName);
     else if (opts?.fileName && !name) setName(nameFromFile(opts.fileName));
     setCapability(result.capability || "t2i");
@@ -141,6 +175,7 @@ export function WorkflowsPage() {
       setNotice(editing ? tx("已保存 {name}", { name: pack.name }) : tx("已导入 {name}", { name: pack.name }));
       setError(null);
       resetForm();
+      setImportWarnings(pack.warnings ?? []);
       invalidate();
     },
     onError: (err) => {
@@ -255,55 +290,86 @@ export function WorkflowsPage() {
 
       <div className="flex flex-col gap-3">
         {packs?.map((p) => (
-          <Card key={`${p.source}-${p.name}`}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{p.name}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{p.capability}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                    {p.source === "builtin" ? tx("内置") : tx("用户")}
-                  </span>
+          <div key={`${p.source}-${p.name}`} className="flex flex-col gap-2">
+            <Card>
+              <CardContent className="flex items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{p.capability}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                      {p.source === "builtin" ? tx("内置") : tx("用户")}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">{p.description}</div>
+                  <div className="text-xs text-muted-foreground">
+                    参数：{Object.keys(p.inputs).join("、") || tx("无")}
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">{p.description}</div>
-                <div className="text-xs text-muted-foreground">
-                  参数：{Object.keys(p.inputs).join("、") || tx("无")}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => exportPack.mutate(p)}
-                disabled={exportPack.isPending}
-                title={tx("导出为 JSON 文件")}
-              >
-                <Download />
-              </Button>
-              {p.source === "user" && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => startEdit.mutate(p.name)}
-                    disabled={startEdit.isPending}
-                    title={tx("编辑")}
-                  >
-                    <Pencil />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (window.confirm(tx("确定删除工作流包 {name}？", { name: p.name }))) remove.mutate(p.name);
-                    }}
-                    title={tx("删除")}
-                  >
-                    <Trash2 />
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => runDoctor(p.name)}
+                  disabled={doctorLoading || comfyProviders.length === 0}
+                  title={comfyProviders.length === 0 ? tx("没有启用的 ComfyUI 服务") : tx("体检")}
+                >
+                  <Stethoscope />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => exportPack.mutate(p)}
+                  disabled={exportPack.isPending}
+                  title={tx("导出为 JSON 文件")}
+                >
+                  <Download />
+                </Button>
+                {p.source === "user" && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => startEdit.mutate(p.name)}
+                      disabled={startEdit.isPending}
+                      title={tx("编辑")}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (window.confirm(tx("确定删除工作流包 {name}？", { name: p.name }))) remove.mutate(p.name);
+                      }}
+                      title={tx("删除")}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            {doctorTarget === p.name && (
+              <WorkflowDoctorPanel
+                pack={p.name}
+                result={doctorResult}
+                error={doctorError}
+                loading={doctorLoading}
+                providers={comfyProviders}
+                providerId={doctorProviderId ?? comfyProviders[0]?.id}
+                onProviderChange={(id) => {
+                  setDoctorProviderId(id);
+                  runDoctor(p.name, id);
+                }}
+                onRetry={() => runDoctor(p.name)}
+                onClose={() => {
+                  setDoctorTarget(null);
+                  setDoctorResult(undefined);
+                  setDoctorError(null);
+                }}
+              />
+            )}
+          </div>
         ))}
       </div>
 
@@ -439,6 +505,23 @@ export function WorkflowsPage() {
             </Field>
             {error && <p className="text-sm text-danger">{error}</p>}
             {notice && <p className="text-sm text-success">{notice}</p>}
+            {importWarnings.length > 0 && (
+              <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <div className="font-medium">
+                  {tx("导入成功，但有 {n} 条提示", { n: importWarnings.length })}
+                </div>
+                <ul className="mt-1 list-disc pl-4">
+                  {importWarnings.slice(0, 5).map((warning) => (
+                    <li key={warning} className="break-all">
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+                {importWarnings.length > 5 && (
+                  <div className="mt-1">{tx("还有 {n} 条", { n: importWarnings.length - 5 })}</div>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Button
                 className="w-fit"

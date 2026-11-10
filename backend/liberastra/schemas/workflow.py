@@ -19,6 +19,40 @@ class WorkflowPackOut(BaseModel):
     accel: dict[str, Any] = Field(default_factory=dict)  # 加速 LoRA 声明；空=无加速能力
 
 
+class WorkflowImportOut(WorkflowPackOut):
+    warnings: list[str] = Field(default_factory=list)
+
+
+class WorkflowDoctorProvider(BaseModel):
+    id: int
+    name: str
+    base_url: str
+
+
+class WorkflowDoctorItem(BaseModel):
+    name: str
+    status: str
+    optional: bool = False
+    hint: str = ""
+
+
+class WorkflowDoctorCheck(BaseModel):
+    id: str
+    label: str
+    status: str
+    detail: str = ""
+    items: list[WorkflowDoctorItem] = Field(default_factory=list)
+
+
+class WorkflowDoctorOut(BaseModel):
+    pack: str
+    provider: WorkflowDoctorProvider | None = None
+    status: str
+    checked_at: str
+    summary: dict[str, int]
+    checks: list[WorkflowDoctorCheck]
+
+
 class WorkflowImportRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     capability: str = "t2i"
