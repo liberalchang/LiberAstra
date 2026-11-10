@@ -27,7 +27,7 @@ npm run dev
 
 API 在 `http://localhost:8000`（交互文档 `/docs`）。前端开发服务器在 `http://localhost:5173`，把 `/api` 代理到 8000。提交前对前端跑一次 `npm run build`。
 
-Docker 路径见 [docs/deployment.md](docs/deployment.md)。
+Docker 路径见 [docs/manual/deployment.md](docs/manual/deployment.md)。
 
 ## Pull Request
 

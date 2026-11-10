@@ -92,7 +92,7 @@ https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 | 文档 | 内容 |
 |------|------|
 | [文档索引](docs/README.md) | 使用、部署、CLI、API |
-| [部署（英文）](docs/deployment.en.md) | Docker、Windows、语音插件、模型放哪 |
+| [部署（英文）](docs/manual/deployment.en.md) | Docker、Windows、语音插件、模型放哪 |
 | [在 Claude / Cursor 里用](docs/agents.md) | Skill 与 MCP |
 | [参与贡献](CONTRIBUTING.md) | 怎么跑前端和后端、怎么提 PR |
 
@@ -168,7 +168,7 @@ https://github.com/user-attachments/assets/8334b7ba-5259-416b-a717-68c27e35fd7b
 
 两种方式都只安装 **LiberAstra 编排程序**。Ollama、ComfyUI、语音插件是独立组件，装在本机或另一台主机均可。
 
-更细的变量说明见 [docs/deployment.md](docs/deployment.md)，分置示例见 [docs/分置部署教程.md](docs/分置部署教程.md)。安装包、Ollama、ComfyUI 和各工作流模型的下载地址见 [部署相关资源下载](docs/Liberastra部署相关资源下载.md)。英文部署见 [docs/deployment.en.md](docs/deployment.en.md)。
+更细的变量说明见 [docs/manual/deployment.md](docs/manual/deployment.md)，分置示例见 [docs/manual/分置部署教程.md](docs/manual/分置部署教程.md)。安装包、Ollama、ComfyUI 和各工作流模型的下载地址见 [部署相关资源下载](docs/manual/Liberastra部署相关资源下载.md)。英文部署见 [docs/manual/deployment.en.md](docs/manual/deployment.en.md)。
 
 ### 容器里的可选 profile
 
@@ -266,7 +266,7 @@ astra mcp
 - `docker/`、`docker-compose.yml` — 单镜像（ffmpeg + 中文字体）与可选 profile
 - `packaging/windows/`、`packaging/speech/` — Windows 主程序与语音插件的构建脚本
 - `skills/liberastra/` — Agent Skill
-- `docs/` — 使用与部署；研发笔记在 `docs/internal/`
+- `docs/` — 使用与部署说明在 `docs/manual/`；计划与调研笔记在本地 `docs/internal/`，不入版本库
 - `site/` — GitHub Pages 站点（产品落地页 + VitePress 文档输出）
 - `.github/workflows/ci.yml` — lint、测试、前端构建、镜像构建
 
@@ -316,7 +316,7 @@ Open `http://localhost:8000`. Create the admin user, then Settings → Providers
 
 Windows: [LiberAstra-Setup.exe](https://github.com/liberalchang/LiberAstra/releases/latest/download/LiberAstra-Setup.exe), then `http://127.0.0.1:8000`. Install local speech or depth from Resources → Plugins.
 
-Full steps, profiles, and model locations: [docs/deployment.en.md](docs/deployment.en.md). Index: [docs/README.md](docs/README.md).
+Full steps, profiles, and model locations: [docs/manual/deployment.en.md](docs/manual/deployment.en.md). Index: [docs/README.md](docs/README.md).
 
 ### Interface
 
@@ -361,7 +361,7 @@ Pixelle-Video, Dreamifly, and Liber_SpeechAPI are upstream references. See [Refe
 
 ### Docs
 
-[Deployment](docs/deployment.en.md) · [Docs index](docs/README.md) · [Claude / Cursor](docs/agents.md) · [Contributing](CONTRIBUTING.md)
+[Deployment](docs/manual/deployment.en.md) · [Docs index](docs/README.md) · [Claude / Cursor](docs/agents.md) · [Contributing](CONTRIBUTING.md)
 
 <details>
 <summary>Capabilities</summary>

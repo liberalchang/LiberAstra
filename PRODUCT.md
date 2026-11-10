@@ -49,9 +49,9 @@ LiberAstra 是自托管 AIGC 聚合编排平台：对接局域网或本地的 Co
 
 ## Evidence on Hand
 
-- 产品文案与功能说明：`README.md`、`site/docs-src/`、`docs/providers.md`。
+- 产品文案与功能说明：`README.md`、`site/docs-src/`、`docs/manual/providers.md`。
 - 界面截图：`docs/images/`(home、image-generate、image-edit、video-quick、video-assets、video-i2v、speech-tts)。
-- 规划文档：`LiberAstra规划书.md` 及 `docs/internal/` 下各开发计划。
+- 规划文档：`LiberAstra规划书.md` 及 `docs/internal/` 下各开发计划；只在本地保留，不入版本库。
 - 不可虚构：用户证言、Benchmark、第三方评测均不存在，未来工作不得编造。
 
 ## Product Principles

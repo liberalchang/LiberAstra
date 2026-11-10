@@ -57,4 +57,4 @@ requirements:
 
 ## 新增 Provider 类型（开发）
 
-见 `docs/architecture.md`「扩展一个新能力」。
+见 [architecture.md](./architecture.md)「扩展一个新能力」。
