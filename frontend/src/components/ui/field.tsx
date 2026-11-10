@@ -8,11 +8,13 @@ export function Field({
   hint,
   className,
   children,
+  trailing,
 }: {
   label: string;
   hint?: string;
   className?: string;
   children: ReactNode;
+  trailing?: ReactNode;
 }) {
   const autoId = useId();
   const isElement = isValidElement(children);
@@ -45,7 +47,14 @@ export function Field({
       ) : (
         <span className="text-sm font-medium text-foreground">{label}</span>
       )}
-      {control}
+      {trailing ? (
+        <div className="relative min-w-0">
+          {control}
+          <div className="absolute inset-y-0 right-0.5 flex items-center">{trailing}</div>
+        </div>
+      ) : (
+        control
+      )}
       {hint ? <span className="text-xs leading-relaxed text-muted-foreground">{hint}</span> : null}
     </div>
   );

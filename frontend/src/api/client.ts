@@ -330,6 +330,100 @@ export interface SystemPreferences {
   default_asr_model: string;
   /** 默认换音模型；空表示跟随语音服务 .env */
   default_vc_model: string;
+  /** 通知推送语言：zh-CN / en */
+  notification_language: string;
+  /** 全局通知代理；空=沿用环境变量 */
+  notification_proxy: string;
+  /** 通知消息里的任务链接前缀；空=不带链接 */
+  notification_public_base_url: string;
+}
+
+export type NotificationChannelType = "telegram" | "feishu" | "dingtalk" | "bark" | "webhook";
+export type NotificationEvent =
+  | "job.succeeded"
+  | "job.failed"
+  | "job.canceled"
+  | "job.progress";
+
+export interface NotificationChannelOut {
+  id: number;
+  type: NotificationChannelType;
+  name: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  max_attempts: number;
+  backoff_seconds: number;
+  timeout_seconds: number;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationRuleOut {
+  id: number;
+  name: string;
+  enabled: boolean;
+  enabled_since: string;
+  events: NotificationEvent[];
+  progress_interval_seconds: number;
+  job_kinds: string[];
+  max_jobs_per_digest: number;
+  quiet_hours: { start: string; end: string; timezone: string } | null;
+  include_outputs: boolean;
+  template_succeeded: string | null;
+  template_failed: string | null;
+  template_progress: string | null;
+  channel_ids: number[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationDeliveryOut {
+  id: number;
+  rule_id: number | null;
+  channel_id: number | null;
+  job_id: string | null;
+  event: string;
+  bucket: string;
+  title: string;
+  body: string;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
+  response_status: number | null;
+  last_error: string | null;
+  created_at: string;
+  sent_at: string | null;
+}
+
+export interface NotificationDeliveryPage {
+  items: NotificationDeliveryOut[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface NotificationMeta {
+  channel_types: NotificationChannelType[];
+  events: NotificationEvent[];
+  languages: string[];
+  defaults: Record<string, number>;
+}
+
+export interface NotificationTestResult {
+  ok: boolean;
+  message: string;
+}
+
+export interface TelegramChatCandidate {
+  id: string;
+  type: string;
+  title: string;
+}
+
+export interface TelegramChatsResult {
+  items: TelegramChatCandidate[];
 }
 
 /** 语音服务 GET /api/v1/models 里的一项可选模型。 */
@@ -761,6 +855,65 @@ export const api = {
     request<SystemPreferences>("/api/v1/system/preferences", {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  notificationMeta: () => request<NotificationMeta>("/api/v1/notifications/meta"),
+  listNotificationChannels: () =>
+    request<NotificationChannelOut[]>("/api/v1/notifications/channels"),
+  createNotificationChannel: (body: Record<string, unknown>) =>
+    request<NotificationChannelOut>("/api/v1/notifications/channels", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateNotificationChannel: (id: number, body: Record<string, unknown>) =>
+    request<NotificationChannelOut>(`/api/v1/notifications/channels/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteNotificationChannel: (id: number) =>
+    request<void>(`/api/v1/notifications/channels/${id}`, { method: "DELETE" }),
+  testNotificationChannel: (id: number) =>
+    request<NotificationTestResult>(`/api/v1/notifications/channels/${id}/test`, {
+      method: "POST",
+    }),
+  listTelegramChats: (body: {
+    channel_id?: number;
+    bot_token?: string;
+    use_proxy?: boolean;
+  }) =>
+    request<TelegramChatsResult>("/api/v1/notifications/telegram/chats", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listNotificationRules: () =>
+    request<NotificationRuleOut[]>("/api/v1/notifications/rules"),
+  createNotificationRule: (body: Record<string, unknown>) =>
+    request<NotificationRuleOut>("/api/v1/notifications/rules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateNotificationRule: (id: number, body: Record<string, unknown>) =>
+    request<NotificationRuleOut>(`/api/v1/notifications/rules/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteNotificationRule: (id: number) =>
+    request<void>(`/api/v1/notifications/rules/${id}`, { method: "DELETE" }),
+  listNotificationDeliveries: (params: {
+    status?: string;
+    event?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.event) query.set("event", params.event);
+    query.set("limit", String(params.limit ?? 50));
+    query.set("offset", String(params.offset ?? 0));
+    return request<NotificationDeliveryPage>(`/api/v1/notifications/deliveries?${query}`);
+  },
+  retryNotificationDelivery: (id: number) =>
+    request<NotificationDeliveryOut>(`/api/v1/notifications/deliveries/${id}/retry`, {
+      method: "POST",
     }),
   healthz: () => request<{ status: string; version: string }>("/healthz"),
 

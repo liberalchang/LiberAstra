@@ -8,8 +8,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -76,10 +77,29 @@ def create_app() -> FastAPI:
         app.state.jobs = manager
         app.state.canvas_runs = {}
         manager.start()
+        from liberastra.services.notifications.worker import (
+            NotificationScheduler,
+            NotificationWorker,
+        )
+
+        notification_worker = NotificationWorker()
+        notification_scheduler = NotificationScheduler()
+        app.state.notification_worker = notification_worker
+        app.state.notification_scheduler = notification_scheduler
+        notification_tasks = [
+            asyncio.create_task(notification_worker.run()),
+            asyncio.create_task(notification_scheduler.run()),
+        ]
         from liberastra.services.plugins import restore_enabled_plugins, stop_managed_plugins
 
         restore_enabled_plugins()
         yield
+        notification_worker.stop()
+        notification_scheduler.stop()
+        for task in notification_tasks:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
         stop_managed_plugins()
         await manager.stop()
         await close_browser()

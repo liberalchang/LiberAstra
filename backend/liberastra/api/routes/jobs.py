@@ -43,7 +43,8 @@ def list_jobs(
         stmt = stmt.where(Job.status == status_filter)
     if kind:
         stmt = stmt.where(Job.kind == kind)
-    return list(db.scalars(stmt.limit(min(limit, 200))).all())
+    jobs = list(db.scalars(stmt.limit(min(limit, 200))).all())
+    return [job for job in jobs if not (job.params or {}).get("synthetic")]
 
 
 @router.get("/{job_id}", response_model=JobOut)
@@ -54,6 +55,10 @@ def get_job(job_id: str, user: CurrentUser, db: DbSession) -> Job:
 @router.post("/{job_id}/cancel", response_model=JobOut)
 def cancel_job(job_id: str, user: CurrentUser, db: DbSession, request: Request) -> Job:
     job = _get_owned(db, job_id, user)
+    if (job.params or {}).get("synthetic"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="画布汇总任务不可取消"
+        )
     if not _get_manager(request).request_cancel(db, job):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="任务已结束，无法取消"
@@ -65,6 +70,10 @@ def cancel_job(job_id: str, user: CurrentUser, db: DbSession, request: Request) 
 @router.post("/{job_id}/retry", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
 def retry_job(job_id: str, user: CurrentUser, db: DbSession, request: Request) -> Job:
     job = _get_owned(db, job_id, user)
+    if (job.params or {}).get("synthetic"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="画布汇总任务不可重试"
+        )
     if job.status not in TERMINAL_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="任务进行中，不能重试"

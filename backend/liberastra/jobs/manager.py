@@ -247,6 +247,12 @@ class JobManager:
             job.finished_at = utcnow()
         db.commit()
         self.emit(job)
+        try:
+            from liberastra.services.notifications.service import enqueue_terminal
+
+            enqueue_terminal(job.id)
+        except Exception:  # noqa: BLE001
+            logger.exception("通知入队失败 job={}", job.id)
 
     # ---- SSE 订阅 ----
 

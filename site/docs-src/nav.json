@@ -24,6 +24,7 @@
           { "title": "画布与导演台", "slug": "guides/canvas" },
           { "title": "工具", "slug": "guides/tools" },
           { "title": "设置", "slug": "guides/settings" },
+          { "title": "通知", "slug": "guides/notifications" },
           { "title": "作品与任务", "slug": "guides/works" }
         ]
       },
@@ -74,6 +75,7 @@
           { "title": "Canvas & Director", "slug": "guides/canvas" },
           { "title": "Tools", "slug": "guides/tools" },
           { "title": "Settings", "slug": "guides/settings" },
+          { "title": "Notifications", "slug": "guides/notifications" },
           { "title": "Works & Tasks", "slug": "guides/works" }
         ]
       },

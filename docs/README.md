@@ -29,6 +29,7 @@ LiberAstra 是自托管 AIGC 编排台：对接 ComfyUI、Ollama、语音服务�
 | [CLI](../site/docs-src/integration/cli.md) / [CLI (English)](../site/docs-src/en/integration/cli.md) | `astra` 命令 |
 | [在 Claude / Cursor 里用](./agents.md) | Skill 与 MCP |
 | [Provider 接入](./manual/providers.md) | 服务提供方类型 |
+| [通知](../site/docs-src/guides/notifications.md) | 渠道、规则、进度推送与投递记录 |
 | [API](./manual/api.md) | HTTP 接口 |
 | [架构](./manual/architecture.md) | 分层和扩展点 |
 

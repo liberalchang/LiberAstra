@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from datetime import UTC
 from typing import Any
 
 from loguru import logger
@@ -54,6 +55,7 @@ def start_run(
     plan = [
         {"node_id": nid, "job_id": None, "status": "pending", "reused": False} for nid in order
     ]
+    _create_run_summary(canvas, owner_id, run_id)
     runs = getattr(app.state, "canvas_runs", None)
     if runs is None:
         runs = app.state.canvas_runs = {}
@@ -602,6 +604,7 @@ async def _execute_function(
     app,  # noqa: ANN001
     db: Session,
     canvas_id: str,
+    run_id: str,
     owner_id: int,
     graph: dict[str, Any],
     node: dict[str, Any],
@@ -635,6 +638,7 @@ async def _execute_function(
     if getattr(pack, "target_type", "") == "model":
         params = {
             "canvas_id": canvas_id,
+            "run_id": run_id,
             "node_id": node_id,
             "target_type": "model",
             "model": pack.name,
@@ -646,6 +650,7 @@ async def _execute_function(
     else:
         params = {
             "canvas_id": canvas_id,
+            "run_id": run_id,
             "node_id": node_id,
             "workflow": pack.name,
             "inputs": inputs,
@@ -689,6 +694,7 @@ async def _execute_concat(
     app,  # noqa: ANN001
     db: Session,
     canvas_id: str,
+    run_id: str,
     owner_id: int,
     graph: dict[str, Any],
     node: dict[str, Any],
@@ -752,6 +758,7 @@ async def _execute_concat(
         kind="media.concat",
         params={
             "canvas_id": canvas_id,
+            "run_id": run_id,
             "node_id": node_id,
             "asset_ids": asset_ids,
             "kind": media_kind,
@@ -787,6 +794,7 @@ async def _execute_speech(
     app,  # noqa: ANN001
     db: Session,
     canvas_id: str,
+    run_id: str,
     owner_id: int,
     graph: dict[str, Any],
     node: dict[str, Any],
@@ -942,6 +950,7 @@ async def _execute_speech(
 
     manager: JobManager = app.state.jobs
     params.update(_canvas_labels(db, canvas_id, node))
+    params.update({"canvas_id": canvas_id, "run_id": run_id, "node_id": node_id})
     job = manager.submit(
         db,
         owner_id=owner_id,
@@ -985,6 +994,110 @@ async def _execute_speech(
     item["status"] = row.status
 
 
+def _as_utc(value):  # noqa: ANN001, ANN202
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _create_run_summary(canvas: Canvas, owner_id: int, run_id: str) -> None:
+    """创建一条 synthetic 的 canvas.run Job，供 terminal sweep 和通知复用。"""
+    db = SessionLocal()
+    try:
+        if db.get(Job, run_id) is not None:
+            return
+        db.add(
+            Job(
+                id=run_id,
+                kind="canvas.run",
+                status="running",
+                progress=0.0,
+                owner_id=owner_id,
+                params={
+                    "canvas_id": canvas.id,
+                    "canvas_name": canvas.name,
+                    "synthetic": True,
+                    "success_count": 0,
+                    "failed_count": 0,
+                },
+            )
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("创建画布汇总 Job 失败 canvas={}", canvas.id)
+    finally:
+        db.close()
+
+
+def _finalize_run(
+    db: Session,
+    run_id: str,
+    canvas: Canvas | None,
+    order: list[str],
+    plan: dict[str, dict[str, Any]],
+    canceled: bool,
+) -> None:
+    summary = db.get(Job, run_id)
+    if summary is None:
+        return
+    statuses = [str(item.get("status") or "") for item in plan.values()]
+    if canceled:
+        status = "canceled"
+    elif any(value == "failed" for value in statuses) or any(
+        value in ("pending", "running") for value in statuses
+    ):
+        status = "failed"
+    else:
+        status = "succeeded"
+    success_count = sum(1 for value in statuses if value == "succeeded")
+    failed_count = sum(1 for value in statuses if value == "failed")
+    now = utcnow()
+    started = summary.created_at
+    duration_ms = (
+        int((now - _as_utc(started)).total_seconds() * 1000) if started is not None else 0
+    )
+    output_count = 0
+    first_error = summary.error
+    if canvas is not None:
+        rows = db.scalars(
+            select(CanvasNodeRun).where(
+                CanvasNodeRun.canvas_id == canvas.id,
+                CanvasNodeRun.node_id.in_(order),
+            )
+        ).all()
+        output_count = sum(len(row.asset_ids or []) for row in rows)
+        first_error = next(
+            (
+                row.error
+                for row in rows
+                if row.status == "failed" and row.error
+            ),
+            first_error,
+        )
+    summary.status = status
+    summary.progress = 1.0
+    summary.finished_at = now
+    summary.updated_at = now
+    summary.error = first_error if status == "failed" else None
+    summary.params = {
+        **(summary.params or {}),
+        "canvas_id": canvas.id if canvas is not None else summary.params.get("canvas_id"),
+        "canvas_name": (
+            canvas.name if canvas is not None else summary.params.get("canvas_name")
+        ),
+        "synthetic": True,
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "duration_ms": duration_ms,
+        "output_count": output_count,
+    }
+    db.commit()
+    try:
+        from liberastra.services.notifications.service import enqueue_terminal
+
+        enqueue_terminal(run_id)
+    except Exception:  # noqa: BLE001
+        logger.exception("画布汇总通知入队失败 run={}", run_id)
+
+
 async def _orchestrate(
     app,  # noqa: ANN001
     run_id: str,
@@ -996,9 +1109,11 @@ async def _orchestrate(
     state = app.state.canvas_runs[run_id]
     plan = {item["node_id"]: item for item in state["plan"]}
     db = SessionLocal()
+    canvas: Canvas | None = None
     try:
         canvas = db.get(Canvas, canvas_id)
         if canvas is None:
+            _finalize_run(db, run_id, None, order, plan, True)
             return
         graph = canvas.graph or {}
         nodes = node_map(graph)
@@ -1019,16 +1134,16 @@ async def _orchestrate(
                     _materialize_input(db, node, row, owner_id)
                 elif node_type == "function":
                     await _execute_function(
-                        app, db, canvas_id, owner_id, graph, node, row, runs, variables,
+                        app, db, canvas_id, run_id, owner_id, graph, node, row, runs, variables,
                         force, item,
                     )
                 elif node_type == "concat":
                     await _execute_concat(
-                        app, db, canvas_id, owner_id, graph, node, row, runs, force, item
+                        app, db, canvas_id, run_id, owner_id, graph, node, row, runs, force, item
                     )
                 elif node_type == "speech":
                     await _execute_speech(
-                        app, db, canvas_id, owner_id, graph, node, row, runs, variables,
+                        app, db, canvas_id, run_id, owner_id, graph, node, row, runs, variables,
                         force, item,
                     )
                 else:
@@ -1045,5 +1160,24 @@ async def _orchestrate(
             runs[node_id] = row
             item["status"] = row.status
             item["job_id"] = row.job_id
+            summary = db.get(Job, run_id)
+            if summary is not None:
+                completed = sum(
+                    1
+                    for value in plan.values()
+                    if value["status"] in ("succeeded", "failed", "canceled")
+                )
+                summary.progress = completed / max(1, len(order))
+                summary.updated_at = utcnow()
+                db.commit()
+    except asyncio.CancelledError:
+        _finalize_run(db, run_id, canvas, order, plan, True)
+        raise
+    except Exception:  # noqa: BLE001
+        logger.exception("画布 {} 执行中断", canvas_id)
+        _finalize_run(db, run_id, canvas, order, plan, False)
+        raise
+    else:
+        _finalize_run(db, run_id, canvas, order, plan, bool(state.get("canceled")))
     finally:
         db.close()

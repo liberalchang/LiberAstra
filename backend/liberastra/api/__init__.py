@@ -14,6 +14,7 @@ from liberastra.api.routes import (
     images,
     jobs,
     llm,
+    notifications,
     openai_audio,
     openai_compat,
     plugins,
@@ -55,6 +56,7 @@ api_router.include_router(templates.router)
 api_router.include_router(tools.router)
 api_router.include_router(videos.router)
 api_router.include_router(uploads.router)
+api_router.include_router(notifications.router)
 api_router.include_router(system.router)
 
 __all__ = ["api_router", "openai_audio", "openai_compat"]

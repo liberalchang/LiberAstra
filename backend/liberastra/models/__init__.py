@@ -20,6 +20,12 @@ from liberastra.models.asset import Asset  # noqa: E402
 from liberastra.models.canvas import Canvas, CanvasNodeRun  # noqa: E402
 from liberastra.models.character import Character  # noqa: E402
 from liberastra.models.job import Job  # noqa: E402
+from liberastra.models.notification import (  # noqa: E402
+    NotificationChannel,
+    NotificationDelivery,
+    NotificationRule,
+    NotificationRuleChannel,
+)
 from liberastra.models.provider import Provider  # noqa: E402
 from liberastra.models.setting import AppSetting  # noqa: E402
 from liberastra.models.token import ApiToken  # noqa: E402
@@ -38,6 +44,10 @@ __all__ = [
     "CanvasNodeRun",
     "Character",
     "Job",
+    "NotificationChannel",
+    "NotificationDelivery",
+    "NotificationRule",
+    "NotificationRuleChannel",
     "Provider",
     "User",
     "Voice",

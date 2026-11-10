@@ -114,6 +114,8 @@ Change official or uncensored image models here instead of going back to the Cha
 
 Runtime settings: ComfyUI wait timeout, synchronous API wait, and LLM timeout; "Serialize services on the same host" is off by default (parallel). When enabled, multiple services on the same host run only one job at a time. Changes take effect on the next job after saving.
 
+**Notifications**: completion, failure, and progress pushes plus the delivery log are covered in [Notifications](/en/guides/notifications).
+
 ---
 
 Related: [Canvas → Workflow Groups](/en/guides/canvas#workflow-groups); [Works & Tasks → Plugins](/en/guides/works#plugins); [Image](/en/guides/image) / [Video](/en/guides/video) / [Speech](/en/guides/speech).

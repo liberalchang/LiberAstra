@@ -45,6 +45,12 @@ STR_SPECS: dict[str, str] = {
     "default_asr_model": "",
     # 换音模型。空串表示跟随语音服务 LIBER_SPEECH_VC_MODEL。
     "default_vc_model": "",
+    # 通知推送语言：zh-CN / en；不跟随 UI
+    "notification_language": "zh-CN",
+    # 全局通知代理；空=沿用 HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+    "notification_proxy": "",
+    # 通知消息里的任务链接前缀；空=不带链接
+    "notification_public_base_url": "",
 }
 
 

@@ -32,6 +32,9 @@ const VideoEnhancePage = lazy(() =>
 );
 const PluginsPage = lazy(() => import("@/pages/PluginsPage").then((m) => ({ default: m.PluginsPage })));
 const MusicPage = lazy(() => import("@/pages/MusicPage").then((m) => ({ default: m.MusicPage })));
+const NotificationsPage = lazy(() =>
+  import("@/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })),
+);
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const PromptsPage = lazy(() => import("@/pages/PromptsPage").then((m) => ({ default: m.PromptsPage })));
 const SystemSettingsPage = lazy(() =>
@@ -106,6 +109,7 @@ export default function App() {
         <Route path="/tools/video-enhance" element={<VideoEnhancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/prompts" element={<PromptsPage />} />
+        <Route path="/settings/notifications" element={<NotificationsPage />} />
         <Route path="/settings/system" element={<SystemSettingsPage />} />
         <Route path="/settings/workflows" element={<WorkflowsPage />} />
         <Route path="/jobs" element={<JobsPage />} />

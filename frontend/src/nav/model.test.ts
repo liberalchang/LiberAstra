@@ -42,6 +42,7 @@ const EXPECTED_PATHS = [
   "/settings/prompts",
   "/settings/storyboard-templates",
   "/settings/plugins",
+  "/settings/notifications",
   "/settings/system",
   "/docs",
 ];
@@ -64,9 +65,9 @@ function activeLeaf(pathname: string): NavLeaf | null {
   return null;
 }
 
-test("导航覆盖全部 31 个入口且无重复", () => {
+test("导航覆盖全部 32 个入口且无重复", () => {
   const paths = flattenNav().map((leaf) => leaf.href ?? leaf.to);
-  assert.equal(paths.length, 31);
+  assert.equal(paths.length, 32);
   assert.equal(new Set(paths).size, paths.length);
   assert.deepEqual(new Set(paths), new Set(EXPECTED_PATHS));
 });
@@ -127,6 +128,7 @@ test("设置组包含模板和插件", () => {
       "/settings/prompts",
       "/settings/storyboard-templates",
       "/settings/plugins",
+      "/settings/notifications",
       "/settings/system",
     ],
   );

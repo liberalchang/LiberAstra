@@ -1,5 +1,6 @@
 import {
   AudioLines,
+  Bell,
   Blocks,
   BookMarked,
   BookOpen,
@@ -75,6 +76,7 @@ export const NAV_ICONS: Record<NavIconKey, LucideIcon> = {
   providers: PlugZap,
   workflows: Workflow,
   prompts: ScrollText,
+  notifications: Bell,
   system: Settings,
   apiDocs: Code2,
 };

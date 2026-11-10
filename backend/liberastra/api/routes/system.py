@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import zipfile
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
@@ -47,6 +48,9 @@ class PreferencesUpdate(BaseModel):
     default_speech_model: str | None = Field(default=None, max_length=64)
     default_asr_model: str | None = Field(default=None, max_length=64)
     default_vc_model: str | None = Field(default=None, max_length=64)
+    notification_language: str | None = Field(default=None, max_length=8)
+    notification_proxy: str | None = Field(default=None, max_length=512)
+    notification_public_base_url: str | None = Field(default=None, max_length=512)
 
 
 @router.get("/speech-models")
@@ -69,6 +73,30 @@ def get_preferences(user: CurrentUser, db: DbSession) -> dict[str, int | str]:
 def update_preferences(body: PreferencesUpdate, user: CurrentUser, db: DbSession) -> dict[str, int | str]:
     """更新运行时偏好，下一个任务起生效。"""
     data = body.model_dump(exclude_none=True)
+    if data.get("notification_language") not in (None, "zh-CN", "en"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="notification_language 只支持 zh-CN / en",
+        )
+    for key in ("notification_proxy", "notification_public_base_url"):
+        if key not in data:
+            continue
+        value = str(data[key]).strip()
+        if value:
+            parts = urlsplit(value)
+            if (
+                parts.scheme not in ("http", "https")
+                or not parts.netloc
+                or parts.username
+                or parts.password
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{key} 只支持不含用户名密码的 http/https URL",
+                )
+            if key == "notification_public_base_url":
+                value = value.rstrip("/")
+        data[key] = value
     for key, value in data.items():
         if key in STR_SPECS:
             try:

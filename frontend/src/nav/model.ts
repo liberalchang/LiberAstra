@@ -36,6 +36,7 @@ export type NavIconKey =
   | "providers"
   | "workflows"
   | "prompts"
+  | "notifications"
   | "system"
   | "apiDocs";
 
@@ -212,6 +213,7 @@ export const NAV_ENTRIES: NavEntry[] = [
           { to: "/settings/prompts", labelKey: "nav.prompts", icon: "prompts" },
           { to: "/settings/storyboard-templates", labelKey: "nav.templates", icon: "templates" },
           { to: "/settings/plugins", labelKey: "nav.plugins", icon: "plugins" },
+          { to: "/settings/notifications", labelKey: "nav.notifications", icon: "notifications" },
           { to: "/settings/system", labelKey: "nav.system", icon: "system" },
         ],
       },
