@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liberastra"
-version = "2.0.6"
+version = "2.0.7"
 description = "Self-hosted AIGC orchestration hub (TTS / ASR / Image / Video / LLM)"
 requires-python = ">=3.11"
 license = { text = "MIT" }
