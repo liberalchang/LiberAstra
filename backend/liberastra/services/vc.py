@@ -28,6 +28,11 @@ def _float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _auto_subtitle_size(height: int) -> float:
+    """字号 0 时的自动值：原自动字号（视频高度的 4.5%）的三分之一，最低 8px。"""
+    return max(8.0, round(height * 0.045, 1) / 3)
+
+
 def _voice(db: Session, job: Job) -> Voice:
     voice_id = job.params.get("voice_record_id")
     if not voice_id:
@@ -228,7 +233,7 @@ async def run_vc_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, A
             size = _float(params.get("subtitle_size"), 0.0)
             if size <= 0:
                 _width, height = await ffmpeg.probe_video_size(source)
-                size = max(8.0, round(height * 0.045, 1))
+                size = _auto_subtitle_size(height)
             await ffmpeg.burn_subtitles(
                 source,
                 final_audio,

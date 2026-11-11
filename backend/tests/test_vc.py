@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from liberastra.media.subtitles import parse_srt
+from liberastra.services.vc import _auto_subtitle_size
 
 
 def _write_srt(tmp_path, text: str, encoding: str = "utf-8"):  # noqa: ANN001
@@ -61,3 +62,17 @@ def test_parse_srt_rejects_empty(tmp_path) -> None:  # noqa: ANN001
     path = _write_srt(tmp_path, "")
     with pytest.raises(ValueError):
         parse_srt(path, 3.0)
+
+
+@pytest.mark.parametrize(
+    ("height", "expected"),
+    [
+        (1920, 28.8),
+        (1080, 16.2),
+        (720, 10.8),
+        (480, 8.0),
+        (100, 8.0),
+    ],
+)
+def test_auto_subtitle_size_is_one_third_of_previous(height: int, expected: float) -> None:
+    assert _auto_subtitle_size(height) == pytest.approx(expected)
