@@ -3,14 +3,15 @@
 from liberastra.services.native_tools import NATIVE_TOOLS, get_native_tool, tool_specs
 
 
-def test_registry_has_three_concat_tools() -> None:
+def test_registry_has_native_tools() -> None:
     assert [tool.id for tool in NATIVE_TOOLS] == [
         "image_concat",
         "video_concat",
         "audio_concat",
+        "audio_extract",
     ]
-    assert [tool.media_kind for tool in NATIVE_TOOLS] == ["image", "video", "audio"]
-    assert [tool.title for tool in NATIVE_TOOLS] == ["图片拼接", "视频拼接", "音频拼接"]
+    assert [tool.media_kind for tool in NATIVE_TOOLS] == ["image", "video", "audio", "audio"]
+    assert [tool.title for tool in NATIVE_TOOLS] == ["图片拼接", "视频拼接", "音频拼接", "音频提取"]
 
 
 def test_registry_lookup() -> None:
@@ -22,7 +23,7 @@ def test_registry_lookup() -> None:
 
 def test_tool_specs_are_fixed_native_targets() -> None:
     specs = {spec.target_id: spec for spec in tool_specs()}
-    assert set(specs) == {"image_concat", "video_concat", "audio_concat"}
+    assert set(specs) == {"image_concat", "video_concat", "audio_concat", "audio_extract"}
     image = specs["image_concat"]
     assert image.target_type == "tool"
     assert image.sub_capability == "tool_image_concat"

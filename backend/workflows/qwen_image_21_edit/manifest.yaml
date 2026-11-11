@@ -1,8 +1,10 @@
 name: qwen_image_21_edit
 capability: i2i
-description: 'Qwen-Image 2.1 整图编辑
+summary: 单图改图
+description: 'Qwen Image 2.1 单图改图
 
-  上传 1 张图，写清要改什么，得到编辑后的图。参数区可换模型三件套（如越狱 UC 版）；请选 .safetensors 格式。'
+  上传一张原图，按提示词修改内容、风格或细节。
+  适合局部调整、风格转换和画面扩展；需要保留的部分请在提示词里写清楚。'
 inputs:
   image:
     node: '10'

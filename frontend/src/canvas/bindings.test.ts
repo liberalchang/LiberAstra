@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { bindingSources, findNodeByVar } from "./bindings.ts";
+import { bindingSources, findNodeByVar, missingBindingEdges } from "./bindings.ts";
 import type { CanvasFlowNode } from "./types.ts";
 
 function node(
@@ -54,4 +54,50 @@ test("按变量名查找节点，空变量返回 null", () => {
   assert.equal(findNodeByVar(nodes, "input_image_ref")?.id, "img");
   assert.equal(findNodeByVar(nodes, "input_image_ghost"), null);
   assert.equal(findNodeByVar(nodes, ""), null);
+});
+
+test("媒体绑定缺边时返回修复项，文本绑定和已有边不返回", () => {
+  const nodes = [
+    node("img", "output_image_kf_1", "image"),
+    {
+      id: "audio",
+      type: "concat",
+      position: { x: 0, y: 0 },
+      data: { kind: "concat", mediaKind: "audio", order: [], varName: "output_audio_tail_2" },
+    },
+    node("text", "input_text_script", "text"),
+    {
+      id: "video",
+      type: "function",
+      position: { x: 0, y: 0 },
+      data: {
+        kind: "function",
+        varName: "output_video_2",
+        outputKind: "video",
+        bindings: {
+          image: "output_image_kf_1",
+          ref_audio: "output_audio_tail_2",
+          prompt: "input_text_script",
+        },
+      },
+    },
+  ] as unknown as CanvasFlowNode[];
+
+  const missing = missingBindingEdges(nodes, [{ source: "img", target: "video" }]);
+  assert.deepEqual(missing, [
+    {
+      source: "audio",
+      target: "video",
+      varName: "output_audio_tail_2",
+      slot: "ref_audio",
+    },
+  ]);
+
+  assert.deepEqual(
+    missingBindingEdges(nodes, [
+      { source: "img", target: "video" },
+      { source: "audio", target: "video" },
+    ]),
+    [],
+  );
 });

@@ -516,8 +516,10 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
   const d = data as ConcatNodeData;
   const invalid = useCanvasUiStore((s) => s.invalidNodes.has(id));
   const nodes = useCanvasStore((s) => s.nodes);
-  const title =
-    d.mediaKind === "audio"
+  const isExtract = d.toolId === "audio_extract";
+  const title = isExtract
+    ? tx("音频提取")
+    : d.mediaKind === "audio"
       ? tx("音频拼接")
       : d.mediaKind === "image"
         ? tx("图片拼接")
@@ -536,7 +538,9 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
         <ResultPreview run={d.run} expectedKind={d.mediaKind} nodeId={id} />
         <div className="mt-1.5 flex flex-wrap gap-1">
           {d.order.length === 0 ? (
-            <span className="text-xs text-muted-foreground">{tx("连接多段输入后在此排序")}</span>
+            <span className="text-xs text-muted-foreground">
+              {tx(isExtract ? "连接一个视频或音频作为来源" : "连接多段输入后在此排序")}
+            </span>
           ) : (
             d.order.map((sourceId, index) => {
               const source = nodes.find((n) => n.id === sourceId);
@@ -551,7 +555,7 @@ export function ConcatNodeCard({ id, data, selected }: NodeProps) {
                   key={sourceId}
                   className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
                 >
-                  {index + 1}. {label}
+                  {isExtract ? label : `${index + 1}. ${label}`}
                 </span>
               );
             })

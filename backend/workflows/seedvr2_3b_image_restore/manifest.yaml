@@ -1,8 +1,10 @@
 name: seedvr2_3b_image_restore
 capability: upscale
-description: 'SeedVR2 3B 图片增强
+summary: 图片修复放大
+description: 'SeedVR2 图片修复放大
 
-  单张图片做生成式修复和放大，适合低清、噪点、压缩和 AI 软图。单帧 batch=1，不利用视频时序。输出宽高比跟随原图，短边由 resolution 控制。'
+  修复低清、噪点、压缩痕迹，并放大图片。
+  适合老照片、网络图片和生成图的二次增强；人脸和文字细节会随原图质量变化。'
 inputs:
   image:
     node: '1'

@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from liberastra.core.db import SessionLocal
-from liberastra.models import Asset, CanvasNodeRun, Job
+from liberastra.models import Asset, CanvasNodeRun, Job, User
 from liberastra.providers.base import ProviderError
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
@@ -22,6 +23,7 @@ from liberastra.services.canvas_graph import (
     translate_prompt_slots,
 )
 from liberastra.services.canvas_run import (
+    _audio_fade_ms_for,
     _canvas_soundtrack,
     _family_tokens,
     _image_keys_to_fill,
@@ -417,6 +419,98 @@ def test_binding_missing_variable_fails(
     }
     with SessionLocal() as db, pytest.raises(ProviderError, match="不存在"):
         _resolve_function_inputs(db, graph, fn, runs, {})
+
+
+def test_audio_extract_asset_maps_to_ref_audio(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    """A1 上一镜尾音：audio_extract 节点的音频产物直接填进 i2v_ref 的 ref_audio。"""
+    image_id = _uploaded_image(client, auth_header)
+    graph = _graph(
+        [
+            {
+                "id": "img",
+                "type": "input",
+                "position": {"x": 0, "y": 0},
+                "data": {
+                    "kind": "input",
+                    "mediaKind": "image",
+                    "varName": "input_image_1",
+                    "assetId": image_id,
+                },
+            },
+            {
+                "id": "extract",
+                "type": "concat",
+                "position": {"x": 0, "y": 240},
+                "data": {
+                    "kind": "concat",
+                    "mediaKind": "audio",
+                    "toolId": "audio_extract",
+                    "varName": "output_audio_tail_2",
+                    "audioMode": "tail",
+                    "tailSeconds": 5,
+                },
+            },
+            {
+                "id": "fn",
+                "type": "function",
+                "position": {"x": 320, "y": 0},
+                "data": {
+                    "kind": "function",
+                    "pack": "minimax_h3_i2v_ref",
+                    "prompt": "test",
+                    "varName": "output_video_2",
+                    "values": {"length": "124"},
+                },
+            },
+        ],
+        [_edge("img", "fn"), _edge("extract", "fn")],
+    )
+    fn = next(node for node in graph["nodes"] if node["id"] == "fn")
+    with SessionLocal() as db:
+        user = db.scalar(select(User).where(User.username == "admin"))
+        assert user is not None
+        audio = Asset(
+            kind="audio",
+            path="outputs/test/tail.wav",
+            owner_id=user.id,
+            origin="output",
+        )
+        db.add(audio)
+        db.commit()
+        db.refresh(audio)
+        runs = {
+            "img": CanvasNodeRun(
+                canvas_id="test", node_id="img", status="succeeded", asset_ids=[image_id]
+            ),
+            "extract": CanvasNodeRun(
+                canvas_id="test", node_id="extract", status="succeeded", asset_ids=[audio.id]
+            ),
+        }
+        _pack, inputs, _fingerprint, _soundtrack = _resolve_function_inputs(
+            db, graph, fn, runs, {}
+        )
+        assert inputs["ref_audio"] == audio.path
+        assert inputs["image"]
+        audio_id = audio.id
+    with SessionLocal() as db:
+        asset = db.get(Asset, audio_id)
+        if asset is not None:
+            db.delete(asset)
+            db.commit()
+
+
+def test_audio_fade_ms_prefers_concat_node() -> None:
+    class _Runtime:
+        active = True
+        seam_fade_ms = 60
+
+    assert _audio_fade_ms_for({"audioFadeMs": 80}, "video", None) == 80
+    assert _audio_fade_ms_for({}, "video", _Runtime()) == 60
+    assert _audio_fade_ms_for({}, "video", None) == 0
+    assert _audio_fade_ms_for({"audioFadeMs": 999}, "video", None) == 200
+    assert _audio_fade_ms_for({"audioFadeMs": 80}, "audio", _Runtime()) == 0
 
 
 def test_cancel_run_cancels_running_job_and_pending_nodes() -> None:

@@ -8,7 +8,7 @@
 {
   "id": "preset_i2v_first",
   "category": "video",
-  "title": "图生视频",
+  "title": "首帧生视频",
   "sub_capability": "i2v_first",
   "bind_mode": "manual",
   "enabled": true,
@@ -55,17 +55,17 @@
 | `i2v_first` | 图生视频 | 首帧必填，尾帧可选；只传首帧或锁首尾帧 |
 | `i2v_flf` | 首尾帧视频 | 首尾帧都必填；当前菜单不一定配置 |
 | `i2v_enhance` | 图生增强 | 工作流内部自己优化提示词，只接首帧 |
-| `depth_pose` | 姿势换姿 | 人物照 + 姿势图/线稿，保留人物身份；两个图片槽 |
-| `depth_gen` | 姿势生图 | 只有姿势图/线稿或深度图；Union Depth 需从 `available_targets` 选包 |
-| `upscale` | 图片增强 | 单图放大/修复；默认 RealESRGAN，SeedVR2 会生成式改细节 |
-| `v2v_ref` | 参考图生视频 / 分镜视频 | 多张参考图，不作为首尾帧；分镜视频每镜一个节点 |
-| `v2v_ref_long` | 参考图生成视频（长） | Extender 时间线，多段连续视频，每段不超过 15 秒 |
+| `depth_pose` | 人物换姿势 | 人物照 + 姿势图/线稿，保留人物身份；两个图片槽 |
+| `depth_gen` | 姿势生成人物 | 只有姿势图/线稿或深度图；Union Depth 需从 `available_targets` 选包 |
+| `upscale` | 图片修复放大 | 单图放大/修复；默认 RealESRGAN，SeedVR2 会生成式改细节 |
+| `v2v_ref` | 参考图生视频（单段） / 分镜视频路线 | 多张参考图，不作为首尾帧；分镜视频每镜一个节点 |
+| `v2v_ref_long` | 连续生成（长） | Extender 时间线，多段连续视频，每段不超过 15 秒 |
 | `video_upscale` | 视频增强 | SeedVR2 视频修复/放大，保留原 fps 和音频 |
-| `concat` | 图片/视频/音频拼接 | 画布内置工具节点，不走工作流菜单 |
+| `concat` | 图片/视频/音频拼接；`toolId=audio_extract` 时是音频提取 | 画布内置工具节点，不走工作流菜单 |
 
 ## 注意
 
 - 菜单是用户配置，不同机器不一样；不要写死 `preset_*` 一定存在。
 - 图生视频的尾帧是可选槽；目标只有一个图片槽时只用首帧。槽位数量以目标 `media_slots` 为准。
-- 参考图生视频的时长上限看目标工作流的 `inputs.length`（帧数 + fps）或 `inputs.duration`（秒），不要固定认为 15 秒或 30 秒。
-- 参考图生成视频（长）走 Extender，单段仍不超过 H3 的 15 秒上限；60 秒默认拆成 4 段。
+- 参考图生视频（单段）的时长上限看目标工作流的 `inputs.length`（帧数 + fps）或 `inputs.duration`（秒），不要固定认为 15 秒或 30 秒。
+- 连续生成（长）走 Extender，单段仍不超过 H3 的 15 秒上限；60 秒默认拆成 4 段。

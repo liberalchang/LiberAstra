@@ -5,6 +5,12 @@
       "image": "example.png"
     }
   },
+  "115": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
   "105:6": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -54,7 +60,7 @@
       "clip_tail": ["105:121", 0],
       "image": ["114", 0],
       "manual_prompt": "",
-      "mode_report": "Mode: I2VA (single first-frame image to video + audio).\nCheckpoint: H3-Base-FL2VA.\nThe connected picture is the exact first-frame endpoint anchor, not a style or identity reference. Do not describe it as <Picture 1>.\nNo last frame, no reference video, no reference audio.\nKeep the chronological shot/timestamp structure, keep every requested transformation in order, and always end with an audio section.",
+      "mode_report": "Mode: I2V (first-frame image to video + audio, with an optional last-frame anchor).\nCheckpoint: H3-Base-FL2VA.\nThe first connected picture is the exact first-frame anchor; if a second picture is connected, it is the exact last-frame anchor. Do not describe pictures as <Picture 1>.\nNo reference video, no reference audio.\nKeep the chronological shot/timestamp structure, keep every requested transformation in order, and always end with an audio section.",
       "system_prompt": "",
       "max_new_tokens": 1400,
       "sampling": "sample",
@@ -90,7 +96,8 @@
       "prompt": ["105:122", 0],
       "width": 1344,
       "height": 768,
-      "length": 124
+      "length": 124,
+      "last_frame": ["115", 0]
     }
   },
   "105:15": {

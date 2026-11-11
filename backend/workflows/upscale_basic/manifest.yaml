@@ -1,5 +1,6 @@
 name: upscale_basic
 capability: upscale
+summary: 通用图片放大
 description: '通用修复放大
 
   上传一张图片，用放大模型（如 RealESRGAN）提升分辨率，只增强细节不重绘内容。'

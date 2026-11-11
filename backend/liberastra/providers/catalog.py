@@ -207,7 +207,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "inpaint": {
         "menu": "image",
         "category": "image",
-        "label": "蒙版",
+        "label": "局部重绘",
         "slots": [
             {"key": "image", "type": "image", "label": "原图", "required": True},
             {"key": "mask", "type": "image", "label": "蒙版", "required": True},
@@ -216,7 +216,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "outfit_swap": {
         "menu": "image",
         "category": "image",
-        "label": "换衣",
+        "label": "服装替换",
         "slots": [
             {"key": "image", "type": "image", "label": "人物照", "required": True},
             {"key": "image_2", "type": "image", "label": "衣服图", "required": True},
@@ -225,7 +225,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "depth_pose": {
         "menu": "image",
         "category": "image",
-        "label": "姿势换姿",
+        "label": "人物换姿势",
         "slots": [
             {"key": "image", "type": "image", "label": "人物照", "required": True},
             {"key": "image_2", "type": "image", "label": "姿势参考图", "required": True},
@@ -234,13 +234,13 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "depth_gen": {
         "menu": "image",
         "category": "image",
-        "label": "姿势生图",
+        "label": "姿势生成人物",
         "slots": [{"key": "image", "type": "image", "label": "姿势参考图", "required": True}],
     },
     "color_grade": {
         "menu": "image",
         "category": "image",
-        "label": "调色",
+        "label": "参考调色",
         "slots": [
             {"key": "image", "type": "image", "label": "原图", "required": True},
             {"key": "image_2", "type": "image", "label": "调色参考", "required": True},
@@ -249,19 +249,25 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "upscale": {
         "menu": "image",
         "category": "image",
-        "label": "图片增强",
+        "label": "图片修复放大",
         "slots": [{"key": "image", "type": "image", "label": "原图", "required": True}],
     },
     "video_upscale": {
         "menu": "video",
         "category": "video",
-        "label": "视频增强",
+        "label": "视频修复放大",
         "slots": [{"key": "video", "type": "video", "label": "视频", "required": True}],
     },
     "tool_image_concat": {
         "menu": "tool",
         "category": "tool",
         "label": "图片拼接",
+        "slots": [],
+    },
+    "tool_audio_extract": {
+        "menu": "tool",
+        "category": "tool",
+        "label": "音频提取",
         "slots": [],
     },
     "tool_video_concat": {
@@ -279,13 +285,13 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "analysis": {
         "menu": "image",
         "category": "llm",
-        "label": "画面分析",
+        "label": "图片理解",
         "slots": [{"key": "image", "type": "image", "label": "画面", "required": True}],
     },
     "video_analysis": {
         "menu": "video",
         "category": "llm",
-        "label": "视频分析",
+        "label": "视频理解",
         "slots": [{"key": "video", "type": "video", "label": "视频", "required": True}],
     },
     "t2v": {
@@ -297,7 +303,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "t2v_enhance": {
         "menu": "video",
         "category": "video",
-        "label": "文生增强",
+        "label": "文生视频增强",
         "slots": [{"key": "prompt", "type": "text", "label": "提示词", "required": True}],
     },
     "i2v_first": {
@@ -309,7 +315,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "i2v_flf": {
         "menu": "video",
         "category": "video",
-        "label": "首尾帧视频",
+        "label": "首尾帧生视频",
         "slots": [
             {"key": "first_frame", "type": "image", "label": "首帧图片", "required": True},
             {"key": "last_frame", "type": "image", "label": "尾帧图片", "required": True},
@@ -318,7 +324,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "i2v_orbit": {
         "menu": "video",
         "category": "video",
-        "label": "360全景",
+        "label": "360° 环绕",
         "slots": [
             {"key": "image", "type": "image", "label": "首帧图片", "required": True},
             {"key": "image_2", "type": "image", "label": "结束画面", "required": False},
@@ -327,13 +333,13 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "i2v_enhance": {
         "menu": "video",
         "category": "video",
-        "label": "图生增强",
+        "label": "首帧视频增强",
         "slots": [{"key": "image", "type": "image", "label": "首帧图片", "required": True}],
     },
     "v2v_ref": {
         "menu": "video",
         "category": "video",
-        "label": "参考生视频",
+        "label": "参考图生视频",
         "slots": [
             {
                 "key": "reference_image",
@@ -359,7 +365,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "v2v_ref_long": {
         "menu": "video",
         "category": "video",
-        "label": "参考图生成视频（长）",
+        "label": "连续生成（长）",
         "slots": [
             {
                 "key": "reference_image",
@@ -382,7 +388,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "motion": {
         "menu": "video",
         "category": "video",
-        "label": "动作迁移",
+        "label": "人物动作迁移",
         "slots": [
             {"key": "image", "type": "image", "label": "人物图片", "required": True},
             {"key": "video", "type": "video", "label": "动作视频", "required": True},
@@ -392,7 +398,7 @@ SUB_CAPABILITIES: dict[str, dict[str, Any]] = {
     "asr": {
         "menu": "speech",
         "category": "asr",
-        "label": "语音识别",
+        "label": "语音转文字",
         "slots": [{"key": "audio", "type": "audio", "label": "音频", "required": True}],
     },
     "vc": {
@@ -905,26 +911,53 @@ _WORKFLOW_MENU_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("preset_t2i", "image", "文生图", "t2i"),
     ("preset_i2i", "image", "单图编辑", "i2i_single"),
     ("preset_i2i_multi", "image", "多图编辑", "i2i_multi"),
-    ("preset_outfit", "image", "换衣", "outfit_swap"),
-    ("preset_depth_pose", "image", "姿势换姿", "depth_pose"),
-    ("preset_depth_gen", "image", "姿势生图", "depth_gen"),
-    ("preset_color_grade", "image", "调色", "color_grade"),
-    ("preset_inpaint", "image", "蒙版", "inpaint"),
-    ("preset_upscale", "image", "图片增强", "upscale"),
-    ("preset_analysis", "image", "画面分析", "analysis"),
+    ("preset_outfit", "image", "服装替换", "outfit_swap"),
+    ("preset_depth_pose", "image", "人物换姿势", "depth_pose"),
+    ("preset_depth_gen", "image", "姿势生成人物", "depth_gen"),
+    ("preset_color_grade", "image", "参考调色", "color_grade"),
+    ("preset_inpaint", "image", "局部重绘", "inpaint"),
+    ("preset_upscale", "image", "图片修复放大", "upscale"),
+    ("preset_analysis", "image", "图片理解", "analysis"),
     ("preset_t2v", "video", "文生视频", "t2v"),
-    ("preset_t2v_enhance", "video", "文生增强", "t2v_enhance"),
-    ("preset_i2v_first", "video", "图生视频", "i2v_first"),
-    ("preset_i2v_enhance", "video", "图生增强", "i2v_enhance"),
-    ("preset_video_enhance", "video", "视频增强", "video_upscale"),
-    ("preset_v2v_ref", "video", "参考图生视频", "v2v_ref"),
-    ("preset_storyboard", "video", "分镜视频", "v2v_ref"),
-    ("preset_v2v_ref_long", "video", "参考图生成视频（长）", "v2v_ref_long"),
-    ("preset_i2v_orbit", "video", "360全景", "i2v_orbit"),
+    ("preset_t2v_enhance", "video", "文生视频增强", "t2v_enhance"),
+    ("preset_i2v_first", "video", "首帧生视频", "i2v_first"),
+    ("preset_i2v_enhance", "video", "首帧视频增强", "i2v_enhance"),
+    ("preset_video_enhance", "video", "视频修复放大", "video_upscale"),
+    ("preset_v2v_ref", "video", "参考图生视频（单段）", "v2v_ref"),
+    ("preset_v2v_ref_long", "video", "连续生成（长）", "v2v_ref_long"),
+    ("preset_i2v_orbit", "video", "360° 环绕", "i2v_orbit"),
     ("preset_avatar", "video", "数字人口播", "avatar"),
-    ("preset_motion", "video", "动作迁移", "motion"),
-    ("preset_video_analysis", "video", "视频分析", "video_analysis"),
+    ("preset_motion", "video", "人物动作迁移", "motion"),
+    ("preset_video_analysis", "video", "视频理解", "video_analysis"),
 )
+
+# 菜单 hint 回答“什么时候用”，不重复标题和细分能力名。
+_MENU_HINTS: dict[str, str] = {
+    "preset_tts": "把文字脚本转成配音，可选择音色。",
+    "preset_asr": "把音频或视频里的说话转成文字。",
+    "preset_vc": "保留说话内容，换成另一个音色。",
+    "preset_t2i": "只写提示词，生成一张图片。",
+    "preset_i2i": "上传一张原图，按提示词改内容或风格。",
+    "preset_i2i_multi": "上传多张图片，合成或按顺序参考。",
+    "preset_outfit": "人物照加服装图，只替换衣服。",
+    "preset_depth_pose": "人物照加姿势图，让人物换成这个姿势。",
+    "preset_depth_gen": "只用姿势或深度图生成人物，不保留原人物身份。",
+    "preset_color_grade": "原图加调色参考，把色调套到原图上。",
+    "preset_inpaint": "用蒙版圈出区域，只重画蒙版内。",
+    "preset_upscale": "低清、噪点或压缩图片的修复与放大。",
+    "preset_analysis": "让模型看图，输出描述、文案或判断。",
+    "preset_t2v": "只写提示词，生成一段带声音的视频。",
+    "preset_t2v_enhance": "先自动扩写提示词，再生成视频。",
+    "preset_i2v_first": "以首帧图为起点生成短视频。",
+    "preset_i2v_enhance": "先自动扩写提示词，再按首帧生成视频。",
+    "preset_video_enhance": "低清或噪点视频的修复与放大。",
+    "preset_v2v_ref": "上传参考图生成一段视频，不锁首帧，适合单镜头。",
+    "preset_v2v_ref_long": "多个分镜合成一条连续长视频，每段不超过 15 秒。",
+    "preset_i2v_orbit": "镜头绕人物或场景转一圈，首尾画面可相同或换装。",
+    "preset_avatar": "人物图加口播文案，生成带口型和配音的视频。",
+    "preset_motion": "人物图加参考视频，让人物复刻视频里的动作。",
+    "preset_video_analysis": "让模型看视频，输出内容、镜头或文字说明。",
+}
 
 
 def _menu_item(
@@ -933,6 +966,7 @@ def _menu_item(
     title: str,
     sub: str,
     *,
+    hint: str = "",
     bind_mode: str = "auto",
     targets: list[str] | None = None,
     default_id: str | None = None,
@@ -947,7 +981,7 @@ def _menu_item(
         "id": item_id,
         "category": category,
         "title": title,
-        "hint": "",
+        "hint": hint,
         "sub_capability": sub,
         "bind_mode": bind_mode,
         "manual_targets": manual,
@@ -997,9 +1031,9 @@ def default_canvas_menu() -> list[dict[str, Any]]:
         if sub in grouped:
             grouped[sub].append(pack.name)
     items = [
-        _menu_item("preset_tts", "speech", "文字转语音", "tts"),
-        _menu_item("preset_asr", "speech", "语音识别", "asr"),
-        _menu_item("preset_vc", "speech", "音色替换", "vc"),
+        _menu_item("preset_tts", "speech", "文字转语音", "tts", hint=_MENU_HINTS["preset_tts"]),
+        _menu_item("preset_asr", "speech", "语音转文字", "asr", hint=_MENU_HINTS["preset_asr"]),
+        _menu_item("preset_vc", "speech", "音色替换", "vc", hint=_MENU_HINTS["preset_vc"]),
     ]
     for item_id, category, title, sub in _WORKFLOW_MENU_ROWS:
         names = sorted(grouped[sub], key=lambda name: (0 if "uncensored" in name else 1, name))
@@ -1015,6 +1049,7 @@ def default_canvas_menu() -> list[dict[str, Any]]:
                 category,
                 title,
                 sub,
+                hint=_MENU_HINTS.get(item_id, ""),
                 bind_mode="manual",
                 targets=names,
                 default_id=default_id,

@@ -154,6 +154,19 @@ def job_path(job: Job, name: str) -> Path:
     return path
 
 
+def _rel_of(path: Path) -> str:
+    return path.resolve().relative_to(resolve(".").resolve()).as_posix()
+
+
+def _native_pack_seconds(pack: Any) -> float:
+    spec = pack.inputs.get("length") if "length" in pack.inputs else pack.inputs.get("frames")
+    raw = (spec or {}).get("default")
+    try:
+        return max(0.05, float(raw) / float(pack.fps or 24))
+    except (TypeError, ValueError):
+        return 5.0
+
+
 def _single_cue_srt(text: str, duration: float) -> str:
     from liberastra.media.subtitles import to_srt
     from liberastra.providers.base import ASRResult, ASRSegment
@@ -343,6 +356,37 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
         audio_path.write_bytes(audio_bytes)
         return audio_path
 
+    audio_strategy = str(params.get("audio_strategy") or "native")
+    native_pack = (
+        get_pack(params["video_workflow"])
+        if use_native_audio and params.get("video_workflow")
+        else None
+    )
+    if audio_strategy != "native" and not (
+        native_pack
+        and "ref_audio" in native_pack.inputs
+        and "clips_json" not in native_pack.inputs
+    ):
+        audio_strategy = "native"
+    audio_ref_seconds = max(2.0, min(15.0, float(params.get("audio_ref_seconds") or 5)))
+    seam_fade_ms = max(0, min(200, int(params.get("seam_fade_ms") or 0)))
+    bed_fill = str(params.get("audio_bed_fill") or "loop")
+    bed_mode = str(params.get("audio_bed_mode") or "mix")
+    bed_path: Path | None = None
+    bed_duration = 0.0
+    if audio_strategy == "global_bed" and params.get("audio_bed_path"):
+        try:
+            candidate = resolve(str(params["audio_bed_path"]))
+            if candidate.exists():
+                bed_path = candidate
+                bed_duration = await ffmpeg.probe_duration(candidate)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("快速创作氛围底读取失败: {}", exc)
+    if audio_strategy == "global_bed" and bed_path is None:
+        audio_strategy = "native"
+    prev_native_clip: Path | None = None
+    bed_cursor = 0.0
+
     for i, frame in enumerate(frames):
         if ctx.cancelled():
             return []
@@ -360,11 +404,33 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
             if not params.get("video_workflow"):
                 raise ProviderError("视频模板需要选择视频工作流包")
             pack = get_pack(params["video_workflow"])
+            video_inputs = _frame_video_inputs(
+                db, params, pack, frame, visual, tpl.media_width, tpl.media_height
+            )
+            if audio_strategy == "previous_tail" and prev_native_clip is not None:
+                tail = job_path(job, f"audio_tail_{i:02d}.wav")
+                try:
+                    await ffmpeg.extract_audio_tail(prev_native_clip, audio_ref_seconds, tail)
+                    video_inputs["ref_audio"] = _rel_of(tail)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("快速创作上一镜尾音提取失败: {}", exc)
+            elif audio_strategy == "global_bed" and bed_path is not None:
+                planned = _native_pack_seconds(pack)
+                start = bed_cursor
+                if start >= bed_duration:
+                    if bed_fill == "silence":
+                        bed_slice = job_path(job, f"audio_bed_{i:02d}.wav")
+                        await ffmpeg.make_silence(bed_slice, planned)
+                        video_inputs["ref_audio"] = _rel_of(bed_slice)
+                    else:
+                        start = start % max(bed_duration, 0.05)
+                if "ref_audio" not in video_inputs:
+                    bed_slice = job_path(job, f"audio_bed_{i:02d}.wav")
+                    await ffmpeg.slice_audio(bed_path, start, planned, bed_slice)
+                    video_inputs["ref_audio"] = _rel_of(bed_slice)
             clips, _texts = await video_adapter.generate(
                 pack=pack,
-                inputs=_frame_video_inputs(
-                    db, params, pack, frame, visual, tpl.media_width, tpl.media_height
-                ),
+                inputs=video_inputs,
                 on_progress=lambda p, frame_i=i: ctx.report(
                     db,
                     job,
@@ -381,7 +447,11 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
                 clip=clip_path, out=segment_path,
                 width=width, height=height, subtitle=burn_subtitle,
                 subtitle_size=subtitle_size, subtitle_color=subtitle_color,
+                audio_fade_ms=seam_fade_ms,
             )
+            prev_native_clip = clip_path
+            if audio_strategy == "global_bed":
+                bed_cursor += duration
         elif tpl.type == "video":
             audio_path = await _synth_frame_audio(i, frame["text"])
             duration = await ffmpeg.probe_duration(audio_path)
@@ -466,13 +536,24 @@ async def run_quick_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str
     await ffmpeg.concat_segments(segments_out, concat_path, list_file=job_path(job, "concat.txt"))
 
     final_path = concat_path
+    if audio_strategy == "global_bed" and bed_path is not None:
+        ctx.report(db, job, progress=0.95, step="audio_bed")
+        bed_final = job_path(job, "audio_bed.mp4")
+        if bed_mode == "replace":
+            await ffmpeg.replace_audio_loop(concat_path, bed_path, bed_final)
+        else:
+            await ffmpeg.add_bgm(
+                video=concat_path, bgm=bed_path, out=bed_final, bgm_volume=0.2, loop=True
+            )
+        final_path = bed_final
     if params.get("bgm_path"):
         ctx.report(db, job, progress=0.96, step="bgm")
-        final_path = job_path(job, "final.mp4")
+        bgm_final = job_path(job, "final.mp4")
         await ffmpeg.add_bgm(
-            video=concat_path, bgm=resolve(params["bgm_path"]), out=final_path,
+            video=final_path, bgm=resolve(params["bgm_path"]), out=bgm_final,
             bgm_volume=float(params.get("bgm_volume", 0.2)),
         )
+        final_path = bgm_final
 
     video_asset = create_asset(
         db, kind="video", rel_path=f"outputs/{job.id}/{final_path.name}", job_id=job.id,

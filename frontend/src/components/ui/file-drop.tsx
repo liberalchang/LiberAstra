@@ -11,6 +11,7 @@ interface FileDropProps {
   names?: string[];
   title: string;
   subtitle?: string;
+  disabled?: boolean;
   /** 始终传稳定的 File[] 快照，避免 FileList 被清空后变空 */
   onSelect: (files: File[] | null) => void;
   /** 选择后清空原生 input，允许再次选择同一文件 */
@@ -18,7 +19,7 @@ interface FileDropProps {
 }
 
 /** 上传拖放区：虚线框 + 图标，点击或拖拽选择文件，替代原生 file input。 */
-export function FileDrop({ accept, multiple, names, title, subtitle, onSelect, clearAfterSelect }: FileDropProps) {
+export function FileDrop({ accept, multiple, names, title, subtitle, disabled = false, onSelect, clearAfterSelect }: FileDropProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
@@ -35,20 +36,22 @@ export function FileDrop({ accept, multiple, names, title, subtitle, onSelect, c
     <div>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragOver(true);
+          if (!disabled) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          select(e.dataTransfer.files);
+          if (!disabled) select(e.dataTransfer.files);
         }}
         className={cn(
           "flex w-full flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-field/50 px-4 py-6 text-center transition-colors hover:border-primary/50 hover:bg-field",
           dragOver && "border-primary bg-primary/5",
+          disabled && "cursor-not-allowed opacity-50 hover:border-border hover:bg-field/50",
         )}
       >
         <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -72,6 +75,7 @@ export function FileDrop({ accept, multiple, names, title, subtitle, onSelect, c
         type="file"
         accept={accept}
         multiple={multiple}
+        disabled={disabled}
         className="hidden"
         onChange={(e) => {
           select(e.target.files);

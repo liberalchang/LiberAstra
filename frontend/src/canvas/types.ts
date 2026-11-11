@@ -111,6 +111,14 @@ export interface ConcatNodeData extends Record<string, unknown> {
   gap?: number;
   /** 间隔颜色，默认 #FFFFFF */
   gapColor?: string;
+  /** 视频拼接的接缝音频淡化（毫秒，0–200） */
+  audioFadeMs?: number;
+  /** 本机工具类型；空=普通拼接。audio_extract=提取音频/尾音。 */
+  toolId?: string;
+  /** 音频提取模式：完整音轨 / 固定长度尾音 */
+  audioMode?: "whole" | "tail";
+  /** 尾音长度（秒） */
+  tailSeconds?: number;
   /** 输出变量名;默认 output_{类型}_{n} */
   varName?: string;
   run: NodeRunState;
@@ -177,15 +185,17 @@ export function createDefaultNodeData(
     };
   }
   if (kind === "concat") {
+    const concatMedia =
+      mediaKind === "audio" || mediaKind === "image" ? mediaKind : "video";
     return {
       kind: "concat",
-      mediaKind:
-        mediaKind === "audio" || mediaKind === "image" ? mediaKind : "video",
+      mediaKind: concatMedia,
       order: [],
       layout: "horizontal",
       columns: 2,
       gap: 4,
       gapColor: "#FFFFFF",
+      audioFadeMs: concatMedia === "video" ? 60 : undefined,
       run: idleRun(),
     };
   }
@@ -250,10 +260,12 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
   if (kind === "concat") {
     const layout =
       data.layout === "vertical" || data.layout === "grid" ? data.layout : "horizontal";
+    const mediaKind =
+      data.mediaKind === "audio" || data.mediaKind === "image" ? data.mediaKind : "video";
+    const fade = Number(data.audioFadeMs);
     return {
       kind: "concat",
-      mediaKind:
-        data.mediaKind === "audio" || data.mediaKind === "image" ? data.mediaKind : "video",
+      mediaKind,
       order: Array.isArray(data.order) ? data.order.map(String) : [],
       layout,
       columns:
@@ -262,6 +274,21 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
           : 2,
       gap: Number.isFinite(Number(data.gap)) ? Math.max(0, Number(data.gap)) : 4,
       gapColor: typeof data.gapColor === "string" ? data.gapColor : "#FFFFFF",
+      audioFadeMs:
+        mediaKind === "video"
+          ? Number.isFinite(fade)
+            ? Math.max(0, Math.min(200, fade))
+            : 60
+          : undefined,
+      ...(typeof data.toolId === "string" && data.toolId
+        ? {
+            toolId: data.toolId,
+            audioMode: data.audioMode === "whole" ? "whole" : "tail",
+            tailSeconds: Number.isFinite(Number(data.tailSeconds))
+              ? Math.max(0.5, Math.min(15, Number(data.tailSeconds)))
+              : 5,
+          }
+        : {}),
       varName: typeof data.varName === "string" ? data.varName : "",
       run: normalizeRun(data.run),
     };
@@ -269,7 +296,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
   if (kind === "speech") {
     return {
       kind: "speech",
-      presetId: typeof data.presetId === "string" ? data.presetId : "",
+      presetId: normalizePresetId(data.presetId),
       presetTitle: typeof data.presetTitle === "string" ? data.presetTitle : "",
       mode: data.mode === "asr" ? "asr" : data.mode === "vc" ? "vc" : "tts",
       text: typeof data.text === "string" ? data.text : "",
@@ -297,7 +324,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
     kind: "function",
     group: typeof data.group === "string" ? data.group : "",
     pack: typeof data.pack === "string" ? data.pack : "",
-    presetId: typeof data.presetId === "string" ? data.presetId : "",
+    presetId: normalizePresetId(data.presetId),
     presetTitle: typeof data.presetTitle === "string" ? data.presetTitle : "",
     subCapability: typeof data.subCapability === "string" ? data.subCapability : "",
     targetType: typeof data.targetType === "string" ? data.targetType : "",
@@ -339,6 +366,16 @@ export function outputKindOfCapability(capability: string | undefined): MediaKin
   if (["analysis", "video_analysis", "asr"].includes(capability)) return "text";
   if (capability === "tts") return "audio";
   return null;
+}
+
+/** 已删除或改名的菜单项：加载旧画布时迁移到当前菜单 id。 */
+const PRESET_ALIASES: Record<string, string> = {
+  preset_storyboard: "preset_v2v_ref",
+};
+
+export function normalizePresetId(value: unknown): string {
+  const id = typeof value === "string" ? value : "";
+  return PRESET_ALIASES[id] ?? id;
 }
 
 /** 节点的产物媒体类型（连边校验用）；null = 不产生媒体（文本输入）。 */

@@ -546,6 +546,8 @@ export interface DurationLimits {
 export interface WorkflowPackOut {
   name: string;
   capability: string;
+  /** 下拉框短标签；缺省时回退 description 第一行 */
+  summary?: string;
   description: string;
   inputs: Record<string, WorkflowInputSpec>;
   outputs: Record<string, unknown>;
@@ -676,6 +678,16 @@ export interface CanvasRunPlanItem {
 export interface CanvasRunOut {
   run_id: string;
   plan: CanvasRunPlanItem[];
+}
+
+export interface CanvasAudioPlan {
+  strategy: "native" | "previous_tail" | "global_bed";
+  ref_seconds?: number;
+  bed_asset_id?: number | null;
+  bed_fill?: "loop" | "silence";
+  bed_mode?: "mix" | "replace";
+  seam_fade_ms?: number;
+  order?: string[];
 }
 
 export interface CanvasRunCancelOut {
@@ -1208,6 +1220,11 @@ export const api = {
     request<JobOut>("/api/v1/videos/assets", { method: "POST", body: form }),
   submitToolConcat: (body: Record<string, unknown>) =>
     request<JobOut>("/api/v1/tools/concat", { method: "POST", body: JSON.stringify(body) }),
+  submitToolExtractAudio: (body: { asset_id: number; mode: "whole" | "tail"; seconds: number }) =>
+    request<JobOut>("/api/v1/tools/extract-audio", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** 看素材写口播（202）。结果是文本，确认后再走 submitVideoAssets。 */
   submitVideoAssetsScript: (form: FormData) =>
     request<JobOut>("/api/v1/videos/assets/script", { method: "POST", body: form }),
@@ -1224,7 +1241,10 @@ export const api = {
   deleteCanvas: (id: string) =>
     request<void>(`/api/v1/canvases/${id}`, { method: "DELETE" }),
   /** 执行：node_ids 空 = 所有末端分支；force_node_ids 忽略指纹复用 */
-  runCanvas: (id: string, body: { node_ids?: string[]; force_node_ids?: string[] }) =>
+  runCanvas: (
+    id: string,
+    body: { node_ids?: string[]; force_node_ids?: string[]; audio_plan?: CanvasAudioPlan },
+  ) =>
     request<CanvasRunOut>(`/api/v1/canvases/${id}/run`, {
       method: "POST",
       body: JSON.stringify(body),

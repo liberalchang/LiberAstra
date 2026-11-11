@@ -1,9 +1,10 @@
 name: minimax_h3_motion
 capability: motion
-description: 'MiniMax H3 动作迁移
+summary: 人物动作迁移
+description: 'MiniMax H3 人物动作迁移
 
-  给一张人物图和一段参考视频，让人物做出视频里的动作，生成新视频。提示词里用「目标图片」指人物、「参考视频」指动作。单段最长约 5 秒，动作别写太满。可选
-  Turbo 加速。'
+  给一张人物图和一段参考视频，让人物复刻视频里的动作和镜头运动。
+  可补侧面、背面参考，减少转身时的外观漂移；参考视频超过单段上限会自动分段并拼接。'
 fps: 24
 inputs:
   video:

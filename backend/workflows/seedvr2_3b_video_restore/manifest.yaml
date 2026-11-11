@@ -1,8 +1,10 @@
 name: seedvr2_3b_video_restore
 capability: v2v
-description: 'SeedVR2 3B 视频增强
+summary: 视频修复放大
+description: 'SeedVR2 视频修复放大
 
-  视频做生成式修复和放大，保留原 fps 和音频。batch_size 必须为 4n+1，默认 5；长片用 temporal_overlap 和分块降低显存。'
+  修复低清、噪点或压缩明显的视频，并提升分辨率。
+  按片段处理，长视频会自动分段；修复效果受原视频清晰度和运动幅度影响。'
 inputs:
   video:
     node: '1'

@@ -43,6 +43,7 @@ def _to_out(pack) -> WorkflowPackOut:  # noqa: ANN001, ANN202
     return WorkflowPackOut(
         name=pack.name,
         capability=pack.capability,
+        summary=pack.summary,
         description=pack.description,
         inputs=pack.inputs,
         outputs=pack.outputs,
@@ -64,6 +65,7 @@ def _manifest_from_body(
     data: dict[str, Any] = {
         "name": name or body.name,
         "capability": body.capability,
+        "summary": body.summary,
         "description": body.description,
         "inputs": body.inputs,
         "outputs": body.outputs,
@@ -132,6 +134,7 @@ def convert_workflow(body: WorkflowConvertRequest, user: CurrentUser) -> Workflo
     return WorkflowConvertOut(
         workflow=result["workflow"],
         capability=manifest.get("capability", "t2i"),
+        summary=manifest.get("summary", ""),
         description=manifest.get("description", ""),
         inputs=manifest.get("inputs") or {},
         outputs=manifest.get("outputs") or {},

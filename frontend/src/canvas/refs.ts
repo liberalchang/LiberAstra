@@ -27,6 +27,7 @@ function nodeTitle(node: CanvasFlowNode): string {
     return f.presetTitle || f.pack || "功能节点";
   }
   if (data.kind === "concat") {
+    if (data.toolId === "audio_extract") return "音频提取";
     return data.mediaKind === "image"
       ? "图片拼接"
       : data.mediaKind === "audio"

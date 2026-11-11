@@ -158,6 +158,8 @@ def test_minimax_h3_enhancer_pack_loads() -> None:
     wf = apply_inputs(pack, values)
     assert wf["105:122"]["inputs"]["manual_prompt"] == "一只猫在跑"
     assert wf["105:104"]["inputs"]["prompt"] == ["105:122", 0]
+    assert pack.inputs["last_frame"]["required"] is False
+    assert pack.workflow["105:104"]["inputs"]["last_frame"] == ["115", 0]
     # E5：关闭加速时摘掉 LoRA，Guider/Scheduler 改接 UNET
     off = apply_accel(wf, pack, {"enabled": False}, user_values=values)
     assert "105:200" not in off
@@ -171,6 +173,8 @@ def test_minimax_h3_i2v_uncensored_pack() -> None:
     assert unc.capability == "i2v"
     assert "image" in unc.inputs
     assert unc.workflow["105:104"]["inputs"]["first_frame"] == ["114", 0]
+    assert unc.inputs["last_frame"]["required"] is False
+    assert unc.workflow["105:104"]["inputs"]["last_frame"] == ["115", 0]
     assert unc.workflow["105:13"]["inputs"]["clip_name"] == "qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors"
     assert unc.workflow["105:200"]["class_type"] == "MiniMaxH3TurboLoRA"
     assert unc.workflow["105:200"]["inputs"]["lora_name"].endswith("_ema.safetensors")
@@ -308,9 +312,15 @@ def test_import_and_delete_pack() -> None:
     pack = import_pack(
         "test_pack",
         MINI_WORKFLOW,
-        {"capability": "t2i", "inputs": MINI_MANIFEST_INPUTS, "outputs": {"node": "1"}},
+        {
+            "capability": "t2i",
+            "summary": "短标签",
+            "inputs": MINI_MANIFEST_INPUTS,
+            "outputs": {"node": "1"},
+        },
     )
     assert pack.source == "user"
+    assert pack.summary == "短标签"
     assert get_pack("test_pack").inputs["prompt"]["required"] is True
 
     with pytest.raises(ProviderError, match="已存在"):
@@ -945,6 +955,9 @@ def test_minimax_h3_i2v_ref_exposes_nine_multi_reference_slots() -> None:
     for key in ("image_2", "image_3", "image_4", "image_5", "image_6", "image_7", "image_8", "image_9"):
         assert pack.inputs[key]["required"] is False
     assert pack.inputs["image_9"]["node"] == "122"
+    assert pack.inputs["ref_audio"]["type"] == "audio"
+    assert pack.inputs["ref_audio"]["required"] is False
+    assert pack.workflow["123"]["class_type"] == "LoadAudio"
     assert pack_sub_capability(pack.name, pack.capability, 9, 1) == "v2v_ref"
     validate_pack(pack)
 
@@ -961,6 +974,8 @@ def test_minimax_h3_extender_pack() -> None:
     assert pack.inputs["clips_json"]["node"] == "20"
     assert pack.inputs["ref_1"]["required"] is True
     assert pack.inputs["ref_9"]["required"] is False
+    assert pack.inputs["ref_audio"]["type"] == "audio"
+    assert pack.workflow["40"]["class_type"] == "LoadAudio"
     assert pack_sub_capability(pack.name, pack.capability, 9, 1) == "v2v_ref_long"
     validate_pack(pack)
 

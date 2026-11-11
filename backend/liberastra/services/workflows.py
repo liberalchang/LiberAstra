@@ -32,6 +32,7 @@ class WorkflowPack:
     outputs: dict[str, Any]  # {node, key}
     workflow: dict[str, Any]
     source: str  # builtin / user
+    summary: str = ""  # 下拉框短标签；缺省回退 description 第一行
     requirements: dict[str, Any] = field(default_factory=dict)
     fps: int | None = None  # 视频包的帧率（manifest 顶层 fps）；有它前端可按秒设置时长
     accel: dict[str, Any] = field(default_factory=dict)  # manifest 顶层 accel：加速 LoRA 声明，空=无加速能力
@@ -72,6 +73,7 @@ def _load_pack(pack_dir: Path, source: str, *, validate: bool = True) -> Workflo
         outputs=manifest.get("outputs", {}),
         workflow=workflow,
         source=source,
+        summary=str(manifest.get("summary") or ""),
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
@@ -241,6 +243,7 @@ def import_pack(
         outputs=manifest.get("outputs", {}),
         workflow=workflow,
         source="user",
+        summary=str(manifest.get("summary") or ""),
         requirements=manifest.get("requirements", {}),
         fps=manifest.get("fps"),
         accel=manifest.get("accel") or {},
@@ -272,6 +275,7 @@ def export_pack(name: str) -> dict[str, Any]:
     data: dict[str, Any] = {
         "name": pack.name,
         "capability": pack.capability,
+        "summary": pack.summary,
         "description": pack.description,
         "inputs": pack.inputs,
         "outputs": pack.outputs,

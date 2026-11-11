@@ -16,7 +16,7 @@ const zh = {
   section: {
     videoGenerate: "生成",
     videoAssets: "素材与模板",
-    toolsConcat: "媒体拼接",
+    toolsConcat: "媒体处理",
     toolsEnhance: "AI 增强",
   },
   nav: {
@@ -35,6 +35,7 @@ const zh = {
     imageConcat: "图片拼接",
     videoConcat: "视频拼接",
     audioConcat: "音频拼接",
+    audioExtract: "音频提取",
     imageEnhance: "图片增强",
     videoEnhance: "视频增强",
     videoQuick: "快速创作",
@@ -128,6 +129,7 @@ const zh = {
       imageConcat: "多张图片拼成一张",
       videoConcat: "按顺序拼接多段视频",
       audioConcat: "按顺序拼接多段音频",
+      audioExtract: "从视频或音频提取完整音轨或固定长度尾音",
       imageEnhance: "保真放大或 SeedVR2 AI 修复",
       videoEnhance: "SeedVR2 视频修复与放大",
       videoQuick: "一句话生成分镜短视频",
@@ -225,7 +227,7 @@ const en: typeof zh = {
   section: {
     videoGenerate: "Generate",
     videoAssets: "Assets & Templates",
-    toolsConcat: "Media Concat",
+    toolsConcat: "Media Tools",
     toolsEnhance: "AI Enhance",
   },
   nav: {
@@ -244,6 +246,7 @@ const en: typeof zh = {
     imageConcat: "Image Concat",
     videoConcat: "Video Concat",
     audioConcat: "Audio Concat",
+    audioExtract: "Audio Extract",
     imageEnhance: "Image Enhance",
     videoEnhance: "Video Enhance",
     videoQuick: "Quick Create",
@@ -337,6 +340,7 @@ const en: typeof zh = {
       imageConcat: "Combine several images into one",
       videoConcat: "Join video clips in order",
       audioConcat: "Join audio clips in order",
+      audioExtract: "Extract a full track or a fixed-length tail from video or audio",
       imageEnhance: "Faithful upscale or SeedVR2 AI restore",
       videoEnhance: "SeedVR2 video restore and upscale",
       videoQuick: "One prompt to a short storyboard video",

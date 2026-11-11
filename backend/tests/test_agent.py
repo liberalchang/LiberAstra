@@ -1106,20 +1106,56 @@ def test_agent_session_routes_and_builtin_skills(client, auth_header):
     assert removed.status_code == 204
 
 
+def test_director_skill_documents_audio_state_fields() -> None:
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "liberastra"
+        / "agent"
+        / "skills"
+        / "director"
+        / "references"
+        / "state-schema.md"
+    )
+    text = path.read_text(encoding="utf-8")
+    for field in (
+        "storyboard_mode",
+        "audio_strategy",
+        "audio_ref_seconds",
+        "audio_bed",
+        "seam_fade_ms",
+        "audio_context_length",
+        "audio_ref",
+        "audio_nodes",
+    ):
+        assert field in text
+
+
 def test_director_skill_confirms_video_mode_before_creating_nodes(client, auth_header):
     detail = client.get("/api/v1/agent/skills/director", headers=auth_header)
     assert detail.status_code == 200
     body = detail.json()["body"]
     assert "选择创作路线" in body
     assert "分镜视频" in body
-    assert "一段视频" in body
-    assert "参考图生成视频（长）" in body
+    assert "整段参考图视频" in body
+    assert "逐镜拼接" in body
+    assert "连续时间线" in body
+    assert "参考图生视频（单段）" in body
+    assert "连续生成（长）" in body
     assert "用户确认前不要创建任何 `output_video_*` 节点" in body
+    assert "audio_plan" not in body
+    assert "output_audio_tail_" in body
+    assert "audio_extract" in body
+    assert "audioFadeMs" in body
+    assert "duration_limits" in body
+    assert "关键帧/参考图提示词只写视觉" in body
+    assert "apply_menu 时一并传 bindings" in body
     assert "subject_definitions" in body
     assert "clips_json" in body
     assert "拼接工具节点" in body
-    assert "姿势换姿" in body
-    assert "视频增强" in body
+    assert "人物换姿势" in body
+    assert "视频修复放大" in body
 
 
 def _run_turn_with_calls(db, session, user, calls):

@@ -1,8 +1,10 @@
 name: qwen_image_21_uncensored
 capability: t2i
-description: 'Qwen-Image 2.1 文生图（越狱）
+summary: 文生图（宽松版）
+description: 'Qwen Image 2.1 文生图（宽松版）
 
-  输入画面描述，生成一张图片。可开关 Uncensored LoRA；文本编码器/VAE 与官方版共用。'
+  只写提示词生成图片，用法和标准版相同，换用宽松版 LoRA。
+  宽松版只放宽内容限制，不承诺画质更高。'
 inputs:
   unet_name:
     node: '1'

@@ -80,7 +80,7 @@ function hasFoldableInputs(
 ): boolean {
   const mergeWH = canMergeAspect(inputs, exclude);
   return Object.entries(inputs).some(([key, spec]) => {
-    if (exclude.includes(key) || spec.type === "image") return false;
+    if (exclude.includes(key) || ["image", "video", "audio"].includes(spec.type)) return false;
     if (hideAspect && mergeWH && (key === "width" || key === "height")) return false;
     return true;
   });
@@ -128,12 +128,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function nodeTitle(node: CanvasFlowNode, tx: (s: string) => string): string {
   const d = node.data;
   if (d.kind === "function") return functionNodeTitle(d, tx("通用节点"));
-  if (d.kind === "concat")
+  if (d.kind === "concat") {
+    if (d.toolId === "audio_extract") return tx("音频提取");
     return d.mediaKind === "audio"
       ? tx("音频拼接")
       : d.mediaKind === "image"
         ? tx("图片拼接")
         : tx("视频拼接");
+  }
   if (d.kind === "speech") {
     if (d.mode === "tts") return tx("文字转语音");
     if (d.mode === "vc") return tx("音色替换");
@@ -735,8 +737,9 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
           ? nodes.find((item) => String(item.data.varName ?? "") === bound)
           : undefined;
         const boundUpstream = Boolean(boundNode && sources.some((s) => s.id === boundNode.id));
-        // 只有一个可用变量且未绑定时自动选中(与执行时的自动映射一致)
-        const effective = bound || (options.length === 1 ? (options[0].data.varName ?? "") : "");
+        // 必填槽只有一个可用变量时自动选中；可选槽保持“自动”，避免看起来已显式绑定。
+        const effective =
+          bound || (spec.required && options.length === 1 ? (options[0].data.varName ?? "") : "");
         const value = options.some((s) => (s.data.varName ?? "") === effective)
           ? effective
           : "";
@@ -760,7 +763,9 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
                 </option>
               ) : (
                 <>
-                  {!bound && options.length > 1 && <option value="">{tx("自动(按连线顺序)")}</option>}
+                  {!bound && (options.length > 1 || !spec.required) && (
+                    <option value="">{tx("自动(按连线顺序)")}</option>
+                  )}
                   {options.map((s) => (
                     <option
                       key={s.id}
@@ -880,8 +885,11 @@ function FunctionInspector({
     return [...mediaVars, ...textVars];
   })();
 
+  const mediaParamKeys = Object.entries(pack?.inputs ?? {})
+    .filter(([, spec]) => MEDIA_TYPES.includes(spec.type as (typeof MEDIA_TYPES)[number]))
+    .map(([key]) => key);
   const paramExclude = [
-    ...MEDIA_TYPES,
+    ...mediaParamKeys,
     "prompt",
     ...(pack?.capability === "avatar" || pack?.capability === "motion" ? ["length", "frames"] : []),
   ];
@@ -957,7 +965,7 @@ function FunctionInspector({
                 <WorkflowInputs
                   inputs={pack.inputs}
                   values={d.values}
-                  exclude={[...MEDIA_TYPES, "prompt"]}
+                  exclude={[...mediaParamKeys, "prompt"]}
                   providerId={providerId}
                   fps={pack.fps}
                   durationLimits={pack.duration_limits}
@@ -1181,6 +1189,61 @@ function ConcatInspector({ node }: { node: CanvasFlowNode }) {
   const nodes = useCanvasStore((s) => s.nodes);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
 
+  if (d.toolId === "audio_extract") {
+    const mode = d.audioMode ?? "tail";
+    return (
+      <section className="flex flex-col gap-3">
+        <SectionLabel>{tx("音频提取")}</SectionLabel>
+        <Field label={tx("提取方式")} hint={tx("完整音轨保留全部音频；固定长度尾音只取最后几秒，适合做下一镜的参考。")}>
+          <select
+            className={selectClass}
+            value={mode}
+            onChange={(e) =>
+              updateNodeData(node.id, { audioMode: e.target.value as "whole" | "tail" })
+            }
+          >
+            <option value="tail">{tx("固定长度尾音")}</option>
+            <option value="whole">{tx("完整音轨")}</option>
+          </select>
+        </Field>
+        {mode === "tail" && (
+          <Field label={tx("尾音长度（秒）")}>
+            <Input
+              type="number"
+              min={0.5}
+              max={15}
+              step={0.5}
+              value={d.tailSeconds ?? 5}
+              onChange={(e) =>
+                updateNodeData(node.id, {
+                  tailSeconds: Math.max(0.5, Math.min(15, Number(e.target.value) || 5)),
+                })
+              }
+            />
+          </Field>
+        )}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {tx("连接一个视频或音频输入；输出音频可以接到下游功能节点的参考音频槽。")}
+        </p>
+        <SectionLabel>{tx("输入来源")}</SectionLabel>
+        {d.order.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{tx("还没有连接输入")}</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {d.order.map((sourceId) => {
+              const source = nodes.find((n) => n.id === sourceId);
+              return (
+                <div key={sourceId} className="rounded-lg border border-border px-2 py-1.5 text-sm">
+                  {source ? `${source.data.varName || sourceId} · ${nodeTitle(source, tx)}` : sourceId}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   const move = (index: number, delta: number) => {
     const order = [...d.order];
     const target = index + delta;
@@ -1248,6 +1311,28 @@ function ConcatInspector({ node }: { node: CanvasFlowNode }) {
             </Field>
           </div>
           <hr className="border-border" />
+        </>
+      )}
+      {d.mediaKind === "video" && (
+        <>
+          <SectionLabel>{tx("音频接缝")}</SectionLabel>
+          <Field
+            label={tx("接缝淡化（毫秒）")}
+            hint={tx("每段音频首尾各淡化一半时长；0 表示不处理。")}
+          >
+            <Input
+              type="number"
+              min={0}
+              max={200}
+              step={10}
+              value={d.audioFadeMs ?? 60}
+              onChange={(e) =>
+                updateNodeData(node.id, {
+                  audioFadeMs: Math.max(0, Math.min(200, Number(e.target.value) || 0)),
+                })
+              }
+            />
+          </Field>
         </>
       )}
       <SectionLabel>{tx("拼接顺序")}</SectionLabel>

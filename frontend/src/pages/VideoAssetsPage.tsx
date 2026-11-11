@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
 import { AssetPickButton } from "@/components/AssetPickButton";
+import { AudioContinuityControl, type AudioContinuityValue } from "@/components/AudioContinuityControl";
 import { assetsAsFiles } from "@/lib/assets";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import {
@@ -138,6 +139,10 @@ export function VideoAssetsPage() {
   // ---- ③ 素材动画（静态图片 → i2v 动起来）----
   const [animate, setAnimate] = usePersistentState("video-assets:animate", false);
   const [audioMode, setAudioMode] = usePersistentState<"custom" | "auto">("video-assets:audio-mode", "custom");
+  const [audioContinuity, setAudioContinuity] = usePersistentState<AudioContinuityValue>(
+    "video-assets:audio-continuity",
+    { strategy: "native", refSeconds: 5, bedPath: "", bedFill: "loop", bedMode: "mix", seamFadeMs: 60 },
+  );
   const [animatePrompt, setAnimatePrompt] = usePersistentPromptValue("video-assets:animate-prompt");
   const [videoProviderId, setVideoProviderId] = usePersistentState<number | "">("video-assets:video-provider", "");
   const videoProvider = videoProviders?.find((p) => p.id === videoProviderId) ?? videoProviders?.[0];
@@ -268,6 +273,14 @@ export function VideoAssetsPage() {
       }
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
       form.set("audio_mode", (animate && hasImage) || hasVideo ? audioMode : "custom");
+      form.set("audio_strategy", audioContinuitySupported ? audioContinuity.strategy : "native");
+      form.set("audio_ref_seconds", String(audioContinuity.refSeconds));
+      if (audioContinuity.strategy === "global_bed" && audioContinuity.bedPath) {
+        form.set("audio_bed_path", audioContinuity.bedPath);
+      }
+      form.set("audio_bed_fill", audioContinuity.bedFill);
+      form.set("audio_bed_mode", audioContinuity.bedMode || "mix");
+      form.set("seam_fade_ms", String(audioContinuity.seamFadeMs));
       if (animate && hasImage) {
         form.set("animate", "true");
         const ap = resolveEffectivePrompt(animatePrompt);
@@ -310,6 +323,12 @@ export function VideoAssetsPage() {
   const copyReady =
     mode === "script" ? script.trim() : mode === "topic" ? effectiveTopic : analysisScript.trim();
   const nativeAudio = audioMode === "auto" && ((animate && hasImage) || hasVideo);
+  const audioContinuitySupported = Boolean(
+    nativeAudio &&
+      videoPack &&
+      videoPack.inputs.ref_audio &&
+      !videoPack.inputs.clips_json,
+  );
   const ready =
     files.length > 0 &&
     copyReady &&
@@ -639,6 +658,17 @@ export function VideoAssetsPage() {
                 ]}
               />
             </Field>
+          )}
+          {animate && hasImage && nativeAudio && (
+            <AudioContinuityControl
+              value={audioContinuity}
+              onChange={(patch) => setAudioContinuity((prev) => ({ ...prev, ...patch }))}
+              disabledReason={
+                audioContinuitySupported
+                  ? undefined
+                  : tx("当前动画工作流不支持参考音频；选择带参考音频输入的 H3 单镜 i2v 包后可用。")
+              }
+            />
           )}
           {!nativeAudio && (
           <>

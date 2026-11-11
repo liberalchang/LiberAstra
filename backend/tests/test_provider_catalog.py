@@ -211,7 +211,7 @@ def test_execution_specs_and_canvas_menu(client: TestClient, auth_header: dict[s
     menu = client.get("/api/v1/canvases/menu", headers=auth_header)
     assert menu.status_code == 200
     titles = {item["title"] for item in menu.json()}
-    assert "图生视频" in titles
+    assert "首帧生视频" in titles
 
     rejected = client.put(
         "/api/v1/canvases/menu",
@@ -232,12 +232,12 @@ def test_workflow_packs_keep_their_own_functions() -> None:
     assert pack_sub_capability("qwen_image_21_posestudio", "i2i", 2) == "depth_pose"
     assert pack_sub_capability("qwen_image_21_posestudio_gen", "i2i", 1) == "depth_gen"
     titles = {item["title"]: item["sub_capability"] for item in default_canvas_menu()}
-    assert titles["360全景"] == "i2v_orbit"
-    assert titles["调色"] == "color_grade"
-    assert titles["蒙版"] == "inpaint"
-    assert titles["换衣"] == "outfit_swap"
-    assert titles["姿势换姿"] == "depth_pose"
-    assert titles["姿势生图"] == "depth_gen"
+    assert titles["360° 环绕"] == "i2v_orbit"
+    assert titles["参考调色"] == "color_grade"
+    assert titles["局部重绘"] == "inpaint"
+    assert titles["服装替换"] == "outfit_swap"
+    assert titles["人物换姿势"] == "depth_pose"
+    assert titles["姿势生成人物"] == "depth_gen"
 
     pose = next(item for item in default_canvas_menu() if item["sub_capability"] == "depth_pose")
     generate = next(item for item in default_canvas_menu() if item["sub_capability"] == "depth_gen")
@@ -261,7 +261,7 @@ def test_native_tool_menu_items_are_fixed_targets() -> None:
 
     menu = default_canvas_menu()
     tool_items = [item for item in menu if item["category"] == "tool"]
-    assert [item["title"] for item in tool_items] == ["图片拼接", "视频拼接", "音频拼接"]
+    assert [item["title"] for item in tool_items] == ["图片拼接", "视频拼接", "音频拼接", "音频提取"]
     assert all(item["bind_mode"] == "fixed" for item in tool_items)
     assert all(item["default_target"]["target_type"] == "tool" for item in tool_items)
 
@@ -343,17 +343,53 @@ def test_every_workflow_pack_has_a_menu_function() -> None:
     assert any(slot["type"] == "text" and slot["required"] for slot in slots)
 
 
+def test_canvas_menu_includes_audio_extract_tool() -> None:
+    menu = {item["id"]: item for item in default_canvas_menu()}
+    item = menu["tool_audio_extract"]
+    assert item["title"] == "音频提取"
+    assert item["hint"]
+    assert item["default_target"] == {
+        "provider_id": None,
+        "target_type": "tool",
+        "target_id": "audio_extract",
+    }
+
+
 def test_reference_video_and_storyboard_menus() -> None:
     menu = {item["id"]: item for item in default_canvas_menu()}
-    assert menu["preset_v2v_ref"]["title"] == "参考图生视频"
-    assert menu["preset_storyboard"]["title"] == "分镜视频"
-    assert menu["preset_v2v_ref_long"]["title"] == "参考图生成视频（长）"
-    storyboard = {target["target_id"] for target in menu["preset_storyboard"]["manual_targets"]}
+    assert "preset_storyboard" not in menu
+    assert menu["preset_v2v_ref"]["title"] == "参考图生视频（单段）"
+    assert menu["preset_v2v_ref_long"]["title"] == "连续生成（长）"
+    reference = {target["target_id"] for target in menu["preset_v2v_ref"]["manual_targets"]}
     long_video = {
         target["target_id"] for target in menu["preset_v2v_ref_long"]["manual_targets"]
     }
-    assert "minimax_h3_i2v_ref" in storyboard
+    assert "minimax_h3_i2v_ref" in reference
     assert "minimax_h3_extender" in long_video
+    assert all(item["hint"] for item in menu.values())
+
+
+def test_menu_migration_refreshes_builtin_speech_titles() -> None:
+    from liberastra.services.canvas_menu import merge_factory_items
+
+    merged = merge_factory_items(
+        [
+            {
+                "id": "preset_asr",
+                "category": "speech",
+                "title": "语音识别",
+                "hint": "",
+                "sub_capability": "asr",
+                "bind_mode": "auto",
+                "manual_targets": [],
+                "default_target": None,
+                "enabled": True,
+            }
+        ]
+    )
+    asr = next(item for item in merged if item["id"] == "preset_asr")
+    assert asr["title"] == "语音转文字"
+    assert asr["hint"]
 
 
 def test_manual_bind_returns_only_checked_targets() -> None:
@@ -363,7 +399,7 @@ def test_manual_bind_returns_only_checked_targets() -> None:
         {
             "id": "custom_orbit",
             "category": "video",
-            "title": "360全景",
+            "title": "360° 环绕",
             "sub_capability": "i2v_orbit",
             "bind_mode": "manual",
             "manual_targets": [{"target_type": "workflow", "target_id": "minimax_h3_orbit"}],
@@ -420,7 +456,7 @@ def test_seedance_25_first_frame_is_a_menu_function() -> None:
     )
     assert set(seedance["sub_capabilities"]) == {"t2v", "i2v_first", "i2v_flf", "v2v_ref"}
     first = next(item for item in default_canvas_menu() if item["sub_capability"] == "i2v_first")
-    assert first["title"] == "图生视频"
+    assert first["title"] == "首帧生视频"
     assert first["bind_mode"] == "manual"
     assert first["default_target"]["target_id"] == "minimax_h3_i2v_uncensored"
     assert any(slot["key"] == "first_frame" for slot in media_slots("i2v_first"))

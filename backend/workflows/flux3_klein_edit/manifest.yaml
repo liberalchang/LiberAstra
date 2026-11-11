@@ -1,8 +1,10 @@
 name: flux3_klein_edit
 capability: i2i
+summary: FLUX 单图改图
 description: 'FLUX.3 Klein 单图编辑
 
-  上传 1 张图，提示词写清要改什么，得到改好的图。输出尺寸跟随原图；提示词扩展器默认开。'
+  上传一张原图，按提示词改内容或风格。
+  可选提示词扩展器补全细节；适合单图编辑和局部调整。'
 inputs:
   image:
     node: '11'

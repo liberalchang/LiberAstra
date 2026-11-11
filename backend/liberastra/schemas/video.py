@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -48,6 +48,13 @@ class QuickVideoRequest(BaseModel):
     bgm_volume: float = Field(default=0.2, ge=0.0, le=1.0)
     # custom：逐镜配音。auto：仅文生视频模板保留模型音轨。
     audio_mode: str = Field(default="custom", pattern="^(custom|auto)$")
+    # 模型原声跨镜连续性：native 不处理；previous_tail 参考上一镜尾音；global_bed 按时间轴切片。
+    audio_strategy: Literal["native", "previous_tail", "global_bed"] = "native"
+    audio_ref_seconds: float = Field(default=5, ge=2, le=15)
+    audio_bed_path: str | None = None
+    audio_bed_fill: Literal["loop", "silence"] = "loop"
+    audio_bed_mode: Literal["mix", "replace"] = "mix"
+    seam_fade_ms: int = Field(default=60, ge=0, le=200)
     # 文字显隐与字号：模板标题/文案（倍率），视频烧录字幕（字号，0=默认）
     show_title: bool = True
     show_text: bool = True

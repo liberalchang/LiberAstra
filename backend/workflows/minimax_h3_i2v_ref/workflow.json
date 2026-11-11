@@ -53,6 +53,12 @@
       "image": "example.png"
     }
   },
+  "123": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "example.mp3"
+    }
+  },
   "105:6": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -108,7 +114,8 @@
       "ref_images.ref_image_5": ["119", 0],
       "ref_images.ref_image_6": ["120", 0],
       "ref_images.ref_image_7": ["121", 0],
-      "ref_images.ref_image_8": ["122", 0]
+      "ref_images.ref_image_8": ["122", 0],
+      "ref_audios.ref_audio_0": ["123", 0]
     }
   },
   "105:15": {

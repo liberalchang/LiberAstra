@@ -1,8 +1,11 @@
 name: minimax_h3_extender
 capability: i2v
-description: 'MiniMax H3 参考图生视频（长）
+summary: 多段连续长视频
+description: 'MiniMax H3 多段连续长视频
 
-  用 Extender 时间线一次生成多段连续视频，段间保持运动、构图和音频连续。每段一个 prompt 和时长，参考图通过 Reference Pack 传入。适合 15 秒以上的连续长镜头。'
+  把多个分镜排成一条时间线，一次生成一条连续长视频。
+  每段单独写提示词和时长，段间保持运动、构图和声音连续；每段建议不超过 15 秒。
+  适合 15 秒以上的长镜头或连续叙事。'
 fps: 24
 inputs:
   clips_json:
@@ -76,6 +79,13 @@ inputs:
     required: false
     label: 参考图 9
     description: 可选。额外参考。
+  ref_audio:
+    node: '40'
+    field: inputs.audio
+    type: audio
+    required: false
+    label: 参考音频
+    description: 可选。全片环境音/音乐参考，用于跨段接续；是参考不是锁定，可与音频上下文长度组合使用。
   width:
     node: '20'
     field: inputs.width

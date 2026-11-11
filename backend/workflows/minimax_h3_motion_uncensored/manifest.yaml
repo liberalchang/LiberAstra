@@ -1,5 +1,6 @@
 name: minimax_h3_motion_uncensored
 capability: motion
+summary: 人物动作迁移（宽松版）
 description: 'MiniMax H3 动作迁移（越狱）
 
   给一张人物图和一段参考视频，让人物做出视频里的动作，生成新视频。提示词里用「目标图片」指人物、「参考视频」指动作。单段最长约 5 秒。可选

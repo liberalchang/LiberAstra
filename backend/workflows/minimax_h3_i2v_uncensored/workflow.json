@@ -5,6 +5,12 @@
       "image": "example.png"
     }
   },
+  "115": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
   "105:6": {
     "class_type": "UNETLoader",
     "inputs": {
@@ -50,7 +56,8 @@
       "prompt": "",
       "width": 1344,
       "height": 768,
-      "length": 124
+      "length": 124,
+      "last_frame": ["115", 0]
     }
   },
   "105:15": {

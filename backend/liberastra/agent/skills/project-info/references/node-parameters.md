@@ -42,7 +42,7 @@
 
 ## 工具节点：拼接（concat）
 
-UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」；内部 `kind` 仍是 `concat`，不绑定工作流，也不走 `canvas_apply_menu`。
+UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接 / 音频提取」；内部 `kind` 仍是 `concat`，不绑定工作流，也不走 `canvas_apply_menu`。音频提取额外写 `data.toolId=audio_extract`、`data.audioMode=whole|tail`、`data.tailSeconds`。
 
 | 字段 | 说明 |
 |---|---|

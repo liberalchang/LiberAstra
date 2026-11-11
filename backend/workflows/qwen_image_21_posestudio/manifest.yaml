@@ -1,8 +1,10 @@
 name: qwen_image_21_posestudio
 capability: i2i
-description: 'Qwen 2.1 PoseStudio 姿势换姿
+summary: 人物换姿势
+description: 'Qwen 人物换姿势
 
-  线稿保持原始画幅，输出画幅取姿势参考图比例，分辨率取两张图较大者（长边上限 2048）。需安装 ComfyUI 节点 TextEncodeQwenImage21、QwenImage21Cache、GetImageSize，并把 PoseStudio LoRA 放到 loras/。'
+  上传人物照和姿势参考图，把人物换成参考图的姿势，保留人物外观。
+  比纯文字描述姿势更稳定，适合摄影、角色设定和分镜关键帧。'
 inputs:
   image:
     node: '7'

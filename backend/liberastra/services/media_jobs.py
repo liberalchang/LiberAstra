@@ -142,6 +142,52 @@ def _concat_images(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any
     return [{"type": "asset", "asset_id": asset.id, "kind": "image", "filename": "concat_0.png"}]
 
 
+async def run_extract_audio_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
+    """从视频/音频提取完整音轨，或截取固定长度尾音。"""
+    params = job.params
+    asset_id = int(params.get("asset_id") or 0)
+    asset = db.get(Asset, asset_id)
+    if asset is None or asset.owner_id != job.owner_id:
+        raise ProviderError("输入素材不存在")
+    if asset.kind not in ("video", "audio"):
+        raise ProviderError("音频提取只支持视频或音频输入")
+    mode = "whole" if str(params.get("mode") or "") == "whole" else "tail"
+    seconds = max(0.5, min(15.0, float(params.get("seconds") or 5)))
+    ctx.report(db, job, progress=0.2, step="extract_audio")
+    started = time.monotonic()
+    rel_path = f"outputs/{job.id}/extract_audio.wav"
+    out = resolve(rel_path)
+    if mode == "tail":
+        await ffmpeg.extract_audio_tail(resolve(asset.path), seconds, out)
+    else:
+        await ffmpeg.extract_audio(resolve(asset.path), out)
+    if ctx.cancelled():
+        return []
+    visible = bool(params.get("visible", False))
+    meta = {
+        "canvas_temp": not visible,
+        "canvas_id": params.get("canvas_id"),
+        "canvas_node": params.get("node_id"),
+        "tool_id": "audio_extract",
+        "source_asset_id": asset.id,
+        "mode": mode,
+        "seconds": seconds if mode == "tail" else None,
+        "duration_s": round(time.monotonic() - started, 1),
+    }
+    created = create_asset(
+        db,
+        kind="audio",
+        rel_path=rel_path,
+        job_id=job.id,
+        owner_id=job.owner_id,
+        hidden=not visible,
+        origin="output" if visible else "canvas",
+        meta=meta,
+    )
+    ctx.report(db, job, progress=1.0)
+    return [{"type": "asset", "asset_id": created.id, "kind": "audio", "filename": out.name}]
+
+
 async def run_concat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
     params = job.params
     kind = str(params.get("kind") or "video")
@@ -167,7 +213,32 @@ async def run_concat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     suffix = ".mp4" if kind == "video" else ".mp3"
     rel_path = f"outputs/{job.id}/concat_0{suffix}"
     out = resolve(rel_path)
-    await ffmpeg.concat_media(paths, out, kind=kind, work_dir=resolve(f"outputs/{job.id}/concat_work"))
+    audio_fade_ms = max(0, min(200, int(params.get("audio_fade_ms") or 0)))
+    await ffmpeg.concat_media(
+        paths,
+        out,
+        kind=kind,
+        work_dir=resolve(f"outputs/{job.id}/concat_work"),
+        audio_fade_ms=audio_fade_ms,
+    )
+    audio_bed_asset_id = params.get("audio_bed_asset_id")
+    if kind == "video" and audio_bed_asset_id not in (None, ""):
+        bed = db.get(Asset, int(audio_bed_asset_id))
+        if bed is None or bed.owner_id != job.owner_id or bed.kind != "audio":
+            raise ProviderError("全片氛围底音频不存在或不是音频资产")
+        bed_out = out.with_name("concat_bed.mp4")
+        if str(params.get("audio_bed_mode") or "mix") == "replace":
+            await ffmpeg.replace_audio_loop(out, resolve(bed.path), bed_out)
+        else:
+            await ffmpeg.add_bgm(
+                video=out,
+                bgm=resolve(bed.path),
+                out=bed_out,
+                bgm_volume=float(params.get("audio_bed_volume") or 0.2),
+                loop=True,
+            )
+        out = bed_out
+        rel_path = f"outputs/{job.id}/{out.name}"
     if ctx.cancelled():
         return []
     visible = bool(params.get("visible", False))
@@ -179,6 +250,9 @@ async def run_concat_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         "segments": len(paths),
         "duration_s": round(time.monotonic() - started, 1),
     }
+    if audio_bed_asset_id not in (None, ""):
+        meta["audio_bed_asset_id"] = int(audio_bed_asset_id)
+        meta["audio_bed_mode"] = str(params.get("audio_bed_mode") or "mix")
     if params.get("tool_id"):
         meta["tool_id"] = str(params["tool_id"])
     asset = create_asset(

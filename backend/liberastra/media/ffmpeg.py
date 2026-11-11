@@ -183,10 +183,13 @@ async def concat_segments(segments: list[Path], out: Path, *, list_file: Path) -
     )
 
 
-async def concat_media(inputs: list[Path], out: Path, *, kind: str, work_dir: Path) -> None:
+async def concat_media(
+    inputs: list[Path], out: Path, *, kind: str, work_dir: Path, audio_fade_ms: int = 0
+) -> None:
     """把多条异构音/视频拼成一整段：先逐段统一重编码，再无损拼接。
 
     视频统一到首段的宽高与默认帧率（无音轨的补静音）；音频统一到 mp3/44.1k/立体声。
+    audio_fade_ms > 0 时，每段音频首尾各做一半时长的短淡化，视频流仍可保持。
     """
     _require_ffmpeg()
     if not inputs:
@@ -198,7 +201,9 @@ async def concat_media(inputs: list[Path], out: Path, *, kind: str, work_dir: Pa
         width, height = await probe_video_size(inputs[0])
         for index, src in enumerate(inputs):
             segment = work_dir / f"concat_{index:02d}.mp4"
-            await make_native_clip_segment(clip=src, out=segment, width=width, height=height)
+            await make_native_clip_segment(
+                clip=src, out=segment, width=width, height=height, audio_fade_ms=audio_fade_ms
+            )
             segments.append(segment)
     else:
         for index, src in enumerate(inputs):
@@ -320,6 +325,7 @@ async def add_bgm(
     bgm: Path,
     out: Path,
     bgm_volume: float = 0.2,
+    loop: bool = False,
 ) -> None:
     """给视频混入 BGM。有原声时按比例叠加；没有音轨时直接铺上音乐。"""
     _require_ffmpeg()
@@ -334,13 +340,30 @@ async def add_bgm(
         # 音乐比画面短时补静音，避免 -shortest 把画面裁掉
         filter_complex = f"[1:a]volume={volume},apad[a]"
         extra = ["-shortest"]
+    loop_args = ["-stream_loop", "-1"] if loop else []
     await _run(
         "ffmpeg", "-y",
-        "-i", str(video), "-i", str(bgm),
+        "-i", str(video), *loop_args, "-i", str(bgm),
         "-filter_complex", filter_complex,
         "-map", "0:v", "-map", "[a]",
         "-c:v", "copy", "-c:a", "aac",
         *extra,
+        str(out),
+    )
+
+
+async def replace_audio_loop(video: Path, audio_source: Path, out: Path) -> None:
+    """用一条循环音频替换成片音轨，画面直接拷贝。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not await has_audio_stream(audio_source):
+        raise ProviderError("音频文件没有音轨")
+    await _run(
+        "ffmpeg", "-y",
+        "-i", str(video), "-stream_loop", "-1", "-i", str(audio_source),
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
         str(out),
     )
 
@@ -373,6 +396,20 @@ async def extract_audio(source: Path, out: Path) -> None:
         "-map", "0:a:0", "-vn",
         "-c:a", "pcm_s16le",
         str(out),
+    )
+
+
+async def extract_audio_tail(source: Path, seconds: float, out: Path) -> None:
+    """从媒体末尾抽出一段音频，供下一镜作为参考尾音。"""
+    _require_ffmpeg()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not await has_audio_stream(source):
+        raise ProviderError("输入没有音轨")
+    tail = max(0.05, min(float(seconds), 15.0))
+    await _run(
+        "ffmpeg", "-y",
+        "-sseof", f"-{tail:.3f}", "-i", str(source),
+        "-vn", "-c:a", "pcm_s16le", str(out),
     )
 
 
@@ -492,18 +529,31 @@ async def make_native_clip_segment(
     subtitle_size: float = 0,
     subtitle_color: str = "",
     fps: int = DEFAULT_FPS,
+    audio_fade_ms: int = 0,
 ) -> None:
     """保留片段自带音轨，只统一画幅和帧率。没有音轨时补一条静音，方便后面拼接。"""
     _require_ffmpeg()
     out.parent.mkdir(parents=True, exist_ok=True)
     vf = _fit_frame_filter(width, height, subtitle, subtitle_size, subtitle_color)
+    fade = max(0.0, min(float(audio_fade_ms) / 2000.0, 0.2))
     if await has_audio_stream(clip):
+        audio_args: list[str] = []
+        if fade > 0.001:
+            duration = await probe_duration(clip)
+            fade = min(fade, max(duration / 2.0, 0.0))
+            if fade > 0.001:
+                audio_args = [
+                    "-af",
+                    f"afade=t=in:st=0:d={fade:.3f},"
+                    f"afade=t=out:st={max(duration - fade, 0):.3f}:d={fade:.3f}",
+                ]
         await _run(
             "ffmpeg", "-y", "-i", str(clip),
             "-vf", vf,
             "-map", "0:v:0", "-map", "0:a:0",
             "-c:v", "libx264",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+            *audio_args,
             "-pix_fmt", "yuv420p", "-r", str(fps),
             str(out),
         )

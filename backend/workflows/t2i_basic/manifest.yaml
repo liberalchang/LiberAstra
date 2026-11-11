@@ -1,5 +1,6 @@
 name: t2i_basic
 capability: t2i
+summary: 通用文生图
 description: '通用文生图（Checkpoint）
 
   适用于 SD1.5 / SDXL / Flux 类单模型工作流：选一个 Checkpoint，输入画面描述，生成图片。'

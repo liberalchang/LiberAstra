@@ -118,6 +118,14 @@ If the animation prompt is empty, the default is a slight, natural camera push-i
 
 The voice is synthesized segment by segment following the assets, and subtitle timing follows that voice line. You can turn off burning in, and change subtitle font size and color: font size 0 means automatic, and the color defaults to white. The title card does not get subtitles. If the voice provider is ComfyUI, choose a speech workflow separately; the voiceover text is injected automatically. Local TTS or API TTS can be previewed under the voice, see [Text-to-Speech](/en/guides/speech#text-to-speech). Aspect ratio is 9:16, 1:1, or 16:9. Background music is chosen from the Music Library and mixed in after the whole video is joined.
 
+When **Model native** is selected and the animation workflow supports reference audio, the voice section shows **Audio continuity (experimental)**:
+
+- **Model native**: no extra processing; current behavior.
+- **Previous shot tail**: take the last 2–15 seconds of the previous animated clip as the next shot's reference; the first shot has no reference.
+- **Whole-film ambience bed**: choose or upload an audio track and slice it by each shot's actual duration for H3; loop it or pad silence when the bed is shorter. Final mixing can be **bed-first with model ambience at low volume** or **bed only**.
+- Seam fade applies only to music/ambience and defaults to 60 ms. It is a separate layer from the final background music; prefer only one of them.
+- Custom voice, or a workflow without a reference-audio input, does not show this control.
+
 ### Digital Human
 
 Character image + voiceover copy → TTS voice → `avatar` workflow pack. Two built-in lip-sync workflows are based on the MiniMax H3 joint audio-video model (no extra lip-sync plugin or audio encoder needed):
@@ -133,24 +141,32 @@ The character image can be uploaded, chosen with **Choose from Library**, or pic
 
 ### Image-to-Video
 
-First frame + prompt → `i2v`. The `minimax_h3_i2v` pack also declares an optional last-frame slot, `last_frame`; the standalone page only sends the first frame. To use first and last frames, bind the last frame on a canvas function node. The finished video keeps the model-generated audio track; you can also add background music from the Music Library.
+First frame + prompt → `i2v`. The page renders every image slot declared by the pack: the first frame is required, while the optional last frame, side/back references, and extra reference images appear under "More images". The finished video keeps the model-generated audio track; you can also add background music from the Music Library.
 
 | Pack | Default text side | Characteristics |
 |------|-------------------|-----------------|
-| `minimax_h3_i2v` | Official TE | First frame is required; the pack also has an optional last-frame slot `last_frame`, but the standalone page only sends the first frame; bind the last frame on a canvas function node; the prompt goes into generation as-is; Turbo can be enabled |
-| `minimax_h3_i2v_uncensored` | Uncensored **NVFP4** TE | **Uncensored, no enhancement**; first frame only; LightX2V 8-step by default; Turbo can be enabled |
-| `minimax_h3_i2v_enhancer` | Uncensored INT8 TE + tail | First frame only; Guide enhancement runs before rendering; the enhanced text is visible in the result area; Turbo can be enabled; Guide is required |
-| `minimax_h3_i2v_ref` | Official TE | Up to 9 reference images in the pack; the standalone page adds only one `image_2` reference slot, and full multi-reference is bound on a canvas function node or in the Director; images only provide appearance and are not used as the first video frame; refer to them with `<Picture N>` in the prompt; Turbo can be enabled |
+| `minimax_h3_i2v` | Official TE | First frame is required; upload the optional last-frame slot `last_frame` under "More images"; the prompt goes into generation as-is; Turbo can be enabled |
+| `minimax_h3_i2v_uncensored` | Uncensored **NVFP4** TE | **Uncensored, no enhancement**; first frame required, optional last frame; LightX2V 8-step by default; Turbo can be enabled |
+| `minimax_h3_i2v_enhancer` | Uncensored INT8 TE + tail | First frame required, optional last frame; Guide enhancement runs before rendering; the enhanced text is visible in the result area; Turbo can be enabled; Guide is required |
+| `minimax_h3_i2v_ref` | Official TE | Up to 9 reference images, all shown on the page; images only provide appearance and are not used as the first video frame; refer to them with `<Picture N>` in the prompt; Turbo can be enabled |
 | `minimax_h3_orbit` | Official TE | 360° orbit shot; with one image, the same image is used for both start and end, and a second image uploaded on the page becomes the ending frame; leaving the prompt empty uses the built-in orbit sentence; with two different images and the original prompt unchanged, an outfit-change sentence is added automatically; default 73 frames (about 3 seconds), 28 steps, no Turbo needed |
 | `minimax_h3_extender` | Official TE | Long-video Extender: `clips_json` describes each segment's duration and prompt, reference images are passed through `ref_1` to `ref_9`, and each segment is at most 15 seconds; mainly generated by the Director |
 
 The enhancer is slower and uses more memory; it is suitable when the prompt is very short or when you want it rewritten into an H3-style long prompt first. `i2v_ref` reference images are not the first frame; they are for giving character, clothing, and scene references and letting the model choose the starting camera position. `orbit` is good for orbiting a character or product in place; it is most stable when the camera and subject stay still, and it drifts easily when the scene contains a lot of motion.
 
-After selecting a character from Character Library, choose the camera view for this shot: facial half-body close-up, full-body front, full-body side, or full-body back. The page automatically sends only one camera-view image for the character. The ending frame for `orbit` and the second reference slot for `i2v_ref` can be uploaded on the page; the last-frame slot for `i2v` and the third and later reference images for `i2v_ref` must be bound on a canvas function node. Use close-ups for near shots and the matching full-body image for full-body motion. Quick Create can rotate views across shots, which uses multiple character sheet images. Images can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
+After selecting a character from Character Library, choose the camera view for this shot: facial half-body close-up, full-body front, full-body side, or full-body back. The page fills empty reference slots with character images; uploaded images take precedence. Multi-reference slots unlock in order: `image_2` must be filled before `image_3`, and clearing an earlier slot clears later slots so `<Picture N>` numbering stays aligned. The ending frame for `orbit` and the last frame for `i2v` are uploaded in the same "More images" block. Use close-ups for near shots and the matching full-body image for full-body motion. Quick Create can rotate views across shots, which uses multiple character sheet images. Images can be uploaded or chosen from the library; uploaded images take precedence over Character Library. The Motion page also shows the pack's side and back reference slots, mapped to `<Picture 2>` and `<Picture 3>`.
+
+#### Audio reference for image-to-video (H3)
+
+`minimax_h3_i2v_ref` and `minimax_h3_extender` provide reference audio in the **Audio** block:
+
+- `minimax_h3_i2v_ref`: optional **reference audio** gives the model ambient sound/music as a guide for a consistent atmosphere. It is a reference, not audio locking; a single-pack run does not offer "previous shot tail" or "whole-film ambience bed".
+- `minimax_h3_extender`: **Audio continuity** offers off, audio context, reference audio, or both. Context length 22 is common; 44/96 is stronger but slower and uses more VRAM. Reference audio can come from the Music Library or an upload. Enabling both is an advanced experiment.
+- These references do not replace the final background music; background music is still set separately under **Advanced → Background music**. Enabling both layers can duplicate the music.
 
 ### Motion Transfer
 
-Reference video + target image + prompt → `motion` workflow pack. The reference video can be uploaded or chosen from the library. Picture duration follows the reference video; you no longer enter seconds on the page. The reference video is split at the motion pack's `length.max` (the current two H3 motion packs use 124 frames, about 5.2 seconds, and satisfy `17k+5`); the next segment uses the previous segment's final frame as `<Picture 1>`, while the side and back references are kept, and the segments are joined into one video. Audio can keep the model-generated track or be replaced with the reference video's entire original audio. Either way, you can add background music from the Music Library. Two built-in motion-transfer workflows are based on MiniMax H3 multimodal reference (`MiniMaxH3ReferenceToVideo`). When a character from Character Library is selected, **full-body front, full-body side, and full-body back** are sent as `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`. The right-side facial close-up is not used for motion transfer, to avoid losing lower-body clothing. The target image can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
+Reference video + target image + prompt → `motion` workflow pack. The reference video can be uploaded or chosen from the library. Picture duration follows the reference video; you no longer enter seconds on the page. The reference video is split at the motion pack's `length.max` (the current two H3 motion packs use 124 frames, about 5.2 seconds, and satisfy `17k+5`); the next segment uses the previous segment's final frame as `<Picture 1>`, while the side and back references are kept, and the segments are joined into one video. Audio can keep the model-generated track or be replaced with the reference video's entire original audio. Either way, you can add background music from the Music Library. Two built-in motion-transfer workflows are based on MiniMax H3 multimodal reference (`MiniMaxH3ReferenceToVideo`). After selecting a character from Character Library, the target-image option determines what is sent: the default **front, side, and back three full-body images** sends **full-body front, full-body side, and full-body back** as `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`; choosing **16:9 character sheet** or **9:16 four-grid** sends only that entire sheet as `<Picture 1>` and does not split it into front/side/back. The right-side facial close-up is not used for motion transfer, to avoid losing lower-body clothing. The target image can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
 
 | Pack | Default text side | How it works and what it is good for |
 |------|-------------------|--------------------------------------|
@@ -224,7 +240,7 @@ First choose the aspect ratio (portrait 9:16, square 1:1, or landscape 16:9), th
 
 - **Static style**: laid out locally; does not call image or video generation and does not ask the LLM for visual prompts. The voiceover text appears on the picture and is read aloud.
 - **Generate images**: each shot uses a text-to-image (`t2i`) workflow to produce one image, which is then joined with that line's voice into a short segment.
-- **Generate video**: each shot uses a video workflow to produce a short segment. By default only text-to-video (`t2v`) packs are listed. After picking a character, image-to-video (`i2v`) packs are added: a normal `i2v` pack sends one camera-view image, an `i2v_ref` pack can take multiple reference images (Quick Create still sends one image for the current camera view), `orbit` does a 360° orbit, and `extender` is a long-video segmentation pack mainly used by the Director and not recommended for manual selection in Quick Create. If the pack declares acceleration, Turbo can be enabled. Packs whose names contain `enhancer` enhance the prompt inside the pack.
+- **Generate video**: each shot uses a video workflow to produce a short segment. By default only text-to-video (`t2v`) packs are listed. After picking a character, image-to-video (`i2v`) packs are added: a normal `i2v` pack sends one camera-view image, an `i2v_ref` pack can take multiple reference images (Quick Create still sends only the current camera view per shot; use the Image-to-Video page or canvas for multi-reference), `orbit` does a 360° orbit, and `extender` is a long-video segmentation pack mainly used by the Director and not recommended for manual selection in Quick Create. If the pack declares acceleration, Turbo can be enabled. Packs whose names contain `enhancer` enhance the prompt inside the pack.
 
 Voice, subtitles, and background music are below the template and shared by all three script modes:
 
@@ -233,6 +249,7 @@ Voice, subtitles, and background music are below the template and shared by all 
 - When the voice is local TTS (text-to-speech) or API TTS, you can preview it under the voice, see [Text-to-Speech](/en/guides/speech#text-to-speech). If the voice provider is ComfyUI, choose a speech workflow separately; the voiceover text is filled in automatically.
 - Subtitles can be turned off, and their font size and color can be changed. The title and the on-screen voiceover text can also be hidden or scaled separately.
 - Background music is chosen from the Music Library and mixed in after the whole video is joined. A volume of 0.1 to 0.3 is recommended.
+- When Generate Video uses **model audio** and the selected video pack supports reference audio (for example `minimax_h3_i2v_ref`), **Audio continuity (experimental)** appears: model native / previous shot tail / whole-film ambience bed. Previous shot tail runs in order; the ambience bed is sliced by each shot's actual duration and is not the final background music. Final mixing can be **bed-first with model ambience at low volume** or **bed only**. Custom voice or a pack without reference audio does not show this control.
 
 ### Characters and Camera View
 

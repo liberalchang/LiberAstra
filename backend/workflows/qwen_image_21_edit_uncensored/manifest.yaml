@@ -1,8 +1,10 @@
 name: qwen_image_21_edit_uncensored
 capability: i2i
-description: 'Qwen-Image 2.1 整图编辑（越狱）
+summary: 单图改图（宽松版）
+description: 'Qwen Image 2.1 单图改图（宽松版）
 
-  上传 1 张图，写清要改什么，得到编辑后的图。可开关 Uncensored LoRA。'
+  上传一张原图，按提示词修改内容或风格。
+  用法和标准版相同，换用宽松版 LoRA；需要保留的部分请在提示词里写清楚。'
 inputs:
   image:
     node: '10'

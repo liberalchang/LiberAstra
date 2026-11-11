@@ -25,6 +25,10 @@ Sidebar "Tools → Video Concat". Pick existing videos or upload multiple clips,
 
 Sidebar "Tools → Audio Concat". Pick existing audio or upload multiple clips, then join them in order into one audio file, at least 1 clip. The result goes directly into the asset library.
 
+## Audio Extract
+
+Sidebar "Tools → Audio Extract". Pick one video or audio file, then choose **Full track** or **Fixed-length tail** (0.5–15 seconds). The output goes directly into the asset library and can be downloaded or used as reference audio for later generation. An input without an audio track fails with an error.
+
 **Note:** Outputs from the concat pages are formal assets; you do not need to click "Save to Assets" again. Concat nodes inside a canvas are still treated as canvas intermediate results and must be saved from the node preview. Video and audio concat require local ffmpeg; `astra doctor` checks whether ffmpeg is present.
 
 ## Image Enhance

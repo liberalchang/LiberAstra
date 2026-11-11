@@ -1,8 +1,9 @@
 name: minimax_h3_i2v_uncensored
 capability: i2v
-description: 'MiniMax H3 图生视频（越狱）
+summary: 首帧生视频（宽松版）
+description: 'MiniMax H3 首帧生视频（宽松版）
 
-  上传一张首帧图并描述动作，生成带同步音效的短视频。可选 EMA Turbo 加速。'
+  和标准首帧生视频用法相同（首帧必填，可选尾帧），换用无内容审查层的文本编码器。 宽松版只放宽内容限制，不承诺画质更高；使用时仍需遵守所在地法律和平台规则。'
 fps: 24
 inputs:
   image:
@@ -12,6 +13,13 @@ inputs:
     required: true
     label: 首帧图片
     description: 作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。
+  last_frame:
+    node: '115'
+    field: inputs.image
+    type: image
+    required: false
+    label: 尾帧图片（可选）
+    description: 可选。只传首帧时忽略；传尾帧时固定在视频最后一帧。
   prompt:
     node: 105:104
     field: inputs.prompt

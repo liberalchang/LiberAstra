@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class WorkflowPackOut(BaseModel):
     name: str
     capability: str
+    summary: str = ""
     description: str
     inputs: dict[str, dict[str, Any]]
     outputs: dict[str, Any]
@@ -57,6 +58,7 @@ class WorkflowDoctorOut(BaseModel):
 class WorkflowImportRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     capability: str = "t2i"
+    summary: str = ""
     description: str = ""
     workflow: dict[str, Any]
     inputs: dict[str, dict[str, Any]] = Field(default_factory=dict)
@@ -79,6 +81,7 @@ class WorkflowConvertRequest(BaseModel):
 class WorkflowConvertOut(BaseModel):
     workflow: dict[str, Any]
     capability: str = "t2i"
+    summary: str = ""
     description: str = ""
     inputs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     outputs: dict[str, Any] = Field(default_factory=dict)

@@ -1,8 +1,10 @@
 name: qwen_image_21_union_reference
 capability: i2i
-description: 'Qwen 2.1 Union 参考换姿
+summary: 参考图换姿势
+description: 'Qwen 参考图换姿势
 
-  来自 T8 qwen21_union_pose_reference_edit。人物照决定画布。控制类型默认 Depth；火柴人骨架改成 Pose。需安装节点 qwen-image-2-1-fun-controlnet-union-t8，ComfyUI ≥ 0.37。Union 权重放 controlnet/。'
+  人物照提供外观，深度图或姿势参考控制动作和构图。
+  适合保持同一角色，同时精确调整站姿、机位和场景层次。'
 inputs:
   image:
     node: '14'

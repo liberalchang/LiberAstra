@@ -1,8 +1,10 @@
 name: qwen_image_21_posestudio_gen
 capability: i2i
-description: 'Qwen 2.1 PoseStudio 姿势生图
+summary: 姿势生成人物
+description: 'Qwen 姿势生成人物
 
-  不保留指定人物身份，脸和服装由提示词决定。线稿保持原始画幅，输出画幅跟随姿势参考图。需安装 PoseStudio LoRA 到 loras/。'
+  只给姿势或骨架参考，生成一个全新人物。
+  适合先定动作再选角色外观；不保留参考图里的人物身份。'
 inputs:
   image:
     node: '6'

@@ -59,6 +59,15 @@ NATIVE_TOOLS: tuple[NativeTool, ...] = (
         description="按顺序拼接多段音频",
         page="/tools/audio-concat",
     ),
+    NativeTool(
+        id="audio_extract",
+        title="音频提取",
+        media_kind="audio",
+        sub_capability="tool_audio_extract",
+        description="从视频或音频提取完整音轨，或截取固定长度尾音",
+        page="",
+        default_params={"mode": "tail", "seconds": 5},
+    ),
 )
 
 

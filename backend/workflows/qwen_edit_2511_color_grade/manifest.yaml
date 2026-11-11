@@ -1,8 +1,10 @@
 name: qwen_edit_2511_color_grade
 capability: i2i
-description: 'Qwen Edit 2511 摄影调色
+summary: 参考调色
+description: 'Qwen Edit 2511 电影调色
 
-  第 1 张放原图，第 2 张放调色参考图，把参考图的色调贴到原图上，不重绘内容。提示词留空使用默认触发词。'
+  上传原图和调色参考图，把参考图的色调套到原图上。
+  适合统一系列素材的色调；不改变原图内容。'
 inputs:
   image:
     node: '10'

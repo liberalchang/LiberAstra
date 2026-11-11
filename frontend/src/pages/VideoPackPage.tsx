@@ -39,7 +39,7 @@ import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
-import { WorkflowInputs } from "@/components/WorkflowInputs";
+import { WorkflowAudioField, WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { useTrackedJob } from "@/hooks/useJob";
@@ -110,12 +110,54 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
 
   const { data: voices } = useQuery({ queryKey: ["voices"], queryFn: api.listVoices });
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageFile2, setImageFile2] = useState<File | null>(null);
+  const [slotFiles, setSlotFiles] = useState<Record<string, File | null>>({});
+  const imageKeys = pack
+    ? Object.entries(pack.inputs)
+        .filter(([, spec]) => spec.type === "image")
+        .map(([key]) => key)
+    : [];
+  const primaryImageKey = imageKeys[0] ?? "image";
+  const extraImageKeys = imageKeys.slice(1);
+  const imageFile = slotFiles[primaryImageKey] ?? null;
+  const filledImageCount = imageKeys.filter((key) => slotFiles[key]).length;
+  const setSlotFile = (key: string, file: File | null) => {
+    setSlotFiles((current) => {
+      const next = { ...current, [key]: file };
+      // 清掉前面的槽时，后面的编号一起失效，避免 <Picture N> 出现空号。
+      if (!file) {
+        const index = imageKeys.indexOf(key);
+        for (const later of imageKeys.slice(index + 1)) next[later] = null;
+      }
+      return next;
+    });
+  };
   const [characterId, setCharacterId] = usePersistentState<number | "">(`video-${kind}:character`, "");
   const [characterView, setCharacterView] = usePersistentState(`video-${kind}:character-view`, "front");
   const { data: characters } = useQuery({ queryKey: ["characters"], queryFn: api.listCharacters });
   const character = characters?.find((item) => item.id === characterId);
+  const characterReferenceCount = character
+    ? characterView === "turnaround" || characterView === "turnaround_grid"
+      ? 1
+      : new Set(
+          [character.front_path, character.side_path, character.back_path, character.portrait_path].filter(Boolean),
+        ).size
+    : 0;
+  const extraSlotReady = (key: string) => {
+    const index = extraImageKeys.indexOf(key);
+    if (character) {
+      // 角色只补有限几张；允许用户直接填靠后的槽，但中间空槽不能超过角色能补的数量。
+      const emptyBefore =
+        (imageFile ? 0 : 1) +
+        extraImageKeys
+          .slice(0, Math.max(0, index))
+          .filter((item) => !slotFiles[item]).length;
+      return emptyBefore <= characterReferenceCount;
+    }
+    const previousFilled = extraImageKeys
+      .slice(0, Math.max(0, index))
+      .every((item) => Boolean(slotFiles[item]));
+    return previousFilled && Boolean(imageFile);
+  };
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [promptValue, setPromptValue] = usePersistentPromptValue(`video-${kind}:prompt`);
   const effectivePrompt = resolveEffectivePrompt(promptValue);
@@ -127,6 +169,16 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
     `video-${kind}:extra:${pack?.name ?? "none"}`,
     () => modelDefaultsFromInputs(pack?.inputs, ["prompt", "image", "video", "audio", "mask"]),
   );
+  const [audioContinuityMode, setAudioContinuityMode] = useState("off");
+  useEffect(() => {
+    const context = Number(extra.audio_context_length ?? 0) || 0;
+    const audio = extra.ref_audio ?? "";
+    setAudioContinuityMode(
+      audio && context > 0 ? "both" : audio ? "reference" : context > 0 ? "context" : "off",
+    );
+    // 只在切换工作流包时恢复已保存的模式，避免输入音频时把用户选择的模式重置。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pack?.name]);
   const [accel, setAccel] = usePersistentState<AccelState>(
     `video-${kind}:accel:${pack?.name ?? "none"}`,
     () => defaultAccelState(pack?.accel),
@@ -185,8 +237,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
     mutationFn: () => {
       const form = new FormData();
       if (kind === "motion" && videoFile) form.set("video", videoFile);
-      if (imageFile) form.set("image", imageFile);
-      if (kind === "i2v" && pack?.inputs.image_2 && imageFile2) form.set("image_2", imageFile2);
+      for (const [index, key] of imageKeys.entries()) {
+        const file = slotFiles[key];
+        if (file) form.set(index === 0 ? "image" : `image_${index + 1}`, file);
+      }
       if (character) {
         form.set("character_id", String(character.id));
         if (kind === "i2v") form.set("character_view", characterView);
@@ -241,6 +295,22 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
+  const hasRefAudio = Boolean(pack?.inputs.ref_audio);
+  const hasAudioContext = Boolean(pack?.inputs.audio_context_length);
+  const audioContextValue = Number(extra.audio_context_length ?? 0) || 0;
+  const refAudioValue = extra.ref_audio ?? "";
+  const setAudioContinuity = (mode: string) => {
+    setExtra((prev) => ({
+      ...prev,
+      ref_audio: mode === "reference" || mode === "both" ? prev.ref_audio ?? "" : "",
+      audio_context_length:
+        mode === "context" || mode === "both"
+          ? Number(prev.audio_context_length) > 0
+            ? prev.audio_context_length
+            : "22"
+          : "0",
+    }));
+  };
   const advancedSummary = [
     hasAccel(pack?.accel) && accel.enabled ? tx("加速已开") : "",
     bgmName ? tx("已选背景音乐") : "",
@@ -343,15 +413,15 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
           )}
           <Field
             label={
-              kind === "i2v" && pack?.inputs.image?.label
-                ? tx(pack.inputs.image.label)
+              kind === "i2v" && pack?.inputs[primaryImageKey]?.label
+                ? tx(pack.inputs[primaryImageKey].label)
                 : kind === "avatar"
                   ? tx("人物图片")
                   : tx("图片")
             }
             hint={
               kind === "i2v"
-                ? tx(pack?.inputs.image?.description || "作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。")
+                ? tx(pack?.inputs[primaryImageKey]?.description || "作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。")
                 : kind === "avatar"
                   ? tx("口播人物图。选了角色时用 9:16 四宫格切出的面部半身特写。")
                   : tx("目标人物。选了角色时用正面、侧面、背面三张全身图。")
@@ -408,32 +478,88 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               accept="image/*"
               title={tx("点击或拖拽上传图片")}
               names={imageFile ? [imageFile.name] : []}
-              onSelect={(fs) => setImageFile(fs?.[0] ?? null)}
+              onSelect={(fs) => setSlotFile(primaryImageKey, fs?.[0] ?? null)}
             />
             <AssetPickButton
               kind="image"
               onPick={async (assets) => {
-                if (assets[0]) setImageFile(await assetAsFile(assets[0]));
+                if (assets[0]) setSlotFile(primaryImageKey, await assetAsFile(assets[0]));
               }}
             />
           </Field>
-          {kind === "i2v" && pack?.inputs.image_2 && (
+          {!isArk && extraImageKeys.length > 0 && (
             <Field
-              label={tx(pack.inputs.image_2.label || "结束画面")}
-              hint={tx(pack.inputs.image_2.description || "可选。不传则与首帧同一张。")}
+              label={tx(pack?.name === "minimax_h3_i2v_ref" ? "更多参考图（可选）" : "更多图片（可选）")}
+              hint={
+                character
+                  ? tx("已上传 {filled}/{total} 张。用户上传优先，空槽会由角色库参考补齐。", {
+                      filled: filledImageCount,
+                      total: imageKeys.length,
+                    })
+                  : tx("按槽位顺序填写，已填 {filled}/{total} 张。提示词里的 <Picture N> 按实际填入顺序编号；要跳过某一槽时，请先清空它后面的槽。", {
+                      filled: filledImageCount,
+                      total: imageKeys.length,
+                    })
+              }
             >
-              <FileDrop
-                accept="image/*"
-                title={tx("可选。不传则与首帧同一张")}
-                names={imageFile2 ? [imageFile2.name] : []}
-                onSelect={(fs) => setImageFile2(fs?.[0] ?? null)}
-              />
-              <AssetPickButton
-                kind="image"
-                onPick={async (assets) => {
-                  if (assets[0]) setImageFile2(await assetAsFile(assets[0]));
-                }}
-              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {extraImageKeys.map((key, index) => {
+                  const spec = pack?.inputs[key];
+                  const ready = extraSlotReady(key);
+                  const file = slotFiles[key];
+                  const picture =
+                    spec?.mention ||
+                    (pack?.name === "minimax_h3_i2v_ref" || key.startsWith("ref_")
+                      ? `<Picture ${index + 2}>`
+                      : "");
+                  return (
+                    <div key={key} className="rounded-xl border border-border p-3">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {tx(spec?.label || key)}
+                            {picture ? (
+                              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                {picture}
+                              </span>
+                            ) : null}
+                          </p>
+                          {spec?.description ? (
+                            <p className="mt-0.5 text-xs text-muted-foreground">{tx(spec.description)}</p>
+                          ) : null}
+                        </div>
+                        {file ? (
+                          <button
+                            type="button"
+                            className="shrink-0 text-xs text-muted-foreground underline"
+                            onClick={() => setSlotFile(key, null)}
+                          >
+                            {tx("移除")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <FileDrop
+                        accept="image/*"
+                        title={
+                          ready
+                            ? tx("点击或拖拽上传")
+                            : tx("先填写前面的参考图，或选择角色补主图")
+                        }
+                        names={file ? [file.name] : []}
+                        disabled={!ready}
+                        onSelect={(fs) => setSlotFile(key, fs?.[0] ?? null)}
+                      />
+                      <AssetPickButton
+                        kind="image"
+                        disabled={!ready}
+                        onPick={async (assets) => {
+                          if (assets[0]) setSlotFile(key, await assetAsFile(assets[0]));
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </Field>
           )}
 
@@ -590,6 +716,69 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             />
           )}
 
+          {(hasRefAudio || hasAudioContext) && (
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <div className="mb-3 text-sm font-medium">{tx("音频")}</div>
+              {hasRefAudio && (
+                <Field
+                  label={tx("参考音频（可选）")}
+                  hint={tx("给模型参考环境音或音乐，用于保持氛围一致；是参考不是锁定。")}
+                >
+                  <WorkflowAudioField
+                    value={refAudioValue}
+                    onChange={(v) => setExtra((prev) => ({ ...prev, ref_audio: v }))}
+                  />
+                </Field>
+              )}
+              {hasAudioContext && (
+                <>
+                  <Field
+                    label={tx("音频续接")}
+                    hint={tx("上下文越长，承接上一段音频越多，耗时和显存越高。")}
+                  >
+                    <Segmented
+                      ariaLabel={tx("音频续接")}
+                      value={audioContinuityMode}
+                      onChange={(mode) => {
+                        setAudioContinuityMode(mode);
+                        setAudioContinuity(mode);
+                      }}
+                      options={[
+                        { value: "off", label: tx("关闭") },
+                        { value: "context", label: tx("音频上下文") },
+                        { value: "reference", label: tx("参考音频") },
+                        { value: "both", label: tx("两者") },
+                      ]}
+                    />
+                  </Field>
+                  {(audioContinuityMode === "context" || audioContinuityMode === "both") && (
+                    <Field
+                      label={tx("音频上下文长度")}
+                      hint={tx("常用 22；44/96 更强，但更慢、更占显存。")}
+                    >
+                      <select
+                        className={selectClass}
+                        value={String(audioContextValue || 22)}
+                        onChange={(e) =>
+                          setExtra((prev) => ({ ...prev, audio_context_length: e.target.value }))
+                        }
+                      >
+                        <option value="22">22</option>
+                        <option value="44">44</option>
+                        <option value="96">96</option>
+                      </select>
+                    </Field>
+                  )}
+                  {audioContinuityMode === "off" && (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {tx("关闭后保持模型原生音频，不额外承接上下文或参考音频。")}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <AdvancedPanel summary={advancedSummary || tx("采样、配乐与权重")}>
             {pack && hasAccel(pack.accel) && pack.accel && (
               <AccelControl
@@ -632,11 +821,15 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                 inputs={pack.inputs}
                 values={extra}
                 onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
-                exclude={
-                  kind === "avatar" || kind === "motion"
-                    ? ["prompt", "image", "video", "audio", "length", "frames"]
-                    : ["prompt", "image", "video", "audio"]
-                }
+                exclude={[
+                  "prompt",
+                  "image",
+                  "video",
+                  "audio",
+                  "ref_audio",
+                  "audio_context_length",
+                  ...(kind === "avatar" || kind === "motion" ? ["length", "frames"] : []),
+                ]}
                 providerId={provider?.id}
                 fps={pack.fps}
                 durationLimits={pack.duration_limits}

@@ -1,8 +1,10 @@
 name: analysis_image_qwenvl
 capability: analysis
-description: 'QwenVL 图片素材分析
+summary: 图片理解
+description: 'Qwen VL 图片理解
 
-  上传一张图片，得到一段画面内容描述文字——主要供「快速创作」「自定义素材」里写分镜文案用。'
+  上传图片，让模型输出描述、文案、标签或判断结果。
+  适合给素材写说明、提取画面信息，或作为后续生成的前置分析。'
 inputs:
   image:
     node: '5'

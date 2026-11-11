@@ -321,7 +321,9 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "canvas_run_nodes",
         "保存画布并执行当前节点。node_ids 只传当前要执行的节点，不要传上游；"
         "上游默认复用缓存，只会重跑选中的节点。"
-        "force=true 时强制选中节点及其上游，代价更高；执行前由用户确认是否强制。",
+        "force=true 时强制选中节点及其上游，代价更高；执行前由用户确认是否强制。"
+        "音频连续性由画布节点表达：上一镜尾音用 audio_extract 节点，氛围底用音频输入节点；"
+        "不再传 audio_plan。",
         {"node_ids": _ARR, "force": _BOOL},
         ["node_ids"],
     ),

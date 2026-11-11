@@ -1,10 +1,10 @@
 name: qwen_image_21_outfit_swap
 capability: i2i
-description: 'Qwen-Image 2.1 换衣
+summary: 服装替换
+description: 'Qwen 服装替换
 
-  第一张是人物照，第二张是衣服。脸、头发、手、姿势和背景保持不变，只换衣服。
-
-  主模型用官方 INT8（这条 LoRA 在官方 2.1 上测过）。ComfyUI 0.38 及以上。'
+  上传人物照和服装图，只替换衣服，保留人物面部、发型和姿态。
+  适合电商换装、角色服装试穿和分镜造型调整。'
 inputs:
   image:
     node: '10'

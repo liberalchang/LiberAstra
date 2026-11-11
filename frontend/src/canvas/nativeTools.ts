@@ -1,6 +1,6 @@
 import type { CanvasMenuItem } from "@/api/client";
 
-export type NativeToolId = "image_concat" | "video_concat" | "audio_concat";
+export type NativeToolId = "image_concat" | "video_concat" | "audio_concat" | "audio_extract";
 
 export interface NativeTool {
   id: NativeToolId;
@@ -35,6 +35,14 @@ export const NATIVE_TOOLS: NativeTool[] = [
     subCapability: "tool_audio_concat",
     page: "/tools/audio-concat",
     description: "按顺序拼接多段音频",
+  },
+  {
+    id: "audio_extract",
+    title: "音频提取",
+    mediaKind: "audio",
+    subCapability: "tool_audio_extract",
+    page: "/tools/audio-extract",
+    description: "从视频或音频提取完整音轨，或截取固定长度尾音",
   },
 ];
 

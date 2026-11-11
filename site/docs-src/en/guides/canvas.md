@@ -35,6 +35,8 @@ Which functions a canvas can use is decided by "Menu Settings" on the canvas lis
 - **Manual**: lists only the models or workflows you checked; useful for pinning a specific machine or pack.
 - **Tool item**: only Image Concat, Video Concat, and Audio Concat. They run locally and need no model, provider, or workflow pack.
 
+The Audio Extract tool takes one video or audio input, extracts either the full audio track or a fixed-length tail (0.5–15 seconds), and outputs audio that can feed a function node's reference-audio slot.
+
 The canvas top bar "All functions" lists the function items from Menu Settings. In the bottom `+` menu, "Input" and "Concat" are fixed input/concat nodes; the "Speech", "Image", and "Video" groups read the menu items. Creating a node from a function item loads that item's default target and, based on the pack or model's required image, video, and audio slots, creates upstream input nodes on the left and connects them. If an upstream already provides the same media type, it is not created again. When you switch packs, model-file parameters return to the new pack's defaults so you do not carry the previous UNET, text encoder, or VAE into another family.
 
 Click "Finish editing" to save; the enable switch and delete also save immediately. When the built-in menu structure is upgraded, image, video, and tools are rebuilt for the new version; speech keeps the model you specified; items you deleted in the current version are not restored.
@@ -69,6 +71,14 @@ An image input can "Edit image". Exporting creates a new version, and you can sw
 - **Depth conversion**: sends the current base image to an enabled Liber Depth service and produces a depth map. If the local depth plugin is not installed or not enabled, and there is no enabled Liber Depth provider, this button is disabled.
 
 Switching to another image clears the version list; the new image becomes "Original".
+
+### Character input image rules
+
+The camera view selected on a character input node determines what downstream nodes actually receive:
+
+- **16:9 character sheet** or **9:16 four-grid**: downstream receives the entire sheet as one image slot. It is not automatically replaced with the split front/side/back views. Reference it as `<Picture 1>` only.
+- **Facial close-up / full-body front / side / back**: for image-to-video, the selected view goes first and the remaining full-body views fill the available image slots. For motion transfer with three image slots, it always sends **front, side, and back** full-body images, not just the selected one; they map to `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`.
+- Motion transfer needs the split front/side/back images. If a character only has a whole sheet and was uploaded without auto-split, choose the 16:9 sheet or 9:16 four-grid option; otherwise the default three-view mode has no single-view images.
 
 ## Director
 
@@ -135,18 +145,31 @@ The skill menu lets you switch the current skill, upload a `SKILL.md` or zip, an
 
 Built-in skills are already split into `SKILL.md` + `references/` or `assets/`: the main file keeps only the core flow, and detailed templates and parameters are read on demand to reduce context usage.
 
-### The Director skill's two video routes
+### The Director skill's video routes and audio continuity
 
 Choose a creative route before generating storyboard images:
 
-- **Storyboard video**: generate keyframes for each shot (the user chooses how many; multiple images are allowed and are not concatenated), one video node per shot, then merge at the end. The focus is consistency of character, clothing, scene, and style.
-- **Single video**: generate one storyboard reference image per shot, split internally according to the single-segment limit; each segment is concatenated into one 1×N reference image. Up to 15 seconds uses "reference-image to video"; over 15 seconds uses "long reference-image video". The focus is continuity of motion, light, and audio.
+- **A. Storyboard video**: generate keyframes for each shot, then generate video. After choosing A, choose a mode:
+  - **A1. Per-shot concatenation (default)**: one `i2v_ref` video node per shot, merged at the end; individual shots can be retried and hard cuts are allowed.
+  - **A2. Continuous timeline**: put several shots into one Extender timeline; suited to continuous shots in the same scene, and the whole timeline is rerun rather than one shot.
+- **B. Whole-reference video**: generate one storyboard reference image per shot and split internally according to the single-segment limit; each segment is concatenated into one 1×N reference image. Up to 15 seconds uses "Reference Image to Video (Single Segment)"; over 15 seconds uses "Continuous Generation (Long)". The focus is continuity of motion, light, and audio.
+
+A1 audio continuity:
+
+- **Model native**: no extra processing, the default.
+- **Previous shot tail**: from shot 2 onward, add an Audio Extract node (`audio_extract`, `tail`, 2–15 seconds), connect the previous shot video to it, and connect its audio output to the current shot's `ref_audio`. The first shot has no reference. The whole chain is visible, editable, and can be rerun on its own.
+- **Whole-film ambience bed**: add an audio input node and connect it to every shot's `ref_audio`. H3 treats it as a reference, not a time-aligned slice; align it manually if per-shot precision matters.
+- The video concat node's `audioFadeMs` controls a short fade at each segment's audio boundaries (0–200ms, default 60).
+
+A2/B Extender audio: `audio_context_length` defaults to 0; higher values carry more audio from the previous segment. P1 adds optional `ref_audio`. A2/B do not expose A1's per-shot three-way choice.
 
 The route decides the node type; the user no longer chooses "image-to-video / reference video". Workflows and models are resolved from the current canvas menu configuration; to change the target, use the dropdown in the node property panel. The Director does not create or modify workflow packs.
 
-- Storyboard video uses `i2v_ref` multi-reference images: the current keyframe, character three-view, face, and scene can be passed at the same time; the character reference is bound by default, and when the user asks to remove it, the canvas skill disconnects it and clears the binding. `<Picture N>` is numbered in the order of the slots actually filled.
-- When a single video is no longer than 15 seconds, one reference-image-to-video node is used; when it is longer than 15 seconds, use the Extender long-video path. A 60-second video defaults to 4 segments of no more than 15 seconds each, keeping motion context between segments instead of splitting into multiple independent videos and concatenating them.
-- Menu mapping: `minimax_h3_i2v` keeps strict first-frame/optional last-frame; `minimax_h3_i2v_ref` serves both "reference-image to video" and "storyboard video"; `minimax_h3_extender` serves "long reference-image video".
+- A1 uses `i2v_ref` multi-reference images: the current keyframe, character three-view, face, and scene can be passed at the same time; `<Picture N>` is numbered in the order of the slots actually filled. Audio references come from the canvas audio nodes described above.
+- A single video node's `length` follows `duration_limits`: `ceil(seconds × fps)`, then snap up to `align_base × k + align_offset`. For H3, 10 seconds is 243 frames, not 240 or 241.
+- A2 creates only one Extender node, with no per-shot video or concat node; if reference slots run out, reduce keyframes first and then use per-segment 1×N composite images.
+- When B is no longer than 15 seconds, one "Reference Image to Video (Single Segment)" node is used; when it is longer than 15 seconds, use the Extender path under "Continuous Generation (Long)". A 60-second video defaults to 4 segments of no more than 15 seconds each, keeping motion context between segments instead of splitting into multiple independent videos and concatenating them.
+- Menu mapping: `minimax_h3_i2v` keeps strict first-frame/optional last-frame; `minimax_h3_i2v_ref` serves both "Reference Image to Video (Single Segment)" and A1; `minimax_h3_extender` serves "Continuous Generation (Long)", A2, and B long video.
 - Each step still presents a plan first and waits for confirmation; after the nodes are created, the canvas can be tidied automatically, and the order of storyboard video and concat nodes is checked afterwards.
 
 ### Permissions and confirmation

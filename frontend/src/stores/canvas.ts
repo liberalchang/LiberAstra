@@ -25,6 +25,7 @@ import {
   type MediaKind,
   type NodeRunState,
 } from "@/canvas/types";
+import { missingBindingEdges } from "@/canvas/bindings";
 import { hasActiveRun, settleStaleRuns } from "@/canvas/runState";
 import { checkConnection } from "@/canvas/validation";
 
@@ -76,6 +77,8 @@ interface CanvasState {
   onEdgesChange: (changes: EdgeChange<Edge>[]) => void;
   onConnect: (conn: Connection) => ConnectRejectReason | null;
   setViewport: (vp: Viewport) => void;
+  /** 补回“已绑定但缺边”的媒体槽连线；返回新增边数。 */
+  ensureBindingEdges: () => number;
 
   addNode: (
     kind: CanvasNodeKind,
@@ -357,6 +360,24 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
   },
 
   setViewport: (viewport) => set({ viewport }),
+
+  ensureBindingEdges: () => {
+    const missing = missingBindingEdges(get().nodes, get().edges);
+    if (!missing.length) return 0;
+    let created = 0;
+    get().batch(() => {
+      for (const item of missing) {
+        const rejected = get().onConnect({
+          source: item.source,
+          target: item.target,
+          sourceHandle: `out-${item.source}`,
+          targetHandle: `in-${item.target}`,
+        });
+        if (rejected === null) created += 1;
+      }
+    });
+    return created;
+  },
 
   addNode: (kind, mediaKind, position, opts) => {
     record();

@@ -152,6 +152,10 @@
         "5",
         0
       ],
+      "ref_audio_1": [
+        "40",
+        0
+      ],
       "ref_pack": [
         "19",
         0
@@ -216,6 +220,12 @@
       "format": "auto",
       "codec": "auto",
       "bit_depth": 8
+    }
+  },
+  "40": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "example.mp3"
     }
   }
 }

@@ -1,8 +1,10 @@
 name: qwen_image_21_union_depth
 capability: i2i
-description: 'Qwen 2.1 Union 深度生图
+summary: 深度图生成人物
+description: 'Qwen 深度图生成人物
 
-  不需要人物照。来自 T8 qwen21_union_depth。需安装 ComfyUI 节点 qwen-image-2-1-fun-controlnet-union-t8，ComfyUI ≥ 0.37。Union 权重放 controlnet/，文件名须以 Qwen-Image-2.1-Fun-Controlnet-Union 开头。'
+  用深度图控制构图和前后关系，再按提示词生成人物与场景。
+  适合从白模、3D 构图或已有照片提取的空间结构开始创作。'
 inputs:
   image:
     node: '5'

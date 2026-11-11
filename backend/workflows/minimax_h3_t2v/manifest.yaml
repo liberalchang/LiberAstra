@@ -1,8 +1,10 @@
 name: minimax_h3_t2v
 capability: t2v
+summary: 文生视频
 description: 'MiniMax H3 文生视频
 
-  输入画面与动作描述，直接生成带同步音效的短视频，无需首帧图。可选 Turbo 加速。'
+  只写提示词，生成一段带同步音效的视频。
+  没有首帧图，镜头、动作和画面完全由提示词决定。'
 fps: 24
 inputs:
   prompt:

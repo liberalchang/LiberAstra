@@ -23,6 +23,7 @@ from liberastra.jobs.manager import JobManager
 from liberastra.models import Asset, Canvas, CanvasNodeRun, Character, Job, Voice, utcnow
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.providers.base import ProviderError
+from liberastra.services.canvas_audio import AudioPlanRuntime, validate_audio_plan
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
     node_map,
@@ -44,10 +45,17 @@ def start_run(
     owner_id: int,
     node_ids: list[str],
     force_node_ids: list[str],
+    *,
+    audio_plan: dict[str, Any] | None = None,
+    db: Session | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """启动一次画布执行,立即返回 run_id 与初始 plan(节点状态随后台推进)。"""
     graph = canvas.graph or {}
     scope = resolve_scope(graph, node_ids or None)
+    if audio_plan:
+        if db is None:
+            raise ProviderError("执行音频计划需要数据库会话")
+        validate_audio_plan(db, graph, set(scope), owner_id, audio_plan)
     order = topo_order(graph, scope)
     if not order:
         raise ProviderError("画布为空，没有可执行的节点")
@@ -64,7 +72,9 @@ def start_run(
         if state["canvas_id"] == canvas.id and state["task"].done():
             del runs[rid]
     task = asyncio.create_task(
-        _orchestrate(app, run_id, canvas.id, owner_id, order, set(force_node_ids))
+        _orchestrate(
+            app, run_id, canvas.id, owner_id, order, set(force_node_ids), audio_plan
+        )
     )
     runs[run_id] = {
         "run_id": run_id,
@@ -385,7 +395,9 @@ def _resolve_function_inputs(
     node: dict[str, Any],
     runs: dict[str, CanvasNodeRun],
     variables: dict[str, str],
-) -> tuple[Any, dict[str, Any], str]:
+    *,
+    audio_extra: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any], str, dict[str, Any]]:
     """解析功能节点的最终 inputs 与指纹。返回 (pack, inputs, fingerprint, soundtrack)。
 
     媒体输入优先级:槽位绑定(bindings: 参数名 → 上游变量名)> 按类型+连线顺序自动映射。
@@ -555,6 +567,7 @@ def _resolve_function_inputs(
             "inputs": inputs,
             "media_asset_ids": sorted(media_asset_ids),
             **({"soundtrack": soundtrack} if soundtrack else {}),
+            **({"audio_plan": audio_extra} if audio_extra else {}),
         }
     )
     return pack, inputs, fingerprint, soundtrack
@@ -613,11 +626,28 @@ async def _execute_function(
     variables: dict[str, str],
     force: set[str],
     item: dict[str, Any],
+    audio_runtime: AudioPlanRuntime | None = None,
 ) -> None:
     node_id = str(node["id"])
-    pack, inputs, fingerprint, soundtrack = _resolve_function_inputs(
-        db, graph, node, runs, variables
+    audio_injection = (
+        await audio_runtime.plan_for_node(node, runs) if audio_runtime is not None else None
     )
+    pack, inputs, fingerprint, soundtrack = _resolve_function_inputs(
+        db,
+        graph,
+        node,
+        runs,
+        variables,
+        audio_extra=audio_injection.signature if audio_injection else None,
+    )
+    audio_params: dict[str, Any] = {}
+    if audio_injection is not None:
+        audio_params = {
+            "audio_injected": audio_injection.signature,
+            "audio_note": audio_injection.note,
+        }
+        if audio_injection.path:
+            inputs["ref_audio"] = audio_injection.path
     reusable = (
         node_id not in force
         and row.status == "succeeded"
@@ -646,6 +676,7 @@ async def _execute_function(
             "prompt": str(inputs.get("prompt") or ""),
             "inputs": inputs,
             **_canvas_labels(db, canvas_id, node),
+            **audio_params,
         }
     else:
         params = {
@@ -656,6 +687,7 @@ async def _execute_function(
             "inputs": inputs,
             **soundtrack,
             **_canvas_labels(db, canvas_id, node),
+            **audio_params,
         }
     job = manager.submit(
         db,
@@ -690,7 +722,7 @@ async def _execute_function(
     item["status"] = row.status
 
 
-async def _execute_concat(
+async def _execute_audio_extract(
     app,  # noqa: ANN001
     db: Session,
     canvas_id: str,
@@ -703,11 +735,141 @@ async def _execute_concat(
     force: set[str],
     item: dict[str, Any],
 ) -> None:
+    """音频提取工具：一个视频/音频输入，输出完整音轨或固定长度尾音。"""
     node_id = str(node["id"])
     data = node.get("data") or {}
+    incoming = _incoming_sources(graph, node_id)
+    ordered = [str(x) for x in (data.get("order") or [])]
+    sources = [s for s in ordered if s in incoming] + [s for s in incoming if s not in ordered]
+    candidates: list[Asset] = []
+    for source in sources:
+        run = runs.get(source)
+        if run is None or run.status != "succeeded":
+            continue
+        for asset_id in run.asset_ids or []:
+            asset = db.get(Asset, int(asset_id))
+            if asset is not None and asset.kind in ("video", "audio"):
+                candidates.append(asset)
+    if len(candidates) != 1:
+        raise ProviderError("音频提取只支持一个视频或音频输入")
+    source = candidates[0]
+    mode = "whole" if str(data.get("audioMode") or "") == "whole" else "tail"
+    seconds = max(0.5, min(15.0, float(data.get("tailSeconds") or 5)))
+    fingerprint = canonical_fingerprint(
+        {
+            "tool": "audio_extract",
+            "source_asset_id": source.id,
+            "mode": mode,
+            "seconds": seconds if mode == "tail" else None,
+        }
+    )
+    reusable = (
+        node_id not in force
+        and row.status == "succeeded"
+        and row.fingerprint == fingerprint
+        and _assets_alive(db, list(row.asset_ids or []))
+    )
+    if reusable:
+        row.updated_at = utcnow()
+        db.commit()
+        item["status"] = "succeeded"
+        item["reused"] = True
+        return
+
+    manager: JobManager = app.state.jobs
+    job = manager.submit(
+        db,
+        owner_id=owner_id,
+        kind="media.extract_audio",
+        params={
+            "canvas_id": canvas_id,
+            "run_id": run_id,
+            "node_id": node_id,
+            "asset_id": source.id,
+            "mode": mode,
+            "seconds": seconds,
+            "visible": False,
+            **_canvas_labels(db, canvas_id, node),
+        },
+    )
+    row.job_id = job.id
+    row.status = "running"
+    row.fingerprint = fingerprint
+    row.error = None
+    row.updated_at = utcnow()
+    db.commit()
+    item["job_id"] = job.id
+    item["status"] = "running"
+
+    final = await _wait_terminal(db, manager, job.id)
+    if final.status == "succeeded":
+        row.asset_ids = [
+            int(o["asset_id"]) for o in final.outputs if o.get("type") == "asset" and o.get("asset_id")
+        ]
+        row.status = "succeeded"
+        row.error = None
+    else:
+        row.status = final.status
+        row.error = final.error
+    row.updated_at = utcnow()
+    db.commit()
+    item["status"] = row.status
+
+
+def _audio_fade_ms_for(
+    data: dict[str, Any],
+    media_kind: str,
+    audio_runtime: AudioPlanRuntime | None,
+) -> int:
+    """视频拼接淡化：节点参数优先，旧的运行级音频计划仅作兼容回退。"""
+    if media_kind != "video":
+        return 0
+    raw = data.get("audioFadeMs")
+    if raw in (None, ""):
+        raw = audio_runtime.seam_fade_ms if audio_runtime and audio_runtime.active else 0
+    try:
+        return max(0, min(200, int(raw or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+async def _execute_concat(
+    app,  # noqa: ANN001
+    db: Session,
+    canvas_id: str,
+    run_id: str,
+    owner_id: int,
+    graph: dict[str, Any],
+    node: dict[str, Any],
+    row: CanvasNodeRun,
+    runs: dict[str, CanvasNodeRun],
+    force: set[str],
+    item: dict[str, Any],
+    audio_runtime: AudioPlanRuntime | None = None,
+) -> None:
+    node_id = str(node["id"])
+    data = node.get("data") or {}
+    if str(data.get("toolId") or "") == "audio_extract":
+        await _execute_audio_extract(
+            app, db, canvas_id, run_id, owner_id, graph, node, row, runs, force, item
+        )
+        return
     media_kind = str(data.get("mediaKind") or "video")
     if media_kind not in ("image", "audio", "video"):
         raise ProviderError(f"合成节点只支持图片/音频/视频: {media_kind}")
+    audio_fade_ms = _audio_fade_ms_for(data, media_kind, audio_runtime)
+    audio_bed: dict[str, Any] = {}
+    if (
+        audio_runtime is not None
+        and audio_runtime.strategy == "global_bed"
+        and audio_runtime.bed_asset_id not in (None, "")
+        and media_kind == "video"
+    ):
+        audio_bed = {
+            "audio_bed_asset_id": int(audio_runtime.bed_asset_id),
+            "audio_bed_mode": audio_runtime.bed_mode,
+            "audio_bed_volume": 0.2,
+        }
     layout_params: dict[str, Any] = {}
     if media_kind == "image":
         layout_params = {
@@ -736,7 +898,13 @@ async def _execute_concat(
         raise ProviderError(f"合成节点没有可用的{media_kind}输入")
 
     fingerprint = canonical_fingerprint(
-        {"kind": media_kind, "asset_ids": asset_ids, **layout_params}
+        {
+            "kind": media_kind,
+            "asset_ids": asset_ids,
+            "audio_fade_ms": audio_fade_ms,
+            **audio_bed,
+            **layout_params,
+        }
     )
     reusable = (
         node_id not in force
@@ -762,6 +930,8 @@ async def _execute_concat(
             "node_id": node_id,
             "asset_ids": asset_ids,
             "kind": media_kind,
+            "audio_fade_ms": audio_fade_ms,
+            **audio_bed,
             **layout_params,
             **_canvas_labels(db, canvas_id, node),
         },
@@ -1105,6 +1275,7 @@ async def _orchestrate(
     owner_id: int,
     order: list[str],
     force: set[str],
+    audio_plan: dict[str, Any] | None = None,
 ) -> None:
     state = app.state.canvas_runs[run_id]
     plan = {item["node_id"]: item for item in state["plan"]}
@@ -1118,6 +1289,9 @@ async def _orchestrate(
         graph = canvas.graph or {}
         nodes = node_map(graph)
         variables = _text_variables(nodes)
+        audio_runtime = AudioPlanRuntime(
+            db, canvas_id, graph, run_id, owner_id, audio_plan
+        )
         runs: dict[str, CanvasNodeRun] = {}
         for node_id in order:
             if state.get("canceled"):
@@ -1135,11 +1309,12 @@ async def _orchestrate(
                 elif node_type == "function":
                     await _execute_function(
                         app, db, canvas_id, run_id, owner_id, graph, node, row, runs, variables,
-                        force, item,
+                        force, item, audio_runtime,
                     )
                 elif node_type == "concat":
                     await _execute_concat(
-                        app, db, canvas_id, run_id, owner_id, graph, node, row, runs, force, item
+                        app, db, canvas_id, run_id, owner_id, graph, node, row, runs, force, item,
+                        audio_runtime,
                     )
                 elif node_type == "speech":
                     await _execute_speech(

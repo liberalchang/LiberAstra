@@ -21,7 +21,7 @@ from liberastra.services.workflows import list_packs
 MENU_SETTING_KEY = "canvas_custom_menu"
 # 出厂菜单结构变化时加 1。低于这个版本的存档会按当前出厂菜单重做图像和视频，语音保留。
 # 用户在当前版本里删掉的项不再补回。
-MENU_REVISION = 8
+MENU_REVISION = 11
 
 
 def decode_menu(raw: str) -> tuple[list[dict], int]:
@@ -38,13 +38,27 @@ def decode_menu(raw: str) -> tuple[list[dict], int]:
 
 
 def merge_factory_items(items: list[dict]) -> list[dict]:
-    """旧菜单的图像和视频按当前工作流功能整表换掉。语音保留用户已经指定的模型。"""
+    """旧菜单的图像和视频按当前工作流功能整表换掉。语音保留绑定，但更新内置项名称。"""
     factory = default_canvas_menu()
-    speech = [dict(item) for item in items if item.get("category") == "speech"]
+    builtin_speech = {
+        str(item.get("id") or ""): item
+        for item in factory
+        if item.get("category") == "speech"
+    }
+    speech = []
+    for item in items:
+        if item.get("category") != "speech":
+            continue
+        row = dict(item)
+        builtin = builtin_speech.get(str(row.get("id") or ""))
+        if builtin is not None:
+            row["title"] = builtin["title"]
+            row["hint"] = builtin["hint"]
+        speech.append(row)
     if not speech:
         speech = [item for item in factory if item.get("category") == "speech"]
     elif not any(str(item.get("id") or "") == "preset_vc" for item in speech):
-        preset_vc = next((item for item in factory if item.get("id") == "preset_vc"), None)
+        preset_vc = builtin_speech.get("preset_vc")
         if preset_vc is not None:
             speech.append(dict(preset_vc))
     workflow = [item for item in factory if item.get("category") != "speech"]

@@ -1,8 +1,11 @@
 name: minimax_h3_i2v_ref
 capability: i2v
-description: 'MiniMax H3 参考图生视频
+summary: 多参考图生视频
+description: 'MiniMax H3 多参考图生视频
 
-  上传的图片只提供外观，不锁第一帧。支持多张参考图：角色三视图、场景和当前关键帧可同时传入。角色、服装和脸从参考图来，提示词里用 <Picture N> 指代。镜头和起始构图按提示词生成。可选 Turbo 加速。'
+  最多上传 9 张参考图：角色正面、侧面、背面、面部，场景或关键帧可以一起给模型。
+  参考图只提供外观，不锁定视频第一帧；提示词按已填槽位顺序用 <Picture 1>、<Picture 2> 指代。
+  适合保持同一角色、服装和场景，让模型按提示词决定镜头起点和运动。'
 fps: 24
 inputs:
   image:
@@ -69,6 +72,13 @@ inputs:
     required: false
     label: 额外参考 3
     description: 可选。额外外观、道具或风格参考。
+  ref_audio:
+    node: '123'
+    field: inputs.audio
+    type: audio
+    required: false
+    label: 参考音频
+    description: 可选。给模型参考环境音/音乐，用于跨镜接续；是参考不是锁定，没有音频时保持原生生成。
   prompt:
     node: 105:104
     field: inputs.prompt

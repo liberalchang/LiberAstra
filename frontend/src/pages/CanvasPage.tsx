@@ -160,6 +160,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
   }, []);
 
   const save = useCallback(async (): Promise<boolean> => {
+    const repaired = useCanvasStore.getState().ensureBindingEdges();
+    if (repaired) flash(tx("已补齐 {n} 条绑定连线", { n: repaired }));
     const s = useCanvasStore.getState();
     setSaving(true);
     try {
@@ -253,6 +255,8 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
 
   /** 执行前预检:问题节点红框标记 + 选中第一个 + 常驻通知,返回是否有问题。 */
   const preflight = (targetIds: string[]): boolean => {
+    const repaired = useCanvasStore.getState().ensureBindingEdges();
+    if (repaired) flash(tx("已补齐 {n} 条绑定连线", { n: repaired }));
     const s = useCanvasStore.getState();
     const packs = queryClient.getQueryData<WorkflowPackOut[]>(["workflows"]);
     const scope = scopeOf(s.nodes, s.edges, targetIds);
@@ -448,6 +452,9 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           presetId: item.id,
           presetTitle: item.title,
           group: item.title,
+          ...(tool.id === "audio_extract"
+            ? { toolId: "audio_extract", audioMode: "tail", tailSeconds: 5 }
+            : {}),
         });
         if (pendingFrom) {
           store.onConnect({
@@ -508,6 +515,7 @@ function CanvasEditor({ canvasId }: { canvasId: string }) {
           if (rejected === "cycle") flash(tx("不能形成环形依赖"));
           else if (rejected === "duplicate") flash(tx("两个节点已连接"));
           else if (rejected === "concat-kind") flash(tx("拼接节点只接受同类型媒体"));
+          else if (rejected === "tool-input-limit") flash(tx("音频提取只接受一个输入"));
           else if (rejected === "input-no-inlet") flash(tx("输入节点不能接受连线"));
         }}
         onNodeContextMenu={(event, node) => {

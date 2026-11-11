@@ -78,11 +78,24 @@ class CanvasListOut(BaseModel):
     updated_at: datetime
 
 
+class CanvasAudioPlanIn(BaseModel):
+    """逐镜视频的运行级音频计划；A2/B 的 Extender 音频参数仍走 pack 输入。"""
+
+    strategy: Literal["native", "previous_tail", "global_bed"] = "native"
+    ref_seconds: float = Field(default=5, ge=2, le=15)
+    bed_asset_id: int | None = None
+    bed_fill: Literal["loop", "silence"] = "loop"
+    bed_mode: Literal["mix", "replace"] = "mix"
+    seam_fade_ms: int = Field(default=60, ge=0, le=200)
+    order: list[str] = Field(default_factory=list, max_length=100)
+
+
 class CanvasRunIn(BaseModel):
     """node_ids 为空 = 所有末端分支；force_node_ids 强制重跑（忽略指纹复用）。"""
 
     node_ids: list[str] = Field(default_factory=list)
     force_node_ids: list[str] = Field(default_factory=list)
+    audio_plan: CanvasAudioPlanIn | None = None
 
 
 class CanvasRunPlanItem(BaseModel):

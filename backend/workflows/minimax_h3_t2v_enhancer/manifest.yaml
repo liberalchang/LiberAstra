@@ -1,8 +1,10 @@
 name: minimax_h3_t2v_enhancer
 capability: t2v
-description: 'MiniMax H3 文生视频增强
+summary: 提示词增强文生视频
+description: 'MiniMax H3 提示词增强文生视频
 
-  输入简短描述，内置增强器自动补全细节，生成带音效的短视频。默认使用越狱 TE。可选 Turbo 加速；需配套 Guide 节点包与同族生成尾件。'
+  先把简短想法扩写成完整镜头描述，再生成带同步音效的视频。
+  适合需要更丰富画面细节，但不想手写长提示词的情况。需要本地已安装配套增强依赖。'
 fps: 24
 inputs:
   prompt:

@@ -27,6 +27,7 @@ export type NavIconKey =
   | "imageConcat"
   | "videoConcat"
   | "audioConcat"
+  | "audioExtract"
   | "imageEnhance"
   | "videoEnhance"
   | "templates"
@@ -161,6 +162,7 @@ export const NAV_ENTRIES: NavEntry[] = [
           { to: "/tools/image-concat", labelKey: "nav.imageConcat", icon: "imageConcat" },
           { to: "/tools/video-concat", labelKey: "nav.videoConcat", icon: "videoConcat" },
           { to: "/tools/audio-concat", labelKey: "nav.audioConcat", icon: "audioConcat" },
+          { to: "/tools/audio-extract", labelKey: "nav.audioExtract", icon: "audioExtract" },
         ],
       },
       {

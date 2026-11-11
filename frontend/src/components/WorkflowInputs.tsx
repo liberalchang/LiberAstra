@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { api, type DurationLimits, type WorkflowInputSpec } from "@/api/client";
+import { AssetPickButton } from "@/components/AssetPickButton";
 import { AspectSelect, ASPECT_OPTIONS, CUSTOM_RATIO, type AspectOption } from "@/components/ui/aspect-select";
 import { Field, selectClass } from "@/components/ui/field";
+import { FileDrop } from "@/components/ui/file-drop";
 import { Input } from "@/components/ui/input";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { useTx } from "@/i18n/tx";
@@ -169,6 +171,66 @@ function intValueOf(raw: string | undefined, spec: WorkflowInputSpec): number {
   return Number.isFinite(fallback) ? fallback : 0;
 }
 
+/** 工作流音频输入：上传后登记为资产并写入服务器路径，避免让用户手填路径。 */
+export function WorkflowAudioField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const tx = useTx();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const upload = async (files: File[] | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      const uploaded = await api.uploadFileAsAsset(file, "audio");
+      onChange(uploaded.path);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : String(exc));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <FileDrop
+        accept="audio/*"
+        title={busy ? tx("上传中…") : tx("点击或拖拽上传音频")}
+        names={value ? [value.split("/").pop() || value] : []}
+        onSelect={(files) => void upload(files)}
+      />
+      <AssetPickButton
+        kind="audio"
+        onPick={(assets) => {
+          const asset = assets[0];
+          if (asset) onChange(asset.path);
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          className="self-start text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          onClick={() => onChange("")}
+        >
+          {tx("清除音频")}
+        </button>
+      )}
+      {error && (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** 按工作流包 manifest 动态渲染参数表单。 */
 export function WorkflowInputs({
   inputs,
@@ -209,7 +271,9 @@ export function WorkflowInputs({
     !exclude.includes("width") && !exclude.includes("height");
   const entries = Object.entries(inputs).filter(
     ([key, spec]) =>
-      !exclude.includes(key) && spec.type !== "image" && !(mergeWH && (key === "width" || key === "height")),
+      !exclude.includes(key) &&
+      !["image", "video"].includes(String(spec.type)) &&
+      !(mergeWH && (key === "width" || key === "height")),
   );
   // 视频潜变量按包声明的倍数压缩（MiniMax 系 32，Wan 系 16）：宽高吸附到该倍数
   const mult = widthSpec?.multiple ?? 16;
@@ -317,6 +381,11 @@ export function WorkflowInputs({
                 providerId={providerId}
                 folder={spec.options_from}
                 spec={spec}
+                value={values[key] ?? ""}
+                onChange={(v) => onChange(key, v)}
+              />
+            ) : spec.type === "audio" ? (
+              <WorkflowAudioField
                 value={values[key] ?? ""}
                 onChange={(v) => onChange(key, v)}
               />

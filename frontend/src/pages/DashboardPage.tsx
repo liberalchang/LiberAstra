@@ -118,6 +118,7 @@ const TOOL_UTILITY_GROUP: ToolGroup = {
     { to: "/tools/image-concat", labelKey: "nav.imageConcat", icon: "imageConcat", hintKey: "studio.toolHints.imageConcat" },
     { to: "/tools/video-concat", labelKey: "nav.videoConcat", icon: "videoConcat", hintKey: "studio.toolHints.videoConcat" },
     { to: "/tools/audio-concat", labelKey: "nav.audioConcat", icon: "audioConcat", hintKey: "studio.toolHints.audioConcat" },
+    { to: "/tools/audio-extract", labelKey: "nav.audioExtract", icon: "audioExtract", hintKey: "studio.toolHints.audioExtract" },
     { to: "/tools/image-enhance", labelKey: "nav.imageEnhance", icon: "imageEnhance", hintKey: "studio.toolHints.imageEnhance" },
     { to: "/tools/video-enhance", labelKey: "nav.videoEnhance", icon: "videoEnhance", hintKey: "studio.toolHints.videoEnhance" },
   ],

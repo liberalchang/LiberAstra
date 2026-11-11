@@ -75,6 +75,27 @@ def test_trim_last_frame_and_slice(tmp_path: Path) -> None:
     asyncio.run(run())
 
 
+def test_extract_audio_whole_and_tail(tmp_path: Path) -> None:
+    async def run() -> None:
+        video = tmp_path / "source.mp4"
+        await ffmpeg._run(
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "color=c=blue:s=160x120:d=1.2",
+            "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono",
+            "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+            str(video),
+        )
+        whole = tmp_path / "whole.wav"
+        await ffmpeg.extract_audio(video, whole)
+        assert 1.0 < await ffmpeg.probe_duration(whole) < 1.4
+
+        tail = tmp_path / "tail.wav"
+        await ffmpeg.extract_audio_tail(video, 0.4, tail)
+        assert 0.25 < await ffmpeg.probe_duration(tail) < 0.6
+
+    asyncio.run(run())
+
+
 def test_make_segment_and_concat(tmp_path: Path) -> None:
     async def run() -> None:
         image = tmp_path / "a.png"

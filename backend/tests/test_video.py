@@ -80,6 +80,25 @@ def test_quick_video_request_accepts_grid_character_view() -> None:
     assert request.character_view == "turnaround_grid"
 
 
+def test_quick_video_request_accepts_audio_continuity() -> None:
+    from liberastra.schemas.video import QuickVideoRequest
+
+    request = QuickVideoRequest(
+        topic="测试",
+        audio_strategy="previous_tail",
+        audio_ref_seconds=7,
+        audio_bed_path="bgm/rain.mp3",
+        audio_bed_fill="silence",
+        audio_bed_mode="replace",
+        seam_fade_ms=80,
+    )
+    assert request.audio_strategy == "previous_tail"
+    assert request.audio_ref_seconds == 7
+    assert request.audio_bed_fill == "silence"
+    assert request.audio_bed_mode == "replace"
+    assert request.seam_fade_ms == 80
+
+
 def test_quick_video_with_script(
     client: TestClient, auth_header: dict[str, str], video_providers: None
 ) -> None:
@@ -233,6 +252,23 @@ def test_assets_video(client: TestClient, auth_header: dict[str, str], video_pro
     assert job["outputs"][0]["kind"] == "video"
 
 
+def test_assets_audio_strategy_rejected(client: TestClient, auth_header: dict[str, str]) -> None:
+    resp = client.post(
+        "/api/v1/videos/assets",
+        files=[("images", ("a.png", PNG_1PX, "image/png"))],
+        data={"script": "一句", "audio_strategy": "bad"},
+        headers=auth_header,
+    )
+    assert resp.status_code == 400
+    bad_mode = client.post(
+        "/api/v1/videos/assets",
+        files=[("images", ("a.png", PNG_1PX, "image/png"))],
+        data={"script": "一句", "audio_bed_mode": "bad"},
+        headers=auth_header,
+    )
+    assert bad_mode.status_code == 400
+
+
 def test_assets_subtitle_rejected(client: TestClient, auth_header: dict[str, str]) -> None:
     files = [("images", ("a.png", PNG_1PX, "image/png"))]
     bad_color = client.post(
@@ -326,6 +362,209 @@ def test_quick_video_prefixes_cleaned_appearance(
     assert job["status"] == "succeeded", job["error"]
     assert prompts and "黑长直" in prompts[0]
     assert "16:9" not in prompts[0]
+
+
+def test_i2v_passes_ref_audio_to_pack(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, dict] = {}
+
+    class _FakeVideo:
+        def __init__(self, base_url: str) -> None:
+            pass
+
+        async def generate(self, **kwargs):  # noqa: ANN003, ANN202
+            captured["inputs"] = kwargs["inputs"]
+            await asyncio.sleep(0)
+            return [("out.mp4", b"MP4DATA")], []
+
+    monkeypatch.setattr(simple, "ComfyUIVideo", _FakeVideo)
+    provider = client.post(
+        "/api/v1/providers",
+        json={"name": "comfy-i2v-audio", "type": "comfyui", "base_url": "http://mock:8188"},
+        headers=auth_header,
+    ).json()
+    imported = client.post(
+        "/api/v1/workflows/import",
+        json={
+            "name": "i2v_audio",
+            "capability": "i2v",
+            "workflow": {"1": {"class_type": "N", "inputs": {}}},
+            "inputs": {
+                "image": {"node": "1", "field": "inputs.image", "type": "image"},
+                "ref_audio": {"node": "1", "field": "inputs.audio", "type": "audio"},
+                "prompt": {"node": "1", "field": "inputs.prompt", "type": "str"},
+            },
+            "outputs": {"node": "1"},
+        },
+        headers=auth_header,
+    )
+    assert imported.status_code == 201, imported.text
+    resp = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        files={"image": ("a.png", PNG_1PX, "image/png")},
+        data={
+            "workflow": "i2v_audio",
+            "prompt": "动起来",
+            "inputs": json.dumps({"ref_audio": "uploads/ref.mp3"}),
+            "provider_id": str(provider["id"]),
+        },
+        headers=auth_header,
+        timeout=120,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert captured["inputs"]["ref_audio"] == "uploads/ref.mp3"
+
+
+def test_i2v_maps_multiple_images_to_explicit_slots(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, dict] = {}
+
+    class _FakeVideo:
+        def __init__(self, base_url: str) -> None:
+            pass
+
+        async def generate(self, **kwargs):  # noqa: ANN003, ANN202
+            captured["inputs"] = kwargs["inputs"]
+            await asyncio.sleep(0)
+            return [("out.mp4", b"MP4DATA")], []
+
+    monkeypatch.setattr(simple, "ComfyUIVideo", _FakeVideo)
+    provider = client.post(
+        "/api/v1/providers",
+        json={"name": "comfy-i2v-slots", "type": "comfyui", "base_url": "http://mock:8188"},
+        headers=auth_header,
+    ).json()
+    imported = client.post(
+        "/api/v1/workflows/import",
+        json={
+            "name": "i2v_slots",
+            "capability": "i2v",
+            "workflow": {"1": {"class_type": "N", "inputs": {}}},
+            "inputs": {
+                "image": {"node": "1", "field": "inputs.image", "type": "image"},
+                "image_2": {
+                    "node": "1",
+                    "field": "inputs.image_2",
+                    "type": "image",
+                    "required": False,
+                },
+                "image_3": {
+                    "node": "1",
+                    "field": "inputs.image_3",
+                    "type": "image",
+                    "required": False,
+                },
+                "prompt": {"node": "1", "field": "inputs.prompt", "type": "str"},
+            },
+            "outputs": {"node": "1"},
+        },
+        headers=auth_header,
+    )
+    assert imported.status_code == 201, imported.text
+    resp = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        files={
+            "image": ("one.png", PNG_1PX, "image/png"),
+            "image_2": ("two.png", PNG_1PX, "image/png"),
+            "image_3": ("three.png", PNG_1PX, "image/png"),
+        },
+        data={
+            "workflow": "i2v_slots",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+        },
+        headers=auth_header,
+        timeout=120,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    slots = job["params"]["image_slots"]
+    assert set(slots) == {"image", "image_2", "image_3"}
+    assert len(set(slots.values())) == 3
+    assert job["params"]["image_paths"] == [slots["image"], slots["image_2"], slots["image_3"]]
+    assert captured["inputs"]["image_2"] == slots["image_2"]
+    assert captured["inputs"]["image_3"] == slots["image_3"]
+
+    gap = client.post(
+        "/api/v1/videos/i2v",
+        files={
+            "image": ("one.png", PNG_1PX, "image/png"),
+            "image_3": ("three.png", PNG_1PX, "image/png"),
+        },
+        data={
+            "workflow": "i2v_slots",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+        },
+        headers=auth_header,
+    )
+    assert gap.status_code == 400
+    assert "按顺序" in gap.json()["detail"]
+
+
+def test_i2v_maps_second_upload_to_last_frame_slot(
+    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, dict] = {}
+
+    class _FakeVideo:
+        def __init__(self, base_url: str) -> None:
+            pass
+
+        async def generate(self, **kwargs):  # noqa: ANN003, ANN202
+            captured["inputs"] = kwargs["inputs"]
+            await asyncio.sleep(0)
+            return [("out.mp4", b"MP4DATA")], []
+
+    monkeypatch.setattr(simple, "ComfyUIVideo", _FakeVideo)
+    provider = client.post(
+        "/api/v1/providers",
+        json={"name": "comfy-i2v-last", "type": "comfyui", "base_url": "http://mock:8188"},
+        headers=auth_header,
+    ).json()
+    imported = client.post(
+        "/api/v1/workflows/import",
+        json={
+            "name": "i2v_last_frame",
+            "capability": "i2v",
+            "workflow": {"1": {"class_type": "N", "inputs": {}}},
+            "inputs": {
+                "image": {"node": "1", "field": "inputs.image", "type": "image"},
+                "last_frame": {
+                    "node": "1",
+                    "field": "inputs.last_frame",
+                    "type": "image",
+                    "required": False,
+                },
+                "prompt": {"node": "1", "field": "inputs.prompt", "type": "str"},
+            },
+            "outputs": {"node": "1"},
+        },
+        headers=auth_header,
+    )
+    assert imported.status_code == 201, imported.text
+    resp = client.post(
+        "/api/v1/videos/i2v?wait=true",
+        files={
+            "image": ("first.png", PNG_1PX, "image/png"),
+            "image_2": ("last.png", PNG_1PX, "image/png"),
+        },
+        data={
+            "workflow": "i2v_last_frame",
+            "prompt": "动起来",
+            "provider_id": str(provider["id"]),
+        },
+        headers=auth_header,
+        timeout=120,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    slots = job["params"]["image_slots"]
+    assert set(slots) == {"image", "last_frame"}
+    assert captured["inputs"]["last_frame"] == slots["last_frame"]
 
 
 def test_i2v_character_views(

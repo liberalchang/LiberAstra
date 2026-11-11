@@ -24,6 +24,9 @@ const ImageEditPage = lazy(() => import("@/pages/ImageEditPage").then((m) => ({ 
 const ImageDepthPage = lazy(() => import("@/pages/ImageDepthPage").then((m) => ({ default: m.ImageDepthPage })));
 const ImageGenPage = lazy(() => import("@/pages/ImageGenPage").then((m) => ({ default: m.ImageGenPage })));
 const JobsPage = lazy(() => import("@/pages/JobsPage").then((m) => ({ default: m.JobsPage })));
+const AudioExtractPage = lazy(() =>
+  import("@/pages/AudioExtractPage").then((m) => ({ default: m.AudioExtractPage })),
+);
 const MediaConcatPage = lazy(() =>
   import("@/pages/MediaConcatPage").then((m) => ({ default: m.MediaConcatPage })),
 );
@@ -95,6 +98,7 @@ export default function App() {
         <Route path="/tools/image-concat" element={<MediaConcatPage key="image" kind="image" />} />
         <Route path="/tools/video-concat" element={<MediaConcatPage key="video" kind="video" />} />
         <Route path="/tools/audio-concat" element={<MediaConcatPage key="audio" kind="audio" />} />
+        <Route path="/tools/audio-extract" element={<AudioExtractPage />} />
         <Route
           path="/tools/image-enhance"
           element={

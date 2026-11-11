@@ -265,7 +265,13 @@ async def run_canvas(
     record = _get_owned(db, canvas_id, user)
     try:
         run_id, plan = canvas_run.start_run(
-            request.app, record, user.id, body.node_ids, body.force_node_ids
+            request.app,
+            record,
+            user.id,
+            body.node_ids,
+            body.force_node_ids,
+            audio_plan=body.audio_plan.model_dump() if body.audio_plan else None,
+            db=db,
         )
     except ProviderError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

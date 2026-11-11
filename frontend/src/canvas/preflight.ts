@@ -170,7 +170,17 @@ export function validateCanvas(
     }
 
     if (d.kind === "concat") {
-      if (incoming(node.id).length < 2) {
+      const sources = incoming(node.id);
+      if (d.toolId === "audio_extract") {
+        if (sources.length !== 1) {
+          issues.push({ nodeId: node.id, message: "音频提取需要一个视频或音频输入" });
+        } else {
+          const kind = nodeOutputKind(sources[0]);
+          if (kind !== "audio" && kind !== "video") {
+            issues.push({ nodeId: node.id, message: "音频提取只接受视频或音频输入" });
+          }
+        }
+      } else if (sources.length < 2) {
         issues.push({ nodeId: node.id, message: "拼接至少需要两路输入" });
       }
     }

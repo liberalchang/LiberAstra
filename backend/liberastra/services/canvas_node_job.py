@@ -375,6 +375,7 @@ async def run_canvas_node_job(db: Session, job: Job, ctx: JobContext) -> list[di
 
 def register_canvas_jobs(manager: JobManager) -> None:
     manager.register("canvas.node", run_canvas_node_job)
-    from liberastra.services.media_jobs import run_concat_job
+    from liberastra.services.media_jobs import run_concat_job, run_extract_audio_job
 
     manager.register("media.concat", run_concat_job)
+    manager.register("media.extract_audio", run_extract_audio_job)

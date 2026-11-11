@@ -71,6 +71,6 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 功能节点要引用文本输入时，`prompt` 只写 `{{变量名}}`；不要把正文复制进去，否则修改文本节点不会同步。
 - 删除节点、提交生成、运行脚本会经过安全确认；失败时向用户说明，不要靠重复建点绕过。
 - 改完画布提醒用户保存；不要假设未保存的节点会持久化。
-- 图片/视频/音频拼接是内置工具节点（`kind=concat`），UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接」；它不走 `canvas_apply_menu`，也不绑定工作流包。
+- 图片/视频/音频拼接和音频提取是内置工具节点（`kind=concat`），UI 显示为「工具」；它们不走 `canvas_apply_menu`，也不绑定工作流包。音频提取用 `data.toolId=audio_extract`，只接一个视频或音频输入，`audioMode=whole|tail` 控制完整音轨或固定长度尾音。
 - 图片增强和视频增强是功能节点，走 `canvas_apply_menu` / `canvas_apply_pack`；视频增强接最终视频，默认不自动加。
 - 附件标为「仅节点」时不会发给模型，消息里会给出 `asset_id`；用 `canvas_add_node(kind=input, media_kind=..., data={assetId, assetName, varName})` 或 `canvas_update_node(node_id, patch={assetId, assetName})` 把它绑到输入节点。发给模型的附件同样带 `asset_id`，也可以复用。

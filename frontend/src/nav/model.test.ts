@@ -30,6 +30,7 @@ const EXPECTED_PATHS = [
   "/tools/image-concat",
   "/tools/video-concat",
   "/tools/audio-concat",
+  "/tools/audio-extract",
   "/tools/image-enhance",
   "/tools/video-enhance",
   "/assets",
@@ -65,9 +66,9 @@ function activeLeaf(pathname: string): NavLeaf | null {
   return null;
 }
 
-test("导航覆盖全部 32 个入口且无重复", () => {
+test("导航覆盖全部 33 个入口且无重复", () => {
   const paths = flattenNav().map((leaf) => leaf.href ?? leaf.to);
-  assert.equal(paths.length, 32);
+  assert.equal(paths.length, 33);
   assert.equal(new Set(paths).size, paths.length);
   assert.deepEqual(new Set(paths), new Set(EXPECTED_PATHS));
 });
@@ -88,6 +89,7 @@ test("工具组在视频下方，图片组不再有放大入口", () => {
       "/tools/image-concat",
       "/tools/video-concat",
       "/tools/audio-concat",
+      "/tools/audio-extract",
       "/tools/image-enhance",
       "/tools/video-enhance",
     ],

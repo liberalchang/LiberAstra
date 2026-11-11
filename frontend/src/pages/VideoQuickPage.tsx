@@ -39,6 +39,7 @@ import { NumberStepper } from "@/components/ui/number-stepper";
 import { Segmented } from "@/components/ui/segmented";
 import { SplitPane } from "@/components/ui/split-pane";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
+import { AudioContinuityControl, type AudioContinuityValue } from "@/components/AudioContinuityControl";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { SearchSelect } from "@/components/ui/search-select";
@@ -292,6 +293,10 @@ export function VideoQuickPage() {
   });
 
   const [audioMode, setAudioMode] = usePersistentState<"custom" | "auto">("video-quick:audio-mode", "custom");
+  const [audioContinuity, setAudioContinuity] = usePersistentState<AudioContinuityValue>(
+    "video-quick:audio-continuity",
+    { strategy: "native", refSeconds: 5, bedPath: "", bedFill: "loop", bedMode: "mix", seamFadeMs: 60 },
+  );
   const [ttsProviderId, setTtsProviderId] = usePersistentState<number | "">("video-quick:tts-provider", "");
   const ttsProvider =
     ttsProviders?.find((p) => p.id === ttsProviderId) ??
@@ -423,6 +428,15 @@ export function VideoQuickPage() {
           ? Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))
           : undefined,
       audio_mode: tpl?.type === "video" ? audioMode : "custom",
+      audio_strategy: audioContinuitySupported ? audioContinuity.strategy : "native",
+      audio_ref_seconds: audioContinuity.refSeconds,
+      audio_bed_path:
+        audioContinuity.strategy === "global_bed" && audioContinuity.bedPath
+          ? audioContinuity.bedPath
+          : undefined,
+      audio_bed_fill: audioContinuity.bedFill,
+      audio_bed_mode: audioContinuity.bedMode || "mix",
+      seam_fade_ms: audioContinuity.seamFadeMs,
       video_workflow: tpl?.type === "video" ? videoPack?.name : undefined,
       video_inputs: tpl?.type === "video"
         ? buildInputsWithAccel(videoExtra, videoPack?.accel, videoAccel)
@@ -502,6 +516,12 @@ export function VideoQuickPage() {
     ((tpl?.type === "image" || tpl?.type === "video") &&
       (mode === "script" ? scriptVisual.useOptimized && !scriptVisual.optimized.trim() : optimizeVisuals));
   const nativeAudio = tpl?.type === "video" && audioMode === "auto";
+  const audioContinuitySupported = Boolean(
+    nativeAudio &&
+      videoPack &&
+      videoPack.inputs.ref_audio &&
+      !videoPack.inputs.clips_json,
+  );
   const advancedSummary = [
     (tpl?.type === "image" && hasAccel(imagePack?.accel) && imageAccel.enabled) ||
     (tpl?.type === "video" && hasAccel(videoPack?.accel) && videoAccel.enabled)
@@ -952,6 +972,17 @@ export function VideoQuickPage() {
                 ]}
               />
             </Field>
+          )}
+          {tpl?.type === "video" && nativeAudio && (
+            <AudioContinuityControl
+              value={audioContinuity}
+              onChange={(patch) => setAudioContinuity((prev) => ({ ...prev, ...patch }))}
+              disabledReason={
+                audioContinuitySupported
+                  ? undefined
+                  : tx("当前视频工作流不支持参考音频；选择带参考音频输入的 H3 单镜 i2v 包后可用。")
+              }
+            />
           )}
           {!nativeAudio && (
           <>

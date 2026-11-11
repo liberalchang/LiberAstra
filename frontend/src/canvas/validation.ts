@@ -37,6 +37,7 @@ export type ConnectReject =
   | "cycle"
   | "input-no-inlet"
   | "concat-kind"
+  | "tool-input-limit"
   | "missing-endpoint";
 
 export function checkConnection(
@@ -53,10 +54,17 @@ export function checkConnection(
   if (targetNode.data.kind === "input") return { ok: false, reason: "input-no-inlet" };
   if (hasEdge(edges, source, target)) return { ok: false, reason: "duplicate" };
   if (wouldCreateCycle(edges, source, target)) return { ok: false, reason: "cycle" };
-  // 合成节点只收同类型媒体（产物类型未知的节点也拒绝,避免执行期才报错）
+  // 合成节点只收同类型媒体；音频提取允许视频/音频，且只收一路。
   if (targetNode.data.kind === "concat") {
     const out = nodeOutputKind(sourceNode);
-    if (out !== targetNode.data.mediaKind) return { ok: false, reason: "concat-kind" };
+    if (targetNode.data.toolId === "audio_extract") {
+      if (out !== "audio" && out !== "video") return { ok: false, reason: "concat-kind" };
+      if (edges.some((e) => e.target === target)) {
+        return { ok: false, reason: "tool-input-limit" };
+      }
+    } else if (out !== targetNode.data.mediaKind) {
+      return { ok: false, reason: "concat-kind" };
+    }
   }
   // 语音转文字 / 音色替换收音频或视频
   if (

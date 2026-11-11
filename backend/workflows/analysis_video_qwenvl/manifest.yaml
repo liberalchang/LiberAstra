@@ -1,8 +1,10 @@
 name: analysis_video_qwenvl
 capability: analysis
-description: 'QwenVL 视频素材分析
+summary: 视频理解
+description: 'Qwen VL 视频理解
 
-  上传一段视频，抽帧分析后得到内容描述文字——供「快速创作」「自定义素材」写分镜文案用。'
+  上传视频，让模型总结内容、镜头或文字信息。
+  适合快速了解素材、生成剪辑说明，或为后续分镜做准备。'
 inputs:
   video:
     node: '14'

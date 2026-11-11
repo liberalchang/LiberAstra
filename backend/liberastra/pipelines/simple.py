@@ -186,11 +186,18 @@ async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
     if prompt.strip() or not prompt_spec.get("default"):
         inputs["prompt"] = prompt
     image_keys = [key for key, spec in pack.inputs.items() if spec.get("type") == "image"]
-    paths = [path for path in params.get("image_paths") or [] if path]
-    if not paths and params.get("image_path"):
-        paths = [params["image_path"]]
-    for key, path in zip(image_keys, paths, strict=False):
-        inputs[key] = path
+    slots = params.get("image_slots")
+    if isinstance(slots, dict) and slots:
+        # 显式槽位映射：空槽不压缩后面的编号，避免 <Picture N> 错位。
+        for key, path in slots.items():
+            if key in image_keys and path:
+                inputs[key] = path
+    else:
+        paths = [path for path in params.get("image_paths") or [] if path]
+        if not paths and params.get("image_path"):
+            paths = [params["image_path"]]
+        for key, path in zip(image_keys, paths, strict=False):
+            inputs[key] = path
     return await _run_video_pack(db, job, ctx, inputs)
 
 
@@ -256,6 +263,15 @@ def motion_windows(total_seconds: float, fps: float, spec: dict[str, Any]) -> li
 
 def _rel_of(path: Path) -> str:
     return path.resolve().relative_to(resolve(".").resolve()).as_posix()
+
+
+def _native_pack_seconds(pack: Any) -> float:
+    spec = pack.inputs.get("length") if "length" in pack.inputs else pack.inputs.get("frames")
+    raw = (spec or {}).get("default")
+    try:
+        return max(0.05, float(raw) / float(pack.fps or 24))
+    except (TypeError, ValueError):
+        return 5.0
 
 
 async def _apply_soundtrack(
@@ -1059,6 +1075,32 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
         video_adapter = ComfyUIVideo(video_provider.base_url)
         video_pack = get_pack(params["video_workflow"])
 
+    audio_strategy = str(params.get("audio_strategy") or "native")
+    if audio_strategy != "native" and not (
+        video_pack
+        and "ref_audio" in video_pack.inputs
+        and "clips_json" not in video_pack.inputs
+    ):
+        audio_strategy = "native"
+    audio_ref_seconds = max(2.0, min(15.0, float(params.get("audio_ref_seconds") or 5)))
+    seam_fade_ms = max(0, min(200, int(params.get("seam_fade_ms") or 0)))
+    bed_fill = str(params.get("audio_bed_fill") or "loop")
+    bed_mode = str(params.get("audio_bed_mode") or "mix")
+    bed_path: Path | None = None
+    bed_duration = 0.0
+    if audio_strategy == "global_bed" and params.get("audio_bed_path"):
+        try:
+            candidate = resolve(str(params["audio_bed_path"]))
+            if candidate.exists():
+                bed_path = candidate
+                bed_duration = await ffmpeg.probe_duration(candidate)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("自定义素材氛围底读取失败: {}", exc)
+    if audio_strategy == "global_bed" and bed_path is None:
+        audio_strategy = "native"
+    prev_native_clip: Path | None = None
+    bed_cursor = 0.0
+
     segments_out: list[Path] = []
     total = len(media) + (1 if params.get("title") else 0)
     done = 0
@@ -1126,18 +1168,44 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             duration = await ffmpeg.probe_duration(clip_path)
             srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
             await ffmpeg.make_native_clip_segment(
-                clip=clip_path, out=segment_path, width=width, height=height, **burn_subtitle(srt_path),
+                clip=clip_path, out=segment_path, width=width, height=height,
+                audio_fade_ms=seam_fade_ms, **burn_subtitle(srt_path),
             )
+            prev_native_clip = clip_path
+            if audio_strategy == "global_bed":
+                bed_cursor += duration
         elif keep_model_audio and video_adapter is not None and video_pack is not None:
+            anim_inputs: dict[str, Any] = {
+                **params.get("video_inputs", {}),
+                "image": m["path"],
+                "prompt": params.get("animate_prompt")
+                or "subtle natural cinematic motion, slow camera push in. "
+                + (params.get("topic") or ""),
+            }
+            if audio_strategy == "previous_tail" and prev_native_clip is not None:
+                tail = job_path(job, f"audio_tail_{i:02d}.wav")
+                try:
+                    await ffmpeg.extract_audio_tail(prev_native_clip, audio_ref_seconds, tail)
+                    anim_inputs["ref_audio"] = _rel_of(tail)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("自定义素材上一镜尾音提取失败: {}", exc)
+            elif audio_strategy == "global_bed" and bed_path is not None:
+                planned = _native_pack_seconds(video_pack)
+                start = bed_cursor
+                if start >= bed_duration:
+                    if bed_fill == "silence":
+                        bed_slice = job_path(job, f"audio_bed_{i:02d}.wav")
+                        await ffmpeg.make_silence(bed_slice, planned)
+                        anim_inputs["ref_audio"] = _rel_of(bed_slice)
+                    else:
+                        start = start % max(bed_duration, 0.05)
+                if "ref_audio" not in anim_inputs:
+                    bed_slice = job_path(job, f"audio_bed_{i:02d}.wav")
+                    await ffmpeg.slice_audio(bed_path, start, planned, bed_slice)
+                    anim_inputs["ref_audio"] = _rel_of(bed_slice)
             clips, _texts = await video_adapter.generate(
                 pack=video_pack,
-                inputs={
-                    **params.get("video_inputs", {}),
-                    "image": m["path"],
-                    "prompt": params.get("animate_prompt")
-                    or "subtle natural cinematic motion, slow camera push in. "
-                    + (params.get("topic") or ""),
-                },
+                inputs=anim_inputs,
                 on_progress=lambda p, step_done=done: ctx.report(
                     db,
                     job,
@@ -1151,8 +1219,12 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             duration = await ffmpeg.probe_duration(clip_path)
             srt_path.write_text(_single_cue_srt(text, duration), encoding="utf-8")
             await ffmpeg.make_native_clip_segment(
-                clip=clip_path, out=segment_path, width=width, height=height, **burn_subtitle(srt_path),
+                clip=clip_path, out=segment_path, width=width, height=height,
+                audio_fade_ms=seam_fade_ms, **burn_subtitle(srt_path),
             )
+            prev_native_clip = clip_path
+            if audio_strategy == "global_bed":
+                bed_cursor += duration
         elif native_audio:
             silence = job_path(job, f"silence_{i:02d}.mp3")
             await ffmpeg.make_silence(silence, 3.0)
@@ -1207,13 +1279,24 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
     concat_path = job_path(job, "concat.mp4")
     await ffmpeg.concat_segments(segments_out, concat_path, list_file=job_path(job, "concat.txt"))
     final_path = concat_path
+    if audio_strategy == "global_bed" and bed_path is not None:
+        ctx.report(db, job, progress=0.95, step="audio_bed")
+        bed_final = job_path(job, "audio_bed.mp4")
+        if bed_mode == "replace":
+            await ffmpeg.replace_audio_loop(concat_path, bed_path, bed_final)
+        else:
+            await ffmpeg.add_bgm(
+                video=concat_path, bgm=bed_path, out=bed_final, bgm_volume=0.2, loop=True
+            )
+        final_path = bed_final
     if params.get("bgm_path"):
         ctx.report(db, job, progress=0.96, step="bgm")
-        final_path = job_path(job, "final.mp4")
+        bgm_final = job_path(job, "final.mp4")
         await ffmpeg.add_bgm(
-            video=concat_path, bgm=resolve(params["bgm_path"]), out=final_path,
+            video=final_path, bgm=resolve(params["bgm_path"]), out=bgm_final,
             bgm_volume=float(params.get("bgm_volume", 0.2)),
         )
+        final_path = bgm_final
     meta = {
         "type": "assets",
         "title": params.get("title") or params.get("topic"),

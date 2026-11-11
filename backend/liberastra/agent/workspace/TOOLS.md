@@ -10,7 +10,7 @@
 - `canvas_set_binding`：把功能节点的输入槽绑定到直接上游变量名；变量必须已存在，工具会自动补边。
 - `canvas_layout`：自动整理布局。
 - `canvas_delete_nodes`：删除节点（需确认）。
-- `canvas_run_nodes`：保存并提交生成任务（需确认，占用 GPU）。
+- `canvas_run_nodes`：保存并提交生成任务（需确认，占用 GPU）。音频连续性用画布节点表达：上一镜尾音建 `audio_extract` 节点，氛围底建音频输入节点；不要传 `audio_plan`。
 
 画布工具由用户的浏览器立即执行，结果会回到这里。执行失败时看返回的 `error`，不要假设成功。
 

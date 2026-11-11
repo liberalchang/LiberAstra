@@ -150,8 +150,8 @@ export function PackSelect({
     const text = `${pack.name} ${pack.description}`;
     const edition = /越狱版|uncensored/i.test(text) ? tx("越狱版") : /官方版/.test(text) ? tx("官方版") : "";
     const first = pack.description.split("\n")[0]?.trim() ?? "";
-    // 短描述优先：官方包保留功能名，越狱包也能显示“功能名（越狱）”；没有短描述时才退回版本标签。
-    const short = first && first.length <= 24 && first !== pack.name ? first : "";
+    // summary 是专门的短标签；旧包没有 summary 时回退 description 第一行。
+    const short = pack.summary?.trim() || (first && first.length <= 24 && first !== pack.name ? first : "");
     const detail = short || edition;
     return {
       value: pack.name,

@@ -1,8 +1,10 @@
 name: qwen_image_21_edit_multi
 capability: i2i
-description: 'Qwen-Image 2.1 多图编辑
+summary: 多图合成
+description: 'Qwen Image 2.1 多图合成
 
-  最多 4 张：第 1 张是主图（画布），第 2~4 张是参考；提示词里用 image 1 / image 2 … 指代各图。参数区可换模型三件套。'
+  上传多张图片，按上传顺序对应提示词里的「图 1」「图 2」。
+  适合人物与场景合成、多参考换装和元素拼合；每张图的作用要写清楚。'
 inputs:
   image:
     node: '10'

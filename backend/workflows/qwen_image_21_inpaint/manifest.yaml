@@ -1,8 +1,10 @@
 name: qwen_image_21_inpaint
 capability: i2i
-description: 'Qwen-Image 2.1 局部重绘
+summary: 局部重绘
+description: 'Qwen Image 2.1 局部重绘
 
-  上传原图和蒙版：蒙版白色区域重画，黑色区域保持原图像素。参数区可换模型三件套；请选 .safetensors 格式。'
+  用蒙版标出要重画的区域，其余画面保持不变。
+  蒙版白色区域会被重画，黑色区域保留；适合去物、补细节和局部改内容。'
 inputs:
   image:
     node: '10'

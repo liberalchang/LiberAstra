@@ -1,8 +1,9 @@
 name: minimax_h3_i2v_enhancer
 capability: i2v
-description: 'MiniMax H3 图生视频增强
+summary: 提示词增强生视频
+description: 'MiniMax H3 提示词增强生视频
 
-  上传首帧图并写简短描述，内置增强器自动补全画面细节，生成带音效的短视频。默认使用越狱 TE。可选 Turbo 加速；需配套 Guide 节点包。'
+  先把简短想法扩写成完整镜头描述，再按首帧（可选尾帧）生成视频。 适合不太会写提示词，或想让画面细节更丰富的情况。需要本地已安装配套增强依赖。'
 fps: 24
 inputs:
   image:
@@ -12,6 +13,13 @@ inputs:
     required: true
     label: 首帧图片
     description: 作为视频首帧。单槽工作流只送所选视角；多槽时第一张是入镜视角，其余补还没用到的全身图。
+  last_frame:
+    node: '115'
+    field: inputs.image
+    type: image
+    required: false
+    label: 尾帧图片（可选）
+    description: 可选。只传首帧时忽略；传尾帧时固定在视频最后一帧。
   prompt:
     node: 105:122
     field: inputs.manual_prompt

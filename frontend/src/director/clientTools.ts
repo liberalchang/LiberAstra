@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import {
   api,
+  type CanvasAudioPlan,
   type ExecutionSpec,
   type MediaSlot,
   type WorkflowInputSpec,
@@ -349,6 +350,10 @@ export async function executeClientTool(
         }),
       ]);
       const spec = kind === "function" ? specForFunctionNode(data, specs, packs, menu) : undefined;
+      const pack =
+        spec?.target_type === "workflow"
+          ? packs.find((item) => item.name === spec.target_id)
+          : undefined;
       return ok({
         node: { id: node.id, type: node.type, position: node.position, data: node.data },
         schema: {
@@ -366,11 +371,13 @@ export async function executeClientTool(
             : null,
           media_slots: spec?.media_slots ?? [],
           inputs: spec?.inputs ?? {},
+          duration_limits: pack?.duration_limits ?? null,
           values: kind === "function" ? (data.values ?? {}) : undefined,
           bindings: kind === "function" ? (data.bindings ?? {}) : undefined,
           notes: [
             "values 是整份替换：先读完整值，改目标键后再整份写回。",
             "本地视频包常用 length 帧数；云端模型常用 duration 秒。",
+            "有 duration_limits 时按 fps、align_base、align_offset 把秒换算成帧，不要按 24fps 或默认帧数猜。",
           ],
         },
       });
@@ -608,6 +615,7 @@ export async function executeClientTool(
       const connections = isRecord(safe.bindings)
         ? connectBindingSources(nodeId, bindingsOf({ bindings: safe.bindings }))
         : null;
+      const repaired = useCanvasStore.getState().ensureBindingEdges();
       return ok({
         node_id: nodeId,
         updated: Object.keys(safe),
@@ -618,6 +626,7 @@ export async function executeClientTool(
               rejected_edges: connections.rejected,
             }
           : {}),
+        ...(repaired ? { repaired_edges: repaired } : {}),
       });
     }
 
@@ -733,7 +742,11 @@ export async function executeClientTool(
     case "canvas_layout": {
       const current = useCanvasStore.getState();
       useCanvasStore.getState().applyLayout(layeredLayout(current.nodes, current.edges));
-      return ok({ arranged: current.nodes.length });
+      const repaired = useCanvasStore.getState().ensureBindingEdges();
+      return ok({
+        arranged: current.nodes.length,
+        ...(repaired ? { repaired_edges: repaired } : {}),
+      });
     }
 
     case "canvas_delete_nodes": {
@@ -780,6 +793,7 @@ export async function executeClientTool(
           node_ids: ids,
           // 普通执行只强制当前节点，上游按指纹复用；强制才显式带上游。
           force_node_ids: force ? Array.from(scope) : ids,
+          ...(args.audio_plan ? { audio_plan: args.audio_plan as CanvasAudioPlan } : {}),
         });
         useCanvasStore.getState().applyRuns(
           [],

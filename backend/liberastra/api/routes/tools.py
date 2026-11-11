@@ -17,6 +17,12 @@ from liberastra.services.native_tools import tool_specs
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
+class ExtractAudioRequest(BaseModel):
+    asset_id: int
+    mode: Literal["whole", "tail"] = "tail"
+    seconds: float = Field(default=5, ge=0.5, le=15)
+
+
 class ConcatRequest(BaseModel):
     kind: Literal["image", "video", "audio"]
     asset_ids: list[int] = Field(min_length=1)
@@ -44,6 +50,36 @@ def _validated_assets(db: Session, owner_id: int, body: ConcatRequest) -> None:
 def list_tools(user: CurrentUser) -> list[dict]:
     del user
     return [spec.to_dict() for spec in tool_specs()]
+
+
+@router.post("/extract-audio", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+async def extract_audio(
+    body: ExtractAudioRequest,
+    user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    wait: bool = False,
+) -> Job:
+    asset = db.get(Asset, body.asset_id)
+    if asset is None or asset.owner_id != user.id:
+        raise HTTPException(status_code=400, detail="素材不存在")
+    if asset.kind not in ("video", "audio"):
+        raise HTTPException(status_code=400, detail="音频提取只支持视频或音频输入")
+    job = request.app.state.jobs.submit(
+        db,
+        owner_id=user.id,
+        kind="media.extract_audio",
+        params={
+            "asset_id": asset.id,
+            "mode": body.mode,
+            "seconds": body.seconds,
+            "visible": True,
+            "tool_id": "audio_extract",
+        },
+    )
+    if wait:
+        return await wait_for_job(db, job.id)
+    return job
 
 
 @router.post("/concat", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
