@@ -12,6 +12,14 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        # 国内默认走清华 PyPI；海外可设 https://pypi.org/simple
+        PIP_INDEX_URL: ${LIBERASTRA_PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_DEFAULT_TIMEOUT: ${LIBERASTRA_PIP_DEFAULT_TIMEOUT:-120}
+        PIP_RETRIES: ${LIBERASTRA_PIP_RETRIES:-10}
+        # 基础镜像可按需换成国内 registry 镜像
+        PYTHON_IMAGE: ${LIBERASTRA_PYTHON_IMAGE:-python:3.11-slim}
+        NODE_IMAGE: ${LIBERASTRA_NODE_IMAGE:-node:22-alpine}
     image: liberastra:latest
     restart: unless-stopped
     ports:

@@ -54,6 +54,8 @@ LIBERASTRA_PUBLISH_PORT=18000
 
 Open `http://<host>:18000`; the container still listens on 8000 internally.
 
+The build installs Python dependencies from the Tsinghua PyPI mirror by default. To change the mirror or the base-image registry, set `LIBERASTRA_PIP_INDEX_URL`, `LIBERASTRA_PYTHON_IMAGE`, or `LIBERASTRA_NODE_IMAGE` in `.env` and rebuild.
+
 ### Run from source {#source}
 
 ```bash

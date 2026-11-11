@@ -8,6 +8,23 @@ docker compose up -d --build
 # 默认 http://localhost:8000，数据在 ./data
 ```
 
+### 构建源（国内网络）
+
+Dockerfile 默认通过清华 PyPI 安装 Python 依赖，并给 pip 设置了更长的超时和重试。基础镜像默认仍来自 Docker Hub；需要时可在 `.env` 覆盖：
+
+```bash
+# PyPI：默认清华；海外可改回官方源
+LIBERASTRA_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+LIBERASTRA_PIP_DEFAULT_TIMEOUT=120
+LIBERASTRA_PIP_RETRIES=10
+
+# 基础镜像：换成实际可用的 registry 镜像地址
+LIBERASTRA_PYTHON_IMAGE=python:3.11-slim
+LIBERASTRA_NODE_IMAGE=node:22-alpine
+```
+
+修改后执行 `docker compose build --pull` 或 `docker compose up -d --build`。
+
 若宿主机 **8000 已被占用**，在 `.env` 中设置：
 
 ```bash

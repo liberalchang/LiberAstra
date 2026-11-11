@@ -17,6 +17,20 @@ docker compose up -d --build
 
 Open `http://localhost:8000`. Data is stored in `./data`.
 
+### Build sources (China networks)
+
+The Dockerfile installs Python dependencies from the Tsinghua PyPI mirror by default and uses longer pip timeouts/retries. Base images still come from Docker Hub by default; override them in `.env` when needed:
+
+```bash
+LIBERASTRA_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+LIBERASTRA_PIP_DEFAULT_TIMEOUT=120
+LIBERASTRA_PIP_RETRIES=10
+LIBERASTRA_PYTHON_IMAGE=python:3.11-slim
+LIBERASTRA_NODE_IMAGE=node:22-alpine
+```
+
+To use the official PyPI, set `LIBERASTRA_PIP_INDEX_URL=https://pypi.org/simple`. To use a registry mirror, point the image variables at that mirror. Rebuild with `docker compose build --pull` or `docker compose up -d --build`.
+
 If port 8000 is already taken, set `LIBERASTRA_PUBLISH_PORT=18000` in `.env` and open `http://<host>:18000`. The process inside the container still listens on 8000.
 
 Optional profiles (only when you want these processes in the same Compose project):

@@ -42,4 +42,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -f docker/Dockerfile -t liberastra:ci .
+        run: docker build --build-arg PIP_INDEX_URL=https://pypi.org/simple -f docker/Dockerfile -t liberastra:ci .

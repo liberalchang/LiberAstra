@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 # LiberAstra 单镜像：前端构建 + Python 运行时（ffmpeg、中文字体、Playwright Chromium）。
 
-FROM node:22-alpine AS frontend
+# 基础镜像可通过 --build-arg 换成国内 registry 镜像；默认 Docker Hub。
+ARG NODE_IMAGE=node:22-alpine
+ARG PYTHON_IMAGE=python:3.11-slim
+
+FROM ${NODE_IMAGE} AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --no-audit --no-fund
@@ -10,11 +14,20 @@ COPY frontend/ ./
 COPY site/docs-src /site/docs-src
 RUN npm run build
 
-FROM python:3.11-slim AS runtime
+FROM ${PYTHON_IMAGE} AS runtime
+
+# 默认使用清华 PyPI；海外或私有源可用 --build-arg 覆盖。
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_DEFAULT_TIMEOUT=120
+ARG PIP_RETRIES=10
+
 ENV PYTHONUNBUFFERED=1 \
     LIBERASTRA_DATA_DIR=/data \
     LIBERASTRA_STATIC_DIR=/app/static \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT} \
+    PIP_RETRIES=${PIP_RETRIES}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk libatomic1 \

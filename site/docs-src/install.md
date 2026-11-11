@@ -54,6 +54,8 @@ LIBERASTRA_PUBLISH_PORT=18000
 
 访问 `http://<主机>:18000`；容器内部仍监听 8000。
 
+构建默认通过清华 PyPI 安装 Python 依赖。需要换源或换基础镜像 registry 时，在 `.env` 设置 `LIBERASTRA_PIP_INDEX_URL`、`LIBERASTRA_PYTHON_IMAGE`、`LIBERASTRA_NODE_IMAGE` 后重新构建。
+
 ### 源码运行 {#source}
 
 ```bash
