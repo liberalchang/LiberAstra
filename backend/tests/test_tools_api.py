@@ -1,9 +1,11 @@
 """外部拼接工具 API：输出进入资源库，任务可追踪。"""
 
 import io
+import shutil
 import wave
 from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -62,6 +64,7 @@ def _wav(seconds: float = 1.0, rate: int = 8000) -> bytes:
     return buffer.getvalue()
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="需要 ffmpeg")
 def test_extract_audio_tool_creates_visible_asset(
     client: TestClient, auth_header: dict[str, str]
 ) -> None:
