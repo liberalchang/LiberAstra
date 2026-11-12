@@ -62,6 +62,7 @@ def test_image_generate_job(
     assert asset["meta"]["duration_s"] >= 0
 
     content = client.get(f"/api/v1/assets/{job['outputs'][0]['asset_id']}/content", headers=auth_header)
+    assert content.headers["cache-control"] == "private, no-cache"
     assert content.content == b"PNG-A"
     # 下载文件名携带日期 + 提示词摘要（非 ASCII 经 RFC 5987 编码）
     disposition = content.headers["content-disposition"]

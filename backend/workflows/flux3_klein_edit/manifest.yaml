@@ -12,6 +12,7 @@ inputs:
     type: image
     required: true
     label: 原图
+    mention: 原图
     description: 要修改的那一张图
   unet_name:
     node: '1'

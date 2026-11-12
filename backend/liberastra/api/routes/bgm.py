@@ -10,6 +10,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from liberastra.api.deps import CurrentUser
+from liberastra.api.routes._cache import BINARY_CACHE
 from liberastra.core.config import get_settings
 
 router = APIRouter(prefix="/bgm", tags=["bgm"])
@@ -94,4 +95,8 @@ def bgm_content(name: str, user: CurrentUser) -> FileResponse:
     path = _resolve(name)
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="音乐不存在")
-    return FileResponse(path, media_type=_MIME_BY_EXT.get(path.suffix.lower(), "application/octet-stream"))
+    return FileResponse(
+        path,
+        media_type=_MIME_BY_EXT.get(path.suffix.lower(), "application/octet-stream"),
+        headers=BINARY_CACHE,
+    )

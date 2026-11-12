@@ -1,6 +1,6 @@
 /** 角色大图查看器：角色库和画布角色节点共用，底部切换视角。 */
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, type CharacterOut } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -21,20 +21,36 @@ export function presentSlots(character: CharacterOut): CharacterView[] {
   return VIEW_ORDER.filter((slot) => character[`${slot}_path`]);
 }
 
+export function slotVersions(
+  character: CharacterOut,
+  slots: CharacterView[],
+): Partial<Record<CharacterView, string>> {
+  return Object.fromEntries(
+    slots.map((slot) => [slot, character[`${slot}_path`] ?? ""]),
+  ) as Partial<Record<CharacterView, string>>;
+}
+
 export function useSlotUrls(
   id: number | null,
   slots: CharacterView[],
+  versions?: Partial<Record<CharacterView, string>>,
 ): Partial<Record<CharacterView, string>> {
   const [urls, setUrls] = useState<Partial<Record<CharacterView, string>>>({});
+  const versionsRef = useRef(versions);
+  versionsRef.current = versions;
   const key = slots.join(",");
+  const versionKey = slots.map((slot) => versions?.[slot] ?? "").join("|");
   useEffect(() => {
-    if (id == null || !key) return;
+    if (id == null || !key) {
+      setUrls({});
+      return;
+    }
     let active = true;
     const created: string[] = [];
     setUrls({});
     for (const slot of key.split(",").filter(Boolean) as CharacterView[]) {
       api
-        .characterImage(id, slot)
+        .characterImage(id, slot, versionsRef.current?.[slot])
         .then((blob) => {
           if (!active) return;
           const objectUrl = URL.createObjectURL(blob);
@@ -47,7 +63,7 @@ export function useSlotUrls(
       active = false;
       created.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
     };
-  }, [id, key]);
+  }, [id, key, versionKey]);
   return urls;
 }
 

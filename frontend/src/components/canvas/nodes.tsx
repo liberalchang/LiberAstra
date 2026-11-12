@@ -30,7 +30,7 @@ import type {
   NodeRunStatus,
   SpeechNodeData,
 } from "@/canvas/types";
-import { CharacterViewer, presentSlots, useSlotUrls } from "@/components/CharacterViewer";
+import { CharacterViewer, presentSlots, slotVersions, useSlotUrls } from "@/components/CharacterViewer";
 import { MediaThumb } from "@/components/MediaLightbox";
 import { useCanvasUiStore } from "@/components/canvas/ui-state";
 import { useTx } from "@/i18n/tx";
@@ -330,7 +330,11 @@ function CharacterSlotPreview({
   const character = characters.data?.find((item) => item.id === characterId);
   const available = character ? presentSlots(character) : [];
   const slots = available.length ? available : [initialSlot];
-  const urls = useSlotUrls(characterId, slots);
+  const urls = useSlotUrls(
+    characterId,
+    slots,
+    character ? slotVersions(character, slots) : undefined,
+  );
 
   useEffect(() => {
     let active = true;

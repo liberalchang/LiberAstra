@@ -1,31 +1,38 @@
-"""角色库：建档、三视图切分、按槽位取图、生成任务。"""
+"""角色库：建档、四视图生成/修改、按槽位取图、下载角色卡。"""
 
 from __future__ import annotations
 
+import io
+import json
+import zipfile
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.api.routes._cache import BINARY_CACHE
 from liberastra.models import Character, Job, User
 from liberastra.providers.base import ProviderError
 from liberastra.schemas.asset import AssetOut
 from liberastra.schemas.character import CharacterOut
 from liberastra.schemas.job import JobOut
 from liberastra.services.characters import (
+    CHARACTER_VIEW_SLOTS,
     SLOTS,
     apply_grid_split,
     apply_split,
+    character_generation_config,
+    character_needs_generation,
     ensure_character_asset,
     remove_character_assets,
     remove_character_files,
     save_character_bytes,
     slot_path,
+    validate_character_view_image,
 )
-from liberastra.services.preferences import get_pref, get_str_pref
-from liberastra.services.providers import pick_provider
+from liberastra.services.preferences import get_pref
 from liberastra.storage import resolve, save_upload
 
 router = APIRouter(prefix="/characters", tags=["characters"])
@@ -118,54 +125,213 @@ async def create_character(
     return record
 
 
+@router.get("/config")
+def character_config(
+    user: CurrentUser, db: DbSession, provider_id: int | None = None
+) -> dict[str, object]:
+    """角色页进入时检查生成配置；缺失时前端显示横幅和系统设置链接。"""
+    config = character_generation_config(
+        db, provider_id or get_pref(db, "default_character_provider_id") or None
+    )
+    provider = config.get("provider")
+    return {
+        "mode": config.get("mode"),
+        "missing": config.get("missing") or [],
+        "provider_id": getattr(provider, "id", None),
+        "provider_name": getattr(provider, "name", None),
+        "workflows": config.get("workflows") or {},
+        "model": config.get("model") or "",
+    }
+
+
 @router.post("/generate", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
 async def generate_character(
     user: CurrentUser,
     db: DbSession,
     request: Request,
-    name: Annotated[str, Form(min_length=1, max_length=128)],
+    name: Annotated[str | None, Form(max_length=128)] = None,
     description: Annotated[str, Form()] = "",
     prompt: Annotated[str, Form()] = "",
+    character_id: Annotated[int | None, Form()] = None,
+    target_view: Annotated[str, Form()] = "",
+    order: Annotated[str, Form()] = "face",
     provider_id: Annotated[int | None, Form()] = None,
-    t2i_workflow: Annotated[str, Form()] = "",
     voice_record_id: Annotated[int | None, Form()] = None,
+    portrait: Annotated[UploadFile | None, File()] = None,
+    front: Annotated[UploadFile | None, File()] = None,
+    side: Annotated[UploadFile | None, File()] = None,
+    back: Annotated[UploadFile | None, File()] = None,
+    ref_image: Annotated[UploadFile | None, File()] = None,
     ref_images: Annotated[list[UploadFile] | None, File()] = None,
+    cleared_slots: Annotated[str, Form()] = "",
 ) -> Job:
-    saved_provider = provider_id or get_pref(db, "default_character_provider_id") or None
-    provider = pick_provider(db, "image", saved_provider)
-    saved_workflow = get_str_pref(db, "default_character_workflow").strip()
-    workflow = t2i_workflow.strip() or saved_workflow or "qwen_image_21"
-    ref_paths: list[str] = []
-    for item in ref_images or []:
-        content = await item.read()
+    if order not in ("face", "body"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="生成顺序只有 face/body")
+    if target_view and target_view not in CHARACTER_VIEW_SLOTS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目标视角不存在")
+
+    cleared = {
+        part.strip()
+        for part in cleared_slots.split(",")
+        if part.strip() in CHARACTER_VIEW_SLOTS
+    }
+
+    uploads: dict[str, tuple[str, bytes]] = {}
+    for slot, file in (("portrait", portrait), ("front", front), ("side", side), ("back", back)):
+        content = await _read(file)
+        if not content:
+            continue
+        try:
+            validate_character_view_image(content, slot)
+        except ProviderError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        uploads[slot] = (file.filename or f"{slot}.png", content)
+
+    ref_files = [file for file in [ref_image, *(ref_images or [])] if file and file.filename]
+    record = _owned(db, character_id, user) if character_id is not None else None
+    description_mode = record is None and not uploads and not cleared
+    prompt_text = prompt.strip()
+    target = target_view.strip()
+    if description_mode:
+        target = ""
+        prompt_text = ""
+        name_text = (name or "").strip()
+        description_text = description.strip() or prompt.strip()
+        if not name_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="请填写角色名称"
+            )
+        if not description_text and not ref_files:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="请填写外观描述或上传参考图"
+            )
+    else:
+        name_text = (name or "").strip() or (record.name if record else "")
+        description_text = description.strip() or (record.description if record else "")
+        if not name_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="请填写角色名称"
+            )
+        def slot_value(slot: str) -> bytes | str | None:
+            if slot in uploads:
+                return uploads[slot][1]
+            if slot in cleared:
+                return None
+            return slot_path(record, slot) if record else None
+
+        effective = {slot: slot_value(slot) for slot in CHARACTER_VIEW_SLOTS}
+        has_head = bool(effective.get("portrait") or effective.get("front"))
+        if not has_head:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="至少需要上传面部特写或正面全身",
+            )
+        if prompt_text:
+            if not target:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="请选择要修改的目标视角"
+                )
+            if not effective.get(target):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="目标视角还没有图片，无法按提示词修改",
+                )
+
+    if description_mode:
+        if len(ref_files) > 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="参考图最多 3 张"
+            )
+    elif len(ref_files) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="补充参考图最多 1 张"
+        )
+    ref_contents: list[tuple[str, bytes]] = []
+    for file in ref_files:
+        content = await file.read()
         if content:
-            ref_paths.append(save_upload(item.filename or "ref.png", content))
-    if len(ref_paths) > 3:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="参考图最多 3 张")
-    if not description.strip() and not prompt.strip() and not ref_paths:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请填写外观描述或上传参考图")
-    record = Character(
-        name=name.strip(),
-        description=description.strip(),
-        voice_record_id=voice_record_id,
-        tags=[],
-        owner_id=user.id,
-    )
-    db.add(record)
+            ref_contents.append((file.filename or "ref.png", content))
+
+    chosen_provider_id = provider_id or get_pref(db, "default_character_provider_id") or None
+    config = character_generation_config(db, chosen_provider_id)
+    available = {
+        slot: (
+            "upload"
+            if slot in uploads
+            else (
+                None
+                if slot in cleared
+                else (slot_path(record, slot) if record else None)
+            )
+        )
+        for slot in CHARACTER_VIEW_SLOTS
+    }
+    needs_generation = description_mode or character_needs_generation(available, prompt_text)
+    if needs_generation and config.get("missing"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "character_config_missing",
+                "missing": config["missing"],
+            },
+        )
+    if not needs_generation:
+        config = {
+            "provider": None,
+            "mode": "compose",
+            "workflows": {},
+            "model": "",
+            "missing": [],
+        }
+
+    uploaded_slots = {
+        slot: save_upload(filename, content) for slot, (filename, content) in uploads.items()
+    }
+    ref_paths = [save_upload(filename, content) for filename, content in ref_contents]
+    if record is None:
+        record = Character(
+            name=name_text,
+            description=description_text,
+            voice_record_id=voice_record_id,
+            tags=[],
+            owner_id=user.id,
+        )
+        db.add(record)
+    else:
+        record.name = name_text
+        record.description = description_text
     db.commit()
     db.refresh(record)
+
+    effective_slots = {
+        slot: (
+            uploaded_slots.get(slot)
+            or (None if slot in cleared else slot_path(record, slot))
+        )
+        for slot in CHARACTER_VIEW_SLOTS
+    }
+    provider = config.get("provider")
     job = request.app.state.jobs.submit(
         db,
         owner_id=user.id,
         kind="character.generate",
         params={
             "character_id": record.id,
-            "description": record.description,
-            "prompt": prompt.strip() or record.description,
-            "t2i_workflow": workflow,
-            "ref_image_paths": ref_paths,
+            "description": description_text,
+            "prompt": prompt_text,
+            "target_view": target if prompt_text else "",
+            "order": order,
+            "slots": effective_slots,
+            "uploaded_slots": uploaded_slots,
+            "ref_image_path": "" if description_mode else (ref_paths[0] if ref_paths else ""),
+            "ref_image_paths": ref_paths if description_mode else [],
+            "config": {
+                "mode": config.get("mode") or "compose",
+                "workflows": config.get("workflows") or {},
+                "model": config.get("model") or "",
+            },
         },
-        provider_id=provider.id,
+        provider_id=getattr(provider, "id", None),
     )
     return job
 
@@ -194,7 +360,54 @@ def character_image(character_id: int, slot: str, user: CurrentUser, db: DbSessi
     path = resolve(rel)
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="图片文件不存在")
-    return FileResponse(path, media_type=_MIME.get(path.suffix.lower(), "application/octet-stream"))
+    return FileResponse(
+        path,
+        media_type=_MIME.get(path.suffix.lower(), "application/octet-stream"),
+        headers=BINARY_CACHE,
+    )
+
+
+@router.get("/{character_id}/download")
+def download_character(character_id: int, user: CurrentUser, db: DbSession) -> Response:
+    """下载最终六图和 character.json，不含原始上传图与补充参考图。"""
+    record = _owned(db, character_id, user)
+    entries = (
+        ("portrait.png", record.portrait_path),
+        ("front.png", record.front_path),
+        ("side.png", record.side_path),
+        ("back.png", record.back_path),
+        ("turnaround_grid.png", record.turnaround_grid_path),
+        ("turnaround.png", record.turnaround_path),
+    )
+    present = [(name, path) for name, path in entries if path and resolve(path).is_file()]
+    if not present:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色还没有可下载的图片")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, path in present:
+            archive.write(resolve(path), name)
+        archive.writestr(
+            "character.json",
+            json.dumps(
+                {
+                    "id": record.id,
+                    "name": record.name,
+                    "description": record.description,
+                    "created_at": record.created_at.isoformat() if record.created_at else None,
+                    "files": [name for name, _ in present],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            **BINARY_CACHE,
+            "Content-Disposition": f'attachment; filename="character-{record.id}.zip"',
+        },
+    )
 
 
 @router.patch("/{character_id}", response_model=CharacterOut)

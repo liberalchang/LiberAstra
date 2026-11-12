@@ -1,9 +1,19 @@
+import { characterImageUrl } from "@/lib/characterImage";
 import { finishUpload, startUpload, updateUpload } from "@/lib/uploadProgress";
 import type { components } from "./types";
 
 /** 与后端 LIBERASTRA_COMFY_MAX_UPLOAD_MB 默认值一致（ComfyUI 默认 100MB）。超限时不发请求。 */
 const MAX_UPLOAD_MB = 100;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+function detailText(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
 
 function assertUploadSize(file: File) {
   if (file.size <= MAX_UPLOAD_BYTES) return;
@@ -73,7 +83,7 @@ function requestForm<T>(path: string, form: FormData, method = "POST"): Promise<
       }
       const detail =
         payload && typeof payload === "object" && "detail" in payload
-          ? String((payload as { detail: unknown }).detail)
+          ? detailText((payload as { detail: unknown }).detail)
           : xhr.statusText;
       reject(new ApiError(xhr.status, detail));
     };
@@ -110,7 +120,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* 非 JSON 响应 */
     }
-    throw new ApiError(resp.status, String(detail));
+    throw new ApiError(resp.status, detailText(detail));
   }
   if (resp.status === 204) return undefined as T;
   return resp.json() as Promise<T>;
@@ -119,7 +129,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 async function requestBlob(path: string): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(path, { headers });
+  const resp = await fetch(path, { headers, cache: "no-cache" });
   if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
   return resp.blob();
 }
@@ -257,6 +267,16 @@ export interface CharacterOut {
   created_at: string;
 }
 
+/** 角色页进入时的生成配置检查。 */
+export interface CharacterConfigOut {
+  mode: "workflow" | "model" | string;
+  missing: string[];
+  provider_id: number | null;
+  provider_name: string | null;
+  workflows: Record<string, string>;
+  model: string;
+}
+
 export interface AssetOut {
   id: number;
   kind: string;
@@ -323,8 +343,10 @@ export interface SystemPreferences {
   default_character_workflow: string;
   /** 一张参考图时使用的图生图工作流包 */
   default_character_i2i_workflow: string;
-  /** 两到三张参考图时使用的多图编辑工作流包 */
+  /** 多张参考图时使用的多图编辑工作流包 */
   default_character_i2i_multi_workflow: string;
+  /** 非 ComfyUI 服务商角色生成使用的模型 */
+  default_character_model: string;
   /** Liber Speech 默认文字转语音模型包 */
   default_speech_model: string;
   /** Liber Speech 默认语音转文字模型；空表示跟随语音服务 .env */
@@ -996,13 +1018,16 @@ export const api = {
   setDefaultVoice: (id: number) =>
     request<VoiceOut>(`/api/v1/voices/${id}/default`, { method: "POST" }),
   listCharacters: () => request<CharacterOut[]>("/api/v1/characters"),
+  getCharacterConfig: () => request<CharacterConfigOut>("/api/v1/characters/config"),
   createCharacter: (form: FormData) =>
     request<CharacterOut>("/api/v1/characters", { method: "POST", body: form }),
   generateCharacter: (form: FormData) =>
     request<JobOut>("/api/v1/characters/generate", { method: "POST", body: form }),
+  downloadCharacter: (id: number) =>
+    requestBlob(`/api/v1/characters/${id}/download`),
   deleteCharacter: (id: number) => request<void>(`/api/v1/characters/${id}`, { method: "DELETE" }),
-  characterImage: (id: number, slot: string) =>
-    requestBlob(`/api/v1/characters/${id}/image/${slot}`),
+  characterImage: (id: number, slot: string, version?: string | null) =>
+    requestBlob(characterImageUrl(id, slot, version)),
   registerCharacterAsset: (id: number, slot: string) =>
     request<AssetOut>(`/api/v1/characters/${id}/asset/${slot}`, { method: "POST" }),
   listAssets: (kind?: string, includeHidden?: boolean, jobFunction?: string, hiddenOnly?: boolean) => {
@@ -1352,7 +1377,7 @@ export const api = {
 export async function fetchAssetBlob(assetId: number): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(`/api/v1/assets/${assetId}/content`, { headers });
+  const resp = await fetch(`/api/v1/assets/${assetId}/content`, { headers, cache: "no-cache" });
   if (!resp.ok) throw new ApiError(resp.status, `下载资产失败: ${resp.statusText}`);
   return resp.blob();
 }
@@ -1407,7 +1432,10 @@ export async function previewTts(body: {
 export async function fetchBgmBlob(name: string): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(`/api/v1/bgm/${encodeURIComponent(name)}/content`, { headers });
+  const resp = await fetch(`/api/v1/bgm/${encodeURIComponent(name)}/content`, {
+    headers,
+    cache: "no-cache",
+  });
   if (!resp.ok) throw new ApiError(resp.status, `加载音乐失败: ${resp.statusText}`);
   return resp.blob();
 }
@@ -1416,7 +1444,7 @@ export async function fetchBgmBlob(name: string): Promise<Blob> {
 export async function fetchVoiceRefBlob(voiceId: number): Promise<Blob> {
   const headers = new Headers();
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const resp = await fetch(`/api/v1/voices/${voiceId}/ref-audio`, { headers });
+  const resp = await fetch(`/api/v1/voices/${voiceId}/ref-audio`, { headers, cache: "no-cache" });
   if (!resp.ok) throw new ApiError(resp.status, `加载参考音频失败: ${resp.statusText}`);
   return resp.blob();
 }

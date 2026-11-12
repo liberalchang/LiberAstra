@@ -25,7 +25,7 @@ Depth map results carry a depth map marker, and the filename ends with `_depth.p
 
 ### Characters
 
-Sidebar Resources → Characters. Stores a character's name, appearance description, a 9:16 four-grid, a 16:9 character sheet, and four 9:16 single views for image-to-video, Digital Human, and Motion Transfer. See [Video → Characters](/en/guides/video#characters) for generation from a description, uploading a character sheet, and both splitting layouts.
+Sidebar Resources → Characters. Stores a character's name, appearance description, four 9:16 single views, a programmatically composed 9:16 four-grid, and a 16:9 character sheet for image-to-video, Digital Human, and Motion Transfer. See [Video → Character Library](/en/guides/video#character-library) for generation from a description, upload-new, modify-existing, and character-card download.
 
 ### Voice Library
 

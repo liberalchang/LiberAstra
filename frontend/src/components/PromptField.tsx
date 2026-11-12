@@ -18,14 +18,24 @@ import { useTx } from "@/i18n/tx";
 export type { PromptFieldValue };
 export { emptyPromptValue, coercePromptValue, resolveEffectivePrompt };
 
-/** 画布变量:`/` 补全列表项。tag 是写进提示词的原文（槽位名或媒体称呼） */
+const RESOURCE_GROUP_ORDER = ["image", "video", "audio", "text"] as const;
+const RESOURCE_GROUP_LABELS: Record<(typeof RESOURCE_GROUP_ORDER)[number], string> = {
+  image: "图片",
+  video: "视频",
+  audio: "音频",
+  text: "文本变量",
+};
+
+/** `/` 补全列表项。tag 是写进提示词的原文（槽位名 / 媒体 mention / 文本变量） */
 export interface PromptVar {
   name: string;
   preview: string;
-  /** 写进提示词的原文。有工作流包时是槽位名，否则是 <Picture N> */
+  /** 写进提示词的原文。有工作流包时是实际 mention，否则是 <Picture N> 或 {{变量}} */
   tag?: string;
   /** 文本变量的全文内容:提交优化前把 {{名}} 替换成真实文本,LLM 才看得到内容 */
   text?: string;
+  /** `/` 菜单分组；缺省按文本变量处理 */
+  kind?: "image" | "video" | "audio" | "text";
 }
 
 type Props = {
@@ -47,6 +57,8 @@ type Props = {
   disabled?: boolean;
   /** 画布已连接节点的变量:给了它,原始输入支持 / 唤起补全插入 */
   variables?: PromptVar[];
+  /** 当前页已填媒体资源；和 variables 一起出现在 `/` 菜单里 */
+  resources?: PromptVar[];
 };
 
 /**
@@ -67,6 +79,7 @@ export function PromptField({
   minRowsClass = "min-h-24",
   disabled,
   variables,
+  resources,
 }: Props) {
   const tx = useTx();
   const [tab, setTab] = useState<"raw" | "optimized">(() =>
@@ -223,6 +236,26 @@ export function PromptField({
 
   const busy = running || optimize.isPending;
 
+  const allVars = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: PromptVar[] = [];
+    for (const item of [...(resources ?? []), ...(variables ?? [])]) {
+      const key = item.tag ?? item.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    return merged;
+  }, [resources, variables]);
+
+  const resourceGroups = useMemo(() => {
+    return RESOURCE_GROUP_ORDER.map((kind) => ({
+      kind,
+      label: RESOURCE_GROUP_LABELS[kind],
+      items: allVars.filter((item) => (item.kind ?? "text") === kind),
+    })).filter((group) => group.items.length > 0);
+  }, [allVars]);
+
   /** 把 {{变量名}} 替换为文本变量的真实内容(媒体标签 <Picture N> 保留,LLM 可理解) */
   const resolveVarText = (text: string): string => {
     if (!variables?.length) return text;
@@ -317,8 +350,8 @@ export function PromptField({
             placeholder={
               tab === "raw"
                 ? (placeholder ??
-                  (variables?.length
-                    ? tx("输入简短描述…键入 / 可引用已连接节点的变量")
+                  (allVars.length
+                    ? tx("输入简短描述…键入 / 可引用当前页资源")
                     : tx("输入简短描述…")))
                 : busy
                   ? tx("优化任务执行中…")
@@ -333,10 +366,10 @@ export function PromptField({
                 onChange({ ...value, raw: text });
                 // 刚输入 "/" 且有可用变量时弹出补全
                 const pos = e.target.selectionStart ?? text.length;
-                if (variables?.length && text[pos - 1] === "/") {
+                if (allVars.length && text[pos - 1] === "/") {
                   setMenuAt(pos - 1);
                   setActiveIndex(0);
-                } else if (menuAt != null && pos <= menuAt) {
+                } else if (menuAt != null && (pos !== menuAt + 1 || text[menuAt] !== "/")) {
                   setMenuAt(null);
                 }
               } else {
@@ -344,43 +377,53 @@ export function PromptField({
               }
             }}
             onKeyDown={(e) => {
-              if (menuAt == null || !variables?.length) return;
+              if (menuAt == null || !allVars.length) return;
               if (e.key === "Escape") {
                 setMenuAt(null);
               } else if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setActiveIndex((i) => (i + 1) % variables.length);
+                setActiveIndex((i) => (i + 1) % allVars.length);
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setActiveIndex((i) => (i - 1 + variables.length) % variables.length);
+                setActiveIndex((i) => (i - 1 + allVars.length) % allVars.length);
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                const v = variables[activeIndex];
+                const v = allVars[activeIndex];
                 if (v) insertVar(v);
               }
             }}
             onBlur={() => window.setTimeout(() => setMenuAt(null), 150)}
           />
-          {menuAt != null && variables && variables.length > 0 && (
-            <div className="absolute left-0 top-full z-40 mt-1 w-72 rounded-xl border border-border bg-card p-1 shadow-lg">
-              <div className="px-2 py-1 text-[10px] text-muted-foreground">{tx("插入变量")}</div>
-              {variables.map((v, index) => (
-                <button
-                  key={v.name}
-                  type="button"
-                  className={cn(
-                    "flex w-full flex-col rounded-md px-2 py-1 text-left",
-                    index === activeIndex ? "bg-muted" : "hover:bg-muted",
-                  )}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    insertVar(v);
-                  }}
-                >
-                  <span className="text-sm text-primary">{v.tag ?? `{{${v.name}}}`}</span>
-                  <span className="truncate text-[10px] text-muted-foreground">{v.preview}</span>
-                </button>
+          {menuAt != null && allVars.length > 0 && (
+            <div className="absolute left-0 top-full z-40 mt-1 max-h-80 w-80 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+              <div className="px-2 py-1 text-[10px] text-muted-foreground">
+                {tx(allVars.some((item) => (item.kind ?? "text") !== "text") ? "插入资源" : "插入变量")}
+              </div>
+              {resourceGroups.map((group) => (
+                <div key={group.kind}>
+                  <div className="px-2 pt-1 text-[10px] text-muted-foreground">{tx(group.label)}</div>
+                  {group.items.map((v) => {
+                    const index = allVars.indexOf(v);
+                    return (
+                      <button
+                        key={v.name}
+                        type="button"
+                        className={cn(
+                          "flex w-full flex-col rounded-md px-2 py-1 text-left",
+                          index === activeIndex ? "bg-muted" : "hover:bg-muted",
+                        )}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          insertVar(v);
+                        }}
+                      >
+                        <span className="text-sm text-primary">{v.tag ?? `{{${v.name}}}`}</span>
+                        <span className="truncate text-[10px] text-muted-foreground">{v.preview}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               ))}
             </div>
           )}

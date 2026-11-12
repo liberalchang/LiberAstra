@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 
 from liberastra.api.deps import CurrentUser
+from liberastra.api.routes._cache import BINARY_CACHE
 from liberastra.media.htmlframe import render_html
 from liberastra.media.thumbs import clear_template_thumbs, template_thumb_path, webp_thumb_bytes
 from liberastra.providers.base import ProviderError
@@ -62,7 +63,7 @@ async def preview_template(aspect: str, name: str, user: CurrentUser) -> Respons
         return Response(
             content=cache.read_bytes(),
             media_type="image/webp",
-            headers={"Cache-Control": "private, max-age=86400"},
+            headers=BINARY_CACHE,
         )
     html = tpl_service.render(tpl, SAMPLE_VALUES)
     try:
@@ -74,7 +75,7 @@ async def preview_template(aspect: str, name: str, user: CurrentUser) -> Respons
     return Response(
         content=webp,
         media_type="image/webp",
-        headers={"Cache-Control": "private, max-age=86400"},
+        headers=BINARY_CACHE,
     )
 
 

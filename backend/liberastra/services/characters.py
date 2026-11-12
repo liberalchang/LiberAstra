@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import re
 import uuid
 from typing import Any
 
+from fastapi import HTTPException
 from loguru import logger
 from PIL import Image
 from sqlalchemy.orm import Session
@@ -16,7 +18,7 @@ from liberastra.models import Character, Job
 from liberastra.providers.base import ProviderError
 from liberastra.services.image import produce_images
 from liberastra.services.preferences import get_pref, get_str_pref
-from liberastra.services.providers import pick_provider
+from liberastra.services.providers import build_image_adapter, pick_provider
 from liberastra.services.workflows import get_pack
 from liberastra.storage import resolve, save_bytes
 
@@ -29,6 +31,219 @@ _SLOT_ATTR = {
     "side": "side_path",
     "back": "back_path",
 }
+
+CHARACTER_VIEW_SLOTS = ("portrait", "front", "side", "back")
+CHARACTER_VIEW_LABELS = {
+    "portrait": "面部特写",
+    "front": "正面全身",
+    "side": "侧面全身",
+    "back": "背面全身",
+}
+MIN_VIEW_SHORT_EDGE = 640
+VIEW_RATIO_TOLERANCE = 0.01
+VIEW_WIDTH = 864
+VIEW_HEIGHT = 1536
+VIEW_ORDER = {
+    "face": ("portrait", "front", "side", "back"),
+    "body": ("front", "portrait", "side", "back"),
+}
+_VIEW_LAYOUTS = {
+    "portrait": (
+        "9:16竖版角色面部特写，半身构图，头顶到肩部完整入镜，面部居中且清晰，"
+        "完整展示五官、发型和发色。"
+    ),
+    "front": (
+        "9:16竖版角色正面全身照，镜头正对人物，自然站姿，双臂自然下垂，"
+        "完整全身入镜，头顶和脚底都保留余量，不裁脚。"
+    ),
+    "side": (
+        "9:16竖版角色正侧面全身照，90度侧身，自然站姿，"
+        "完整全身入镜，头顶和脚底都保留余量，不裁脚。"
+    ),
+    "back": (
+        "9:16竖版角色背面全身照，背对镜头，自然站姿，"
+        "完整全身入镜，头顶和脚底都保留余量，不裁脚。"
+    ),
+}
+_VIEW_STYLE = (
+    "浅灰纯色影棚背景，柔和棚拍光，写实真人质感，皮肤细腻通透，发丝清晰，"
+    "服装面料真实，8K超高清。表情自然中性，除非外观描述明确指定；不要主动添加具体表情。"
+)
+
+
+def view_prompt(
+    description: str,
+    slot: str,
+    *,
+    references: int = 0,
+    edit_prompt: str = "",
+) -> str:
+    """构建单视角提示词；修改模式只写改什么，其余保持不变。"""
+    label = CHARACTER_VIEW_LABELS.get(slot, slot)
+    parts: list[str] = []
+    body = str(description or "").strip()
+    if body:
+        parts.append(f"角色外观：{body}。")
+    if references:
+        parts.append("参考图中的人物是同一身份，保持同一脸型、发型、肤色、体型与服装配饰。")
+    if edit_prompt.strip():
+        parts.append(
+            f"修改要求：{edit_prompt.strip()}。"
+            f"只修改{label}中用户指定的内容，人物身份、脸型、发型、肤色、体型和未提及的细节保持不变。"
+        )
+    else:
+        parts.append(_VIEW_LAYOUTS.get(slot, _VIEW_LAYOUTS["front"]))
+        parts.append(f"这是同一角色的{label}，保持四视图之间的身份与服装一致。")
+    parts.append(_VIEW_STYLE)
+    return "".join(parts)
+
+
+def _data_url(filename: str, content: bytes) -> str:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "png"
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "webp": "webp"}.get(ext, "png")
+    return f"data:image/{mime};base64,{base64.b64encode(content).decode('ascii')}"
+
+
+def _fit_image(
+    content: bytes,
+    width: int,
+    height: int,
+    *,
+    background: tuple[int, int, int] = (230, 230, 230),
+) -> bytes:
+    """等比放进目标画布，避免裁掉头发或脚；空余用浅灰补齐。"""
+    source = Image.open(io.BytesIO(content)).convert("RGB")
+    scale = min(width / source.width, height / source.height)
+    fitted = source.resize(
+        (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    canvas = Image.new("RGB", (width, height), background)
+    canvas.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+    return _encode_png(canvas)
+
+
+def normalize_character_view(content: bytes) -> bytes:
+    return _fit_image(content, VIEW_WIDTH, VIEW_HEIGHT)
+
+
+def normalize_character_wide(content: bytes) -> bytes:
+    return _fit_image(content, SHEET_WIDTH, SHEET_HEIGHT)
+
+
+def compose_character_grid(
+    parts: dict[str, bytes],
+    *,
+    size: tuple[int, int] = (1152, 2048),
+    gutter: int = 8,
+) -> bytes:
+    """2×2 程序合成：左上特写、右上正面、左下侧面、右下背面。"""
+    width, height = size
+    cell_width, cell_height = width // 2, height // 2
+    canvas = Image.new("RGB", size, (230, 230, 230))
+    for index, key in enumerate(CHARACTER_VIEW_SLOTS):
+        raw = parts.get(key)
+        if not raw:
+            raise ProviderError(f"缺少{CHARACTER_VIEW_LABELS[key]}，无法合成四宫格")
+        source = Image.open(io.BytesIO(raw)).convert("RGB")
+        inner_width = max(1, cell_width - gutter * 2)
+        inner_height = max(1, cell_height - gutter * 2)
+        scale = min(inner_width / source.width, inner_height / source.height)
+        fitted = source.resize(
+            (max(1, int(source.width * scale)), max(1, int(source.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+        column, row = index % 2, index // 2
+        x = column * cell_width + (cell_width - fitted.width) // 2
+        y = row * cell_height + (cell_height - fitted.height) // 2
+        canvas.paste(fitted, (x, y))
+    return _encode_png(canvas)
+
+
+def validate_character_view_image(content: bytes, slot: str) -> tuple[int, int]:
+    """上传的单视角必须是 9:16 且短边至少 640。"""
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            width, height = image.size
+    except Exception as exc:  # noqa: BLE001
+        raise ProviderError(f"{CHARACTER_VIEW_LABELS.get(slot, slot)}不是有效图片") from exc
+    if min(width, height) < MIN_VIEW_SHORT_EDGE:
+        raise ProviderError(
+            f"{CHARACTER_VIEW_LABELS.get(slot, slot)}短边至少 {MIN_VIEW_SHORT_EDGE}px"
+        )
+    if abs(width * 16 - height * 9) > height * 9 * VIEW_RATIO_TOLERANCE:
+        raise ProviderError(f"{CHARACTER_VIEW_LABELS.get(slot, slot)}必须是 9:16")
+    return width, height
+
+
+def character_needs_generation(slot_paths: dict[str, str | None], prompt: str) -> bool:
+    """有修改提示词，或四槽缺任意一张，就需要调用生成服务。"""
+    if str(prompt or "").strip():
+        return True
+    return any(not slot_paths.get(slot) for slot in CHARACTER_VIEW_SLOTS)
+
+
+def character_generation_config(
+    db: Session, provider_id: int | None = None
+) -> dict[str, Any]:
+    """读取并校验角色生成配置；返回可直接放进任务参数的快照。"""
+    try:
+        provider = pick_provider(db, "image", provider_id)
+    except (ProviderError, HTTPException):
+        return {
+            "provider": None,
+            "mode": "workflow",
+            "workflows": {},
+            "model": "",
+            "missing": ["图像服务商"],
+        }
+    if provider.type == "comfyui":
+        workflows = {
+            "t2i": get_str_pref(db, "default_character_workflow").strip(),
+            "single": get_str_pref(db, "default_character_i2i_workflow").strip(),
+            "multi": get_str_pref(db, "default_character_i2i_multi_workflow").strip(),
+        }
+        missing: list[str] = []
+        for key, label in (
+            ("t2i", "文生图工作流包"),
+            ("single", "单图 i2i 工作流包"),
+            ("multi", "多图 i2i 工作流包"),
+        ):
+            name = workflows[key]
+            if not name:
+                missing.append(label)
+                continue
+            try:
+                pack = get_pack(name)
+            except ProviderError:
+                missing.append(f"{label}（{name} 不存在）")
+                continue
+            expected = "t2i" if key == "t2i" else "i2i"
+            if pack.capability != expected:
+                missing.append(f"{label}（{name} 不是 {expected} 包）")
+                continue
+            image_keys = [k for k, s in pack.inputs.items() if s.get("type") == "image"]
+            if key == "t2i" and any((pack.inputs.get(k) or {}).get("required") for k in image_keys):
+                missing.append(f"{label}（{name} 需要参考图）")
+            elif key == "single" and len(image_keys) < 1:
+                missing.append(f"{label}（{name} 没有图片槽）")
+            elif key == "multi" and len(image_keys) < 2:
+                missing.append(f"{label}（{name} 图片槽不足）")
+        return {
+            "provider": provider,
+            "mode": "workflow",
+            "workflows": workflows,
+            "model": "",
+            "missing": missing,
+        }
+    model = get_str_pref(db, "default_character_model").strip()
+    return {
+        "provider": provider,
+        "mode": "model",
+        "workflows": {},
+        "model": model,
+        "missing": [] if model else ["角色生图模型"],
+    }
 
 # 16:9 四段式定妆照。未点提示词优化时，拼在用户外观描述后面。
 SHEET_PROMPT = (
@@ -220,13 +435,6 @@ def apply_grid_split(character: Character, turnaround: bytes) -> dict[str, bytes
         "side": side,
         "back": back,
     }
-
-
-def apply_wide_sheet(character: Character, content: bytes) -> None:
-    """归一化并保存 16:9 横版定妆照。"""
-    image = Image.open(io.BytesIO(content)).convert("RGB")
-    image = _normalize_aspect_sheet(image, 16, 9, "16:9 定妆照")
-    character.turnaround_path = save_character_bytes(_encode_png(image), ".png")
 
 
 BODY_VIEWS = ("front", "side", "back")
@@ -547,6 +755,252 @@ def _save_temp_refs(job: Job, prepared: list[bytes], prefix: str) -> list[str]:
     return saved
 
 
+def _dedupe_paths(paths: list[str]) -> list[str]:
+    chosen: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        if path and path not in seen:
+            seen.add(path)
+            chosen.append(path)
+    return chosen
+
+
+def _modify_ref_paths(
+    target: str, slots: dict[str, str | None], supplement: str | None
+) -> list[str]:
+    """Picture 1 = 当前视角，Picture 2 = 补充参考，其余视角按特写/正/侧/背。"""
+    paths = [slots.get(target) or ""]
+    if supplement:
+        paths.append(supplement)
+    for slot in CHARACTER_VIEW_SLOTS:
+        if slot != target:
+            paths.append(slots.get(slot) or "")
+    return _dedupe_paths(paths)
+
+
+def _completion_refs(
+    slot: str,
+    slots: dict[str, str | None],
+    generated: dict[str, bytes],
+    user_refs: list[str],
+) -> list[bytes]:
+    anchors = {
+        "portrait": ("front",),
+        "front": ("portrait",),
+        "side": ("front", "portrait"),
+        "back": ("front", "portrait", "side"),
+    }.get(slot, ())
+    refs: list[bytes] = []
+    for anchor in anchors:
+        if anchor in generated:
+            refs.append(generated[anchor])
+        elif slots.get(anchor):
+            refs.append(resolve(str(slots[anchor])).read_bytes())
+    refs.extend(resolve(path).read_bytes() for path in user_refs)
+    return refs
+
+
+def _translate_ref_prompt(text: str, pack: Any) -> str:
+    """把 <Picture N> 和槽位 label 换成工作流包实际 mention。"""
+    for index, key in enumerate(_image_keys(pack), start=1):
+        spec = pack.inputs.get(key) or {}
+        mention = str(spec.get("mention") or "").strip()
+        label = str(spec.get("label") or "").strip()
+        replacement = mention or label or f"image {index}"
+        text = re.sub(rf"<Picture\s+{index}>", replacement, text, flags=re.IGNORECASE)
+        if label and label != replacement:
+            text = text.replace(label, replacement)
+    return re.sub(
+        r"<Picture\s+(\d+)>",
+        lambda match: f"image {match.group(1)}",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _translate_cloud_prompt(text: str) -> str:
+    return re.sub(
+        r"<Picture\s+(\d+)>",
+        lambda match: f"参考图 {match.group(1)}",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _comfy_request(
+    config: dict[str, Any],
+    refs: list[bytes],
+    prompt: str,
+    job: Job,
+    *,
+    prefix: str,
+    size: tuple[int, int],
+    warnings: list[str],
+) -> tuple[str, dict[str, Any], str]:
+    workflows = dict(config.get("workflows") or {})
+    order = ["multi", "single", "t2i"] if len(refs) > 1 else ["single", "t2i"]
+    if not refs:
+        order = ["t2i"]
+    workflow = ""
+    for key in order:
+        if str(workflows.get(key) or "").strip():
+            workflow = str(workflows[key]).strip()
+            break
+    if not workflow:
+        raise ProviderError("没有可用的角色生图工作流")
+    pack = get_pack(workflow)
+    keys = _image_keys(pack)
+    if refs and not keys:
+        if not workflows.get("t2i"):
+            raise ProviderError(f"工作流 {workflow} 没有图片槽")
+        warnings.append(f"工作流 {workflow} 没有图片槽，已改用文字生成")
+        return _comfy_request(
+            {**config, "workflows": {**workflows, "t2i": workflows["t2i"]}},
+            [],
+            prompt,
+            job,
+            prefix=prefix,
+            size=size,
+            warnings=warnings,
+        )
+    limit = len(keys) if keys else 0
+    if len(refs) > limit:
+        warnings.append(f"当前工作流只有 {limit} 个图片槽，多余参考图已丢弃")
+        refs = refs[:limit]
+    final_prompt = _translate_ref_prompt(prompt, pack)
+    if not refs:
+        if "width" in pack.inputs and "height" in pack.inputs:
+            inputs = _sheet_inputs(workflow, final_prompt, width=size[0], height=size[1])
+        else:
+            inputs = {"prompt": final_prompt}
+        return workflow, inputs, final_prompt
+    prepared = prepare_character_ref_images(refs, target=size)
+    saved = _save_temp_refs(job, prepared, prefix)
+    inputs: dict[str, Any] = {"prompt": final_prompt}
+    for key, path in zip(keys, saved, strict=False):
+        inputs[key] = path
+    for key in keys:
+        spec = pack.inputs.get(key) or {}
+        if spec.get("required") and not inputs.get(key):
+            raise ProviderError(f"工作流 {workflow} 缺少必需的图像输入：{spec.get('label') or key}")
+    return workflow, inputs, final_prompt
+
+
+def _cloud_size(provider: Any, *, wide: bool) -> str:
+    if provider.type == "volcengine_ark":
+        return "2K"
+    if provider.type == "openai_images":
+        return "1536x1024" if wide else "1024x1536"
+    return f"{SHEET_WIDTH}x{SHEET_HEIGHT}" if wide else f"{VIEW_WIDTH}x{VIEW_HEIGHT}"
+
+
+def _cloud_ref_limit(provider: Any) -> int:
+    if provider.type == "volcengine_ark":
+        return 4
+    return 1
+
+
+async def _generate_cloud_image(
+    provider: Any,
+    config: dict[str, Any],
+    refs: list[bytes],
+    prompt: str,
+    *,
+    wide: bool,
+    prefix: str,
+    warnings: list[str],
+) -> bytes:
+    adapter = build_image_adapter(provider)
+    model = str(config.get("model") or "").strip() or None
+    if not model:
+        raise ProviderError("非 ComfyUI 服务商需要配置角色生图模型")
+    size = _cloud_size(provider, wide=wide)
+    final_prompt = _translate_cloud_prompt(prompt)
+    limit = _cloud_ref_limit(provider)
+    if len(refs) > limit:
+        warnings.append(f"当前服务商最多使用 {limit} 张参考图，多余参考图已丢弃")
+        refs = refs[:limit]
+    if not refs:
+        images = await adapter.generate(prompt=final_prompt, size=size, model=model)
+    elif not hasattr(adapter, "edit"):
+        warnings.append("当前服务商不支持参考图，已改用纯文字生成")
+        images = await adapter.generate(prompt=final_prompt, size=size, model=model)
+    else:
+        primary = (f"{prefix}.png", refs[0])
+        if provider.type == "volcengine_ark" and len(refs) > 1:
+            images = await adapter.edit(
+                image=primary,
+                prompt=final_prompt,
+                size=size,
+                model=model,
+                images=[
+                    _data_url(f"{prefix}_{index}.png", content)
+                    for index, content in enumerate(refs[1:], 1)
+                ],
+            )
+        else:
+            if len(refs) > 1:
+                warnings.append("当前服务商只支持单张参考图，多余参考图已丢弃")
+            images = await adapter.edit(
+                image=primary, prompt=final_prompt, size=size, model=model
+            )
+    if not images:
+        raise ProviderError("角色视角生成失败")
+    return images[0][1]
+
+
+async def _generate_view(
+    provider: Any,
+    config: dict[str, Any],
+    refs: list[bytes],
+    prompt: str,
+    job: Job,
+    timeout: float,
+    *,
+    slot: str,
+    on_progress: Any = None,
+    warnings: list[str],
+) -> bytes:
+    if provider.type == "comfyui":
+        workflow, inputs, final_prompt = _comfy_request(
+            config,
+            refs,
+            prompt,
+            job,
+            prefix=f"view_{slot}",
+            size=(VIEW_WIDTH, VIEW_HEIGHT),
+            warnings=warnings,
+        )
+        images = await produce_images(
+            provider,
+            workflow=workflow,
+            inputs=inputs,
+            prompt=final_prompt,
+            wait_timeout=timeout,
+            on_progress=on_progress,
+        )
+    else:
+        images = [
+            (
+                f"{slot}.png",
+                await _generate_cloud_image(
+                    provider,
+                    config,
+                    refs,
+                    prompt,
+                    wide=False,
+                    prefix=f"view_{slot}",
+                    warnings=warnings,
+                ),
+            )
+        ]
+        if on_progress:
+            on_progress(1.0)
+    if not images:
+        raise ProviderError(f"{CHARACTER_VIEW_LABELS.get(slot, slot)}生成失败")
+    return normalize_character_view(images[0][1])
+
+
 async def _generate_wide_sheet(
     db: Session,
     job: Job,
@@ -555,148 +1009,222 @@ async def _generate_wide_sheet(
     timeout: float,
     description: str,
     parts: dict[str, bytes],
+    config: dict[str, Any],
+    warnings: list[str],
 ) -> bytes | None:
-    """用四张 9:16 视角作参考，再跑一次图生图得到原生 16:9 定妆照。"""
-    if provider.type != "comfyui":
+    """用四张 9:16 视角和 2×2 合成图，再生成一次原生 16:9 定妆照。"""
+    if provider is None or str(config.get("mode") or "") == "compose":
         return None
     composite = build_wide_sheet_reference(parts)
     refs = [composite]
-    refs.extend(parts[key] for key in ("front", "side", "back") if parts.get(key))
-    prepared = prepare_character_ref_images(refs, target=(1920, 1080))
-    saved = _save_temp_refs(job, prepared, "wide_ref")
-
-    multi_name = (
-        get_str_pref(db, "default_character_i2i_multi_workflow").strip()
-        or "qwen_image_21_edit_multi"
-    )
-    single_name = (
-        get_str_pref(db, "default_character_i2i_workflow").strip()
-        or "qwen_image_21_edit"
-    )
-    workflow = ""
-    keys: list[str] = []
-    image_paths: list[str] = []
-    try:
-        pack = get_pack(multi_name)
-        keys = _image_keys(pack)
-        if len(keys) < 2:
-            raise ProviderError("多图工作流没有足够的图片槽")
-        workflow = multi_name
-        image_paths = saved
-    except ProviderError:
-        try:
-            pack = get_pack(single_name)
-            keys = _image_keys(pack)
-            if not keys:
-                raise ProviderError("单图工作流没有图片槽")
-            workflow = single_name
-            image_paths = saved[:1]
-        except ProviderError:
-            return None
-
+    refs.extend(parts[slot] for slot in ("portrait", "front", "side", "back") if parts.get(slot))
     prompt = (
-        sheet_prompt(description, references=len(image_paths), layout="wide").rstrip("。")
+        sheet_prompt(description, references=len(refs), layout="wide").rstrip("。")
         + "。"
         + WIDE_REFERENCE_PROMPT
     )
-    inputs: dict[str, Any] = {"prompt": prompt}
-    for key, path in zip(keys, image_paths, strict=False):
-        inputs[key] = path
-    ctx.report(db, job, progress=0.62, step="sheet_wide")
-    images = await produce_images(
-        provider,
-        workflow=workflow,
-        inputs=inputs,
-        prompt=prompt,
-        wait_timeout=timeout,
-        on_progress=lambda progress: ctx.report(
-            db, job, progress=0.62 + 0.33 * progress, step="sheet_wide"
-        ),
-    )
+    ctx.report(db, job, progress=0.66, step="sheet_wide")
+    if provider.type == "comfyui":
+        workflow, inputs, final_prompt = _comfy_request(
+            config,
+            refs,
+            prompt,
+            job,
+            prefix="wide_ref",
+            size=(SHEET_WIDTH, SHEET_HEIGHT),
+            warnings=warnings,
+        )
+        images = await produce_images(
+            provider,
+            workflow=workflow,
+            inputs=inputs,
+            prompt=final_prompt,
+            wait_timeout=timeout,
+            on_progress=lambda progress: ctx.report(
+                db, job, progress=0.66 + 0.28 * progress, step="sheet_wide"
+            ),
+        )
+    else:
+        images = [
+            (
+                "wide.png",
+                await _generate_cloud_image(
+                    provider,
+                    config,
+                    refs,
+                    prompt,
+                    wide=True,
+                    prefix="wide_ref",
+                    warnings=warnings,
+                ),
+            )
+        ]
     if not images:
         raise ProviderError("16:9 定妆照生成失败")
-    return images[0][1]
+    return normalize_character_wide(images[0][1])
 
 
 async def run_character_generate_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """外观描述 → 9:16 四宫格与四张单人图 → 再生成 16:9 定妆照。"""
+    """四张 9:16 单视角 → 程序合成四宫格 → 16:9 定妆照（失败时合成兜底）。"""
     params = job.params
     character = db.get(Character, params["character_id"])
     if character is None or character.owner_id != job.owner_id:
         raise ProviderError("角色不存在")
-    provider = pick_provider(db, "image", job.provider_id)
+    config = dict(params.get("config") or {})
+    mode = str(config.get("mode") or "compose")
+    provider = pick_provider(db, "image", job.provider_id) if mode in ("workflow", "model") else None
     timeout = float(get_pref(db, "comfy_wait_timeout_seconds"))
-    workflow = str(params.get("t2i_workflow") or "").strip()
-    if not workflow:
-        workflow = get_str_pref(db, "default_character_workflow").strip() or "qwen_image_21"
     description = str(
-        params.get("prompt") or params.get("description") or character.description or character.name
-    )
-    ref_paths = [path for path in params.get("ref_image_paths") or [] if path][:3]
-    grid_prompt = sheet_prompt(description, references=len(ref_paths), layout="grid")
-    if ref_paths:
-        prepared = prepare_character_ref_images(
-            [resolve(path).read_bytes() for path in ref_paths],
-            target=(SHEET_GRID_WIDTH, SHEET_GRID_HEIGHT),
+        params.get("description") or character.description or character.name
+    ).strip()
+    prompt = str(params.get("prompt") or "").strip()
+    target = str(params.get("target_view") or "").strip()
+    order = "body" if str(params.get("order") or "") == "body" else "face"
+    slot_paths = {
+        slot: (params.get("slots") or {}).get(slot) or slot_path(character, slot)
+        for slot in CHARACTER_VIEW_SLOTS
+    }
+    # 兼容旧任务：无目标视角、无槽图时，prompt 就是外观描述。
+    if prompt and not target and not any(slot_paths.values()):
+        description = prompt
+        prompt = ""
+    uploaded = {
+        slot: path
+        for slot, path in (params.get("uploaded_slots") or {}).items()
+        if slot in CHARACTER_VIEW_SLOTS and path
+    }
+    ref_paths = [str(path) for path in params.get("ref_image_paths") or [] if path]
+    if params.get("ref_image_path"):
+        ref_paths.insert(0, str(params["ref_image_path"]))
+    ref_paths = _dedupe_paths(ref_paths)
+    if any(slot_paths.values()) and not slot_paths.get("portrait") and not slot_paths.get("front"):
+        raise ProviderError("至少需要面部特写或正面全身")
+
+    warnings: list[str] = []
+    generated: dict[str, bytes] = {}
+
+    def raw_for(slot: str) -> bytes:
+        if slot in generated:
+            return generated[slot]
+        path = slot_paths.get(slot)
+        if not path:
+            raise ProviderError(f"缺少{CHARACTER_VIEW_LABELS[slot]}，无法完成四视图")
+        return resolve(path).read_bytes()
+
+    steps = [slot for slot in VIEW_ORDER[order] if not slot_paths.get(slot)]
+    total_steps = max(1, len(steps) + (1 if prompt else 0))
+    step_index = 0
+
+    def progress_callback() -> Any:
+        def report(progress: float) -> None:
+            ctx.report(
+                db,
+                job,
+                progress=0.05 + 0.55 * min(1.0, progress),
+                step="character_view",
+            )
+
+        return report
+
+    if prompt:
+        if target not in CHARACTER_VIEW_SLOTS:
+            raise ProviderError("请选择要修改的目标视角")
+        if not slot_paths.get(target):
+            raise ProviderError("目标视角还没有图片，无法按提示词修改")
+        refs = [
+            resolve(path).read_bytes()
+            for path in _modify_ref_paths(target, slot_paths, params.get("ref_image_path"))
+        ]
+        edit_prompt = view_prompt(
+            description, target, references=len(refs), edit_prompt=prompt
         )
-        saved = _save_temp_refs(job, prepared, "ref")
-        if len(saved) == 1:
-            workflow = (
-                get_str_pref(db, "default_character_i2i_workflow").strip()
-                or "qwen_image_21_edit"
+        generated[target] = await _generate_view(
+            provider,
+            config,
+            refs,
+            edit_prompt,
+            job,
+            timeout,
+            slot=target,
+            on_progress=progress_callback(),
+            warnings=warnings,
+        )
+        step_index += 1
+        if ctx.cancelled():
+            return []
+
+    missing = [slot for slot in VIEW_ORDER[order] if not slot_paths.get(slot) and slot not in generated]
+    for slot in missing:
+        if ctx.cancelled():
+            return []
+        refs = _completion_refs(slot, slot_paths, generated, ref_paths)
+        prompt_text = view_prompt(description, slot, references=len(refs))
+        start = 0.05 + 0.55 * (step_index / total_steps)
+        span = 0.55 / total_steps
+
+        def report(
+            progress: float, start: float = start, span: float = span, slot: str = slot
+        ) -> None:
+            ctx.report(
+                db,
+                job,
+                progress=start + span * min(1.0, progress),
+                step=f"character_{slot}",
             )
-        else:
-            workflow = (
-                get_str_pref(db, "default_character_i2i_multi_workflow").strip()
-                or "qwen_image_21_edit_multi"
+
+        generated[slot] = await _generate_view(
+            provider,
+            config,
+            refs,
+            prompt_text,
+            job,
+            timeout,
+            slot=slot,
+            on_progress=report,
+            warnings=warnings,
+        )
+        step_index += 1
+        if ctx.cancelled():
+            return []
+
+    parts = {slot: raw_for(slot) for slot in CHARACTER_VIEW_SLOTS}
+    grid = compose_character_grid(parts)
+    ctx.report(db, job, progress=0.65, step="grid_compose")
+
+    wide: bytes | None = None
+    compose_only = not prompt and all(slot_paths.get(slot) for slot in CHARACTER_VIEW_SLOTS)
+    if provider is not None and not compose_only:
+        try:
+            wide = await _generate_wide_sheet(
+                db, job, ctx, provider, timeout, description, parts, config, warnings
             )
-        pack = get_pack(workflow)
-        inputs = {"prompt": grid_prompt}
-        for key, path in zip(_image_keys(pack), saved, strict=False):
-            inputs[key] = path
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("角色 {} 的 16:9 定妆照生成失败: {}", character.id, exc)
+            warnings.append(f"16:9 定妆照生成失败，已改用四视图合成（{exc}）")
+    if wide is None:
+        wide = build_wide_sheet_reference(parts)
     else:
-        inputs = _sheet_inputs(
-            workflow,
-            grid_prompt,
-            width=SHEET_GRID_WIDTH,
-            height=SHEET_GRID_HEIGHT,
-        )
+        wide = normalize_character_wide(wide)
 
-    ctx.report(db, job, progress=0.05, step="grid")
-    images = await produce_images(
-        provider,
-        workflow=workflow,
-        inputs=inputs,
-        prompt=grid_prompt,
-        wait_timeout=timeout,
-        on_progress=lambda progress: ctx.report(
-            db, job, progress=0.05 + 0.45 * progress, step="grid"
-        ),
-    )
-    if ctx.cancelled() or not images:
-        return []
-    grid_parts = apply_grid_split(character, images[0][1])
-    db.commit()
-    ctx.report(db, job, progress=0.55, step="grid_split")
-    if ctx.cancelled():
-        return []
-
-    warning = ""
-    try:
-        wide = await _generate_wide_sheet(
-            db, job, ctx, provider, timeout, description, grid_parts
-        )
-        if wide is None:
-            raise ProviderError("没有可用的 16:9 图生图工作流")
-        apply_wide_sheet(character, wide)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("角色 {} 的 16:9 定妆照生成失败: {}", character.id, exc)
-        apply_wide_sheet(character, build_wide_sheet_reference(grid_parts))
-        warning = f"16:9 定妆照生成失败，已改用四视图合成（{exc}）"
+    new_paths: dict[str, str] = {}
+    for slot in CHARACTER_VIEW_SLOTS:
+        if slot in generated:
+            new_paths[slot] = save_character_bytes(generated[slot], ".png")
+        elif slot in uploaded:
+            new_paths[slot] = str(uploaded[slot])
+        else:
+            new_paths[slot] = str(slot_paths[slot])
+    character.portrait_path = new_paths["portrait"]
+    character.front_path = new_paths["front"]
+    character.side_path = new_paths["side"]
+    character.back_path = new_paths["back"]
+    character.turnaround_grid_path = save_character_bytes(grid, ".png")
+    character.turnaround_path = save_character_bytes(wide, ".png")
     db.commit()
     ctx.report(db, job, progress=1.0, step="done")
-    content = f"角色 {character.name} 的 9:16 四视图已生成"
-    content += f"；{warning}" if warning else "，16:9 定妆照已生成"
+    content = f"角色 {character.name} 的六张设定图已更新"
+    if warnings:
+        content += "；" + "；".join(dict.fromkeys(warnings))
     return [{"type": "text", "content": content}]
 
 

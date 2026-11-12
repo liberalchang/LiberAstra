@@ -19,6 +19,7 @@ import {
 import {
   PromptField,
   resolveEffectivePrompt,
+  type PromptVar,
 } from "@/components/PromptField";
 import {
   SpeechLanguageSelect,
@@ -116,6 +117,17 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         .filter(([, spec]) => spec.type === "image")
         .map(([key]) => key)
     : [];
+  const promptResources: PromptVar[] = imageKeys.flatMap((key, index) => {
+    const file = slotFiles[key];
+    if (!file) return [];
+    const spec = pack?.inputs[key];
+    return [{
+      name: key,
+      preview: file.name,
+      tag: spec?.mention || spec?.label || (index === 0 ? "原图" : `image ${index + 1}`),
+      kind: "image" as const,
+    }];
+  });
   const primaryImageKey = imageKeys[0] ?? "image";
   const extraImageKeys = imageKeys.slice(1);
   const imageFile = slotFiles[primaryImageKey] ?? null;
@@ -696,6 +708,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
               jobScope={`video-${kind}:prompt-opt`}
               task={kind === "motion" ? "motion" : "i2v"}
               workflow={pack?.name}
+              resources={promptResources}
               extraContext={
                 character
                   ? characterPromptContext(

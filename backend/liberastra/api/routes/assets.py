@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from starlette.background import BackgroundTask
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.api.routes._cache import BINARY_CACHE
 from liberastra.core.security import create_download_token, decode_download_token
 from liberastra.media.thumbs import (
     asset_thumb_path,
@@ -487,7 +488,12 @@ def download_asset_with_token(asset_id: int, token: str, db: DbSession) -> FileR
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
     if not path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件已丢失")
-    return FileResponse(path, media_type=record.mime, filename=_download_name(record))
+    return FileResponse(
+        path,
+        media_type=record.mime,
+        filename=_download_name(record),
+        headers=BINARY_CACHE,
+    )
 
 
 @router.get("/{asset_id}", response_model=AssetOut)
@@ -530,7 +536,12 @@ def asset_content(asset_id: int, user: CurrentUser, db: DbSession) -> FileRespon
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="非法路径") from exc
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件已丢失")
-    return FileResponse(path, media_type=record.mime, filename=_download_name(record))
+    return FileResponse(
+        path,
+        media_type=record.mime,
+        filename=_download_name(record),
+        headers=BINARY_CACHE,
+    )
 
 
 # 不能用 immutable：浏览器会把第一次的彩色缩略图缓存一年，源文件换成深度图后小图不会更新。

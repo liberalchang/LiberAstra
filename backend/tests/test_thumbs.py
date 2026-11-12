@@ -125,6 +125,7 @@ def test_template_preview_hits_disk_cache(
     url = f"/api/v1/templates/{item['aspect']}/{item['name']}/preview"
     first = client.get(url, headers=auth_header)
     assert first.status_code == 200
+    assert first.headers["cache-control"] == "private, no-cache"
     assert first.headers["content-type"].startswith("image/webp")
     with Image.open(BytesIO(first.content)) as image:
         assert max(image.size) <= 480

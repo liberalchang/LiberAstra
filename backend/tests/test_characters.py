@@ -1,19 +1,13 @@
 """角色库：四段式/四宫格切分、排版提示词和生成任务。"""
 
-import asyncio
 import io
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
-from sqlalchemy import select
 
-from liberastra.core.db import SessionLocal
-from liberastra.jobs.manager import JobContext, JobManager
-from liberastra.models import Character, Job, User
+from liberastra.models import Character
 from liberastra.providers.base import ProviderError
-from liberastra.services import characters as characters_service
 from liberastra.services.characters import (
     build_wide_sheet_reference,
     clean_appearance,
@@ -22,7 +16,6 @@ from liberastra.services.characters import (
     prepare_character_ref_images,
     reference_paths,
     reference_views,
-    run_character_generate_job,
     sheet_prompt,
     split_turnaround,
     split_turnaround_grid,
@@ -341,6 +334,7 @@ def test_upload_grid_sheet_splits_four_9x16(
             f"/api/v1/characters/{character['id']}/image/{slot}", headers=auth_header
         )
         assert response.status_code == 200
+        assert response.headers["cache-control"] == "private, no-cache"
         panel = Image.open(io.BytesIO(response.content)).convert("RGB")
         assert panel.size == (288, 512)
         assert panel.getpixel((144, 256)) == color
@@ -349,108 +343,8 @@ def test_upload_grid_sheet_splits_four_9x16(
         f"/api/v1/characters/{character['id']}/image/turnaround_grid", headers=auth_header
     )
     assert grid.status_code == 200
+    assert grid.headers["cache-control"] == "private, no-cache"
     assert Image.open(io.BytesIO(grid.content)).size == (576, 1024)
-
-
-def _generate_job(db, owner_id: int, character_id: int) -> Job:
-    job = Job(
-        kind="character.generate",
-        params={
-            "character_id": character_id,
-            "description": "黑长直，白衬衫",
-            "prompt": "20岁，黑长直，白衬衫",
-            "t2i_workflow": "qwen_image_21",
-        },
-        owner_id=owner_id,
-    )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    return job
-
-
-def _run_generate(
-    db, monkeypatch: pytest.MonkeyPatch, character_id: int, owner_id: int, *, wide_fails: bool = False
-):
-    calls: list[dict] = []
-
-    async def fake_produce(provider, **kwargs):  # noqa: ANN001, ANN003
-        calls.append(kwargs)
-        await asyncio.sleep(0)
-        if len(calls) == 1:
-            return [("grid.png", _grid_sheet())]
-        if wide_fails:
-            raise ProviderError("wide failed")
-        return [("wide.png", _solid(1536, 864, (12, 34, 56)))]
-
-    monkeypatch.setattr(characters_service, "produce_images", fake_produce)
-    monkeypatch.setattr(
-        characters_service,
-        "pick_provider",
-        lambda *args, **kwargs: SimpleNamespace(type="comfyui", name="fake"),
-    )
-    job = _generate_job(db, owner_id, character_id)
-    result = asyncio.run(
-        run_character_generate_job(db, job, JobContext(JobManager(), job.id))
-    )
-    return calls, result
-
-
-def test_character_generate_writes_grid_views_and_native_wide(
-    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    with SessionLocal() as db:
-        admin = db.scalar(select(User).where(User.username == "admin"))
-        assert admin is not None
-        character = Character(name="双排版角色", description="黑长直，白衬衫", owner_id=admin.id)
-        db.add(character)
-        db.commit()
-        db.refresh(character)
-        calls, result = _run_generate(db, monkeypatch, character.id, admin.id)
-        db.refresh(character)
-
-        assert len(calls) == 2
-        assert calls[0]["inputs"]["width"] == 1152
-        assert calls[0]["inputs"]["height"] == 2048
-        assert "四宫格" in calls[0]["prompt"]
-        assert calls[1]["workflow"] == "qwen_image_21_edit_multi"
-        assert {"image", "image_2", "image_3", "image_4"} <= set(calls[1]["inputs"])
-        assert "16:9" in calls[1]["prompt"]
-        assert "四栏" in calls[1]["prompt"]
-        assert "参考图 1" in calls[1]["prompt"]
-        assert character.turnaround_grid_path
-        assert character.turnaround_path
-        assert all(
-            character.__getattribute__(f"{slot}_path")
-            for slot in ("portrait", "front", "side", "back")
-        )
-        assert Image.open(resolve(character.turnaround_path)).size == (1536, 864)
-        assert Image.open(resolve(character.portrait_path)).size == (288, 512)
-        assert result and "16:9" in result[0]["content"]
-
-
-def test_character_generate_keeps_views_when_wide_fails(
-    client: TestClient, auth_header: dict[str, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    with SessionLocal() as db:
-        admin = db.scalar(select(User).where(User.username == "admin"))
-        assert admin is not None
-        character = Character(name="宽图失败角色", description="短发", owner_id=admin.id)
-        db.add(character)
-        db.commit()
-        db.refresh(character)
-        calls, result = _run_generate(
-            db, monkeypatch, character.id, admin.id, wide_fails=True
-        )
-        db.refresh(character)
-
-        assert len(calls) == 2
-        assert character.turnaround_grid_path
-        assert character.turnaround_path
-        assert Image.open(resolve(character.turnaround_path)).size == (1920, 1080)
-        assert character.portrait_path
-        assert result and "16:9" in result[0]["content"]
-        assert "失败" in result[0]["content"]
 
 
 def test_character_asset_is_idempotent(client: TestClient, auth_header: dict[str, str]) -> None:

@@ -33,12 +33,14 @@ STR_SPECS: dict[str, str] = {
     "default_llm_model": "",
     # 深度图模型名；空则由深度服务使用 dpt_swin2_large_384
     "default_depth_model": "",
-    # 角色 9:16 四宫格使用的文生图工作流包
-    "default_character_workflow": "qwen_image_21",
-    # 一张参考图时用的图生图工作流包
-    "default_character_i2i_workflow": "qwen_image_21_edit",
-    # 两到三张参考图时用的多图编辑工作流包
-    "default_character_i2i_multi_workflow": "qwen_image_21_edit_multi",
+    # 角色生成：ComfyUI 时使用的文生图工作流包；空=未配置
+    "default_character_workflow": "",
+    # 角色生成：一张参考图时用的图生图工作流包；空=未配置
+    "default_character_i2i_workflow": "",
+    # 角色生成：多张参考图时用的多图编辑工作流包；空=未配置
+    "default_character_i2i_multi_workflow": "",
+    # 角色生成：非 ComfyUI 服务商使用的模型；空=未配置
+    "default_character_model": "",
     # Liber Speech 默认模型包。功能页不单独选模型。
     "default_speech_model": "multilingual_v3",
     # 空串表示跟随语音服务 .env 的 LIBER_SPEECH_ASR_MODEL。

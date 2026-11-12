@@ -18,6 +18,7 @@ import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import {
   PromptField,
   resolveEffectivePrompt,
+  type PromptVar,
 } from "@/components/PromptField";
 import { ResultPanel } from "@/components/ResultPanel";
 import { submitButtonClass } from "@/components/ui/button";
@@ -74,6 +75,21 @@ export function ImageEditPage({ capability, title, description }: Props) {
   const effectivePrompt = resolveEffectivePrompt(promptValue);
   // File 快照数组（非 FileList 活引用）：分多轮选择时追加合并，可按张删除
   const [files, setFiles] = useState<File[]>([]);
+  const promptResources: PromptVar[] = files
+    .slice(0, imageSlots > 0 ? imageSlots : files.length)
+    .map((file, index) => {
+      const [key, spec] = imageInputs[index] ?? [];
+      const tag =
+        spec?.mention ||
+        spec?.label ||
+        (isComfy ? (imageSlots === 1 ? "原图" : `image ${index + 1}`) : `参考图 ${index + 1}`);
+      return {
+        name: key ?? `image-${index + 1}`,
+        preview: file.name,
+        tag,
+        kind: "image",
+      };
+    });
   const imageExclude = ["prompt", ...imageInputs.map(([k]) => k)];
   // 按包名分存 + 切包重载默认模型（官方/越狱互不污染）
   const [extra, setExtra] = usePersistentState<Record<string, string>>(
@@ -244,6 +260,12 @@ export function ImageEditPage({ capability, title, description }: Props) {
               jobScope={`image-${capability}:prompt-opt`}
               task={capability === "upscale" ? "upscale" : "i2i"}
               workflow={isComfy ? pack?.name : undefined}
+              resources={promptResources}
+              hint={
+                capability === "i2i"
+                  ? tx("可输入 <Picture 1>，或按 / 插入参考图；提交时会按当前工作流包转换为实际引用名。点击 ✨ 可优化。")
+                  : undefined
+              }
               placeholder={workflowPromptPlaceholder(tx, isComfy ? pack : null, {
                 fallback: capability === "upscale" ? "可选，用来约束画面" : "说明要怎么改",
               })}

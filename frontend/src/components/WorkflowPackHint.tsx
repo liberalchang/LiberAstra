@@ -137,11 +137,13 @@ export function PackSelect({
   value,
   onChange,
   ariaLabel,
+  allowEmpty = false,
 }: {
   packs: WorkflowPackOut[] | undefined;
   value: string;
   onChange: (value: string) => void;
   ariaLabel: string;
+  allowEmpty?: boolean;
 }) {
   const tx = useTx();
   const options: SearchOption[] = (packs ?? []).map((pack) => {
@@ -161,6 +163,9 @@ export function PackSelect({
   });
   if (value && !options.some((item) => item.value === value)) {
     options.unshift({ value, label: value, hint: value });
+  }
+  if (allowEmpty) {
+    options.unshift({ value: "", label: tx("请选择工作流包") });
   }
   return (
     <SearchSelect

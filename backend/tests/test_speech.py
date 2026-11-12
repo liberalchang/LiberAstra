@@ -232,6 +232,7 @@ def test_voice_library_crud(client: TestClient, auth_header: dict[str, str]) -> 
 
     audio = client.get(f"/api/v1/voices/{voice['id']}/ref-audio", headers=auth_header)
     assert audio.status_code == 200
+    assert audio.headers["cache-control"] == "private, no-cache"
     assert audio.content == b"RIFFreference"
     assert audio.headers["content-type"].startswith("audio/")
 

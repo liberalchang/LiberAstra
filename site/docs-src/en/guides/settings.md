@@ -62,9 +62,11 @@ Each page and the canvas pass a fixed template ID to the optimization endpoint. 
 | `motion` | Motion Transfer | Motion Transfer page |
 | `quick_topic` | Quick Create · Topic Expansion | Quick Create topics |
 | `assets_topic` | Custom Assets · Topic Expansion | Custom Assets topics |
-| `character_sheet` | Characters · Character Appearance | Characters "Generate from description" |
+| `character_sheet` | Characters · Character Appearance (legacy) | Kept for legacy callers; the character page now uses the two templates below |
+| `character_appearance` | Characters · Appearance Description | ✨ on the Characters appearance description |
+| `character_edit` | Characters · Single-View Edit | ✨ on the Characters edit prompt |
 
-Canvas function nodes use the template with the same name as the selected pack's capability. When there is no matching template, they fall back to `t2i`. Visual analysis does not use this prompt field; the analysis angle is written in the pack parameters. Characters always use `character_sheet` and does not share `t2i` with the Text to Image page. The `upscale` template only applies to custom upscale packs that declare a prompt slot; the built-in `upscale_basic` and SeedVR2 image enhance have no prompt field.
+Canvas function nodes use the template with the same name as the selected pack's capability. When there is no matching template, they fall back to `t2i`. Visual analysis does not use this prompt field; the analysis angle is written in the pack parameters. Characters use `character_appearance` for the appearance description and `character_edit` for the edit prompt, and do not share `t2i` with the Text to Image page. The `upscale` template only applies to custom upscale packs that declare a prompt slot; the built-in `upscale_basic` and SeedVR2 image enhance have no prompt field.
 
 ### Scene Presets
 
@@ -88,6 +90,8 @@ Choosing "Auto" still includes the `auto` overlay text, which explicitly says no
 
 Text to Image, Image to Image, Image to Video, Motion Transfer, Quick Create, Custom Assets, Characters, and canvas function nodes with prompt slots all use the same prompt entry: switch between the original input and the optimized draft, scene presets, ✨, and "Use optimized prompt". The original draft, optimized draft, and toggle are stored in the local browser and survive a refresh.
 
+On Image Edit, Image-to-Video/Motion Transfer/Digital Human, and the character edit prompt, typing `/` inserts images already filled on the current page. The inserted text is the workflow pack's registered mention (such as `image 1` or `原图`); a hand-written `<Picture 1>` is also converted for the current pack on submit. The resource menu is grouped by image/video/audio/text variable and only shows what the page already has.
+
 SeedVR2 image/video enhance and regular upscale packs have no prompt slot and do not show this field.
 
 ✨ submits the `prompt.optimize` job: `POST /api/v1/prompts/optimize` returns a job ID and the frontend polls progress. The server streams from the default LLM in System Settings. After a refresh, the job ID is enough to keep showing completion. If a workflow pack name is included during optimization, the pack's capability, description, and model family are passed to the LLM as well. `?wait=true` waits synchronously. The legacy path `/api/v1/images/optimize-prompt` still returns synchronously.
@@ -104,13 +108,13 @@ Change account password.
 
 **Speech synthesis (Liber Speech)**: choose the text-to-speech model, speech-to-text model, and voice conversion model separately. Text-to-speech defaults to `multilingual_v3` (Chatterbox-Multilingual V3); speech-to-text and voice conversion follow the speech service configuration (`.env`) by default, and you can also specify them here. Text to Speech, Speech to Text, Voice Conversion, Quick Create, Custom Assets, and Digital Human all use these defaults; function pages can still override them.
 
-**Default Character Generation**: used only by Characters "Generate from description". The image provider defaults to the first enabled `image` service; the three packs below cover the primary four-grid, one reference image, and two to three reference images:
+**Default Character Generation**: shared by Character Library four-view generation, filling, and single-view edits. The image provider list keeps every `image` service and defaults to the first enabled one. Validation depends on the provider type:
 
-- Character sheet workflow pack: lists only `t2i` packs; defaults to `qwen_image_21`; generates the 9:16 four-grid.
-- Single-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit`; used for a single reference image and as the fallback for the 16:9 second pass when multi-image editing is unavailable.
-- Multi-reference workflow: lists only `i2i` packs; defaults to `qwen_image_21_edit_multi`; used for two to three references and for the 16:9 sheet generated from the four views.
+- **ComfyUI**: all three workflows are required. The character sheet workflow lists only `t2i` packs and is used for a single view without references; the single-reference workflow is used when there is one anchor image; the multi-reference workflow is used for two or more anchors and for the 16:9 sheet. Defaults are blank, so choose them manually; the frontend no longer fills in `qwen_image_21`.
+- **Non-ComfyUI**: choose the provider's character image model. With at least one reference image it uses `edit`; without one it uses `generate`. References beyond the provider's capability are truncated automatically and noted in the job result.
+- **Exemption**: four full slots with no edit prompt and compose-only saves do not require configuration; downloads and compose-only saves are also exempt.
 
-Change official or uncensored image models here instead of going back to the Characters page.
+When configuration is missing, the character page shows a banner with a **Go to System Settings** link. Change official or uncensored image models here instead of going back to the Characters page.
 
 Runtime settings: ComfyUI wait timeout, synchronous API wait, and LLM timeout; "Serialize services on the same host" is off by default (parallel). When enabled, multiple services on the same host run only one job at a time. Changes take effect on the next job after saving.
 

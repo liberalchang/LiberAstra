@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select, update
 
 from liberastra.api.deps import CurrentUser, DbSession
+from liberastra.api.routes._cache import BINARY_CACHE
 from liberastra.models import User, Voice
 from liberastra.schemas.voice import VoiceOut
 from liberastra.storage import resolve, save_ref_audio
@@ -86,7 +87,12 @@ def voice_ref_audio(voice_id: int, user: CurrentUser, db: DbSession) -> FileResp
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="参考音频文件不存在")
     media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     filename = f"{Path(record.name).name or 'voice'}{path.suffix}"
-    return FileResponse(path, media_type=media_type, filename=filename)
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=filename,
+        headers=BINARY_CACHE,
+    )
 
 
 @router.delete("/{voice_id}", status_code=status.HTTP_204_NO_CONTENT)

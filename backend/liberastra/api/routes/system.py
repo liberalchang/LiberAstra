@@ -45,6 +45,7 @@ class PreferencesUpdate(BaseModel):
     default_character_workflow: str | None = Field(default=None, max_length=128)
     default_character_i2i_workflow: str | None = Field(default=None, max_length=128)
     default_character_i2i_multi_workflow: str | None = Field(default=None, max_length=128)
+    default_character_model: str | None = Field(default=None, max_length=200)
     default_speech_model: str | None = Field(default=None, max_length=64)
     default_asr_model: str | None = Field(default=None, max_length=64)
     default_vc_model: str | None = Field(default=None, max_length=64)

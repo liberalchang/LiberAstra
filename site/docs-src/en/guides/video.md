@@ -21,7 +21,7 @@ Sidebar order: **Quick Create** → **Digital Human** → **Image-to-Video** →
 | Motion Transfer | Video provider + workflow pack | `motion`, etc. | `minimax_h3_motion` / `minimax_h3_motion_uncensored` |
 | Custom Assets · Asset Animation | Animation provider + animation workflow | `i2v` | `minimax_h3_i2v` / `minimax_h3_i2v_uncensored` / `minimax_h3_i2v_enhancer` and other `i2v` packs |
 | Custom Assets · Write Copy from Assets | Analysis provider + analysis workflow | `analysis` | `analysis_image_qwenvl` / `analysis_video_qwenvl` |
-| Character Library · Generate from Description | Not selected on this page. Uses Settings → System Settings → Default Character Generation | `t2i` / `i2i` | Pick three packs: text-to-image, single-reference, and multi-reference; defaults are `qwen_image_21`, `qwen_image_21_edit`, `qwen_image_21_edit_multi` |
+| Character Library · Generate from Description | Not selected on this page. Uses Settings → System Settings → Default Character Generation | `t2i` / `i2i` | For ComfyUI, pick text-to-image, single-reference, and multi-reference packs; for other providers, pick a character image model. Defaults are blank |
 
 The sidebar's Tools → Video Enhance is a separate page. It uses a video provider and a `v2v` workflow pack (built in: `seedvr2_3b_video_restore`) and does not depend on the video generation pages above.
 
@@ -298,44 +298,60 @@ None of the three accepts a first frame. To give each shot a character image, sw
 
 ### Character Library
 
-The sidebar's Resources → Character Library stores a character's name, appearance description, two sheet layouts, and four individual views:
+The sidebar's Resources → Character Library stores a character's name, appearance description, four 9:16 single views, a 9:16 four-grid, and a 16:9 character sheet:
 
-- **9:16 four-grid (primary)**: `1152×2048`, a 2×2 grid where each `576×1024` cell is still 9:16. Top-left face half-body close-up, top-right full-body front, bottom-left full-body side, bottom-right full-body back. The app splits fixed quadrants into four 9:16 views used as the facial close-up, full-body front, full-body side, and full-body back. Portrait video, motion transfer, and digital human prefer these four.
-- **16:9 character sheet**: `1536×864`, four landscape columns from left to right: full-body front, full-body side, full-body back, and a right-side face half-body close-up. It is generated after the four 9:16 views: the app composes them into a 16:9 reference, then uses a multi-image edit workflow to redraw a native landscape sheet. It is used for preview, whole-sheet reference, and 16:9 image-to-video.
+- **Four 9:16 single views**: facial close-up, full-body front, full-body side, full-body back. Each view is generated separately and is used as the single-view reference for image-to-video, Digital Human, and Motion Transfer.
+- **9:16 four-grid**: `1152×2048`, 2×2, with the close-up top-left, front top-right, side bottom-left, and back bottom-right, separated by light-gray gutters. It is composed programmatically from the four views; the model no longer draws the grid, and the app no longer cuts a generated sheet at fixed halves, so neighboring hair cannot bleed into the front view.
+- **16:9 character sheet**: `1536×864`, four landscape columns. It is generated once more from the four views and the four-grid; if that fails, the app composes a landscape overview from the views and notes the fallback in the job result.
 
 The whole sheet is only for preview and whole-sheet reference; it is never used directly as a video frame. Video uses one 9:16 view per shot by default. If a 16:9 video must lock its first frame, use a reference-only pack such as `i2v_ref`, or generate a separate 16:9 first-frame still; the four 9:16 views are not 16:9 first frames.
 
-Choose one add method on the page; the other method's button does not appear at the same time.
+Each character card has a download button. The zip contains only the final six images and `character.json` (name, description, creation time, and file list); original uploads and the supplementary reference are not included.
+
+The page has three top-level tabs: **Generate from Description**, **Upload New**, and **Modify Existing**. The forms are mutually exclusive, while job progress and results are shared across tabs; switching tabs does not lose a running task.
 
 #### Generate from Description
 
-Use this when you have no image and only an appearance. Enter a name, plus age, face shape, hairstyle, and clothing. You can also upload 1 to 3 reference images (or choose them from the library); when reference images are present, the appearance description can be left empty. One image uses the **single-reference workflow** in System Settings; 2 to 3 images use the **multi-reference workflow**. References are first pasted onto a 9:16 light-gray canvas to keep the four-grid portrait.
+Use this when you have no image and only an appearance. Enter a name, plus age, face shape, hairstyle, and clothing. You can also upload 1 to 3 reference images (or choose them from the library); when reference images are present, the appearance description can be left empty.
 
-You can click ✨ to use the default LLM in **System Settings** with the prompt template **Character Library · Character Appearance** (`character_sheet`). Optimization only completes the face, headwear, bottoms, shoes, and quality; it no longer hard-codes the layout. Generation appends the four-grid and landscape compositions separately.
+You can click ✨ to use the default LLM in **System Settings** with the prompt template **Character Library · Appearance Description** (`character_appearance`). It completes only the character's appearance, never the four-grid, turnaround, aspect ratio, or layout.
 
 **Generate Character Sheet** runs these steps:
 
-1. Generate the 9:16 four-grid and split it into four 9:16 views, saving them immediately.
-2. Use those four views as references for a second image-to-image pass that generates the native 16:9 four-column sheet. By default it composes a 16:9 reference image, then uses the **multi-reference workflow**; if unavailable it falls back to single-image editing.
-3. If the 16:9 pass fails, the four 9:16 views are kept; the app composes a 16:9 overview from them and notes the failure in the job result.
+1. Generate the 9:16 single views one by one in the selected order. The default **Face first** order is close-up → front → side → back; **Body first** is front → close-up → side → back.
+2. The close-up defines the face, then the front defines the body and outfit; side and back reference both front and close-up to keep the same character. User reference images are appended after the anchor images for each step.
+3. Once all four views exist, the app composes the 9:16 four-grid programmatically.
+4. Use the four views and the four-grid as references to generate a 16:9 character sheet. If this step fails, the four views are kept and a composed landscape overview is used instead.
 
-The image provider, four-grid workflow pack, single-reference workflow, and multi-reference workflow are all in **System Settings → Default Character Generation**, not on the character page. With no reference images the default pack is `qwen_image_21`, targeting `1152×2048`; if the selected pack's width/height limit is smaller, it shrinks proportionally while keeping 9:16.
+The image provider, workflow packs, or model are all in **System Settings → Default Character Generation**, not on the character page. ComfyUI uses text-to-image, single-image i2i, and multi-image i2i workflows; other providers use the selected image model. References beyond the provider's capability are truncated automatically and noted in the job result. The default single-view target is `864×1536`; if the selected workflow's width/height limit is smaller, it shrinks proportionally while keeping 9:16.
 
-#### Upload a Character Sheet
+#### Upload New
 
-Use this when you already have a finished sheet. Choose the layout first:
+Use this when you already have some or all of the single views and want to create a new character. Enter a name, the four slot images, and the appearance description.
 
-- **16:9 four-column**: from left to right, full-body front, full-body side, full-body back, and right-side facial close-up. It detects vertical gaps and splits dynamically.
-- **9:16 four-grid**: top-left face close-up, top-right full-body front, bottom-left full-body side, bottom-right full-body back. Equal cells with light-gray gutters. It splits fixed quadrants, and each output stays 9:16.
+- Four slots: facial close-up, full-body front, full-body side, full-body back. Each slot can be uploaded, replaced, cleared, or chosen from the asset library.
+- At least the facial close-up or full-body front is required. Empty slots are filled automatically; with all four slots full, only composition runs and no image provider is called.
+- Every slot image must be **9:16** (aspect-ratio error at most 1%) with a short edge of at least **640px**. Invalid images are rejected under the slot with their current dimensions and do not enter a job.
+- You may add one supplementary reference image for clothing or identity details. It is exempt from the 9:16 and 640px rules.
+- The appearance description is the character's long-term identity baseline, used to fill missing views and by later video/canvas tasks. This tab has no edit prompt.
+- Buttons: **Fill and Create** when slots are missing; **Compose and Create** when all four are present.
 
-You can also choose an image from the library next to the upload box. The appearance description can be left empty; if filled in, Quick Create prepends that text to every picture. Click **Save and Auto-Split** to split and create the record immediately without calling the image provider.
+#### Modify Existing
 
-Do not upload a single portrait, a three-panel turnaround, or a layout that does not match the selected type; cuts may land on the person or bring neighboring cells along.
+Use this to modify a character already in the library. Select the character and the page loads its four single views and appearance description; saving overwrites that character with no version history.
 
-Split rules:
+- Any slot can be replaced or cleared, and one supplementary reference can be uploaded. A replaced slot is saved directly and is not regenerated automatically.
+- After a replacement, `image N` / `<Picture N>` in the edit prompt uses the replaced image. If the target view is also replaced, the uploaded image is only a reference and the saved target is the result generated from the prompt.
+- The **edit prompt** is the primary input: when filled, only the selected target view changes and other views stay as-is. The target view must already have an image. The button reads **Modify with Prompt and Save**.
+- The edit prompt can use ✨ with **Character Library · Single-View Edit** (`character_edit`), and typing `/` inserts images from the current page. Use `<Picture 1>` for the target view, `<Picture 2>` for the supplementary reference, and the remaining views in close-up, front, side, back order; on submit the app converts them to the current workflow pack's actual image mentions.
+- With no edit prompt, only missing views are filled or the grid is recomposed; the button reads **Fill Missing Views and Save** or **Recompose and Save**.
+- The **appearance baseline** is collapsed below the form. It is long-term text; saving updates the character description but does not redraw other views, and it is used when filling missing views and by later video tasks.
 
-- 16:9 landscape: find gaps between the three figures from column brightness changes and cut at each gap midpoint; if there are fewer than three gaps, fall back to roughly `23% / 22% / 23% / 32%`. If the right close-up still has a gray edge, move the cut right along the top color-block boundary.
-- 9:16 four-grid: do not analyze gaps; split at the exact width/height midlines. Generation and uploads must therefore keep figures from crossing the center lines.
+When configuration is missing, the character page shows a banner with a **Go to System Settings** link and disables buttons that need generation. Four full slots with no edit prompt and compose-only saves are exempt.
+
+After saving, the app re-composes the 9:16 four-grid and generates or composes the 16:9 character sheet. Downloads and compose-only saves with four full slots do not call the image provider.
+
+The old **whole-sheet upload + auto-split** flow is no longer shown on the character page; `POST /api/v1/characters` remains for API and legacy callers.
 
 Click a card thumbnail to open the large view and switch left/right among the facial close-up, full-body front, full-body side, full-body back, 16:9 sheet, and 9:16 four-grid sheet.
 

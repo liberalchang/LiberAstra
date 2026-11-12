@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from liberastra.jobs.manager import JobContext, JobManager
 from liberastra.models import Job
 from liberastra.providers.base import ProviderError
+from liberastra.services.canvas_graph import translate_prompt_slots
 from liberastra.services.preferences import get_pref
 from liberastra.services.prompts import optimize_prompt as optimize_prompt_service
 from liberastra.services.providers import build_image_adapter, pick_provider
@@ -81,6 +82,12 @@ async def run_image_edit_job(db: Session, job: Job, ctx: JobContext) -> list[dic
         paths = list(params.get("image_paths", []) or [])
         for key, path in zip(image_keys, paths, strict=False):
             inputs[key] = path
+        prompt_text = translate_prompt_slots(
+            str(inputs.get("prompt") or params.get("prompt") or ""), pack.inputs
+        )
+        if prompt_text:
+            inputs["prompt"] = prompt_text
+            params["prompt"] = prompt_text
         for key in image_keys:
             spec = pack.inputs[key]
             if spec.get("required", False) and not inputs.get(key):

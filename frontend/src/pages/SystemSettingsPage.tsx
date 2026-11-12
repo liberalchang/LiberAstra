@@ -80,9 +80,10 @@ export function SystemSettingsPage() {
   const [depthProviderId, setDepthProviderId] = useState(0);
   const [depthModel, setDepthModel] = useState("");
   const [characterProviderId, setCharacterProviderId] = useState(0);
-  const [characterWorkflow, setCharacterWorkflow] = useState("qwen_image_21");
-  const [characterI2i, setCharacterI2i] = useState("qwen_image_21_edit");
-  const [characterI2iMulti, setCharacterI2iMulti] = useState("qwen_image_21_edit_multi");
+  const [characterWorkflow, setCharacterWorkflow] = useState("");
+  const [characterI2i, setCharacterI2i] = useState("");
+  const [characterI2iMulti, setCharacterI2iMulti] = useState("");
+  const [characterModel, setCharacterModel] = useState("");
   const [speechModel, setSpeechModel] = useState("multilingual_v3");
   const [speechAsrModel, setSpeechAsrModel] = useState("");
   const [speechVcModel, setSpeechVcModel] = useState("");
@@ -140,6 +141,32 @@ export function SystemSettingsPage() {
     () => (workflows ?? []).filter((pack) => pack.capability === "i2i"),
     [workflows],
   );
+  const characterConfig = useQuery({
+    queryKey: ["character-config"],
+    queryFn: api.getCharacterConfig,
+  });
+  const selectedCharacterProvider =
+    imageProviders.find((provider) => provider.id === characterProviderId) ?? null;
+  const characterMode =
+    selectedCharacterProvider?.type === "comfyui"
+      ? "workflow"
+      : selectedCharacterProvider
+        ? "model"
+        : (characterConfig.data?.mode ?? "workflow");
+  const characterUsesComfy = characterMode !== "model";
+  const characterModelProvider =
+    selectedCharacterProvider ??
+    imageProviders.find((provider) => provider.id === characterConfig.data?.provider_id) ??
+    null;
+  const characterModelOptions = useMemo(() => {
+    const options = (characterModelProvider?.models ?? [])
+      .filter(Boolean)
+      .map((model) => ({ value: model, label: model }));
+    if (characterModel && !options.some((item) => item.value === characterModel)) {
+      options.unshift({ value: characterModel, label: characterModel });
+    }
+    return [{ value: "", label: "请选择模型" }, ...options];
+  }, [characterModel, characterModelProvider]);
   const selectedLlm = llmProviders.find((p) => p.id === llmProviderId) ?? null;
   const selectedDepth = depthProviders.find((p) => p.id === depthProviderId) ?? null;
   const depthModelChoices = useMemo(() => {
@@ -164,9 +191,10 @@ export function SystemSettingsPage() {
       setDepthProviderId(prefs.default_depth_provider_id ?? 0);
       setDepthModel(prefs.default_depth_model ?? "");
       setCharacterProviderId(prefs.default_character_provider_id ?? 0);
-      setCharacterWorkflow(prefs.default_character_workflow || "qwen_image_21");
-      setCharacterI2i(prefs.default_character_i2i_workflow || "qwen_image_21_edit");
-      setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "qwen_image_21_edit_multi");
+      setCharacterWorkflow(prefs.default_character_workflow || "");
+      setCharacterI2i(prefs.default_character_i2i_workflow || "");
+      setCharacterI2iMulti(prefs.default_character_i2i_multi_workflow || "");
+      setCharacterModel(prefs.default_character_model || "");
       setSpeechModel(prefs.default_speech_model || "multilingual_v3");
       setSpeechAsrModel(prefs.default_asr_model || "");
       setSpeechVcModel(prefs.default_vc_model || "");
@@ -189,6 +217,7 @@ export function SystemSettingsPage() {
         default_character_workflow: characterWorkflow,
         default_character_i2i_workflow: characterI2i,
         default_character_i2i_multi_workflow: characterI2iMulti,
+        default_character_model: characterModel,
         default_speech_model: speechModel,
         default_asr_model: speechAsrModel,
         default_vc_model: speechVcModel,
@@ -196,6 +225,7 @@ export function SystemSettingsPage() {
     onSuccess: (next) => {
       setPrefSaved(true);
       queryClient.setQueryData(["system-preferences"], next);
+      queryClient.invalidateQueries({ queryKey: ["character-config"] });
     },
   });
 
@@ -536,11 +566,11 @@ export function SystemSettingsPage() {
             <ImageIcon className="size-4" /> {tx("默认角色生图")}
           </CardTitle>
           <CardDescription>
-            {tx("没有参考图时用文生图。上传 1 张参考图用图生图，2 到 3 张用多图编辑。")}
+            {tx("四视图会按顺序生成 4 张 9:16 单人图，再程序合成四宫格并生成 16:9 定妆照。ComfyUI 使用三条工作流；其它服务商使用所选模型。")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          <Field label={tx("图像服务商")} hint={tx("在「服务提供方」中添加 ComfyUI 等图像服务。")}>
+          <Field label={tx("图像服务商 *")} hint={tx("保留全部图像服务商。自动=第一个启用的图像服务。")}>
             <select
               className={selectClass}
               value={characterProviderId}
@@ -554,30 +584,51 @@ export function SystemSettingsPage() {
               ))}
             </select>
           </Field>
-          <Field label={tx("定妆照工作流包")} hint={tx("只列出文生图工作流包。默认 Qwen-Image 2.1。")}>
-            <PackSelect
-              packs={t2iPacks}
-              value={characterWorkflow}
-              onChange={setCharacterWorkflow}
-              ariaLabel={tx("定妆照工作流包")}
-            />
-          </Field>
-          <Field label={tx("单张参考图工作流")} hint={tx("上传 1 张参考图时使用的图生图包。")}>
-            <PackSelect
-              packs={i2iPacks}
-              value={characterI2i}
-              onChange={setCharacterI2i}
-              ariaLabel={tx("单张参考图工作流")}
-            />
-          </Field>
-          <Field label={tx("多张参考图工作流")} hint={tx("上传 2 到 3 张参考图时使用的多图编辑包。")}>
-            <PackSelect
-              packs={i2iPacks}
-              value={characterI2iMulti}
-              onChange={setCharacterI2iMulti}
-              ariaLabel={tx("多张参考图工作流")}
-            />
-          </Field>
+          {characterUsesComfy ? (
+            <>
+              <Field label={tx("定妆照工作流包 *")} hint={tx("只列出文生图工作流包；空值不生成默认包。")}>
+                <PackSelect
+                  packs={t2iPacks}
+                  value={characterWorkflow}
+                  onChange={setCharacterWorkflow}
+                  ariaLabel={tx("定妆照工作流包")}
+                  allowEmpty
+                />
+              </Field>
+              <Field label={tx("单张参考图工作流 *")} hint={tx("只有一张锚点图时使用的图生图包。")}>
+                <PackSelect
+                  packs={i2iPacks}
+                  value={characterI2i}
+                  onChange={setCharacterI2i}
+                  ariaLabel={tx("单张参考图工作流")}
+                  allowEmpty
+                />
+              </Field>
+              <Field label={tx("多张参考图工作流 *")} hint={tx("两张及以上锚点图时使用的多图编辑包。")}>
+                <PackSelect
+                  packs={i2iPacks}
+                  value={characterI2iMulti}
+                  onChange={setCharacterI2iMulti}
+                  ariaLabel={tx("多张参考图工作流")}
+                  allowEmpty
+                />
+              </Field>
+            </>
+          ) : (
+            <Field
+              label={tx("角色生图模型 *")}
+              hint={tx("使用该服务商的图像模型；多图参考会按服务商能力自动截断。")}
+            >
+              <SearchSelect
+                ariaLabel={tx("角色生图模型")}
+                value={characterModel}
+                onChange={setCharacterModel}
+                options={characterModelOptions}
+                placeholder={tx("搜索模型")}
+                emptyText={tx("没有匹配模型，请先在服务提供方拉取模型列表")}
+              />
+            </Field>
+          )}
           <div className="flex items-center gap-3 sm:col-span-2">
             <Button
               type="button"
