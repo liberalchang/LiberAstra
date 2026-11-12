@@ -30,6 +30,16 @@ export default defineConfig({
   cleanUrls: true,
   // 从 docs-src 根目录出发，输出到上级的 site/docs
   outDir: '../docs',
+  // 与 site/index.html（homepage）同一套 data-URI 星标图标，避免 base 路径改写丢前缀
+  head: [
+    [
+      'link',
+      {
+        rel: 'icon',
+        href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='2' fill='%2324262a'/%3E%3Cpath d='M16 5l2.6 8.4L27 16l-8.4 2.6L16 27l-2.6-8.4L5 16l8.4-2.6z' fill='%23f8f4e9'/%3E%3C/svg%3E",
+      },
+    ],
+  ],
   locales: {
     root: {
       label: '简体中文',

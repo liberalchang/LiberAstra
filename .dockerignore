@@ -19,9 +19,10 @@ frontend/dist
 frontend/.vite
 **/*.tsbuildinfo
 
-# 文档构建产物；前端只需要 docs-src 里的 Markdown 和 nav.json
+# 文档构建产物；保留 .vitepress/config 与 theme，仅排除缓存与输出
 site/docs
-site/docs-src/.vitepress
+site/docs-src/.vitepress/cache
+site/docs-src/.vitepress/dist
 
 # Python 缓存与虚拟环境
 **/__pycache__
