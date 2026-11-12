@@ -43,7 +43,7 @@ import { AudioContinuityControl, type AudioContinuityValue } from "@/components/
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { SearchSelect } from "@/components/ui/search-select";
-import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { applyAccelPreset, modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { cn, formatStepName } from "@/lib/utils";
@@ -1126,7 +1126,7 @@ export function VideoQuickPage() {
         {tpl?.type === "image" && imageProvider?.type === "comfyui" && imagePack && (
           <WorkflowInputs
             inputs={imagePack.inputs}
-            values={imageExtra}
+            values={imageAccel.enabled ? applyAccelPreset(imageExtra, imagePack.accel, imagePack.inputs) : imageExtra}
             onChange={(k, v) => setImageExtra((prev) => ({ ...prev, [k]: v }))}
             exclude={["prompt", "width", "height"]}
             providerId={imageProvider.id}
@@ -1145,7 +1145,7 @@ export function VideoQuickPage() {
         {tpl?.type === "video" && videoPack && (
           <WorkflowInputs
             inputs={videoPack.inputs}
-            values={videoExtra}
+            values={videoAccel.enabled ? applyAccelPreset(videoExtra, videoPack.accel, videoPack.inputs) : videoExtra}
             onChange={(k, v) => setVideoExtra((prev) => ({ ...prev, [k]: v }))}
             exclude={["prompt", "width", "height", "image"]}
             providerId={videoProvider?.id}

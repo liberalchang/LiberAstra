@@ -33,7 +33,7 @@ import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { negativePromptPlaceholder, workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
-import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { applyAccelPreset, modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
 
 const DEDICATED = ["prompt", "negative_prompt", "width", "height", "steps", "seed", "batch_size"];
@@ -279,7 +279,7 @@ export function ImageGenPage() {
             {isComfy && pack && (
               <WorkflowInputs
                 inputs={pack.inputs}
-                values={extra}
+                values={accel.enabled ? applyAccelPreset(extra, pack.accel, pack.inputs) : extra}
                 onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
                 exclude={DEDICATED}
                 providerId={provider?.id}

@@ -382,6 +382,28 @@ def resolve_accel_lora(pack: WorkflowPack, accel: dict[str, Any] | None) -> str:
     return str(cfg.get("lora") or spec.get("lora", {}).get("recommended") or "")
 
 
+def _matches_input_default(value: Any, spec: dict[str, Any]) -> bool:
+    """值等于工作流包默认值时，不视为用户显式覆盖。
+
+    画布和页面会把 manifest 默认值一起提交（例如 steps=20、sampler=res_multistep），
+    如果按“出现在 user_values 里就算用户改过”处理，accel.preset 永远不会生效。
+    """
+    default = spec.get("default")
+    if default is None:
+        return False
+    ptype = spec.get("type")
+    try:
+        if ptype == "int":
+            return int(value) == int(default)
+        if ptype == "float":
+            return float(value) == float(default)
+        if ptype == "bool":
+            return bool(value) == bool(default)
+        return str(value) == str(default)
+    except (TypeError, ValueError):
+        return False
+
+
 def apply_accel(
     workflow: dict[str, Any],
     pack: WorkflowPack,
@@ -422,13 +444,13 @@ def apply_accel(
             if "max" in strength_spec:
                 strength = min(float(strength_spec["max"]), strength)
             _set_field(workflow, node_id, strength_spec["field"], strength)
-        # preset：用户手动改过的值优先（已在 apply_inputs 写入）
+        # preset：用户手动改成非默认值的优先；等于包默认值的仍按 preset 走。
         provided = user_values or {}
         for key, preset_val in (spec.get("preset") or {}).items():
-            if key in provided:
-                continue
             input_spec = pack.inputs.get(key)
             if not input_spec:
+                continue
+            if key in provided and not _matches_input_default(provided[key], input_spec):
                 continue
             value: Any = preset_val
             ptype = input_spec.get("type")

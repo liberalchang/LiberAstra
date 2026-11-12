@@ -1,6 +1,7 @@
 """工作流包加载、参数注入与导入/删除测试。"""
 
 from copy import deepcopy
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -413,6 +414,76 @@ def test_apply_accel_user_values_override_preset() -> None:
         assert workflow["17"]["inputs"]["sampler_name"] == "euler"  # preset 补齐
     finally:
         delete_pack("accel_pack")
+
+
+def test_apply_accel_default_valued_inputs_still_use_preset() -> None:
+    """画布/页面会把包默认值一起提交；默认值不能被当成用户覆盖。"""
+    pack = _accel_pack()
+    try:
+        values = {"steps": 20, "sampler_name": "res_multistep"}
+        workflow = apply_inputs(pack, values)
+        workflow = apply_accel(
+            workflow,
+            pack,
+            {"enabled": True, "lora": "turbo.safetensors"},
+            user_values=values,
+        )
+        assert workflow["9"]["inputs"]["steps"] == 8
+        assert workflow["17"]["inputs"]["sampler_name"] == "euler"
+    finally:
+        delete_pack("accel_pack")
+
+
+def test_apply_accel_custom_sampler_still_overrides_preset() -> None:
+    """逐参数判断：自定义采样器保留，等于默认值的步数仍落到 preset。"""
+    pack = _accel_pack()
+    try:
+        values = {"steps": 20, "sampler_name": "dpmpp_2m"}
+        workflow = apply_inputs(pack, values)
+        workflow = apply_accel(
+            workflow,
+            pack,
+            {"enabled": True, "lora": "turbo.safetensors"},
+            user_values=values,
+        )
+        assert workflow["9"]["inputs"]["steps"] == 8
+        assert workflow["17"]["inputs"]["sampler_name"] == "dpmpp_2m"
+    finally:
+        delete_pack("accel_pack")
+
+
+def test_h3_accel_preset_applies_when_canvas_sends_defaults() -> None:
+    """真实 H3 包：画布存了 steps=20 / sampler=res_multistep，开 Turbo 仍应落到 8/euler。"""
+    for name in (
+        "minimax_h3_t2v",
+        "minimax_h3_i2v",
+        "minimax_h3_i2v_ref",
+        "minimax_h3_avatar",
+        "minimax_h3_motion",
+        "minimax_h3_motion_uncensored",
+    ):
+        pack = get_pack(name)
+        values: dict[str, Any] = {
+            "prompt": "test",
+            "steps": 20,
+            "sampler_name": "res_multistep",
+        }
+        for key, spec in pack.inputs.items():
+            if spec.get("required") and spec.get("type") in ("image", "video", "audio"):
+                values[key] = f"uploads/test.{spec['type']}"
+        workflow = apply_inputs(pack, values)
+        workflow = apply_accel(
+            workflow,
+            pack,
+            {
+                "enabled": True,
+                "lora": "minimax_h3_turbo_v4_step600_ema.safetensors",
+                "strength": 1.0,
+            },
+            user_values=values,
+        )
+        assert workflow["105:9"]["inputs"]["steps"] == 8, name
+        assert workflow["105:17"]["inputs"]["sampler_name"] == "euler", name
 
 
 def test_apply_accel_disabled_rewires_and_removes_node() -> None:

@@ -54,6 +54,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { SPEECH_LANGUAGES, SpeechLanguageSelect } from "@/components/SpeechLanguageSelect";
 import { useTx } from "@/i18n/tx";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
+import { applyAccelPreset } from "@/lib/workflowForm";
 import { characterPromptContext, viewLabel } from "@/lib/characterPrompt";
 import { useCanvasStore } from "@/stores/canvas";
 
@@ -849,6 +850,11 @@ function FunctionInspector({
     staleTime: 60_000,
   });
   const pack = allPacks?.find((item) => item.name === d.pack) ?? null;
+  // 加速开启时，画布存储的包默认步数/采样器要按 preset 显示，避免面板仍显示 20/res_multistep。
+  const effectiveValues =
+    d.accel?.enabled && pack?.accel
+      ? applyAccelPreset(d.values, pack.accel, pack.inputs)
+      : d.values;
   // 菜单绑包时如果还没拿到工作流列表，加速开关会丢。列表到达后补上默认值。
   useEffect(() => {
     if (!pack || !hasAccel(pack.accel) || d.accel) return;
@@ -982,7 +988,7 @@ function FunctionInspector({
                 <SectionLabel>{tx("参数")}</SectionLabel>
                 <WorkflowInputs
                   inputs={pack.inputs}
-                  values={d.values}
+                  values={effectiveValues}
                   exclude={[...mediaParamKeys, "prompt"]}
                   providerId={providerId}
                   fps={pack.fps}
@@ -1000,7 +1006,7 @@ function FunctionInspector({
                     <SectionLabel>{tx("参数")}</SectionLabel>
                     <WorkflowInputs
                       inputs={pack.inputs}
-                      values={d.values}
+                      values={effectiveValues}
                       exclude={paramExclude}
                       providerId={providerId}
                       fps={pack.fps}
@@ -1099,7 +1105,7 @@ function FunctionInspector({
                     )}
                     <WorkflowInputs
                       inputs={pack.inputs}
-                      values={d.values}
+                      values={effectiveValues}
                       exclude={paramExclude}
                       providerId={providerId}
                       fps={pack.fps}
@@ -1150,7 +1156,7 @@ function FunctionInspector({
             <SectionLabel>{tx("参数")}</SectionLabel>
             <WorkflowInputs
               inputs={currentSpec.inputs}
-              values={d.values}
+              values={effectiveValues}
               exclude={["prompt"]}
               providerId={d.providerId ?? undefined}
               singleColumn
@@ -1166,7 +1172,7 @@ function FunctionInspector({
                 <SectionLabel>{tx("参数")}</SectionLabel>
                 <WorkflowInputs
                   inputs={currentSpec.inputs}
-                  values={d.values}
+                  values={effectiveValues}
                   exclude={["prompt"]}
                   providerId={d.providerId ?? undefined}
                   singleColumn
@@ -1181,7 +1187,7 @@ function FunctionInspector({
               <AdvancedPanel summary={canvasAdvancedSummary(tx, d.subCapability || "", d.values, false)}>
                 <WorkflowInputs
                   inputs={currentSpec.inputs}
-                  values={d.values}
+                  values={effectiveValues}
                   exclude={["prompt"]}
                   providerId={d.providerId ?? undefined}
                   singleColumn

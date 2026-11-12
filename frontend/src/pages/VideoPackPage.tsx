@@ -45,7 +45,7 @@ import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
-import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { applyAccelPreset, modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
 import { CHARACTER_VIEWS, characterPromptContext } from "@/lib/characterPrompt";
 
@@ -832,7 +832,7 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
             {pack && (
               <WorkflowInputs
                 inputs={pack.inputs}
-                values={extra}
+                values={accel.enabled ? applyAccelPreset(extra, pack.accel, pack.inputs) : extra}
                 onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
                 exclude={[
                   "prompt",

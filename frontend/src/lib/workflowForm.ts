@@ -1,4 +1,4 @@
-import type { WorkflowInputSpec } from "@/api/client";
+import type { WorkflowAccelSpec, WorkflowInputSpec } from "@/api/client";
 
 /**
  * 从工作流包 inputs 取出 options_from（模型下拉）的默认文件名。
@@ -17,4 +17,30 @@ export function modelDefaultsFromInputs(
     out[key] = String(spec.default);
   }
   return out;
+}
+
+/**
+ * 展示加速开启时实际生效的参数。
+ * 缺省、空值、或仍等于包默认值的参数由 accel.preset 覆盖；
+ * 用户改成非默认值的参数保留。
+ */
+export function applyAccelPreset(
+  values: Record<string, string>,
+  accelSpec: WorkflowAccelSpec | null | undefined,
+  inputs?: Record<string, WorkflowInputSpec>,
+): Record<string, string> {
+  const preset = accelSpec?.preset;
+  if (!preset) return values;
+  let changed = false;
+  const out = { ...values };
+  for (const [key, onValue] of Object.entries(preset)) {
+    const def = inputs?.[key]?.default;
+    const cur = out[key];
+    if (cur !== undefined && cur !== "" && (def == null || String(cur) !== String(def))) {
+      continue;
+    }
+    out[key] = String(onValue);
+    changed = true;
+  }
+  return changed ? out : values;
 }

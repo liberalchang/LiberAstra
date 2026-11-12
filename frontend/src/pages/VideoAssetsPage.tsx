@@ -45,7 +45,7 @@ import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
-import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { applyAccelPreset, modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { formatStepName } from "@/lib/utils";
 import { Film, X } from "lucide-react";
 import { useTx } from "@/i18n/tx";
@@ -626,7 +626,11 @@ export function VideoAssetsPage() {
                 {videoPack && (
                   <WorkflowInputs
                     inputs={videoPack.inputs}
-                    values={videoExtra}
+                    values={
+                      videoAccel.enabled
+                        ? applyAccelPreset(videoExtra, videoPack.accel, videoPack.inputs)
+                        : videoExtra
+                    }
                     onChange={(k, v) => setVideoExtra((prev) => ({ ...prev, [k]: v }))}
                     exclude={["image", "prompt", "width", "height"]}
                     providerId={videoProvider?.id}

@@ -32,7 +32,7 @@ import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentPromptValue, usePersistentState } from "@/hooks/usePersistentState";
 import { assetsAsFiles } from "@/lib/assets";
 import { referenceImagesHint, workflowPromptPlaceholder } from "@/lib/promptPlaceholder";
-import { modelDefaultsFromInputs } from "@/lib/workflowForm";
+import { applyAccelPreset, modelDefaultsFromInputs } from "@/lib/workflowForm";
 import { useTx } from "@/i18n/tx";
 
 interface Props {
@@ -285,7 +285,7 @@ export function ImageEditPage({ capability, title, description }: Props) {
               )}
               <WorkflowInputs
                 inputs={pack.inputs}
-                values={extra}
+                values={accel.enabled ? applyAccelPreset(extra, pack.accel, pack.inputs) : extra}
                 onChange={(k, v) => setExtra((prev) => ({ ...prev, [k]: v }))}
                 exclude={imageExclude}
                 providerId={provider?.id}
