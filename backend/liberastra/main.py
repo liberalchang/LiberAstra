@@ -49,6 +49,48 @@ class SPAStaticFiles(StaticFiles):
             raise
 
 
+class ManualStaticFiles(StaticFiles):
+    """托管 VitePress 产物；支持 cleanUrls（/install → install.html）。
+
+    必须用 html=False：Starlette 在 html=True 时对未知路径直接返回 404.html，
+    不会抛 404，也就无法再回退到同名 .html。
+    """
+
+    async def get_response(self, path: str, scope):  # noqa: ANN001, ANN201
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        normalized = (path or "").strip("/")
+        candidates: list[str] = []
+        # 挂载根路径时 Starlette 可能传入 "" 或 "."
+        if not normalized or normalized in {".", "./"}:
+            candidates.append("index.html")
+        else:
+            candidates.append(normalized)
+            # 无后缀时按 VitePress cleanUrls 试 .html 与目录首页
+            name = normalized.rsplit("/", 1)[-1]
+            if "." not in name:
+                candidates.extend([f"{normalized}.html", f"{normalized}/index.html"])
+
+        last_exc: StarletteHTTPException | None = None
+        for candidate in candidates:
+            try:
+                return await super().get_response(candidate, scope)
+            except StarletteHTTPException as exc:
+                if exc.status_code != 404:
+                    raise
+                last_exc = exc
+
+        try:
+            response = await super().get_response("404.html", scope)
+            response.status_code = 404
+            return response
+        except StarletteHTTPException:
+            pass
+        if last_exc is not None:
+            raise last_exc
+        raise StarletteHTTPException(status_code=404)
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     setup_logging(settings.debug)
@@ -141,6 +183,15 @@ def create_app() -> FastAPI:
     @app.get("/docs/oauth2-redirect", include_in_schema=False)
     def swagger_ui_redirect():
         return get_swagger_ui_oauth2_redirect_html()
+
+    # /manual 必须挂在 SPA 通配 / 之前，否则 cleanUrl 会落到 React index.html
+    manual_dir: Path | None = settings.resolved_manual_dir
+    if manual_dir is not None:
+        app.mount(
+            "/manual",
+            ManualStaticFiles(directory=manual_dir, html=False),
+            name="manual",
+        )
 
     static_dir: Path | None = settings.resolved_static_dir
     if static_dir is not None:

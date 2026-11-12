@@ -226,11 +226,17 @@ export const NAV_ENTRIES: NavEntry[] = [
     id: "reading",
     labelKey: "group.reading",
     icon: "reading",
-    match: ["/guide"],
+    match: ["/guide", "/manual"],
     sections: [
       {
         items: [
-          { to: "/guide", labelKey: "nav.guide", icon: "guide" },
+          {
+            to: "/manual/",
+            labelKey: "nav.guide",
+            icon: "guide",
+            href: "/manual/",
+            external: true,
+          },
           { to: "/docs", labelKey: "nav.apiDocs", icon: "apiDocs", href: "/docs", external: true },
         ],
       },

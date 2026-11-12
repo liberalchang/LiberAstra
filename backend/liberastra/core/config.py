@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # 前端构建产物目录；缺省时依次尝试 env、<cwd>/frontend/dist、仓库内 frontend/dist
     static_dir: Path | None = None
 
+    # VitePress 使用文档目录（/manual/）；缺省时找 dist/manual 或 site/docs
+    manual_dir: Path | None = None
+
     access_token_expire_minutes: int = 60 * 12
 
     # 清理策略：已结束任务及其产物保留天数，0 = 不自动清理
@@ -83,6 +86,23 @@ class Settings(BaseSettings):
             self.static_dir,
             Path.cwd() / "frontend" / "dist",
             Path(__file__).resolve().parents[3] / "frontend" / "dist",
+        ]
+        for candidate in candidates:
+            if candidate and (candidate / "index.html").exists():
+                return candidate
+        return None
+
+    @property
+    def resolved_manual_dir(self) -> Path | None:
+        """VitePress 构建产物；存在 index.html 才启用 /manual/。"""
+        static = self.resolved_static_dir
+        repo = Path(__file__).resolve().parents[3]
+        candidates = [
+            self.manual_dir,
+            static / "manual" if static is not None else None,
+            Path.cwd() / "site" / "docs",
+            repo / "site" / "docs",
+            Path.cwd() / "manual",
         ]
         for candidate in candidates:
             if candidate and (candidate / "index.html").exists():

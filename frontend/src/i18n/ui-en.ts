@@ -63,6 +63,7 @@ export const UI_EN: Record<string, string> = {
   "重绘": "Inpaint",
   "识别": "Transcribe",
   "使用文档": "Guide",
+  "正在打开使用文档…": "Opening the guide…",
   "按侧栏功能说明用法；视频与 Comfy 工作流见「服务提供方 → 工作流包 → 模型文件」。":
     "How to use each page. For video and Comfy workflows, see Providers → Workflow Packs → model files.",
   "打开导航": "Open navigation",

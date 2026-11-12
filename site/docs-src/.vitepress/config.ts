@@ -3,7 +3,8 @@ import { defineConfig } from 'vitepress';
 import nav from '../nav.json';
 
 // 中文为主，提供简要英文骨架。构建输出到 site/docs。
-// 本地预览用 DOCS_BASE=/docs/；GitHub Project Pages 默认 /LiberAstra/docs/。
+// GitHub Project Pages 默认 /LiberAstra/docs/。
+// 嵌入 LiberAstra 应用时用 DOCS_BASE=/manual/（见 frontend/scripts/embed-manual.mjs）。
 const navData = nav as {
   zh: { sections: { title: string; items: { title: string; slug: string }[] }[] };
   en: { sections: { title: string; items: { title: string; slug: string }[] }[] };

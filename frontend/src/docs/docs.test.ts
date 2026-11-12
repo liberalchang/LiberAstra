@@ -82,17 +82,17 @@ test("tocHeadings keeps H2 and H3 only", () => {
   );
 });
 
-test("resolveDocHref maps VitePress paths into the unified docs route", () => {
+test("resolveDocHref maps VitePress paths into /manual/", () => {
   assert.deepEqual(resolveDocHref("/guides/image", "zh"), {
-    href: "/guide/guides/image",
-    external: false,
+    href: "/manual/guides/image",
+    external: true,
   });
   assert.deepEqual(resolveDocHref("/en/guides/image#qwen", "en"), {
-    href: "/guide/guides/image#qwen",
-    external: false,
+    href: "/manual/en/guides/image#qwen",
+    external: true,
   });
-  assert.deepEqual(resolveDocHref("/", "zh"), { href: "/guide", external: false });
-  assert.deepEqual(resolveDocHref("/en/", "en"), { href: "/guide", external: false });
+  assert.deepEqual(resolveDocHref("/", "zh"), { href: "/manual/", external: true });
+  assert.deepEqual(resolveDocHref("/en/", "en"), { href: "/manual/en/", external: true });
   assert.deepEqual(resolveDocHref("#文字转语音", "zh"), {
     href: "#文字转语音",
     external: false,
@@ -103,14 +103,14 @@ test("resolveDocHref maps VitePress paths into the unified docs route", () => {
   });
   assert.deepEqual(resolveDocHref("/docs", "zh"), { href: "/docs", external: true });
   assert.deepEqual(resolveDocHref("./installation.md", "zh"), {
-    href: "/guide/installation",
-    external: false,
+    href: "/manual/installation",
+    external: true,
   });
 });
 
 test("docPath and slugFromPath preserve the default route", () => {
-  assert.equal(docPath("index"), "/guide");
-  assert.equal(docPath("guides/image"), "/guide/guides/image");
+  assert.equal(docPath("index"), "/manual/");
+  assert.equal(docPath("guides/image"), "/manual/guides/image");
   assert.equal(slugFromPath(""), "index");
   assert.equal(slugFromPath("guides/image"), "guides/image");
 });

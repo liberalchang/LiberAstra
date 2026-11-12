@@ -28,6 +28,7 @@ export default defineConfig({
       "/v1": "http://127.0.0.1:8000",
       "/healthz": "http://127.0.0.1:8000",
       "/docs": "http://127.0.0.1:8000",
+      "/manual": "http://127.0.0.1:8000",
       "/openapi.json": "http://127.0.0.1:8000",
     },
   },

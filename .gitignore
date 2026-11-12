@@ -5,6 +5,7 @@ skills/speechapi/data.json
 
 # 计划与调研笔记不入库。docs/ 只提交使用说明（docs/manual/、docs/README.md、docs/AGENTS.md）。
 docs/internal/
+docs/教程手稿/
 
 # 运行数据与密钥
 data/

@@ -37,7 +37,7 @@ uv run astra serve --reload
 
 Open `http://127.0.0.1:8000/`. The API and the packaged UI share the same port.
 
-When changing the UI, start the frontend dev server at `http://127.0.0.1:5173/`; `/api` requests are proxied to 8000. Pages served from 8000 only pick up source changes after another `npm run build`.
+`npm run build` in `frontend` also embeds the VitePress guide into `dist/manual` (served at `/manual/`). When changing the UI, start the frontend dev server at `http://127.0.0.1:5173/`; `/api` and `/manual` are proxied to 8000. Pages served from 8000 only pick up source changes after another `npm run build`.
 
 One account can sign in from several browsers at the same time. Each token lasts about 12 hours; sign in again after it expires.
 

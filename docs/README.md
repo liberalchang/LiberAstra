@@ -21,7 +21,7 @@ LiberAstra 是自托管 AIGC 编排台：对接 ComfyUI、Ollama、语音服务�
 
 | 文档 | 适合谁 |
 |------|--------|
-| [使用文档](../site/docs-src/quickstart.md) | 站点与应用内共用；中文，英文在 `site/docs-src/en/` |
+| [使用文档](../site/docs-src/quickstart.md) | 源码在 `site/docs-src/`；VitePress 构建后应用内走 `/manual/`，GitHub Pages 走站点文档 |
 | [部署](./manual/deployment.md) | Docker、环境变量、可选 profile |
 | [Deployment (English)](./manual/deployment.en.md) | Same deploy path in English |
 | [分置部署教程](./manual/分置部署教程.md) | 编排机和显卡机分开 |

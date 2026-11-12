@@ -10,7 +10,7 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install --no-audit --no-fund
 COPY frontend/ ./
-# 文档源在仓库 site/docs-src，前端构建时用 import.meta.glob 打进 dist
+# 文档源在仓库 site/docs-src：旧版 markdown 内嵌 + embed-manual 构建 VitePress 到 dist/manual
 COPY site/docs-src /site/docs-src
 RUN npm run build
 

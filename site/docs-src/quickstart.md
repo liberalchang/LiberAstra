@@ -29,7 +29,7 @@ Windows 用户也可以直接安装 [LiberAstra 安装包](/install#windows-inst
 
 #### 本机运行与开发模式
 
-生产环境只启动后端。先在 `frontend` 执行一次 `npm run build`，再在 `backend` 执行：
+生产环境只启动后端。先在 `frontend` 执行一次 `npm run build`（会同时把 VitePress 使用文档嵌进 `dist/manual`，应用内入口为 `/manual/`），再在 `backend` 执行：
 
 ```powershell
 uv run astra serve --reload

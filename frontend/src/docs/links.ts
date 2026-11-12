@@ -9,8 +9,9 @@ export function moduleKeyToSlug(key: string, locale: DocLocale): string {
   return slug;
 }
 
+/** 应用内使用文档已改为 VitePress /manual/。 */
 export function docPath(slug: string): string {
-  return slug === "index" ? "/guide" : `/guide/${slug}`;
+  return slug === "index" ? "/manual/" : `/manual/${slug}`;
 }
 
 export function slugFromPath(path: string): string {
@@ -20,27 +21,37 @@ export function slugFromPath(path: string): string {
 
 export type DocLink = { href: string; external: boolean };
 
+function manualHref(slug: string, hash: string): string {
+  const path = slug ? `/manual/${slug}` : "/manual/";
+  return `${path}${hash ? `#${hash}` : ""}`;
+}
+
 export function resolveDocHref(raw: string, _locale: DocLocale): DocLink {
   const href = raw.trim();
   if (/^(https?:|mailto:|tel:)/i.test(href)) return { href, external: true };
   if (href.startsWith("#")) return { href, external: false };
 
   if (href.startsWith("/")) {
-    // /docs 是后端 Swagger，不是文档章节
+    // /docs 是后端 Swagger，不是使用文档
     if (href === "/docs" || href.startsWith("/docs/")) return { href, external: true };
-    if (href === "/en" || href === "/en/") return { href: "/guide", external: false };
+    if (href === "/manual" || href.startsWith("/manual/")) return { href, external: true };
+    if (href === "/en" || href === "/en/") return { href: "/manual/en/", external: true };
 
     const path = href.startsWith("/en/") ? href.slice(3) : href;
-    const [base, hash] = path.split("#");
+    const [base, hash = ""] = path.split("#");
     const slug = base.replace(/^\/+|\/+$/g, "");
-    if (!slug) return { href: "/guide", external: false };
-    return { href: `/guide/${slug}${hash ? `#${hash}` : ""}`, external: false };
+    if (!slug) return { href: "/manual/", external: true };
+    // 英文站点章节保留 /manual/en/...
+    if (href.startsWith("/en/")) {
+      return { href: `/manual/en/${slug}${hash ? `#${hash}` : ""}`, external: true };
+    }
+    return { href: manualHref(slug, hash), external: true };
   }
 
-  const [base, hash] = href.split("#");
+  const [base, hash = ""] = href.split("#");
   if (base.endsWith(".md")) {
     const slug = base.replace(/^\.\//, "").replace(/\.md$/, "");
-    return { href: `/guide/${slug}${hash ? `#${hash}` : ""}`, external: false };
+    return { href: manualHref(slug, hash), external: true };
   }
   return { href, external: false };
 }

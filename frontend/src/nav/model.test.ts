@@ -15,7 +15,7 @@ import {
 const EXPECTED_PATHS = [
   "/dashboard",
   "/canvas",
-  "/guide",
+  "/manual/",
   "/image/generate",
   "/image/edit",
   "/image/depth",
@@ -185,7 +185,10 @@ test("直达项按各自匹配规则高亮", () => {
 test("分组与子项激活规则", () => {
   assert.equal(activeGroupId("/canvas/abc"), null);
   assert.equal(activeGroupId("/guide"), "reading");
-  assert.equal(activeLeaf("/guide")?.labelKey, "nav.guide");
+  assert.equal(activeGroupId("/manual/guides/image"), "reading");
+  // 使用文档是外链，不参与 SPA 子项高亮
+  assert.equal(activeLeaf("/guide"), null);
+  assert.equal(activeLeaf("/manual/"), null);
   assert.equal(activeGroupId("/image/edit"), "image");
   assert.equal(activeLeaf("/image/edit")?.labelKey, "nav.imageEdit");
   assert.equal(activeGroupId("/speech/tts"), "speech");
@@ -222,12 +225,18 @@ test("前缀匹配有路径边界", () => {
   assert.equal(isGroupActive("/docs", reading), false);
   assert.equal(isGroupActive("/guide/integration/cli", reading), true);
   assert.equal(isGroupActive("/guide", reading), true);
+  assert.equal(isGroupActive("/manual/", reading), true);
 });
 
-test("API 文档是外链，不参与 SPA 激活", () => {
+test("使用文档与 API 文档都是外链，不参与 SPA 激活", () => {
+  const guide = flattenNav().find((leaf) => leaf.labelKey === "nav.guide");
   const apiDocs = flattenNav().find((leaf) => leaf.labelKey === "nav.apiDocs");
+  assert.ok(guide);
   assert.ok(apiDocs);
+  assert.equal(guide.external, true);
+  assert.equal(guide.href, "/manual/");
   assert.equal(apiDocs.external, true);
   assert.equal(apiDocs.href, "/docs");
+  assert.equal(isLeafActive("/manual/", guide), false);
   assert.equal(isLeafActive("/docs", apiDocs), false);
 });

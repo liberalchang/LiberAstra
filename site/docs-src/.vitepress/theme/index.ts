@@ -3,7 +3,9 @@ import { h } from 'vue'
 import './custom.css'
 
 const base = import.meta.env.BASE_URL || '/'
-const homeHref = base.replace(/docs\/$/, '') || '/'
+// Pages：/LiberAstra/docs/ → 站点首页 /LiberAstra/
+// 应用内：/manual/ → LiberAstra 根路径 /
+const homeHref = /\/docs\/$/.test(base) ? base.replace(/docs\/$/, '') || '/' : '/'
 
 function goHome(event: MouseEvent) {
   event.preventDefault()
