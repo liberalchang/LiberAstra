@@ -482,6 +482,8 @@ async def motion(
     image: Annotated[UploadFile | None, File()] = None,
     image_2: Annotated[UploadFile | None, File()] = None,
     image_3: Annotated[UploadFile | None, File()] = None,
+    image_4: Annotated[UploadFile | None, File()] = None,
+    image_5: Annotated[UploadFile | None, File()] = None,
     prompt: Annotated[str, Form()] = "",
     character_id: Annotated[int | None, Form()] = None,
     character_view: Annotated[str, Form()] = "front",
@@ -503,16 +505,13 @@ async def motion(
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="参考视频过大")
     video_path = save_upload(video.filename or "ref.mp4", video_content)
     character = _character(db, user, character_id)
+    slot_keys = ("image", "image_2", "image_3", "image_4", "image_5")
     slots: dict[str, str] = {}
-    for key, upload in (("image", image), ("image_2", image_2), ("image_3", image_3)):
+    uploads = (image, image_2, image_3, image_4, image_5)
+    for key, upload in zip(slot_keys, uploads, strict=True):
         path = await _optional_upload(upload)
         if path:
             slots[key] = path
-    if "image_3" in slots and "image_2" not in slots:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="请先上传侧面参考，再上传背面参考",
-        )
     if "image" not in slots:
         if character is None:
             raise HTTPException(
@@ -523,7 +522,7 @@ async def motion(
             character_view,
             multi=character_view not in ("turnaround", "turnaround_grid"),
         )
-        for key, path in zip(("image", "image_2", "image_3"), character_paths, strict=False):
+        for key, path in zip(slot_keys, character_paths, strict=False):
             slots.setdefault(key, path)
     elif character is not None:
         used = set(slots.values())
@@ -533,10 +532,20 @@ async def motion(
             multi=character_view not in ("turnaround", "turnaround_grid"),
         )
         remaining = [path for path in character_paths if path not in used]
-        for key in ("image_2", "image_3"):
+        for key in slot_keys[1:]:
             if key not in slots and remaining:
                 slots[key] = remaining.pop(0)
-    image_paths = [slots[key] for key in ("image", "image_2", "image_3") if key in slots]
+    filled_indices = [index for index, key in enumerate(slot_keys) if key in slots]
+    if filled_indices != list(range(len(filled_indices))):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="参考图要按顺序填写，不能跳过中间槽",
+        )
+    if "image" not in slots:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="请上传图片或选择角色"
+        )
+    image_paths = [slots[key] for key in slot_keys if key in slots]
     job = _submit(
         request, db, user, "video.motion",
         {

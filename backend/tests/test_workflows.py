@@ -924,6 +924,45 @@ def test_minimax_h3_i2v_ref_uses_picture_not_first_frame() -> None:
     assert named["prompt"] == "让<Picture 1>复刻<Video 1>"
 
 
+def test_minimax_h3_motion_extra_image_slots() -> None:
+    from liberastra.providers.comfyui.workflow import _detach_unused_media_links
+
+    for name in ("minimax_h3_motion", "minimax_h3_motion_uncensored"):
+        pack = get_pack(name)
+        assert pack.inputs["image_4"]["node"] == "118"
+        assert pack.inputs["image_4"]["required"] is False
+        assert pack.inputs["image_5"]["node"] == "119"
+        assert pack.inputs["image_5"]["required"] is False
+        node = pack.workflow["105:104"]
+        assert node["inputs"]["ref_images.ref_image_3"] == ["118", 0]
+        assert node["inputs"]["ref_images.ref_image_4"] == ["119", 0]
+
+        workflow = deepcopy(pack.workflow)
+        _detach_unused_media_links(
+            workflow,
+            pack,
+            {"image": "a.png", "image_2": "b.png", "image_3": "c.png"},
+        )
+        refs = workflow["105:104"]["inputs"]
+        assert "ref_images.ref_image_3" not in refs
+        assert "ref_images.ref_image_4" not in refs
+
+        workflow = deepcopy(pack.workflow)
+        _detach_unused_media_links(
+            workflow,
+            pack,
+            {
+                "image": "a.png",
+                "image_2": "b.png",
+                "image_3": "c.png",
+                "image_4": "d.png",
+            },
+        )
+        refs = workflow["105:104"]["inputs"]
+        assert refs["ref_images.ref_image_3"] == ["118", 0]
+        assert "ref_images.ref_image_4" not in refs
+
+
 def test_reference_to_video_packs_default_to_ref2va() -> None:
     for name in (
         "minimax_h3_i2v_ref",

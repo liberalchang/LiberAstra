@@ -17,6 +17,18 @@
       "image": "example.png"
     }
   },
+  "118": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
+  "119": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    }
+  },
   "115": {
     "class_type": "VHS_LoadVideo",
     "inputs": {
@@ -80,6 +92,8 @@
       "ref_images.ref_image_0": ["114", 0],
       "ref_images.ref_image_1": ["116", 0],
       "ref_images.ref_image_2": ["117", 0],
+      "ref_images.ref_image_3": ["118", 0],
+      "ref_images.ref_image_4": ["119", 0],
       "ref_videos.ref_video_0": ["115", 0]
     }
   },

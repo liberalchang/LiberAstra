@@ -39,6 +39,22 @@ inputs:
     label: 背面参考
     mention: "<Picture 3>"
     description: 可选。同一人的背面全身。提示词里写「背面参考」
+  image_4:
+    node: '118'
+    field: inputs.image
+    type: image
+    required: false
+    label: 额外参考 1
+    mention: "<Picture 4>"
+    description: 可选。同一角色的面部特写或其他角度；不连接时自动断开。
+  image_5:
+    node: '119'
+    field: inputs.image
+    type: image
+    required: false
+    label: 额外参考 2
+    mention: "<Picture 5>"
+    description: 可选。同一角色的补充角度；不连接时自动断开。
   prompt:
     node: 105:104
     field: inputs.prompt

@@ -170,7 +170,7 @@ async def _run_canvas_motion(
     wait_timeout: float,
     started: float,
 ) -> list[dict[str, Any]]:
-    """时长跟参考视频走。超单段上限分段，下一张人物图用上一段尾帧。"""
+    """时长跟参考视频走。超单段上限分段，每段都保留同一组目标图。"""
     from liberastra.media import ffmpeg
 
     provider = pick_provider(db, "video", job.provider_id)

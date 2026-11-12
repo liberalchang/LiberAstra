@@ -11,6 +11,7 @@ from liberastra.pipelines.simple import (
     frames_for_duration,
     max_aligned_seconds,
     max_reference_video_seconds,
+    motion_prompt,
     motion_windows,
     render_avatar_takes,
     render_motion_takes,
@@ -131,7 +132,7 @@ def test_slice_audio_takes_follow_probed_duration(tmp_path: Path) -> None:
     assert short == [("", "outputs/short.mp3", 5.0)]
 
 
-def test_render_motion_chains_last_frame_and_ignores_user_length(tmp_path: Path) -> None:
+def test_render_motion_keeps_target_images_across_segments(tmp_path: Path) -> None:
     seen: list[dict[str, Any]] = []
 
     async def generate(inputs: dict[str, Any], on_progress) -> list[tuple[str, bytes]]:
@@ -144,9 +145,6 @@ def test_render_motion_chains_last_frame_and_ignores_user_length(tmp_path: Path)
 
     async def trim(src: Path, dst: Path, seconds: float, fps: float) -> None:
         dst.write_bytes(src.read_bytes())
-
-    async def last_frame(video: Path, png: Path, fps: float = 24) -> None:
-        png.write_bytes(b"png")
 
     async def concat(paths: list[Path], out: Path, *, list_file: Path) -> None:
         list_file.write_text("ok", encoding="utf-8")
@@ -172,7 +170,6 @@ def test_render_motion_chains_last_frame_and_ignores_user_length(tmp_path: Path)
             cancelled=lambda: False,
             slice_video=slice_video,
             trim_video=trim,
-            last_frame=last_frame,
             concat=concat,
         )
     )
@@ -181,8 +178,29 @@ def test_render_motion_chains_last_frame_and_ignores_user_length(tmp_path: Path)
     assert seen[0]["image"] == "face.png"
     assert seen[0]["image_2"] == "side.png"
     assert seen[1]["length"] == 90
-    assert seen[1]["image"] == "last_00.png"
+    assert seen[1]["image"] == "face.png"
     assert seen[1]["image_2"] == "side.png"
+
+
+def test_motion_prompt_pins_identity_to_pictures() -> None:
+    text = motion_prompt("", 3)
+    assert "<Picture 1>" in text
+    assert "<Picture 2>" in text
+    assert "<Picture 3>" in text
+    assert "<Video 1>" in text
+    assert "不要复制视频中人物的脸、发型或服装" in text
+    assert "不要中途换脸或换装" in text
+
+    with_extra = motion_prompt("", 5)
+    assert "<Picture 4>" in with_extra
+    assert "<Picture 5>" in with_extra
+
+    tagged = "让 <Picture 1> 复刻 <Video 1> 的动作"
+    assert motion_prompt(tagged, 3) == tagged
+
+    untagged = motion_prompt("人物转身", 1)
+    assert untagged.endswith("人物转身")
+    assert "不要复制视频人物的脸、发型或服装" in untagged
 
 
 def test_render_chains_last_frame_and_overrides_length(tmp_path: Path) -> None:

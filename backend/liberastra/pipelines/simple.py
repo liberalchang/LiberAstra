@@ -202,20 +202,40 @@ async def run_i2v_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
 
 
 def motion_prompt(raw_prompt: str, image_count: int) -> str:
-    """没写标签时补上「外观跟图片、动作跟视频」。已经写了标签就原样使用。"""
+    """没写标签时补上「人物身份只跟图片、视频只提供动作」。已经写了标签就原样使用。"""
     raw_prompt = raw_prompt.strip()
-    if not raw_prompt:
-        if image_count >= 3:
-            return (
-                "参考 <Picture 1>（正面）、<Picture 2>（侧面）、<Picture 3>（背面）里的同一个角色，"
-                "让这个角色完整复刻 <Video 1> 的肢体动作、姿态变化与镜头运动，外观、五官和服装保持一致。"
-            )
-        return (
-            "让 <Picture 1> 中的人物完整复刻 <Video 1> 中的肢体动作、姿态变化与镜头运动，"
-            "保持 <Picture 1> 的人物外观、五官与服装一致，动作自然流畅。"
+    if image_count >= 3:
+        identity = (
+            "以 <Picture 1>（正面）、<Picture 2>（侧面）、<Picture 3>（背面）"
+            "为同一个人物的身份参考，始终保持这个人的脸、五官、发型、肤色、体型和服装"
         )
+    elif image_count == 2:
+        identity = (
+            "以 <Picture 1>、<Picture 2> 中的人物为身份参考，"
+            "始终保持这个人的脸、五官、发型、肤色、体型和服装"
+        )
+    else:
+        identity = (
+            "以 <Picture 1> 中的人物为身份参考，"
+            "始终保持这个人的脸、五官、发型、肤色、体型和服装"
+        )
+    extra = (
+        "；<Picture 4>、<Picture 5>（若存在）也是同一个人物的补充参考"
+        if image_count > 3
+        else ""
+    )
+    motion = (
+        "。<Video 1> 只提供肢体动作、姿态变化和镜头运动，"
+        "不要复制视频中人物的脸、发型或服装，不要中途换脸或换装"
+    )
+    if not raw_prompt:
+        return f"{identity}{extra}{motion}。动作自然流畅。"
     if "<Picture" not in raw_prompt and "<Video" not in raw_prompt:
-        return f"参考 <Picture 1> 的人物外观，复刻 <Video 1> 的动作运动：{raw_prompt}"
+        return (
+            "以 <Picture 1> 中的人物为身份参考，"
+            "<Video 1> 只提供动作和镜头运动，不要复制视频人物的脸、发型或服装："
+            f"{raw_prompt}"
+        )
     return raw_prompt
 
 
@@ -317,16 +337,15 @@ async def render_motion_takes(
     cancelled: Callable[[], bool],
     slice_video: Callable[..., Awaitable[None]] = ffmpeg.slice_video,
     trim_video: Callable[..., Awaitable[None]] = ffmpeg.trim_video,
-    last_frame: Callable[..., Awaitable[None]] = ffmpeg.extract_last_frame,
     concat: Callable[..., Awaitable[None]] = ffmpeg.concat_segments,
 ) -> Path | None:
-    """按窗口切参考视频。下一段的第一张人物图换成上一段尾帧，侧面和背面保留。"""
+    """按窗口切参考视频。每段都使用同一组目标图片，避免尾帧把目标身份挤掉。"""
     if not windows:
         raise ProviderError("参考视频太短，无法做动作迁移")
+    if not image_paths:
+        raise ProviderError("动作迁移缺少人物图片")
     if fps <= 0:
         fps = 24.0
-    side_back = image_paths[1:]
-    current_images = list(image_paths)
     clips: list[Path] = []
     count = len(windows)
     for index, (start, frames) in enumerate(windows):
@@ -337,7 +356,7 @@ async def render_motion_takes(
         await slice_video(source, start, seconds, ref, fps=fps, frames=frames)
         inputs: dict[str, Any] = {"prompt": prompt_text, **base_inputs, "length": frames}
         inputs[video_key] = rel_of(ref)
-        for key, path in zip(image_keys, current_images, strict=False):
+        for key, path in zip(image_keys, image_paths, strict=False):
             inputs[key] = path
 
         def on_progress(frac: float, *, _index: int = index) -> None:
@@ -353,10 +372,6 @@ async def render_motion_takes(
         trimmed = work(f"trim_{index:02d}.mp4")
         await trim_video(raw, trimmed, seconds, fps=fps)
         clips.append(trimmed)
-        if index < count - 1:
-            frame = work(f"last_{index:02d}.png")
-            await last_frame(trimmed, frame, fps=fps)
-            current_images = [rel_of(frame), *side_back]
     final = work("video_0.mp4")
     if len(clips) == 1:
         final.write_bytes(clips[0].read_bytes())
@@ -399,7 +414,7 @@ async def slice_audio_takes(
 
 
 async def run_motion_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, Any]]:
-    """动作迁移：参考视频按模型单段上限切开，尾帧接力，最后合成一条。"""
+    """动作迁移：参考视频按模型单段上限切开，每段保留同一组目标图，最后合成一条。"""
     params = job.params
     image_paths = [path for path in params.get("image_paths") or [] if path]
     if not image_paths and params.get("image_path"):

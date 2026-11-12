@@ -166,14 +166,28 @@ After selecting a character from Character Library, choose the camera view for t
 
 ### Motion Transfer
 
-Reference video + target image + prompt → `motion` workflow pack. The reference video can be uploaded or chosen from the library. Picture duration follows the reference video; you no longer enter seconds on the page. The reference video is split at the motion pack's `length.max` (the current two H3 motion packs use 124 frames, about 5.2 seconds, and satisfy `17k+5`); the next segment uses the previous segment's final frame as `<Picture 1>`, while the side and back references are kept, and the segments are joined into one video. Audio can keep the model-generated track or be replaced with the reference video's entire original audio. Either way, you can add background music from the Music Library. Two built-in motion-transfer workflows are based on MiniMax H3 multimodal reference (`MiniMaxH3ReferenceToVideo`). After selecting a character from Character Library, the target-image option determines what is sent: the default **front, side, and back three full-body images** sends **full-body front, full-body side, and full-body back** as `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`; choosing **16:9 character sheet** or **9:16 four-grid** sends only that entire sheet as `<Picture 1>` and does not split it into front/side/back. The right-side facial close-up is not used for motion transfer, to avoid losing lower-body clothing. The target image can be uploaded or chosen from the library; uploaded images take precedence over Character Library.
+Reference video + target image + prompt → `motion` workflow pack. The reference video can be uploaded or chosen from the library. Picture duration follows the reference video; you no longer enter seconds on the page. The reference video is split at the motion pack's `length.max` (the current two H3 motion packs use 124 frames, about 5.2 seconds, and satisfy `17k+5`); every segment keeps the same target images so the previous tail frame cannot pull the identity off course, and the segments are joined into one video. Audio can keep the model-generated track or be replaced with the reference video's entire original audio. Either way, you can add background music from the Music Library. Two built-in motion-transfer workflows are based on MiniMax H3 multimodal reference (`MiniMaxH3ReferenceToVideo`). After selecting a character from Character Library, the target-image option determines what is sent: the default **front, side, and back three full-body images** sends **full-body front, full-body side, and full-body back** as `<Picture 1>`, `<Picture 2>`, and `<Picture 3>`; choosing **16:9 character sheet** or **9:16 four-grid** sends only that entire sheet as `<Picture 1>` and does not split it into front/side/back. The right-side facial close-up is not used for motion transfer, to avoid losing lower-body clothing. The target image can be uploaded or chosen from the library; uploaded images take precedence over Character Library. Two optional extra reference slots are also available, mapped in order to `<Picture 4>` and `<Picture 5>`; unconnected slots are detached automatically.
 
 | Pack | Default text side | How it works and what it is good for |
 |------|-------------------|--------------------------------------|
 | `minimax_h3_motion` | Official TE | `VHS_LoadVideo` extracts frames at 24fps as the `<Video 1>` motion reference, and the target image is the `<Picture 1>` identity reference; body motion and camera movement transfer without skeleton preprocessing; Turbo can be enabled |
 | `minimax_h3_motion_uncensored` | Uncensored **NVFP4** TE | Same as above, but uses the uncensored text encoder by default; Turbo can be enabled |
 
-In the prompt, `<Picture 1>` refers to the target image and `<Video 1>` to the reference video. If no tags are written or the prompt is empty, the pipeline adds the standard motion-transfer instruction automatically. You can also import your own `WanAnimate2ToVideo` or `WanSCAILToVideo` workflow pack.
+In the prompt, `<Picture 1>` refers to the target image and `<Video 1>` to the reference video. If no tags are written or the prompt is empty, the pipeline adds the standard motion-transfer instruction automatically and states that images own the person's identity while the video only supplies motion, so the video person's face, hair, and clothing must not be copied. You can also import your own `WanAnimate2ToVideo` or `WanSCAILToVideo` workflow pack.
+
+#### Motion-transfer prompt example
+
+When the node prompt is empty, the default instruction is enough. If the reference video contains a real person and you are worried the model will copy that person, paste the following to pin the identity to the images:
+
+```text
+Use <Picture 1> (front), <Picture 2> (side), and <Picture 3> (back) as identity references for the same person. Always keep this person's face, facial features, hairstyle, skin tone, body shape, and clothing. <Video 1> only supplies body motion, pose changes, and camera movement. Do not copy the face, hairstyle, or clothing of the person in the video, and do not change the face or outfit mid-video. Keep the motion natural and follow the camera movement of <Video 1>.
+```
+
+If you enabled the extra reference slots, append:
+
+```text
+<Picture 4> and <Picture 5> are also supplementary references for the same person; identity still follows <Picture 1>.
+```
 
 ## Quick Create
 
