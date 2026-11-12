@@ -737,12 +737,14 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
           ? nodes.find((item) => String(item.data.varName ?? "") === bound)
           : undefined;
         const boundUpstream = Boolean(boundNode && sources.some((s) => s.id === boundNode.id));
+        const boundOption = options.some((s) => (s.data.varName ?? "") === bound);
+        const staleBound = bound && !boundOption ? bound : "";
         // 必填槽只有一个可用变量时自动选中；可选槽保持“自动”，避免看起来已显式绑定。
         const effective =
           bound || (spec.required && options.length === 1 ? (options[0].data.varName ?? "") : "");
         const value = options.some((s) => (s.data.varName ?? "") === effective)
           ? effective
-          : "";
+          : staleBound;
         return (
           <Field
             key={key}
@@ -753,18 +755,34 @@ function InputSlots({ node, pack }: { node: CanvasFlowNode; pack: WorkflowPackOu
               className={selectClass}
               aria-label={spec.label ?? key}
               value={value}
-              onChange={(e) =>
-                updateNodeData(node.id, { bindings: { ...(d.bindings ?? {}), [key]: e.target.value } })
-              }
+              onChange={(e) => {
+                // 空值 = 取消显式绑定，回到按连线顺序自动分配。
+                const bindings = { ...(d.bindings ?? {}) };
+                if (e.target.value) bindings[key] = e.target.value;
+                else delete bindings[key];
+                updateNodeData(node.id, { bindings });
+              }}
             >
               {options.length === 0 ? (
-                <option value="">
-                  {tx("先连接{kind}输入", { kind: kindLabel[mediaKind as "image" | "video" | "audio"] ?? mediaKind })}
-                </option>
+                <>
+                  <option value="">
+                    {tx("先连接{kind}输入", { kind: kindLabel[mediaKind as "image" | "video" | "audio"] ?? mediaKind })}
+                  </option>
+                  {staleBound && (
+                    <option value={staleBound}>
+                      {staleBound}
+                      {tx("（未连接）")}
+                    </option>
+                  )}
+                </>
               ) : (
                 <>
-                  {!bound && (options.length > 1 || !spec.required) && (
-                    <option value="">{tx("自动(按连线顺序)")}</option>
+                  <option value="">{tx("自动(按连线顺序)")}</option>
+                  {staleBound && (
+                    <option value={staleBound}>
+                      {staleBound}
+                      {tx("（未连接）")}
+                    </option>
                   )}
                   {options.map((s) => (
                     <option
