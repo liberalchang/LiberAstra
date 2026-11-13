@@ -47,6 +47,7 @@ TOOL_RISKS: dict[str, str] = {
     "canvas_set_binding": CANVAS_WRITE,
     "canvas_layout": CANVAS_WRITE,
     "canvas_delete_nodes": DESTRUCTIVE,
+    "canvas_discard_nodes": CANVAS_WRITE,
     "canvas_run_nodes": GENERATE,
     "generate_image": GENERATE,
     "edit_image": GENERATE,
@@ -70,6 +71,7 @@ RISK_TITLES = {
 
 TOOL_TITLES = {
     "canvas_delete_nodes": "Agent 想删除画布节点",
+    "canvas_discard_nodes": "Agent 想清理未执行的画布草稿节点",
     "canvas_run_nodes": "Agent 想执行画布节点",
     "save_skill": "Agent 想写入技能文件",
     "save_skill_file": "Agent 想写入技能文件",

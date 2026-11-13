@@ -43,11 +43,36 @@ UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接 / 音�
 ## 语音节点 `speech`
 
 ```json
-{"kind": "speech", "mode": "tts|asr", "text": "", "presetId": "", "voiceRecordId": null, "providerId": null, "varName": "output_audio_1"}
+{
+  "kind": "speech",
+  "mode": "tts|asr|vc",
+  "text": "",
+  "providerId": null,
+  "voiceRecordId": null,
+  "voice": "",
+  "model": "",
+  "workflow": "",
+  "language": "",
+  "format": "",
+  "outputKind": "audio",
+  "separateBgm": false,
+  "subtitleAssetId": null,
+  "burnSubtitles": false,
+  "subtitleSize": 0,
+  "subtitleColor": "#FFFFFF",
+  "ttsTuning": {},
+  "asrTuning": {},
+  "vcTuning": {},
+  "varName": "output_audio_1"
+}
 ```
 
-- tts 文本支持 `{{varName}}`。
-- asr 接收音频或视频；其他节点连入会被拒绝。
+- `mode` 创建时确定，`canvas_update_node` 不能改。
+- tts 文本支持 `{{varName}}`。`ttsTuning` 写 `{advanced, linked, expressiveness, speed, exaggeration, cfgWeight}`；Turbo/Nano 只支持 `speed`。
+- asr 接收音频或视频；`asrTuning` 写 `{advanced, timestamps, task, vad, beamSize, bestOf, temperature, noSpeechThreshold, compressionRatioThreshold, conditionOnPreviousText, initialPrompt, hotwords, qwenBatchSize, extraJson}`。Qwen3-ASR 不支持 Whisper 专属项。
+- vc 接收音频或视频，`voiceRecordId` 必填；`vcTuning` 写替换范围、响度、降噪、参考音频与 Seed-VC 生成参数。`convertAll=true` 表示整段替换。
+- 三个 tuning 都是整份对象，先读当前值，改键后整份写回。`advanced=false` 时保持服务默认值。
+- 只有 Liber Speech 支持高级参数。
 
 ## 连线规则
 

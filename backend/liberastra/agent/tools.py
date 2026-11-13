@@ -49,6 +49,7 @@ CLIENT_TOOL_NAMES = {
     "canvas_set_binding",
     "canvas_layout",
     "canvas_delete_nodes",
+    "canvas_discard_nodes",
     "canvas_run_nodes",
 }
 def _fn(
@@ -256,7 +257,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "也可以用 kind=vc 作为音色替换别名。"
         "media_kind 为 image/video/audio/text/character。"
         "function 节点先建空白节点，不要传 pack；之后用 canvas_apply_menu 或 canvas_apply_pack 绑定执行目标。"
-        "data 是初始字段，例如 input 文本节点的 text、varName。",
+        "data 是初始字段，例如 input 文本节点的 text、varName；语音节点可带 ttsTuning/asrTuning/vcTuning。"
+        "换方案时先用 canvas_discard_nodes 清理本次创建且未执行的旧草稿节点。",
         {
             "kind": {
                 "type": "string",
@@ -293,8 +295,9 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "canvas_update_node",
         "修改节点数据。patch 是节点 data 的部分字段，例如 prompt、varName、text、values。"
         "input 节点可用 patch.assetId 绑定资源，assetName 同步写。"
-        "语音节点可写 voiceRecordId、providerId、model、separateBgm、subtitleAssetId、"
-        "burnSubtitles、subtitleSize、subtitleColor、format，但不能改 mode。"
+        "语音节点可写 voiceRecordId、providerId、model、voice、language、format、"
+        "separateBgm、subtitleAssetId、burnSubtitles、subtitleSize、subtitleColor，"
+        "以及整份 ttsTuning/asrTuning/vcTuning 对象，但不能改 mode。"
         "功能节点的 pack/outputKind 由 canvas_apply_menu 或 canvas_apply_pack 设置，不要直接改。",
         {"node_id": _STR, "patch": _OBJ},
         ["node_id", "patch"],
@@ -315,6 +318,13 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "canvas_delete_nodes",
         "删除节点和相连的边。执行前必须得到用户确认。",
+        {"node_ids": _ARR},
+        ["node_ids"],
+    ),
+    _fn(
+        "canvas_discard_nodes",
+        "丢弃未执行、无产物的画布草稿节点及其连线，用于换方案后清理旧节点。"
+        "有执行记录或产物的节点会被拒绝；这种情况改用 canvas_delete_nodes 并确认。",
         {"node_ids": _ARR},
         ["node_ids"],
     ),

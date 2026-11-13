@@ -59,14 +59,19 @@ UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接 / 音�
 
 | 字段 | 说明 |
 |---|---|
-| `mode` | `tts` / `asr` |
+| `mode` | `tts` / `asr` / `vc`，创建后不能改 |
 | `text` | TTS 文本，支持 `{{变量名}}` |
 | `providerId` | 服务商 |
-| `voiceRecordId` | 音色库条目 |
+| `voiceRecordId` | 音色库条目（VC 必填） |
 | `voice` / `model` | 服务商原生音色/模型 |
 | `workflow` | Comfy 语音工作流 |
 | `language` / `format` | 语言、输出格式 |
+| `ttsTuning` | TTS 高级参数：`advanced`、`linked`、`expressiveness`、`speed`、`exaggeration`、`cfgWeight` |
+| `asrTuning` | ASR 高级参数：`timestamps`、`task`、`vad`、热词、解码阈值、Qwen 批大小等 |
+| `vcTuning` | VC 高级参数：`convertAll`、响度/降噪、参考音频、Seed-VC 生成参数等 |
 | `varName` | 输出变量 |
+
+三个 tuning 对象都是整份替换。先读当前值，改目标键后整份写回；`advanced=false` 时使用服务默认值。只有 Liber Speech 支持高级参数。
 
 ## 常见修改配方
 

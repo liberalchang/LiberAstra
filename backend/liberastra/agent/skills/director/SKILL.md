@@ -5,8 +5,8 @@ license: MIT
 compatibility: 需要 LiberAstra 导演台和画布工具；生成类操作会经过安全路由确认。
 metadata:
   author: LiberAstra
-  version: "3.1"
-allowed-tools: ask_user load_skill read_skill_file list_skill_files update_session_state list_assets get_asset list_characters list_voices list_music list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node_schema canvas_add_node canvas_update_node canvas_connect canvas_disconnect canvas_apply_menu canvas_apply_pack canvas_set_binding canvas_layout canvas_delete_nodes canvas_run_nodes
+  version: "3.2"
+allowed-tools: ask_user load_skill read_skill_file list_skill_files update_session_state list_assets get_asset list_characters list_voices list_music list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node_schema canvas_add_node canvas_update_node canvas_connect canvas_disconnect canvas_apply_menu canvas_apply_pack canvas_set_binding canvas_layout canvas_delete_nodes canvas_discard_nodes canvas_run_nodes
 ---
 
 # 导演技能
@@ -59,7 +59,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 3. 镜头说明：场景、内容、景别、光影、镜头语言、动作、材质、风格
 4. 视频运动约束和不要出现的元素
 
-**关键帧/参考图提示词只写视觉**，不写台词、口型、字幕或声音。台词只写进视频提示词或独立的音频/TTS 节点；不要把同一段带台词的文本直接接到文生图节点。
+**关键帧/参考图提示词只写视觉**，不写台词、口型、字幕或声音。台词只写进视频提示词或独立的音频/TTS 节点（见「语音节点」）；不要把同一段带台词的文本直接接到文生图节点。
 
 先把全部提示词列出来给用户过目，再写入画布节点。
 
@@ -187,16 +187,33 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - 分镜视频路线接视频拼接的输出（A1）或 `final_video_var`（A2）；整段参考图视频路线接 `single_video_var` 或 `final_video_var`。
 - 增强是生成式修复，可能改变细节；已经满意的成片不要强行加。
 
-## 可选：音色替换
+## 可选：语音节点（TTS / ASR / VC）
 
-成片后用户要求换音时：
+语音模式在创建时确定，`canvas_update_node` 不能改 `mode`。先 `list_canvas_menu` 看对应入口；建节点用 `canvas_add_node(kind="speech", data={mode:"tts|asr|vc"})`，需要参数时先 `canvas_get_node_schema` 读完整字段，再整份写回。
 
-1. `list_canvas_menu` 看「音色替换」项的可用目标；没有该项时先让用户在画布菜单设置里添加。
-2. `canvas_add_node(kind="speech", data={mode:"vc"})`。
-3. 用 `canvas_connect` 把最终视频或音频接到 vc 节点；输出类型会随输入变化。
-4. `list_voices` 找有参考音频的音色，用 `canvas_update_node` 写 `voiceRecordId`、`providerId`、`model`、`separateBgm`；视频可再写 `burnSubtitles`、`subtitleSize`、`subtitleColor`。
-5. 需要自定义字幕时，让用户在属性面板上传 srt；Agent 不伪造 `subtitleAssetId`。没有 srt 时自动 ASR。
-6. 向用户说明会生成音频、字幕和视频（视频输入时），确认后再 `canvas_run_nodes`；不要默认自动换音。
+**TTS（mode=tts）**
+
+- `text` 支持 `{{变量名}}`。音色库写 `voiceRecordId`；服务原生音色写 `voice`/`model`；Comfy 写 `workflow`。
+- 通用字段：`providerId`、`language`、`format`（mp3 / wav / ogg_opus）。
+- 高级参数写 `ttsTuning`：`{advanced, linked, expressiveness, speed, exaggeration, cfgWeight}`。`linked=true` 时由 `expressiveness`（0–1）同时插值语速、语气和节奏；`linked=false` 时用独立值。`advanced=false` 表示全部用服务默认值。
+- Turbo/Nano 只支持 `speed`，不要承诺语气或节奏；需要语气时改用多语言或标准模型。
+
+**ASR（mode=asr）**
+
+- 上游必须接音频或视频。写 `language`（空=自动）、`format`（空=自动，或 txt/json/srt/vtt）。
+- 高级参数写 `asrTuning`：`{advanced, timestamps, task, vad, beamSize, bestOf, temperature, noSpeechThreshold, compressionRatioThreshold, conditionOnPreviousText, initialPrompt, hotwords, qwenBatchSize, extraJson}`。
+- `timestamps` 可取 `none|segment|word`；`task` 可取 `transcribe|translate`。
+- Qwen3-ASR 不支持 VAD、beam、热词、初始提示词和翻译；不要给 Qwen 写这些参数，也不要声称能词级对齐之外的 Whisper 专属能力。
+
+**VC（mode=vc）**
+
+- 上游接音频或视频；`voiceRecordId` 必填，音色必须有参考音频。输出类型随输入变化。
+- 通用字段：`providerId`、`model`、`separateBgm`、`subtitleAssetId`、`burnSubtitles`、`subtitleSize`、`subtitleColor`、`format`（wav/mp3）。
+- 高级参数写 `vcTuning`：`{advanced, convertAll, segmentPadding, mergeGap, minSegment, normalizeLoudness, targetLufs, denoise, outputSampleRate, refStart, refDuration, seed, diffusionSteps, inferenceCfgRate, nQuantizers, temperature, lengthAdjust, overlapFrameLen, maxWindow, context, fade, refMaxLen, extraJson}`。
+- `convertAll=true` 表示整段替换，不再依赖识别分段。Chatterbox 只用参考音频前 10 秒；Seed-VC 支持 `seed`、`diffusionSteps` 等生成参数，参考默认最多 25 秒。
+- 需要自定义字幕时让用户在属性面板上传 srt；Agent 不伪造 `subtitleAssetId`。没有 srt 时自动 ASR。
+
+只有 Liber Speech 支持这些高级参数；其他 TTS/ASR 服务只写通用字段。向用户说明会产出音频、字幕或视频，确认后再 `canvas_run_nodes`；不要默认自动换音。
 
 ## 推进规则
 
@@ -211,6 +228,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - 功能节点先建空白，再套功能菜单/工作流；不要直接写 `pack` 或 `outputKind`。
 - 执行单个节点时只传该节点 id，不要传上游；否则会把上游重新提交一遍。
 - 画布变量名是全局命名空间，新增节点前先看是否重名。
+- 换方案时先清理旧草稿：旧节点未执行、无产物时用 `canvas_discard_nodes` 删除，不必逐次确认；有执行记录或产物时用 `canvas_delete_nodes` 并让用户确认。只清理本次为被替换方案创建的节点，不要删除用户手建的节点。自动补建的空输入若已无下游，也一并丢弃。
 - 删除节点、提交生成、运行脚本等高风险操作会被安全路由暂停；向用户说明将执行什么，不要重复创建节点来绕过失败。
 - 预检失败时先修节点配置，不要直接强行执行。
 - 不要在没有用户确认的情况下连续生成大量关键帧或视频。

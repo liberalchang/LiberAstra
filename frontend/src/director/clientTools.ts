@@ -12,6 +12,7 @@ import {
 import { applyMenuToNode, resolveSpec, specsForMenu } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { bindingSources, findNodeByVar } from "@/canvas/bindings";
+import { discardableNodeIds } from "@/canvas/discard";
 import {
   canApplyMenu,
   canApplyPack,
@@ -302,6 +303,9 @@ const EDITABLE_FIELDS: Record<string, string[]> = {
     "burnSubtitles",
     "subtitleSize",
     "subtitleColor",
+    "ttsTuning",
+    "asrTuning",
+    "vcTuning",
     "varName",
   ],
 };
@@ -378,6 +382,7 @@ export async function executeClientTool(
             "values 是整份替换：先读完整值，改目标键后再整份写回。",
             "本地视频包常用 length 帧数；云端模型常用 duration 秒。",
             "有 duration_limits 时按 fps、align_base、align_offset 把秒换算成帧，不要按 24fps 或默认帧数猜。",
+            "语音节点的 ttsTuning/asrTuning/vcTuning 是整份对象；先读当前值，只改需要的键后整份写回。",
           ],
         },
       });
@@ -394,7 +399,7 @@ export async function executeClientTool(
       const kind = (alias?.kind ?? rawKind) as CanvasNodeKind;
       if (!KINDS.has(kind)) {
         return fail(
-          `未知节点类型: ${rawKind}。可用 input/function/concat/speech；文字转语音用 speech + data.mode=tts，音色替换用 speech + data.mode=vc。`,
+          `未知节点类型: ${rawKind}。可用 input/function/concat/speech；文字转语音用 speech + data.mode=tts，语音转文字用 data.mode=asr，音色替换用 data.mode=vc。`,
         );
       }
       const rawMedia = String(
@@ -754,6 +759,25 @@ export async function executeClientTool(
       if (!ids.length) return fail("node_ids 不能为空");
       store.batch(() => useCanvasStore.getState().deleteNodes(ids));
       return ok({ deleted: ids });
+    }
+
+    case "canvas_discard_nodes": {
+      const ids = asList(args.node_ids ?? args.nodeIds ?? args.ids);
+      if (!ids.length) return fail("node_ids 不能为空");
+      const current = useCanvasStore.getState();
+      const result = discardableNodeIds(current.nodes, current.edges, ids);
+      if (result.discardable.length) {
+        store.batch(() => useCanvasStore.getState().deleteNodes(result.discardable));
+      }
+      if (!result.discardable.length) {
+        const reason = result.blocked[0]?.reason ?? "节点不存在";
+        return fail(`没有可丢弃的草稿节点：${reason}。需要删除已执行节点时用 canvas_delete_nodes。`);
+      }
+      return ok({
+        discarded: result.discardable,
+        blocked: result.blocked,
+        missing: result.missing,
+      });
     }
 
     case "canvas_run_nodes": {

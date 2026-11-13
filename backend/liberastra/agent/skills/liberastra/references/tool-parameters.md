@@ -47,14 +47,18 @@
 ## `tts`
 
 ```json
-{"text": "要朗读的文本", "voice": "", "provider_id": 1, "model": "", "workflow": "", "format": "mp3"}
+{"text": "要朗读的文本", "voice": "", "provider_id": 1, "model": "", "workflow": "", "format": "mp3", "options": {"speed": 0.9}}
 ```
+
+`options` 支持 Liber Speech 的 `speed`、`exaggeration`、`cfg_weight`、`temperature`、`top_p` 等；Turbo/Nano 只支持 `speed`。
 
 ## `asr`
 
 ```json
-{"asset_id": 12, "language": "zh", "provider_id": 1}
+{"asset_id": 12, "language": "zh", "provider_id": 1, "options": {"vad_filter": true, "hotwords": "LiberAstra"}}
 ```
+
+`options` 支持 `timestamps`（none/segment/word）、`task`、`vad_filter`、`beam_size`、`best_of`、`hotwords`、`initial_prompt`、解码阈值等。Qwen3-ASR 不支持 VAD、beam、热词和初始提示词。
 
 ## `create_character`
 

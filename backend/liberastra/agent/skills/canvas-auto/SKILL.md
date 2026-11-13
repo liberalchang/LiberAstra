@@ -5,8 +5,8 @@ license: MIT
 compatibility: 需要 LiberAstra 画布读写工具；生成与删除操作会经过安全路由确认。
 metadata:
   author: LiberAstra
-  version: "2.2"
-allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node canvas_get_node_schema canvas_add_node canvas_update_node canvas_connect canvas_disconnect canvas_set_binding canvas_layout canvas_delete_nodes canvas_run_nodes
+  version: "2.3"
+allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs canvas_get_graph canvas_get_node canvas_get_node_schema canvas_add_node canvas_update_node canvas_connect canvas_disconnect canvas_set_binding canvas_layout canvas_delete_nodes canvas_discard_nodes canvas_run_nodes
 ---
 
 # 自动画布
@@ -46,14 +46,20 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - 图片引用写成 `<Picture 1>`、`<Picture 2>`，与槽位顺序一致。
 - 引用角色时说明「保持同一人物，五官、发型、服装一致」。
 
-## 音色替换（vc）
+## 语音节点（speech）
 
-- 建节点：`canvas_add_node(kind="speech", data={mode:"vc"})`，或 `kind="vc"`。语音模式在创建时确定，已有语音节点不能改 mode。
-- `list_canvas_menu` 找「音色替换」项（`sub_capability=vc`），用 `canvas_apply_menu` 套用；没有菜单项时用 `canvas_update_node` 直接写 `providerId`、`model`、`voiceRecordId`。
-- 音色必须有参考音频；`voiceRecordId` 必填。
-- 上游连音频或视频。输出类型随输入：音频出音频，视频出视频（另有音频和字幕产物）。
-- 可选字段：`separateBgm`、`subtitleAssetId`（已有 subtitle 资产）、`burnSubtitles`、`subtitleSize`、`subtitleColor`、`format`（wav/mp3）。
-- 上传 srt 属于属性面板的人工操作；Agent 只能复用已有 subtitle 资产，不要伪造 `assetId`。
+语音模式在创建时确定，已有语音节点不能改 `mode`。建节点用 `canvas_add_node(kind="speech", data={mode:"tts|asr|vc"})`；需要参数时先 `canvas_get_node_schema` 读完整 data，再整份写回 `ttsTuning`/`asrTuning`/`vcTuning`。
+
+- **TTS**：`text` 支持 `{{变量名}}`；音色库写 `voiceRecordId`，服务原生音色写 `voice`/`model`，Comfy 写 `workflow`。通用字段 `providerId`、`language`、`format`。
+  - `ttsTuning`：`{advanced, linked, expressiveness, speed, exaggeration, cfgWeight}`。`linked=true` 时用 `expressiveness` 同时插值语速/语气/节奏；`advanced=false` 使用服务默认值。
+  - Turbo/Nano 只支持 `speed`；需要语气或节奏时换多语言/标准模型。
+- **ASR**：上游必须接音频或视频；写 `language` 和 `format`（空=自动）。
+  - `asrTuning`：`{advanced, timestamps, task, vad, beamSize, bestOf, temperature, noSpeechThreshold, compressionRatioThreshold, conditionOnPreviousText, initialPrompt, hotwords, qwenBatchSize, extraJson}`。
+  - `timestamps=none|segment|word`；`task=transcribe|translate`。Qwen3-ASR 不支持 VAD、beam、热词、初始提示词和翻译。
+- **VC**：上游接音频或视频；`voiceRecordId` 必填且音色要有参考音频。通用字段 `providerId`、`model`、`separateBgm`、`subtitleAssetId`、`burnSubtitles`、`subtitleSize`、`subtitleColor`、`format`。
+  - `vcTuning`：`{advanced, convertAll, segmentPadding, mergeGap, minSegment, normalizeLoudness, targetLufs, denoise, outputSampleRate, refStart, refDuration, seed, diffusionSteps, inferenceCfgRate, nQuantizers, temperature, lengthAdjust, overlapFrameLen, maxWindow, context, fade, refMaxLen, extraJson}`。
+  - `convertAll=true` 时整段替换，不再依赖分段。Chatterbox 只用参考音频前 10 秒；Seed-VC 支持 `seed`、`diffusionSteps` 等参数，参考默认最多 25 秒。
+- 只有 Liber Speech 支持高级参数；其他 TTS/ASR 服务只写通用字段。上传 srt 属于属性面板的人工操作；Agent 只能复用已有 subtitle 资产，不要伪造 `assetId`。
 
 ## Gotchas
 
@@ -69,6 +75,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 - `canvas_update_node` 的 `values` 是整份替换；先读完整值，改目标键后再整份写回。
 - `bindings` 只决定槽位，媒体依赖仍必须连到上游；工具会自动补边，`missing_bindings` 非空时先 `canvas_connect`。自动补建的空文本输入把正文写进输入节点后再让功能节点引用 `{{变量名}}`。
 - 功能节点要引用文本输入时，`prompt` 只写 `{{变量名}}`；不要把正文复制进去，否则修改文本节点不会同步。
+- 换方案时先清理旧草稿：未执行、无产物的旧节点用 `canvas_discard_nodes` 删除，不必逐次确认；有执行记录或产物时用 `canvas_delete_nodes` 并确认。只清理本次被替换的节点，不要删除用户手建节点；自动补建的空输入若已无下游也一并丢弃。
 - 删除节点、提交生成、运行脚本会经过安全确认；失败时向用户说明，不要靠重复建点绕过。
 - 改完画布提醒用户保存；不要假设未保存的节点会持久化。
 - 图片/视频/音频拼接和音频提取是内置工具节点（`kind=concat`），UI 显示为「工具」；它们不走 `canvas_apply_menu`，也不绑定工作流包。音频提取用 `data.toolId=audio_extract`，只接一个视频或音频输入，`audioMode=whole|tail` 控制完整音轨或固定长度尾音。

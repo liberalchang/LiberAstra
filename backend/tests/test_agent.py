@@ -409,12 +409,19 @@ def test_agent_client_tools_include_function_application():
     from liberastra.agent.safety import TOOL_RISKS
     from liberastra.agent.tools import CLIENT_TOOL_NAMES, TOOL_SCHEMAS
 
-    assert {"canvas_apply_menu", "canvas_apply_pack", "canvas_get_node_schema"} <= CLIENT_TOOL_NAMES
+    expected = {
+        "canvas_apply_menu",
+        "canvas_apply_pack",
+        "canvas_get_node_schema",
+        "canvas_discard_nodes",
+    }
+    assert expected <= CLIENT_TOOL_NAMES
     names = {item["function"]["name"] for item in TOOL_SCHEMAS}
-    assert {"canvas_apply_menu", "canvas_apply_pack", "canvas_get_node_schema"} <= names
+    assert expected <= names
     assert TOOL_RISKS["canvas_apply_menu"] == "canvas_write"
     assert TOOL_RISKS["canvas_apply_pack"] == "canvas_write"
     assert TOOL_RISKS["canvas_get_node_schema"] == "read"
+    assert TOOL_RISKS["canvas_discard_nodes"] == "canvas_write"
 
 
 def _read_tool(name: str, arguments: dict[str, Any]) -> Any:
@@ -522,6 +529,9 @@ def test_safety_router_defaults_and_session_auto():
     delete = decide_tool(session, "canvas_delete_nodes")
     assert delete.action == "confirm"
     assert delete.risk == "destructive"
+    discard = decide_tool(session, "canvas_discard_nodes")
+    assert discard.action == "allow"
+    assert discard.risk == "canvas_write"
     generate = decide_tool(session, "canvas_run_nodes")
     assert generate.action == "confirm"
     assert generate.risk == "generate"

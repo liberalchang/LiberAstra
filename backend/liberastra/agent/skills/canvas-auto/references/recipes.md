@@ -54,7 +54,16 @@
   → 图生视频或数字人节点
 ```
 
-tts 节点也可以直接把文本写在节点里；被上游引用时用 `{{变量名}}`。
+tts 节点也可以直接把文本写在节点里；被上游引用时用 `{{变量名}}`。需要语速、语气或节奏时写 `ttsTuning`；Turbo/Nano 只支持 `speed`。
+
+## 语音转文字
+
+```text
+音频或视频输入（或上游视频节点）
+  → speech(mode=asr, format=srt, asrTuning={timestamps:"word"})
+```
+
+ASR 高级参数写在 `asrTuning`；Qwen3-ASR 不支持 VAD、beam、热词、初始提示词和翻译。
 
 ## 分镜 → 视频
 

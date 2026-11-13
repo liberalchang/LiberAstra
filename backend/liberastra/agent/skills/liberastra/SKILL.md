@@ -5,7 +5,7 @@ license: MIT
 compatibility: 需要已配置的图像、视频或语音服务商；生成类操作会经过安全路由确认。
 metadata:
   author: LiberAstra
-  version: "2.0"
+  version: "2.1"
 allowed-tools: list_assets read_asset_text list_workflows list_characters generate_image edit_image generate_video tts asr create_character
 ---
 
@@ -47,8 +47,8 @@ allowed-tools: list_assets read_asset_text list_workflows list_characters genera
 
 ## 配音与转写
 
-- `tts`：必填 `text`；可选 `voice`、`model`、`workflow`、`format`。
-- `asr`：必填 `asset_id`（音频资产）；可选 `language`。
+- `tts`：必填 `text`；可选 `voice`、`model`、`workflow`、`format`、`options`。`options` 可写 `speed`、`exaggeration`、`cfg_weight` 等 Liber Speech 参数；Turbo/Nano 只支持 `speed`。
+- `asr`：必填 `asset_id`（音频资产）；可选 `language`、`options`。`options` 可写 `vad_filter`、`hotwords`、`timestamps`、`initial_prompt`、解码阈值等；Qwen3-ASR 不支持 Whisper 专属项。
 
 ## 规则
 
