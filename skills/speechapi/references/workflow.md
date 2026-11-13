@@ -1,132 +1,73 @@
-# Telegram / openclaw Workflow
-
-## Goal
-
-Convert Telegram voice input into text for openclaw, then convert the final concise reply back into Telegram-compatible voice.
-
-## Supported modes
-
-This skill supports three modes:
-
-1. **Telegram/openclaw voice workflow**
-2. **Direct text-to-speech**
-3. **Direct speech-to-text**
-
----
+# Workflows
 
 ## Mode 1: Telegram/openclaw voice workflow
 
-### 1. Receive Telegram voice message
-
-Input is usually one of:
-- Telegram voice file path
-- downloaded local OGG file
-- downloaded local audio file in another format
-
-### 2. Run ASR
-
-Call Liber SpeechAPI ASR with:
-- `file=<local audio file>`
-- `language=<configured language>`
-- `task=transcribe`
-
-Extract:
-- `text`
-
-### 3. Send transcript to openclaw
-
-Use the ASR transcript as the user message for the chatbot workflow.
-
-### 4. Produce final textual reply
-
-Let openclaw generate the full answer first.
-
-### 5. Compress for voice
-
-If the final answer is too long for a natural voice reply:
-- summarize it to within 100 Chinese characters
-- keep the direct answer, essential facts, and next action
-- remove markdown, long examples, code, and repeated explanation
-
-### 6. Run TTS
-
-Call Liber SpeechAPI TTS with:
-- `text=<voice-ready text>`
-- `model=<configured model>`
-- `language=<configured language>`
-- `format=ogg_opus`
-
-If clone audio is enabled:
-- upload the reference file as form field `prompt`
-
-### 7. Return audio to Telegram
-
-Use the returned `audio_url` or downloaded file to send a Telegram voice message.
-
----
+1. Receive or download the Telegram voice/audio file.
+2. Run ASR:
+   - v2: upload the file, then `file_id`, `language`, `task=transcribe`
+   - extract `text`
+3. Send the transcript to openclaw.
+4. Generate the full textual reply.
+5. Compress it for voice:
+   - keep the direct answer and essential facts
+   - remove markdown, code, tables, and repeated explanation
+6. Run TTS:
+   - `format=ogg_opus`
+   - `model` / `language` from config
+   - optional reference audio
+7. Return the audio URL or saved file to Telegram.
 
 ## Mode 2: Direct text-to-speech
 
-Use this mode when the user explicitly asks to convert text into audio.
+Use when the user explicitly asks to turn text into audio.
 
-Default behavior:
-- default output format: `wav`
-- do not force summarization unless the caller requests a short spoken version
+- default format: `wav`
+- default model: `multilingual_v3`
 - use clone audio only when enabled and the file exists
-
-Examples:
-- “把这段文字转成语音”
-- “把这段回复合成为 wav”
-- “朗读这段文字并输出音频”
-
----
+- v2 advanced parameters are optional; omitted values use server defaults
+- do not force summarization unless a short spoken version is requested
 
 ## Mode 3: Direct speech-to-text
 
-Use this mode when the user explicitly asks to convert audio into text.
+Use when the user explicitly asks to turn audio into text.
 
-Default behavior:
-- default output mode: `json`
-- return plain `text` only when explicitly requested
+- default output: structured JSON
+- plain text only when explicitly requested
+- `timestamps=word` for word-level output
+- use `vad_filter`, `initial_prompt`, and `hotwords` only for faster-whisper models
+- Qwen3-ASR cannot translate or use VAD/beam/hotwords
 
-Examples:
-- “把这段录音转文字”
-- “识别这段音频并返回 JSON”
-- “帮我做语音转文字”
+## Mode 4: Voice conversion
 
----
+Use when the user asks to replace the voice in audio/video.
 
-## Compression guidance
-
-Good spoken reply:
-- short
-- direct
-- natural
-- no markdown formatting
-- no code syntax
-- no excessive detail
-
-Example:
-
-Original:
-- “这个问题通常是因为 API 地址配置错误、鉴权失败，或者 OGG/Opus 文件没有正确生成。建议先检查 health 接口，再核对 API key，最后确认 TTS format 是否为 ogg_opus。”
-
-Compressed:
-- “可能是地址、鉴权或音频格式有误。先检查 health、API key，并确认 TTS 输出为 ogg_opus。”
-
----
+1. Validate source and reference files.
+2. Choose `chatterbox` or `seed-vc`.
+3. Choose either:
+   - `convert_all=true` for the whole track
+   - `segments=[{start,end}]` for selected ranges
+4. Optional v2 parameters:
+   - Seed-VC: `seed`, `diffusion_steps`, `inference_cfg_rate`, `n_quantizers`, `temperature`
+   - common: `denoise`, `normalize_loudness`, `target_lufs`, `output_sample_rate`
+5. Download `audio_url` and return the local path.
+6. VC requires `/api/v2`; v1 servers are rejected with a clear error.
 
 ## Failure strategy
 
 ### ASR failure
+
 - return plain error text
-- optionally ask the user to resend clearer audio
+- ask the user to resend clearer audio if needed
 
 ### Summarization failure
+
 - conservatively trim text to the configured limit
 
-### TTS failure
-- return plain text reply instead of blocking the whole chatbot response
+### TTS or VC failure
 
-### Clone-audio missing
+- return a plain text error or fall back to the original reply
+- do not block the surrounding chatbot workflow
+
+### Clone audio missing
+
 - continue without cloning

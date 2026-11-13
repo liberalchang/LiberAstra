@@ -2,18 +2,26 @@
     "asr": {
         "language": "zh",
         "task": "transcribe",
-        "model": "default"
+        "model": "default",
+        "options": {}
     },
     "tts": {
         "model": "multilingual_v3",
         "language": "zh",
         "format": "wav",
-        "audio_prompt_path": "default"
+        "audio_prompt_path": "default",
+        "options": {}
+    },
+    "vc": {
+        "model": "seed-vc",
+        "convert_all": true,
+        "options": {}
     },
     "global": {
         "voice_summary_limit": 100,
         "default_clone_audio": "tmp/clone.wav",
         "telegram_tts_format": "ogg_opus",
-        "asr_output": "json"
+        "asr_output": "json",
+        "api_version": "auto"
     }
 }

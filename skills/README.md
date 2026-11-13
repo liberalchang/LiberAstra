@@ -5,12 +5,12 @@ Two external-use skills live here. They point at different services; do not mix 
 | Skill | Service | Style | Use when |
 | --- | --- | --- | --- |
 | [`liberastra`](./liberastra/SKILL.md) | LiberAstra main server, default `http://localhost:8000` | Asynchronous jobs; images, video, speech, assets, canvas | You want the full orchestration platform, image/video generation, or job management |
-| [`speechapi`](./speechapi/SKILL.md) | Liber Speech service, default `http://localhost:5555` | Synchronous ASR/TTS; Chatterbox models, voice cloning | You only need speech-to-text or text-to-speech against a speech service |
+| [`speechapi`](./speechapi/SKILL.md) | Liber Speech service, default `http://localhost:5555` | Synchronous TTS/ASR/VC; v2 JSON with v1 fallback, parameter Help, Chatterbox/Seed-VC | You need speech synthesis, transcription, or voice conversion against a speech service |
 
 ## How they relate
 
 - `liberastra` calls the main API at `:8000`. Generation is queued as jobs; TTS/ASR may be routed to a speech provider, but the CLI/MCP surface is the main server.
-- `speechapi` calls the speech service's own `/api/v1` at `:5555`. It does not use the main job queue.
+- `speechapi` calls the speech service's own `/api/v2` at `:5555` (v1 fallback). It does not use the main job queue.
 - Both are external skills: copy the skill directory into your agent's skills directory, or point the agent at the `SKILL.md`.
 
 ## Install

@@ -1,146 +1,136 @@
 ---
 name: liber-speechapi
-description: Use Liber SpeechAPI for three speech workflows: (1) Telegram/openclaw voice-message handling with ASR, concise reply summarization, and Telegram-compatible OGG/Opus TTS, (2) direct text-to-speech generation when the user explicitly asks to synthesize text into audio, and (3) direct speech-to-text transcription when the user explicitly asks to convert audio into text or structured JSON. Support environment-based configuration, optional voice cloning from a reference audio file, and fallback between shared python-env skill and the local Python environment.
+description: Use Liber SpeechAPI for speech workflows: Telegram/openclaw voice-message handling with ASR and OGG/Opus TTS, direct text-to-speech, direct speech-to-text, and voice conversion. Prefer /api/v2 JSON with /api/v1 fallback, expose parameter Help, support environment-based configuration and reference-audio cloning.
 ---
 
 # Liber SpeechAPI
 
-Use this skill for three related tasks:
+Use this skill for four related tasks:
+
 - handle Telegram/openclaw voice-message workflows end to end
 - convert user-provided text to speech on demand
 - convert user-provided audio to text on demand
+- replace the voice in audio/video with a target voice (VC)
 
 ## Follow this workflow
 
-1. Read `references/config.md` to resolve configuration from `.env` and `speechapi_config.json`.
-2. Read `references/workflow.md` for Telegram/openclaw voice-message handling.
-3. Read `references/api.md` when you need endpoint and payload details.
-4. Read `references/parameters.md` for detailed ASR/TTS parameter meanings and defaults.
-5. Use `scripts/summarize_for_voice.py` only when a reply must be shortened for voice playback.
-6. Use `scripts/liber_speech_client.py` for deterministic ASR/TTS calls instead of rewriting HTTP request logic.
+1. Read `references/config.md` to resolve `.env` and `speechapi_config.json`.
+2. Read `references/workflow.md` for Telegram and voice-conversion workflows.
+3. Read `references/api.md` for v2/v1 endpoint details.
+4. Read `references/parameters.md` for TTS/ASR/VC parameter meanings and defaults.
+5. Use `scripts/liber_speech_client.py` for deterministic calls instead of rewriting HTTP logic.
+6. Use `/api/v2/help` when you need the authoritative parameter list for a model.
 
-## Environment selection
+## API version
 
-Prefer a shared `python-env` skill if it is available in the current environment.
+- New deployments support `/api/v2`: file upload → JSON request.
+- Old deployments only support `/api/v1`: multipart request.
+- The client defaults to `auto`: probe `/api/v2/help`, then fall back to `/api/v1`.
+- Force a version with `--api-version v1|v2` or `LIBER_API_VERSION`.
+- v2-only parameters on a v1 server fail with a clear error instead of being silently ignored.
 
-If `python-env` is not available, use the local Python environment for this skill.
+## Configuration
 
-When running local Python commands:
-- use Python 3.11 if available
-- allow Python 3.10 when 3.11 is unavailable
-- install only the minimal dependencies required by the bundled scripts
-- do not hardcode secrets; read them from `.env`
+`.env`:
 
-## Configuration model
+- `LIBER_API_BASE_URL`: `http://host:5555`, `.../api/v1`, or `.../api/v2`
+- `LIBER_API_KEY`: same value as the server's `LIBER_SPEECH_API_KEY`
+- `LIBER_API_VERSION`: optional `auto` / `v1` / `v2`
 
-### `.env`
+`speechapi_config.json`:
 
-Load core service settings from `.env` in priority order:
-1. environment variables (`LIBER_API_BASE_URL` and `LIBER_API_KEY`)
-2. `~/.openclaw/.env` file (for global configuration)
-3. the skill directory's `.env` file
-4. the current working directory's `.env` file
+- `asr`, `tts`, `vc`, `global` sections
+- `options` object inside each section for model-specific parameters
+- values `"default"` or `null` are omitted from requests
 
-Environment variables take the highest priority, followed by the global config file `~/.openclaw/.env`, then local skill directory, and finally the current working directory.
+Never print or log API keys.
 
-Required settings:
-- `LIBER_API_BASE_URL`
-- `LIBER_API_KEY`
-
-### `speechapi_config.json`
-
-Load detailed defaults from `speechapi_config.json` in `~/.openclaw/workspace/config/` to prevent overwrites during skill updates.
-Fallback to the skill directory's `speechapi_config.json`. An old local `config.json` is only used when that file is missing.
-
-Key behavior:
-- values of `"default"` or `null` are omitted from API requests
-- Telegram-specific voice replies use `global.telegram_tts_format`
-- direct text-to-speech uses `tts.format` as its default output format
-- direct speech-to-text uses `global.asr_output` as its default output mode
-
-## Command-line overrides and exit codes
-
-Every command accepts these options after the subcommand:
-
-- `--base-url URL` — override `LIBER_API_BASE_URL` for this call
-- `--api-key KEY` — override `LIBER_API_KEY` for this call
-- `--timeout SECONDS` — request timeout; defaults to 120, or 600 for synthesis/transcription
-- `--retries N` — retry connection errors, timeouts, and HTTP 5xx with exponential backoff
-
-Exit codes: `0` success, `2` configuration/argument/input error, `3` network or service unreachable, `4` API error.
-
-## Health and models
+## Health, models, and help
 
 ```bash
 python scripts/liber_speech_client.py health
 python scripts/liber_speech_client.py models
+python scripts/liber_speech_client.py help
+python scripts/liber_speech_client.py help tts turbo
+python scripts/liber_speech_client.py help asr large-v3 --include model
+python scripts/liber_speech_client.py help vc seed-vc --format markdown
 ```
 
-`models` calls `GET /api/v1/models` and returns the available ASR/TTS packs and defaults. Prefer it over hardcoding model names.
+`models` uses v2 `/api/v2/models` when available and falls back to `/api/v1/models`.
 
 ## Direct text-to-speech
 
-When the user explicitly asks to convert text to speech:
-1. use `scripts/liber_speech_client.py tts`
-2. default to `wav` unless the caller explicitly requests another format
-3. upload the clone file as form field `prompt` only when clone audio is enabled and the file exists
-4. request `wav` or `ogg_opus` only. `ogg` is accepted and treated as `ogg_opus`. This service rejects `mp3` and `mp4`
-5. return the TTS result URL or saved output path to the caller
+```bash
+python scripts/liber_speech_client.py tts "你好世界" --language zh --format wav
+python scripts/liber_speech_client.py tts "你好世界" --speed 0.9 --exaggeration 0.7 --cfg-weight 0.3
+python scripts/liber_speech_client.py tts "你好世界" --params '{"temperature":0.8,"top_p":0.9}'
+```
+
+- Default output: `wav`; Telegram voice: `ogg_opus`.
+- v2 supports `speed`, `exaggeration`, `cfg_weight`, `temperature`, `repetition_penalty`, `min_p`, `top_p`, `top_k`, `norm_loudness`, `normalize_loudness`, `target_lufs`, `ref_start`, `ref_duration`.
+- Model differences:
+  - multilingual / standard / language packs: `exaggeration`, `cfg_weight`, `speed`
+  - turbo / nano: `speed`, `temperature`, `top_p`, `top_k`; no `exaggeration`/`cfg_weight`
+  - v1 servers: only `model`, `language`, `format`, and reference audio
+- Reference audio is uploaded as `prompt_file_id` on v2 and as form field `prompt` on v1.
+- Return the result URL and saved local path.
 
 ## Direct speech-to-text
 
-When the user explicitly asks to convert audio to text:
-1. use `scripts/liber_speech_client.py asr`
-2. default to structured `json` output
-3. return plain text only when the caller explicitly wants transcript text only
-4. pass `--model` only when the caller names one of `large-v3`, `large-v3-turbo`, or `qwen3-asr-1.7b`. Otherwise leave it as `default` so the speech service uses `LIBER_SPEECH_ASR_MODEL`
-5. do not use `qwen3-asr-1.7b` when the caller asks to translate speech into English; use `large-v3`
-6. pass multiple files or a directory for batch transcription; each result is written next to its input as `.json` (structured) or `.txt` (text). `--output` is only valid for a single input.
+```bash
+python scripts/liber_speech_client.py asr audio.wav --language zh
+python scripts/liber_speech_client.py asr audio.wav --timestamps word
+python scripts/liber_speech_client.py asr audio.wav --vad-filter --initial-prompt "术语"
+python scripts/liber_speech_client.py asr audio.wav --output srt
+```
 
-## Direct text-to-speech defaults
+- Default output: structured JSON; `text`, `srt`, `vtt` are available.
+- v2 supports `timestamps=none|segment|word`, VAD, `initial_prompt`, `hotwords`, `beam_size`, `condition_on_previous_text`, and other Whisper parameters.
+- Qwen3-ASR supports `timestamps`, `max_new_tokens`, and `max_inference_batch_size`; it does not support VAD, beam, hotwords, `initial_prompt`, or `task=translate`.
+- Batch transcription writes results next to each input; `--output` is only valid for a single input.
 
-`tts.model` defaults to `multilingual_v3`. The old value `multilingual` still means `multilingual_v2`. The speech service releases GPU memory after each synthesis or transcription.
+## Voice conversion
+
+```bash
+python scripts/liber_speech_client.py vc source.wav --prompt ref.wav --model seed-vc --convert-all
+python scripts/liber_speech_client.py vc source.wav --prompt ref.wav --segments '[{"start":0,"end":3.2}]'
+python scripts/liber_speech_client.py vc source.wav --prompt ref.wav --seed 42 --diffusion-steps 20
+```
+
+- VC requires v2.
+- Seed-VC supports `seed`, `diffusion_steps`, `inference_cfg_rate`, `n_quantizers`, `temperature`, `max_window`, `context`, `fade`, `ref_max_len`, `length_adjust`, `overlap_frame_len`.
+- Chatterbox VC has no model-level sampling parameters; reference audio uses the first 10 seconds.
+- Common options: `convert_all`, `segments`, `segment_padding`, `merge_gap`, `min_segment`, `ref_start`, `ref_duration`, `denoise`, `normalize_loudness`, `target_lufs`, `output_sample_rate`.
+- `dereverb`, pitch/F0 controls, and speaker diarization are not supported in v1 of the service.
 
 ## Telegram/openclaw workflow
 
-For incoming Telegram voice/audio:
-1. download or access the local audio file
-2. send it to ASR and extract the recognized `text`
-3. send the transcript to openclaw
-4. if the final reply is too long for voice, shorten it to within the configured summary limit
-5. synthesize the final spoken reply with Telegram-compatible `ogg_opus`
-6. return the resulting audio URL or saved output path to the caller
+1. Download or locate the voice/audio file.
+2. Run ASR and extract `text`.
+3. Send the transcript to openclaw.
+4. Shorten the reply if needed.
+5. Synthesize with `ogg_opus`.
+6. Return the audio URL or saved file path.
 
-## Telegram-specific guidance
-
-For Telegram voice replies:
-- force `ogg_opus` output
-- keep spoken output concise and natural
-- if the original answer is verbose, preserve intent and key facts but compress aggressively
-- avoid reading markdown, code blocks, tables, or long lists verbatim
+For Telegram voice replies, force `ogg_opus`, keep spoken output concise, and avoid reading markdown/code/tables verbatim.
 
 ## Safety and robustness
 
-- never print or log API keys
-- validate input file existence before ASR
-- validate text is non-empty before TTS
-- use request timeouts
-- handle HTTP failures with clear error messages
-- if TTS clone audio is configured but missing, continue without cloning instead of failing
-- if summarization fails, fall back to conservative truncation rather than blocking the reply
-- default direct ASR output to JSON and default direct TTS output to WAV unless the caller requests otherwise
-- retry only connection errors, timeouts, and HTTP 5xx; do not retry 4xx
-- use the script's exit codes to decide whether to retry or ask the caller: `2` input/config, `3` network/service, `4` API
-- batch ASR writes results next to each input; confirm before overwriting an existing `.json` / `.txt` file
+- Never print or log API keys.
+- Validate input files and non-empty text before calls.
+- Use timeouts; default 120s, synthesis/transcription/VC 600s.
+- Retry only connection errors, timeouts, and HTTP 5xx; do not retry 4xx.
+- Exit codes: `0` success, `2` config/input, `3` network/service unreachable, `4` API error.
+- If clone audio is configured but missing, continue without cloning.
+- Use `/api/v2/help` rather than hardcoding parameter ranges or model capabilities.
 
 ## Expected outputs
 
 Depending on the task, return one of:
-- structured ASR JSON
-- plain transcript text
-- concise voice-ready text
-- TTS result URL
-- saved audio file path
+
+- structured ASR JSON, plain transcript, SRT/VTT
+- TTS result URL and saved audio path
+- VC result URL and saved audio path
 - a structured JSON object containing transcript, summary, and synthesis result
-- the server model catalog from `models`
-- a list of batch ASR results, each with `input`, `output`, and `result`
+- the server model catalog or parameter help
+- a list of batch ASR results

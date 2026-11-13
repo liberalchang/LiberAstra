@@ -1,161 +1,181 @@
 # Liber SpeechAPI Reference
 
-## Base URL
+## Base URL and auth
 
-Default example:
+`LIBER_API_BASE_URL` can be:
 
-```text
-http://localhost:5555/api/v1
-```
+- `http://host:5555`
+- `http://host:5555/api/v1`
+- `http://host:5555/api/v2`
 
-Set the actual base URL through `.env`:
+The client splits the origin and probes `/api/v2/help`. If unavailable, it falls back to `/api/v1`.
 
-- `LIBER_API_BASE_URL`
-
-## Authentication
-
-Use bearer token authentication:
+Bearer token:
 
 ```http
-Authorization: Bearer YOUR_API_KEY
+Authorization: Bearer LIBER_API_KEY
 ```
 
-Read the token from:
+Never hardcode or print the token.
 
-- `LIBER_API_KEY`
+## API versions
 
-Do not hardcode tokens in scripts.
+| Version | Style | Notes |
+|---|---|---|
+| v2 | upload file → JSON request | preferred; full parameter set |
+| v1 | multipart request | legacy; only basic fields |
+
+v2-only parameters on a v1 server return a clear client error instead of being silently ignored.
 
 ---
 
-## Health check
+## v2 files
 
 ```http
-GET /health
+POST /api/v2/files
+Content-Type: multipart/form-data
 ```
 
-Use this to verify service availability before ASR/TTS when needed.
+Field: `file`.
+
+Response:
+
+```json
+{"file_id":"f_xxx","filename":"input.wav","size":1234,"sha256":"...","expires_at":"..."}
+```
+
+Delete with `DELETE /api/v2/files/{file_id}`. The client uploads automatically for TTS reference audio, ASR input, and VC source/prompt.
 
 ---
 
-## ASR
-
-### Endpoint
+## v2 help
 
 ```http
-POST /asr/transcribe
+GET /api/v2/help
+GET /api/v2/help/{function}
+GET /api/v2/help/{function}/{model}
 ```
 
-### Form fields
+Query: `include=common,model,examples,errors,unsupported`, `format=json|markdown`.
 
-The current service accepts:
-
-- `file`: local audio file upload. Required.
-- `language`: for example `zh` or `en`. Omit it to let faster-whisper detect the language.
-- `task`: `transcribe` or `translate`. Default is `transcribe`.
-- `model`: optional `large-v3`, `large-v3-turbo`, or `qwen3-asr-1.7b`. Omit it or send `default` to use `LIBER_SPEECH_ASR_MODEL` (default `large-v3`). This is an alias, not a directory under `/models`. `qwen3-asr-1.7b` returns sentence-level `chunks` and rejects `task=translate`. The service releases the model and GPU memory after each call.
-
-The request does not accept word timestamps, a remote `url`, batch size, or speaker diarization.
-
-### Expected response fields
-
-- `text`: recognized text
-- `chunks`: list of `{start, end, text}`
-- `meta.language`: detected or requested language
-- `meta.task`: `transcribe` or `translate`
-- `meta.model`: the faster-whisper alias actually loaded
-
-### Output modes in this skill
-
-- direct ASR default: return full JSON
-- explicit text-only mode: return `text` only
-- Telegram/openclaw mode: extract `text` and pass it into the chatbot workflow
-
-### Notes
-
-- Prefer file upload for Telegram voice processing.
-- Validate that the input file exists and is readable.
-- Fail clearly if no `text` is returned.
+Use this as the source of truth for defaults, ranges, model differences, and unsupported parameters.
 
 ---
 
-## TTS
-
-### Endpoint
+## v2 TTS
 
 ```http
-POST /tts/synthesize
+POST /api/v2/tts/synthesize
+Content-Type: application/json
 ```
 
-### Form fields
+Common fields:
 
-- `text`: text to synthesize. Required.
-- `model`: one of the 11 Chatterbox packs. The service default is `multilingual_v3`. `multilingual` is still an alias of `multilingual_v2`. The service releases the model and GPU memory after each call.
-- `language`: language id, for example `zh` or `en`. A multilingual pack requires one of its 23 languages. A single-language pack rejects any other language.
-- `format`: `wav` or `ogg_opus`. `ogg` is rewritten to `ogg_opus`. Default is `wav`.
-- `prompt`: optional reference audio for voice cloning. Allowed suffixes are `.wav`, `.mp3`, `.ogg`, and `.flac`.
+- `text` required
+- `model`
+- `language`
+- `format`: `wav` or `ogg_opus`
+- `prompt_file_id`
+- `speed`
+- `normalize_loudness`, `target_lufs`
+- `ref_start`, `ref_duration`
 
-This endpoint rejects `mp3` and `mp4`. It also does not accept `temperature`, `cfg_weight`, `exaggeration`, or the other old sampling fields. A `mp3` request returns HTTP 400 with `格式只支持 wav 或 ogg_opus`. LiberAstra's main service can convert a wav response to mp3; this skill calls the speech service directly and does not do that conversion.
+Model fields:
 
-### Models
+- multilingual/standard/language packs: `exaggeration`, `cfg_weight`, `temperature`, `repetition_penalty`, `min_p`, `top_p`
+- turbo/nano: `temperature`, `repetition_penalty`, `top_p`, `top_k`, `norm_loudness`
 
-| id | Languages | Notes |
-| --- | --- | --- |
-| `multilingual_v3` | 23 languages, including `zh` | Chatterbox-Multilingual V3 |
-| `multilingual_v2` | same 23 languages | alias: `multilingual` |
-| `turbo` | `en` | reference audio must be longer than 5 seconds |
-| `nano` | `en` | reference audio must be longer than 5 seconds |
-| `standard` | `en` | Chatterbox English |
-| `zh-cmn` | `zh` | Chinese pack |
-| `es-mx` | `es` | Latam Spanish |
-| `es-es` | `es` | Spain Spanish |
-| `pt-br` | `pt` | Brazilian Portuguese |
-| `pt-pt` | `pt` | Portugal Portuguese |
-| `hi` | `hi` | Hindi |
+Response:
 
-The 23 language ids are `ar`, `da`, `de`, `el`, `en`, `es`, `fi`, `fr`, `he`, `hi`, `it`, `ja`, `ko`, `ms`, `nl`, `no`, `pl`, `pt`, `ru`, `sv`, `sw`, `tr`, `zh`.
+```json
+{"audio_url":"/api/v1/results/tts-xxx.wav","meta":{"format":"wav","sample_rate":24000,"parameters":{},"warnings":[]}}
+```
 
-`GET /models` returns `models`, `tts_models`, and `default_tts_model`. A pack loads on the first synthesis that uses it. Synthesis fails when that pack's weights are not on the server.
+Download `audio_url` with the same bearer token. `speed` uses ffmpeg atempo and keeps pitch; `normalize_loudness` uses loudnorm.
 
-### Expected response fields
+### v1 TTS compatibility
 
-- `audio_url`: path such as `/api/v1/results/<id>.wav` or `/api/v1/results/<id>.ogg`
-- `meta.format`: `wav` or `ogg_opus`
-- `meta.sample_rate`: Chatterbox sample rate. A short Chinese sentence returned `24000`
-
-Download `audio_url` with the same bearer token. `ogg_opus` files use the `.ogg` suffix and start with `OggS`.
-
-### Output format rules in this skill
-
-- direct TTS default: `wav`
-- Telegram voice reply: force `ogg_opus`
-- explicit caller override: honor `wav`, `ogg`, or `ogg_opus`
-
-### Notes
-
-- For Telegram voice notes, use `format=ogg_opus`.
-- Only send `prompt` when clone audio is enabled and the file exists.
-- The first synthesis after a restart loads the model. The client timeout is 600 seconds.
+v1 accepts multipart fields `text`, `model`, `language`, `format`, and optional file field `prompt`. It does not accept sampling parameters. `ogg` is treated as `ogg_opus`; `mp3`/`mp4` are rejected.
 
 ---
 
-## Telegram compatibility
+## v2 ASR
 
-The upstream project explicitly recommends `OGG/Opus` for Telegram voice-note delivery.
+```http
+POST /api/v2/asr/transcribe
+Content-Type: application/json
+```
 
-Use:
-- `format=ogg_opus`
+Common fields:
+
+- `file_id` required
+- `model`
+- `language`
+- `task`: `transcribe` or `translate`
+- `timestamps`: `none`, `segment`, `word`
+- `response_format`: `json`, `verbose_json`, `text`, `srt`, `vtt`
+
+faster-whisper fields:
+
+`beam_size`, `best_of`, `patience`, `length_penalty`, `repetition_penalty`, `no_repeat_ngram_size`, `temperature`, `compression_ratio_threshold`, `log_prob_threshold`, `no_speech_threshold`, `condition_on_previous_text`, `initial_prompt`, `prefix`, `hotwords`, `vad_filter`, `vad_parameters`, `max_new_tokens`, and related decoding options.
+
+Qwen3-ASR fields:
+
+`max_new_tokens`, `max_inference_batch_size`, `timestamps`. It does not support `task=translate`, VAD, beam, hotwords, or `initial_prompt`.
+
+Response:
+
+```json
+{"text":"...","chunks":[{"start":0.0,"end":1.0,"text":"..."}],"words":[],"language":"zh","model":"large-v3","meta":{}}
+```
+
+`timestamps=word` adds top-level `words`. `response_format=text|srt|vtt` returns plain text instead of JSON.
+
+### v1 ASR compatibility
+
+v1 accepts multipart `file`, `language`, `task`, `model` and returns JSON with `text` and sentence-level `chunks`. It does not accept word timestamps or advanced decoding parameters.
 
 ---
 
-## Error handling guidance
+## v2 VC
 
-Handle these cases explicitly:
-- network timeout
-- 401/403 authentication failure
-- 404 wrong base URL or endpoint
-- 422 invalid form fields
-- empty ASR text
-- empty TTS audio_url
+```http
+POST /api/v2/vc/convert
+Content-Type: application/json
+```
 
-Return actionable messages so the calling workflow can decide whether to retry, downgrade, or fall back to plain text.
+Common fields:
+
+- `file_id` required
+- `prompt_file_id` required
+- `model`: `chatterbox` or `seed-vc`
+- `segments`: `[{start, end}]`
+- `convert_all`
+- `segment_padding`, `merge_gap`, `min_segment`
+- `ref_start`, `ref_duration`
+- `denoise`, `normalize_loudness`, `target_lufs`, `output_sample_rate`
+
+Seed-VC fields:
+
+`seed`, `diffusion_steps`, `inference_cfg_rate`, `n_quantizers`, `temperature`, `max_window`, `context`, `fade`, `ref_max_len`, `length_adjust`, `overlap_frame_len`.
+
+Chatterbox VC has no model-level sampling parameters. Its reference audio uses the first 10 seconds; Seed-VC defaults to 25 seconds.
+
+Response:
+
+```json
+{"audio_url":"/api/v1/results/vc-xxx.wav","meta":{"format":"wav","sample_rate":24000,"parameters":{},"warnings":[]}}
+```
+
+`dereverb`, pitch/F0 controls, and speaker diarization are not supported in v1 of the service.
+
+## Error handling
+
+- `400`: parameter or file validation error; the response contains `detail.errors[]`
+- `401/403`: bad key
+- `404`: missing file or endpoint
+- `410`: expired file
+- `500`: synthesis/transcription/conversion failure or ffmpeg failure
+- `503`: missing model dependency or weights
+
+Retry only connection errors, timeouts, and 5xx; do not retry 4xx.
