@@ -6,7 +6,10 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from liberastra.pipelines.simple import (
+    MotionWindow,
     avatar_segment_prompt,
     frames_for_duration,
     max_aligned_seconds,
@@ -21,18 +24,96 @@ from liberastra.pipelines.simple import (
 )
 
 H3 = {"align_base": 17, "align_offset": 5, "min": 73, "max": 362}
+MOTION = {"align_base": 17, "align_offset": 5, "min": 73, "max": 124}
 
 
 def test_motion_windows_follow_aligned_frames() -> None:
     assert max_reference_video_seconds(24, H3) == 362 / 24
     short = motion_windows(5.0, 24, H3)
     assert short
-    assert all(frames % 17 == 5 for _, frames in short)
-    assert sum(frames for _, frames in short) <= int(5 * 24)
+    assert all(window.frames % 17 == 5 for window in short)
+    assert sum(window.trim_seconds for window in short) == pytest.approx(5.0, abs=0.05)
     long = motion_windows(20.0, 24, H3)
-    assert long[0] == (0.0, 362)
+    assert long[0].start == 0.0
+    assert long[0].frames == 362
     assert len(long) >= 2
     assert motion_windows(0.1, 24, H3) == []
+
+
+def test_motion_windows_short_video_is_one_segment() -> None:
+    windows = motion_windows(3.0, 24, MOTION)
+    assert len(windows) == 1
+    assert windows[0].frames >= 73
+    assert windows[0].frames <= 124
+    assert windows[0].trim_seconds == pytest.approx(3.0)
+    assert windows[0].keep_last is False
+
+
+def test_motion_windows_does_not_emit_tiny_tails() -> None:
+    for total in (1.0, 2.333333, 3.0, 5.25, 7.0, 12.051):
+        windows = motion_windows(total, 24, MOTION)
+        assert windows, total
+        assert all(window.frames >= 73 for window in windows), total
+        kept = sum(window.trim_seconds for window in windows)
+        assert kept <= total + 0.01, total
+        assert total - kept <= 5 / 24 + 0.01, total
+
+
+def test_motion_windows_long_video_tail_uses_full_window() -> None:
+    windows = motion_windows(12.051, 24, MOTION)
+    assert len(windows) == 3
+    assert windows[-1].frames == 124
+    assert windows[-1].keep_last is True
+    assert windows[-1].start == pytest.approx(12.051 - 124 / 24, abs=0.01)
+    assert windows[-1].trim_seconds == pytest.approx(12.051 - 248 / 24, abs=0.05)
+
+
+def test_render_motion_trims_tail_from_end(tmp_path: Path) -> None:
+    trims: list[tuple[float, float]] = []
+
+    async def generate(inputs: dict[str, Any], on_progress) -> list[tuple[str, bytes]]:
+        on_progress(1.0)
+        return [("a.mp4", b"v")]
+
+    async def slice_video(video: Path, start: float, duration: float, out: Path, **_kwargs: Any) -> None:
+        out.write_bytes(f"{start}:{duration}".encode())
+
+    async def trim(
+        src: Path, dst: Path, seconds: float, fps: float, *, start: float = 0.0
+    ) -> None:
+        trims.append((seconds, start))
+        dst.write_bytes(src.read_bytes())
+
+    async def concat(paths: list[Path], out: Path, *, list_file: Path) -> None:
+        out.write_bytes(b"".join(path.read_bytes() for path in paths))
+
+    final = asyncio.run(
+        render_motion_takes(
+            source=tmp_path / "ref.mp4",
+            image_paths=["face.png"],
+            prompt_text="跟着动",
+            base_inputs={},
+            windows=[
+                MotionWindow(0.0, 124, 124 / 24),
+                MotionWindow(5.0, 124, 1.0, keep_last=True),
+            ],
+            fps=24,
+            video_key="video",
+            image_keys=["image"],
+            generate=generate,
+            work=lambda name: tmp_path / name,
+            rel_of=lambda path: path.name,
+            report=lambda _progress, _step: None,
+            cancelled=lambda: False,
+            slice_video=slice_video,
+            trim_video=trim,
+            concat=concat,
+        )
+    )
+    assert final is not None
+    assert trims[0] == pytest.approx((124 / 24, 0.0))
+    assert trims[1][0] == pytest.approx(1.0)
+    assert trims[1][1] == pytest.approx(124 / 24 - 1.0)
 
 
 def test_frames_snap_to_h3_grid() -> None:
@@ -143,8 +224,13 @@ def test_render_motion_keeps_target_images_across_segments(tmp_path: Path) -> No
     async def slice_video(video: Path, start: float, duration: float, out: Path, **_kwargs: Any) -> None:
         out.write_bytes(b"ref")
 
-    async def trim(src: Path, dst: Path, seconds: float, fps: float) -> None:
+    async def trim(
+        src: Path, dst: Path, seconds: float, fps: float, *, start: float = 0.0
+    ) -> None:
         dst.write_bytes(src.read_bytes())
+
+    async def last_frame(video: Path, png: Path, fps: float = 24) -> None:
+        png.write_bytes(b"png")
 
     async def concat(paths: list[Path], out: Path, *, list_file: Path) -> None:
         list_file.write_text("ok", encoding="utf-8")
@@ -162,7 +248,7 @@ def test_render_motion_keeps_target_images_across_segments(tmp_path: Path) -> No
             windows=[(0.0, 124), (5.0, 90)],
             fps=24,
             video_key="video",
-            image_keys=["image", "image_2"],
+            image_keys=["image", "image_2", "image_3"],
             generate=generate,
             work=work,
             rel_of=lambda path: path.name,
@@ -170,6 +256,7 @@ def test_render_motion_keeps_target_images_across_segments(tmp_path: Path) -> No
             cancelled=lambda: False,
             slice_video=slice_video,
             trim_video=trim,
+            last_frame=last_frame,
             concat=concat,
         )
     )
@@ -177,9 +264,12 @@ def test_render_motion_keeps_target_images_across_segments(tmp_path: Path) -> No
     assert seen[0]["length"] == 124
     assert seen[0]["image"] == "face.png"
     assert seen[0]["image_2"] == "side.png"
+    assert "image_3" not in seen[0]
     assert seen[1]["length"] == 90
     assert seen[1]["image"] == "face.png"
     assert seen[1]["image_2"] == "side.png"
+    assert seen[1]["image_3"] == "tail_00.png"
+    assert "<Picture 3>" in seen[1]["prompt"]
 
 
 def test_motion_prompt_pins_identity_to_pictures() -> None:

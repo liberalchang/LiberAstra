@@ -262,12 +262,16 @@ async def make_silence(path: Path, seconds: float) -> None:
     )
 
 
-async def trim_video(video: Path, out: Path, seconds: float, *, fps: float = 24) -> None:
-    """裁到指定秒数，并统一成相同的帧率与编码，方便多段直接拼接。"""
+async def trim_video(
+    video: Path, out: Path, seconds: float, *, fps: float = 24, start: float = 0.0
+) -> None:
+    """从指定起点裁到指定秒数，并统一帧率与编码，方便多段直接拼接。"""
     _require_ffmpeg()
     out.parent.mkdir(parents=True, exist_ok=True)
+    seek = ["-ss", f"{max(start, 0.0):.3f}"] if start > 0 else []
     await _run(
         "ffmpeg", "-y", "-i", str(video),
+        *seek,
         "-t", f"{max(seconds, 0.05):.3f}",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-pix_fmt", "yuv420p", "-r", str(fps),

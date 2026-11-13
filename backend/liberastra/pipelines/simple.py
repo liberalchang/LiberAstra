@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -247,37 +248,75 @@ def max_reference_video_seconds(fps: float, spec: dict[str, Any]) -> float:
     return max_aligned_seconds(fps, spec)
 
 
-def motion_windows(total_seconds: float, fps: float, spec: dict[str, Any]) -> list[tuple[float, int]]:
-    """把参考视频切成 (起点秒, 帧数)。每段帧数不超过剩余内容，且满足对齐规则。"""
+@dataclass(frozen=True)
+class MotionWindow:
+    """一段参考视频窗口。
+
+    start/frames 是送给模型的参考切片；trim_seconds 是成片保留时长。
+    keep_last=True 时从生成结果尾部裁，用于“整窗生成、只取末尾”的滑动尾段。
+    """
+
+    start: float
+    frames: int
+    trim_seconds: float
+    keep_last: bool = False
+
+
+def motion_windows(
+    total_seconds: float, fps: float, spec: dict[str, Any]
+) -> list[MotionWindow]:
+    """把参考视频切成窗口。
+
+    - 总长不超过单段上限时只生成一段，向上吸附到合法帧数后裁到实际时长；
+    - 超过上限时用整窗前进；尾段不足一个合法窗口时，用“结束于视频末尾的整窗”
+      生成，再从尾部裁出剩余时长，避免产生多个 5 帧小段。
+    """
     if fps <= 0:
         fps = 24.0
     if total_seconds <= 0:
         return []
-    window = max_reference_video_seconds(fps, spec)
     base = int(spec.get("align_base") or 0)
     offset = int(spec.get("align_offset") or 0)
+    minimum = int(spec.get("min") or 1)
     maximum = int(spec.get("max") or 0) or 10**9
+    if base > 0:
+        k = max(0, (maximum - offset) // base)
+        max_frames = max(minimum, min(maximum, base * k + offset))
+    else:
+        max_frames = maximum
+    max_seconds = max_frames / fps
 
-    def snap_down(seconds: float) -> int:
-        target = max(0, int(seconds * fps + 1e-6))
-        target = min(target, maximum)
-        if target < 5:
-            return 0
+    def frames_for(seconds: float) -> int:
+        return max(0, round(seconds * fps))
+
+    def align_up(frames: int) -> int:
         if base <= 0:
-            return target
-        frames = base * ((target - offset) // base) + offset
-        return frames if frames >= 5 else 0
+            return max(1, min(frames, maximum))
+        k = max(0, (frames - offset + base - 1) // base)
+        return max(minimum, min(maximum, base * k + offset))
 
-    windows: list[tuple[float, int]] = []
+    total_frames = frames_for(total_seconds)
+    if total_frames < 5:
+        return []
+    if total_seconds <= max_seconds + 1e-6:
+        return [MotionWindow(0.0, align_up(total_frames), total_seconds)]
+
+    windows: list[MotionWindow] = []
     start = 0.0
-    for _ in range(200):
-        if start >= total_seconds - 0.02:
-            break
-        frames = snap_down(min(total_seconds - start, window))
-        if frames < 5:
-            break
-        windows.append((start, frames))
-        start += frames / fps
+    while total_seconds - start > max_seconds + 0.02:
+        windows.append(MotionWindow(start, max_frames, max_seconds))
+        start += max_seconds
+
+    remaining = total_seconds - start
+    if remaining < 5 / fps:
+        return windows
+    min_seconds = minimum / fps
+    if remaining < min_seconds:
+        # 尾段太短：用结束于视频末尾的整窗，只保留最后 remaining 秒。
+        last_start = max(0.0, total_seconds - max_seconds)
+        windows.append(MotionWindow(last_start, max_frames, remaining, keep_last=True))
+    else:
+        windows.append(MotionWindow(start, align_up(frames_for(remaining)), remaining))
     return windows
 
 
@@ -326,7 +365,7 @@ async def render_motion_takes(
     image_paths: list[str],
     prompt_text: str,
     base_inputs: dict[str, Any],
-    windows: list[tuple[float, int]],
+    windows: list[MotionWindow | tuple[float, int]],
     fps: float,
     video_key: str,
     image_keys: list[str],
@@ -337,26 +376,42 @@ async def render_motion_takes(
     cancelled: Callable[[], bool],
     slice_video: Callable[..., Awaitable[None]] = ffmpeg.slice_video,
     trim_video: Callable[..., Awaitable[None]] = ffmpeg.trim_video,
+    last_frame: Callable[..., Awaitable[None]] = ffmpeg.extract_last_frame,
     concat: Callable[..., Awaitable[None]] = ffmpeg.concat_segments,
 ) -> Path | None:
-    """按窗口切参考视频。每段都使用同一组目标图片，避免尾帧把目标身份挤掉。"""
+    """按窗口切参考视频。每段保留原目标图；下一段额外带上上一段尾帧做连续锚点。"""
     if not windows:
         raise ProviderError("参考视频太短，无法做动作迁移")
     if not image_paths:
         raise ProviderError("动作迁移缺少人物图片")
     if fps <= 0:
         fps = 24.0
+    resolved = [
+        item
+        if isinstance(item, MotionWindow)
+        else MotionWindow(float(item[0]), int(item[1]), int(item[1]) / fps)
+        for item in windows
+    ]
     clips: list[Path] = []
-    count = len(windows)
-    for index, (start, frames) in enumerate(windows):
+    count = len(resolved)
+    current_images = list(image_paths)
+    tail_clause = ""
+    for index, window in enumerate(resolved):
         if cancelled():
             return None
-        seconds = frames / fps
+        frames = window.frames
+        seconds = window.trim_seconds
         ref = work(f"ref_{index:02d}.mp4")
-        await slice_video(source, start, seconds, ref, fps=fps, frames=frames)
-        inputs: dict[str, Any] = {"prompt": prompt_text, **base_inputs, "length": frames}
+        await slice_video(
+            source, window.start, frames / fps, ref, fps=fps, frames=frames
+        )
+        inputs: dict[str, Any] = {
+            "prompt": f"{prompt_text}{tail_clause}",
+            **base_inputs,
+            "length": frames,
+        }
         inputs[video_key] = rel_of(ref)
-        for key, path in zip(image_keys, image_paths, strict=False):
+        for key, path in zip(image_keys, current_images, strict=False):
             inputs[key] = path
 
         def on_progress(frac: float, *, _index: int = index) -> None:
@@ -370,8 +425,24 @@ async def render_motion_takes(
         raw = work(f"take_{index:02d}.mp4")
         raw.write_bytes(videos[0][1])
         trimmed = work(f"trim_{index:02d}.mp4")
-        await trim_video(raw, trimmed, seconds, fps=fps)
+        trim_start = max(0.0, frames / fps - seconds) if window.keep_last else 0.0
+        await trim_video(raw, trimmed, seconds, fps=fps, start=trim_start)
         clips.append(trimmed)
+        if index < count - 1 and len(image_keys) > 1:
+            frame = work(f"tail_{index:02d}.png")
+            await last_frame(trimmed, frame, fps=fps)
+            tail_rel = rel_of(frame)
+            if len(current_images) < len(image_keys):
+                picture = len(current_images) + 1
+                current_images = [*current_images, tail_rel]
+            else:
+                picture = len(image_keys)
+                current_images = [*current_images[:-1], tail_rel]
+            if f"<Picture {picture}>" not in prompt_text:
+                tail_clause = (
+                    f"；<Picture {picture}> 是上一段成片的尾帧，"
+                    "只用于保持人物和画面连续，身份仍以 <Picture 1> 为准。"
+                )
     final = work("video_0.mp4")
     if len(clips) == 1:
         final.write_bytes(clips[0].read_bytes())
