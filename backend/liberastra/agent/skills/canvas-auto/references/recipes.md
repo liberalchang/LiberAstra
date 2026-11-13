@@ -51,10 +51,10 @@
 ```text
 文本输入 input_text_script
   → 文字转语音 speech(mode=tts, text={{input_text_script}})
-  → 图生视频或数字人节点
+  → 数字人口播功能节点（preset_avatar）+ 人物图片
 ```
 
-tts 节点也可以直接把文本写在节点里；被上游引用时用 `{{变量名}}`。需要语速、语气或节奏时写 `ttsTuning`；Turbo/Nano 只支持 `speed`。
+tts 节点也可以直接把文本写在节点里；被上游引用时用 `{{变量名}}`。需要语速、语气或节奏时写 `ttsTuning`；Turbo/Nano 只支持 `speed`。数字人口播的时长跟 TTS 音频走，不要填 `length`，超过单段上限会自动分段。若接普通图生视频节点，则要手动写 `length`，音频不会自动延长画面。
 
 ## 语音转文字
 

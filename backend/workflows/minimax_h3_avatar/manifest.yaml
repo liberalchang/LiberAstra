@@ -130,5 +130,7 @@ requirements:
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
 llm_note: '事实:MiniMax H3 数字人口播;MiniMaxH3AddGuide 语音锚定驱动口型;官方 TE;可选 Turbo LoRA 加速。
+  成片时长跟口播音频走,不采用手动 length;超过单段上限(362 帧 ≈ 15.08 秒)会自动切片、尾帧衔接并拼接,总时长可超过 15 秒。
 
-  写作指导:只写人物外观、场景、光线与情绪氛围;口型与对白由语音文件决定,不要在提示词里写台词内容。'
+  写作指导:只写人物外观、场景、光线与情绪氛围;口型与对白由语音文件决定,不要在提示词里写台词内容;
+  不要要求用户压缩文案或音频来适配单段上限。'

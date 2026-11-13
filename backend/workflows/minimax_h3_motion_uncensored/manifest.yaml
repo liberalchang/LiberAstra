@@ -162,7 +162,8 @@ requirements:
   - vae/minimax_h3_video_vae_fp16.safetensors
   - vae/minimax_h3_audio_vae_fp32.safetensors
   - loras/minimax_h3_turbo_v4_step600_ema.safetensors
-llm_note: '事实:MiniMax H3 动作迁移,越狱 NVFP4 TE(无内容审查层);<Picture 1> 锁定人物、<Video 1> 迁移动作;单段上限
-  124 帧(约 5.2 秒);可选 EMA Turbo LoRA。
+llm_note: '事实:MiniMax H3 动作迁移,越狱 NVFP4 TE(无内容审查层);<Picture 1> 锁定人物、<Video 1> 迁移动作;可选 EMA Turbo LoRA。
+  成片时长跟参考视频走,不采用手动 length;单段上限 124 帧(24fps ≈ 5.17 秒),超过会自动切分参考视频并按窗口衔接,总时长可超过单段上限。
 
-  写作指导:同官方版——5 秒时长约束、身份保持与动作来源写清。'
+  写作指导:每个分段内的动作幅度与时序要合理;整体动作来自参考视频,身份保持与动作来源写清;
+  不要要求用户裁短参考视频来适配单段上限。'

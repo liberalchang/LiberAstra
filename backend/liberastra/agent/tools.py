@@ -408,6 +408,7 @@ def _workflow_summary(pack: Any) -> dict[str, Any]:
         "name": pack.name,
         "capability": pack.capability,
         "description": pack.description,
+        "llm_note": (pack.llm_note or "")[:1200],
         "source": pack.source,
         "fps": pack.fps,
         "input_keys": list((pack.inputs or {}).keys()),

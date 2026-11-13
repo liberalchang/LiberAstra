@@ -1092,7 +1092,15 @@ def test_agent_session_routes_and_builtin_skills(client, auth_header):
     skills = client.get("/api/v1/agent/skills", headers=auth_header)
     assert skills.status_code == 200
     names = {item["name"] for item in skills.json()}
-    assert {"director", "canvas-auto", "skill-creator", "liberastra", "project-info"} <= names
+    assert {
+        "director",
+        "canvas-auto",
+        "skill-creator",
+        "liberastra",
+        "project-info",
+        "h3-prompt-writing",
+        "qwen-image-2-1-prompt-writing",
+    } <= names
     assert all(item["enabled"] for item in skills.json())
 
     detail = client.get("/api/v1/agent/skills/director", headers=auth_header)

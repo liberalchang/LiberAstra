@@ -74,6 +74,17 @@ UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接 / 音�
 - 三个 tuning 都是整份对象，先读当前值，改键后整份写回。`advanced=false` 时保持服务默认值。
 - 只有 Liber Speech 支持高级参数。
 
+## 视频时长规则
+
+`canvas_get_node_schema` 的 `duration_rule` 是准绳：
+
+- 普通视频节点：`mode=manual`，`length` 控制单段，`duration_limits` 只是单段上限；接了参考音频也不会自动延长。
+- 数字人口播：`mode=audio`，时长跟音频走，`length` 被忽略，超长自动分段拼接。
+- 动作迁移：`mode=source_video`，时长跟参考视频走，`length` 被忽略，超长自动切分。
+- 连续生成：`mode=clips`，用 `clips_json[].duration`。
+- 修复放大 / 视频理解：`mode=source`，跟随输入视频。
+- 拼接节点：片段时长相加，无总时长上限。
+
 ## 连线规则
 
 - 目标不能是输入节点。

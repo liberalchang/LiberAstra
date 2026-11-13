@@ -77,10 +77,13 @@ UI 显示为「工具」和「图片拼接 / 视频拼接 / 音频拼接 / 音�
 
 ### 改视频时长
 
-1. `canvas_get_node_schema` 找 `values` 里的 `length`（帧）或 `duration`（秒）。
-2. 读目标规格的 `fps`、`min`、`max`、`align_base`、`align_offset`。
-3. 本地帧数：`frames = seconds * fps`，取最小满足 `k * align_base + align_offset >= frames` 的值，夹到 min/max。
-4. 整份 `values` 写回。
+先看 `canvas_get_node_schema` 的 `duration_rule.mode`：
+
+- `manual`：普通视频节点。找 `values` 里的 `length`（帧）或 `duration`（秒），按 `fps`、`min`、`max`、`align_base`、`align_offset` 换算，夹到范围内后整份写回。`duration_limits` 只是单段上限，不是成片总时长上限；接了参考音频也不会自动延长。
+- `audio`：数字人口播。时长跟音频走，`length` 被忽略；超过单段上限自动切片拼接，不要改文案或音频来适配。
+- `source_video`：动作迁移。时长跟参考视频走，`length` 被忽略；超过单段上限自动切分参考视频。
+- `clips`：连续生成。改 `clips_json[].duration`，单段 ≤ 模型上限，总时长可超过。
+- `source`：修复放大/视频理解。跟随输入视频，不填 `length`。
 
 ### 换工作流
 

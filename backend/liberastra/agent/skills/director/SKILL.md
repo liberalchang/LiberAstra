@@ -16,6 +16,8 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 **按需读取：**
 
 - 写分镜提示词或关键帧提示词前，读 `references/shot-prompt-template.md`。
+- 写 H3 视频/分镜/关键帧提示词前，`load_skill("h3-prompt-writing")`，按 T2VA/I2VA/FL2VA/L2VA/Ref2VA 对应模式写；节点时长规则仍按本技能。
+- 写 Qwen Image 2.1 文生图或图像编辑提示词前，`load_skill("qwen-image-2-1-prompt-writing")`，按 T2I/Edit 轨道写；只输出提示词，不代跑生成。
 - 每步确认后更新状态前，读 `references/state-schema.md`。
 
 ## 1. 主题
@@ -87,9 +89,20 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 
 汇总路线、模式、音频方案、镜头数/段数，等用户确认后写入会话状态 `route`、`storyboard_mode`、`audio_strategy` 等字段。**用户确认前不要创建任何 `output_video_*` 节点。** 节点类型由路线和模式决定，不再让用户选择「图生视频 / 参考视频」。
 
+### 视频节点时长规则（所有路线通用）
+
+先看 `canvas_get_node_schema` 返回的 `duration_rule`，它是执行时的真实规则；`duration_limits` 通常只是单段上限，不是成片总时长上限。
+
+- **普通视频节点**（`t2v`、`i2v`、`i2v_ref`、`i2v_enhance`、`orbit` 等）：`length` 手动控制单段时长，单段上限如 H3 362 帧 / 15.08 秒。即使连接了参考音频，也不会按音频长度自动延长；需要更长时用多段拼接或「连续生成（长）」的 `clips_json`，不要告诉用户成片只能 15 秒。
+- **数字人口播**（`capability=avatar`）：成片时长跟口播音频走，执行器会忽略 `length`/`frames`。超过单段上限会自动切片、尾帧衔接并拼接，15.86 秒音频会生成约 15.08 秒 + 0.78 秒两段。**不要要求用户改标点、压缩文案或缩短音频。** 建法是 TTS 节点或音频输入 → 「数字人口播」功能节点（`preset_avatar`），再接人物图片；不要手动填 `length`。
+- **动作迁移**（`capability=motion`）：成片时长跟参考视频走，执行器会忽略 `length`。单段上限 124 帧 / 5.17 秒，超过会自动切分参考视频并按窗口衔接。**不要要求用户裁短参考视频。**
+- **连续生成（长）**：用 `clips_json` 的 `duration` 控制每段秒数，单段 ≤15 秒，总时长可以远超 15 秒。
+- **修复放大 / 视频理解**：时长跟随输入视频，不需要填 `length`。
+- **拼接节点**：成片时长是各输入片段时长之和，没有总时长上限。
+
 ## 7A. 分镜视频：关键帧
 
-1. 先解析「参考图生视频（单段）」目标（默认是 `i2v_ref` 多参考图包），用 `canvas_get_node_schema` 读实际图片槽、数量上限和 `duration_limits`。写 `length` 前按 `duration_limits` 的 `fps`、`align_base`、`align_offset` 换算：先 `ceil(秒 × fps)`，再向上吸到 `align_base × k + align_offset`，最后夹在 min/max。H3 的 10 秒是 243 帧，不是 240 或 241。
+1. 先解析「参考图生视频（单段）」目标（默认是 `i2v_ref` 多参考图包），用 `canvas_get_node_schema` 读实际图片槽、数量上限和 `duration_limits`。这是普通视频节点；写 `length` 前按 `duration_limits` 的 `fps`、`align_base`、`align_offset` 换算：先 `ceil(秒 × fps)`，再向上吸到 `align_base × k + align_offset`，最后夹在 min/max。H3 的 10 秒是 243 帧，不是 240 或 241。
 2. 问用户每镜生成几张关键帧；数量不能超过目标可用参考槽，扣除角色/场景参考后至少保留 1 张技能帧。默认 1～2 张。
 3. 每镜生成关键帧，变量名 `output_image_kf_<分镜>_<序号>`，关键帧不拼接。
 4. 角色参考按视角分开建节点（正面、侧面、背面、面部），一个节点只输出一个视角；场景参考单独节点。这些节点会被所有分镜视频节点共享。
@@ -123,7 +136,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 ## 7B. 整段参考图视频：分镜参考图与拼接
 
 1. 每镜生成一张参考图，变量名 `output_image_ref_<分镜>`；不做首尾帧。参考图提示词只写视觉，不写台词、口型或字幕；台词留到视频提示词。
-2. 读「参考图生视频（单段）」或「连续生成（长）」目标的单段上限（H3 通常 15 秒 / 362 帧）。单段 `i2v_ref` 的 `length` 按 `duration_limits` 换算，不要按 24fps 直接乘后取整。
+2. 读「参考图生视频（单段）」或「连续生成（长）」目标的单段上限（H3 通常 15 秒 / 362 帧）。单段 `i2v_ref` 的 `length` 按 `duration_limits` 换算，不要按 24fps 直接乘后取整；这里的上限只约束**单个普通视频节点**，不是整条成片。
 3. 按总时长内部切段：不超过单段上限就一段；超过就按上限切段，60 秒默认 4 段。
 4. 每段建一个图片拼接工具节点（`canvas_add_node` 的 `kind=concat`、`media_kind=image`），`layout=grid`、`columns=N`，拼接该段全部参考图，变量名 `output_image_ref_group_<段号>`；拼接图始终是一行 N 张。
 5. 确认后先执行拼接节点，给用户看每段拼接图。
@@ -165,7 +178,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 
 ## 8B. 整段参考图视频
 
-1. 总时长不超过单段上限：建一个 `output_video_single`，套用「参考图生视频（单段）」目标，**apply_menu 时一并传 bindings**（`image` → 该段拼接图），直接执行。`length` 按节点 schema 的 `duration_limits` 换算；H3 的 10 秒是 243 帧，不要写 240 或 241。
+1. 总时长不超过单段上限：建一个 `output_video_single`，套用「参考图生视频（单段）」目标，**apply_menu 时一并传 bindings**（`image` → 该段拼接图），直接执行。这是普通视频节点，所以 `length` 按节点 schema 的 `duration_limits` 换算；H3 的 10 秒是 243 帧，不要写 240 或 241。
 2. 总时长超过单段上限：建一个 `output_video_long`，套用「连续生成（长）」目标（`minimax_h3_extender`）。
    - `clips_json` 写 `{"version":2,"generation_mode":"ref2va","motion_context":true,"clips":[...]}`；
    - 每段一个 clip，包含 prompt、duration、固定 seed；每段不超过 15 秒；
@@ -241,7 +254,7 @@ allowed-tools: ask_user load_skill read_skill_file list_skill_files update_sessi
 - A2 不暴露逐镜音频三选一；B 不出现 A1 的 `previous_tail` / `global_bed` / 接缝淡化。A2/B 的 `audio_context_length` 默认 0。
 - 视频节点套菜单时，**apply_menu 时一并传 bindings**；先 apply 再 `canvas_set_binding` 会多建一个空输入节点。
 - 关键帧/参考图提示词只写视觉，不写台词、口型、字幕或声音；台词只进视频提示词或音频节点。
-- 写 `length` 前读 `duration_limits`，按 `fps`、`align_base`、`align_offset` 换算并夹在 min/max，不要按 24fps 直接乘或沿用默认帧数。
+- 只有普通视频节点需要写 `length`；先读 `duration_limits`，按 `fps`、`align_base`、`align_offset` 换算并夹在 min/max，不要按 24fps 直接乘或沿用默认帧数。数字人口播和动作迁移忽略 `length`，分别跟音频和参考视频走，超过单段上限会自动分段。
 - 角色参考默认绑定，前提是目标有额外图片槽；用户要求去掉时，让画布技能断线并清掉对应 binding。
 - 关键帧数量受目标参考槽限制，不要生成目标用不上的关键帧。
 - 可以自动整理画布；整理后检查分镜视频和拼接节点的顺序，避免视频节点混进分镜图。

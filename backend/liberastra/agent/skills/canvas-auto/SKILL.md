@@ -42,6 +42,7 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
 
 ## 提示词
 
+- H3 视频提示词用 `load_skill("h3-prompt-writing")`；Qwen Image 2.1 图片/编辑提示词用 `load_skill("qwen-image-2-1-prompt-writing")`。两个 skill 只产出提示词，节点和连线仍按本技能处理。
 - 文本变量用 `{{变量名}}` 引用，提交时会替换成文本输入的内容。
 - 图片引用写成 `<Picture 1>`、`<Picture 2>`，与槽位顺序一致。
 - 引用角色时说明「保持同一人物，五官、发型、服装一致」。
@@ -60,6 +61,17 @@ allowed-tools: ask_user list_canvas_menu list_workflows list_execution_specs can
   - `vcTuning`：`{advanced, convertAll, segmentPadding, mergeGap, minSegment, normalizeLoudness, targetLufs, denoise, outputSampleRate, refStart, refDuration, seed, diffusionSteps, inferenceCfgRate, nQuantizers, temperature, lengthAdjust, overlapFrameLen, maxWindow, context, fade, refMaxLen, extraJson}`。
   - `convertAll=true` 时整段替换，不再依赖分段。Chatterbox 只用参考音频前 10 秒；Seed-VC 支持 `seed`、`diffusionSteps` 等参数，参考默认最多 25 秒。
 - 只有 Liber Speech 支持高级参数；其他 TTS/ASR 服务只写通用字段。上传 srt 属于属性面板的人工操作；Agent 只能复用已有 subtitle 资产，不要伪造 `assetId`。
+
+## 视频时长
+
+先看 `canvas_get_node_schema` 的 `duration_rule`，不要只看 `duration_limits`：
+
+- 普通视频节点（t2v / i2v / i2v_ref / orbit）：手动写 `length`；`duration_limits` 是单段上限，不是成片总时长上限。接了参考音频也不会按音频长度自动延长；更长用分段拼接或 `clips_json`。
+- 数字人口播（avatar）：时长跟随音频，`length` 被忽略；超过单段上限自动切片并拼接，不要压缩文案或音频。
+- 动作迁移（motion）：时长跟随参考视频，`length` 被忽略；超过单段上限自动切分参考视频并衔接，不要裁短参考视频。
+- 连续生成（clips_json）：按每段 `duration` 控制，单段 ≤ 模型上限，总时长可超过。
+- 修复放大 / 视频理解：跟随输入视频，不填 `length`。
+- 拼接节点：各输入片段时长之和，没有总上限。
 
 ## Gotchas
 

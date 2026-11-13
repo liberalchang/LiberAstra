@@ -125,7 +125,7 @@ subject_definitions: <Picture {n}> = 本段分镜参考图。
 
 ## 时长与帧数
 
-单段视频节点的 `length` 按节点 schema 的 `duration_limits` 换算，不要按 24fps 直接乘后取整：
+普通单段视频节点（t2v / i2v / i2v_ref / orbit）的 `length` 按节点 schema 的 `duration_limits` 换算，不要按 24fps 直接乘后取整：
 
 ```text
 raw = ceil(秒 × fps)
@@ -134,6 +134,8 @@ frames = min(max(frames, min), max)
 ```
 
 H3 的 `fps=24`、`align_base=17`、`align_offset=5`：10 秒 = 243 帧，15 秒 = 362 帧。Extender 的 `clips_json.duration` 直接写秒。
+
+数字人口播和动作迁移不适用上面的 `length`：口播时长跟随音频，动作迁移跟随参考视频，超过单段上限时执行器会自动切片/切分并拼接。不要要求用户压缩文案、缩短音频或裁短参考视频。
 
 ## 示例
 

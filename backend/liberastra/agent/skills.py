@@ -27,7 +27,15 @@ MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 32 * 1024 * 1024
 MAX_FILES = 1000
 BUILTIN_NAMES = frozenset(
-    {"director", "canvas-auto", "skill-creator", "liberastra", "project-info"}
+    {
+        "director",
+        "canvas-auto",
+        "skill-creator",
+        "liberastra",
+        "project-info",
+        "h3-prompt-writing",
+        "qwen-image-2-1-prompt-writing",
+    }
 )
 _FRONT_MATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
 _TEXT_SUFFIXES = {

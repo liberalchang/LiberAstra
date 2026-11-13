@@ -13,6 +13,7 @@ import { applyMenuToNode, resolveSpec, specsForMenu } from "@/canvas/applyMenu";
 import { applyPackToNode } from "@/canvas/applyPack";
 import { bindingSources, findNodeByVar } from "@/canvas/bindings";
 import { discardableNodeIds } from "@/canvas/discard";
+import { durationRuleFor } from "@/canvas/durationRule";
 import {
   canApplyMenu,
   canApplyPack,
@@ -358,6 +359,11 @@ export async function executeClientTool(
         spec?.target_type === "workflow"
           ? packs.find((item) => item.name === spec.target_id)
           : undefined;
+      const capability = pack?.capability ?? spec?.sub_capability ?? null;
+      const durationRule =
+        kind === "function"
+          ? durationRuleFor(capability, Boolean(pack?.inputs?.clips_json))
+          : null;
       return ok({
         node: { id: node.id, type: node.type, position: node.position, data: node.data },
         schema: {
@@ -373,9 +379,11 @@ export async function executeClientTool(
                 provider_name: spec.provider_name,
               }
             : null,
+          capability,
           media_slots: spec?.media_slots ?? [],
           inputs: spec?.inputs ?? {},
-          duration_limits: pack?.duration_limits ?? null,
+          duration_limits: durationRule?.lengthIgnored ? null : (pack?.duration_limits ?? null),
+          duration_rule: durationRule,
           values: kind === "function" ? (data.values ?? {}) : undefined,
           bindings: kind === "function" ? (data.bindings ?? {}) : undefined,
           notes: [
@@ -383,6 +391,7 @@ export async function executeClientTool(
             "本地视频包常用 length 帧数；云端模型常用 duration 秒。",
             "有 duration_limits 时按 fps、align_base、align_offset 把秒换算成帧，不要按 24fps 或默认帧数猜。",
             "语音节点的 ttsTuning/asrTuning/vcTuning 是整份对象；先读当前值，只改需要的键后整份写回。",
+            ...(durationRule ? [durationRule.note] : []),
           ],
         },
       });
