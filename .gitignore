@@ -49,6 +49,10 @@ frontend/vite.config.js
 /scripts/
 backend/scripts/
 
+# 语音服务本地运行产物
+services/speech/files/
+services/speech/results/
+
 # Windows 安装包构建缓存与产物
 packaging/windows/stage/
 packaging/windows/cache/

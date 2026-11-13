@@ -88,6 +88,46 @@ docker compose up -d
 
 返回的 `chunks` 都是句子级：`start`、`end`、`text`。Qwen3-ASR 原始结果是字或词，服务会按标点或超过 0.6 秒的停顿收成句子，主服务导出 SRT / VTT 不用另写解析。
 
+## v2 JSON 接口
+
+v2 用于新接入：先上传文件拿 `file_id`，再用 JSON 调用。旧的 `/api/v1` multipart 接口继续保留。
+
+- `POST /api/v2/files`：multipart 上传，返回 `file_id`、`filename`、`size`、`sha256`、`expires_at`。分块写盘，默认不限制大小。
+- `DELETE /api/v2/files/{file_id}`：删除上传文件。
+- `GET /api/v2/help`：全部功能、端点、错误码和运行时版本。
+- `GET /api/v2/help/{function}`：功能级参数（`tts` / `asr` / `vc`）。
+- `GET /api/v2/help/{function}/{model}`：模型级参数、默认值、范围、不支持原因和示例。支持 `?include=common,model,examples,errors,unsupported` 和 `?format=markdown`。
+- `GET /api/v2/models`：模型目录，含 `params_url`、`supports`、`unsupported`。
+- `POST /api/v2/tts/synthesize`：JSON，字段见 `/api/v2/help/tts/{model}`。
+- `POST /api/v2/asr/transcribe`：JSON，字段见 `/api/v2/help/asr/{model}`。
+- `POST /api/v2/vc/convert`：JSON，字段见 `/api/v2/help/vc/{model}`。
+
+示例：
+
+```bash
+# 1. 上传
+curl -X POST http://speech:5555/api/v2/files -F file=@input.wav
+
+# 2. TTS
+curl -X POST http://speech:5555/api/v2/tts/synthesize \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"你好","model":"multilingual_v3","language":"zh","exaggeration":0.7,"speed":0.9}'
+
+# 3. ASR
+curl -X POST http://speech:5555/api/v2/asr/transcribe \
+  -H 'Content-Type: application/json' \
+  -d '{"file_id":"f_xxx","model":"large-v3","timestamps":"word","vad_filter":true}'
+
+# 4. VC
+curl -X POST http://speech:5555/api/v2/vc/convert \
+  -H 'Content-Type: application/json' \
+  -d '{"file_id":"f_xxx","prompt_file_id":"f_ref","model":"seed-vc","diffusion_steps":20,"seed":42}'
+```
+
+服务端默认不限制音频时长或上传大小；`LIBER_SPEECH_MAX_UPLOAD_BYTES` 与 `LIBER_SPEECH_MAX_MEDIA_SECONDS` 只在运维显式设置时生效（默认 0 = 不限制）。参考音频上限、Qwen `max_new_tokens` 等模型限制写在 `/api/v2/help` 的 `model_limits` 里。
+
+`timestamps=word` 时 ASR 返回顶层 `words` 数组；`response_format` 支持 `json`、`text`、`srt`、`vtt`。
+
 ## 显存
 
 每次合成或转写结束都会丢掉当前模型，并调用 `gc.collect()` 与 `torch.cuda.empty_cache()`。同一次请求里不会让 Chatterbox 和识别模型一起留在显存上。Qwen3-ASR 使用 Transformers 后端，不会按 vLLM 的方式预占整张卡。换音/分离同样在请求结束后释放模型。

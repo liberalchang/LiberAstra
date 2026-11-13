@@ -233,8 +233,7 @@ def default_asr_model() -> str:
     name = Path(model_id).name
     if name.lower().startswith("qwen3-asr"):
         return "qwen3-asr-1.7b"
-    if name.startswith("faster-whisper-"):
-        name = name[len("faster-whisper-") :]
+    name = name.removeprefix("faster-whisper-")
     return name if name in _ASR_CANONICAL else model_id
 
 
@@ -419,6 +418,14 @@ def synthesize(
     model: str,
     language: str | None,
     audio_prompt: str | None,
+    exaggeration: float | None = None,
+    cfg_weight: float | None = None,
+    temperature: float | None = None,
+    repetition_penalty: float | None = None,
+    min_p: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
+    norm_loudness: bool | None = None,
 ) -> tuple[object, int]:
     """返回 (waveform tensor, sample_rate)。结束后释放 TTS 显存。"""
     model_id = resolve_model(model)
@@ -431,6 +438,40 @@ def synthesize(
             kwargs: dict = {"audio_prompt_path": audio_prompt}
             if language_id:
                 kwargs["language_id"] = language_id
+            if spec["kind"] == "turbo":
+                for name, value in (
+                    ("exaggeration", exaggeration),
+                    ("cfg_weight", cfg_weight),
+                    ("min_p", min_p),
+                ):
+                    if value is not None:
+                        raise ValueError(f"模型 {model_id} 不支持 {name}")
+                for name, value in (
+                    ("temperature", temperature),
+                    ("repetition_penalty", repetition_penalty),
+                    ("top_p", top_p),
+                    ("top_k", top_k),
+                    ("norm_loudness", norm_loudness),
+                ):
+                    if value is not None:
+                        kwargs[name] = value
+            else:
+                for name, value in (
+                    ("top_k", top_k),
+                    ("norm_loudness", norm_loudness),
+                ):
+                    if value is not None:
+                        raise ValueError(f"模型 {model_id} 不支持 {name}")
+                for name, value in (
+                    ("exaggeration", exaggeration),
+                    ("cfg_weight", cfg_weight),
+                    ("temperature", temperature),
+                    ("repetition_penalty", repetition_penalty),
+                    ("min_p", min_p),
+                    ("top_p", top_p),
+                ):
+                    if value is not None:
+                        kwargs[name] = value
             try:
                 wav = tts.generate(text, **kwargs)
             except AssertionError as exc:
@@ -452,6 +493,7 @@ def transcribe(
     language: str | None,
     task: str,
     model: str | None = None,
+    **params: Any,
 ) -> dict:
     """转写。model 为空时用环境变量。结束后释放识别模型显存。"""
     model_id = resolve_asr_model(model)
@@ -462,8 +504,8 @@ def transcribe(
         _drop_tts()
         try:
             if kind == "qwen":
-                return _transcribe_qwen(audio_path, language, model_id)
-            return _transcribe_whisper(audio_path, language, task, model_id)
+                return _transcribe_qwen(audio_path, language, model_id, params)
+            return _transcribe_whisper(audio_path, language, task, model_id, params)
         finally:
             _drop_asr()
 
@@ -478,20 +520,126 @@ def _whisper_load_target(model_id: str) -> str:
     return model_id
 
 
-def _transcribe_whisper(audio_path: str, language: str | None, task: str, model_id: str) -> dict:
+_WHISPER_PARAM_NAMES = frozenset(
+    {
+        "beam_size",
+        "best_of",
+        "patience",
+        "length_penalty",
+        "repetition_penalty",
+        "no_repeat_ngram_size",
+        "temperature",
+        "compression_ratio_threshold",
+        "log_prob_threshold",
+        "no_speech_threshold",
+        "condition_on_previous_text",
+        "prompt_reset_on_temperature",
+        "initial_prompt",
+        "prefix",
+        "hotwords",
+        "suppress_blank",
+        "suppress_tokens",
+        "max_initial_timestamp",
+        "prepend_punctuations",
+        "append_punctuations",
+        "multilingual",
+        "vad_filter",
+        "vad_parameters",
+        "chunk_length",
+        "clip_timestamps",
+        "hallucination_silence_threshold",
+        "language_detection_threshold",
+        "language_detection_segments",
+        "max_new_tokens",
+    }
+)
+_QWEN_PARAM_NAMES = frozenset(
+    {"timestamps", "max_new_tokens", "max_inference_batch_size", "response_format"}
+)
+
+
+def _whisper_kwargs(params: dict[str, Any]) -> dict[str, Any]:
+    timestamps = params.get("timestamps", "segment")
+    if timestamps not in {"none", "segment", "word"}:
+        raise ValueError(f"未知 timestamps 粒度 {timestamps}")
+    kwargs: dict[str, Any] = {}
+    if timestamps == "none":
+        kwargs["without_timestamps"] = True
+    elif timestamps == "word":
+        kwargs["word_timestamps"] = True
+    for name in _WHISPER_PARAM_NAMES:
+        value = params.get(name)
+        if value is not None:
+            kwargs[name] = value
+    unknown = set(params) - _WHISPER_PARAM_NAMES - {"timestamps", "response_format"}
+    if unknown:
+        raise ValueError(f"faster-whisper 不支持参数 {', '.join(sorted(unknown))}")
+    return kwargs
+
+
+def _qwen_kwargs(params: dict[str, Any]) -> dict[str, Any]:
+    timestamps = params.get("timestamps", "segment")
+    if timestamps not in {"none", "segment", "word"}:
+        raise ValueError(f"未知 timestamps 粒度 {timestamps}")
+    unknown = set(params) - _QWEN_PARAM_NAMES
+    if unknown:
+        raise ValueError(f"Qwen3-ASR 不支持参数 {', '.join(sorted(unknown))}")
+    return {
+        "timestamps": timestamps,
+        "return_time_stamps": timestamps != "none",
+        "max_new_tokens": int(params.get("max_new_tokens", 512)),
+        "max_inference_batch_size": int(params.get("max_inference_batch_size", 4)),
+    }
+
+
+def _transcribe_whisper(
+    audio_path: str,
+    language: str | None,
+    task: str,
+    model_id: str,
+    params: dict[str, Any] | None = None,
+) -> dict:
     global _asr, _asr_name
     from faster_whisper import WhisperModel
 
     target = _whisper_load_target(model_id)
     _asr = WhisperModel(target, device=resolve_device(), compute_type="float16")
     _asr_name = model_id
-    segments, info = _asr.transcribe(audio_path, language=language or None, task=task)
-    chunks = [{"start": s.start, "end": s.end, "text": s.text.strip()} for s in segments]
+    kwargs = _whisper_kwargs(params or {})
+    segments, info = _asr.transcribe(
+        audio_path, language=language or None, task=task, **kwargs
+    )
+    chunks: list[dict[str, Any]] = []
+    words_all: list[dict[str, Any]] = []
+    for segment in segments:
+        chunk: dict[str, Any] = {
+            "start": segment.start,
+            "end": segment.end,
+            "text": segment.text.strip(),
+        }
+        segment_words = getattr(segment, "words", None)
+        if segment_words:
+            words = [
+                {
+                    "start": word.start,
+                    "end": word.end,
+                    "text": word.word,
+                    "probability": word.probability,
+                }
+                for word in segment_words
+            ]
+            chunk["words"] = words
+            words_all.extend(words)
+        chunks.append(chunk)
     public = model_id if not _is_filesystem_model(model_id) else Path(model_id).name
     return {
         "text": "".join(c["text"] for c in chunks).strip(),
         "chunks": chunks,
+        "words": words_all,
         "language": info.language,
+        "language_probability": getattr(info, "language_probability", None),
+        "duration": getattr(info, "duration", None),
+        "duration_after_vad": getattr(info, "duration_after_vad", None),
         "model": public,
     }
 
@@ -564,7 +712,7 @@ def _ensure_qwen_transformers_compat() -> None:
     """qwen-asr 0.0.6 按 transformers 4.57 编写。5.2 删了装饰器，也不再登记 default RoPE。"""
     import torch
     import transformers.modeling_rope_utils as rope_utils
-    import transformers.utils.generic as generic
+    from transformers.utils import generic
 
     if not hasattr(generic, "check_model_inputs"):
 
@@ -598,7 +746,9 @@ def _ensure_qwen_transformers_compat() -> None:
         rope_utils.ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
 
     # transformers 5.2 不再给每个 config 自动放 pad_token_id，Qwen thinker 初始化会读它。
-    from qwen_asr.core.transformers_backend.configuration_qwen3_asr import Qwen3ASRThinkerConfig
+    from qwen_asr.core.transformers_backend.configuration_qwen3_asr import (
+        Qwen3ASRThinkerConfig,
+    )
 
     if getattr(Qwen3ASRThinkerConfig, "_liber_pad_patched", False):
         return
@@ -622,9 +772,12 @@ def _ensure_qwen_transformers_compat() -> None:
         return self.rope_init_fn(config, device)
 
     for cls in vars(qwen_modeling).values():
-        if isinstance(cls, type) and "RotaryEmbedding" in cls.__name__:
-            if "compute_default_rope_parameters" not in cls.__dict__:
-                cls.compute_default_rope_parameters = compute_default_rope_parameters
+        if (
+            isinstance(cls, type)
+            and "RotaryEmbedding" in cls.__name__
+            and "compute_default_rope_parameters" not in cls.__dict__
+        ):
+            cls.compute_default_rope_parameters = compute_default_rope_parameters
 
     # qwen-asr 传入 fix_mistral_regex，transformers 5.2 又原样展开 kwargs，会重复传参。
     from transformers import AutoProcessor
@@ -640,10 +793,16 @@ def _ensure_qwen_transformers_compat() -> None:
         AutoProcessor._liber_mistral_patched = True
 
 
-def _transcribe_qwen(audio_path: str, language: str | None, model_id: str) -> dict:
+def _transcribe_qwen(
+    audio_path: str,
+    language: str | None,
+    model_id: str,
+    params: dict[str, Any] | None = None,
+) -> dict:
     global _asr, _asr_name
     import torch
 
+    options = _qwen_kwargs(params or {})
     _ensure_qwen_transformers_compat()
     from qwen_asr import Qwen3ASRModel
 
@@ -662,8 +821,8 @@ def _transcribe_qwen(audio_path: str, language: str | None, model_id: str) -> di
         asr_path,
         dtype=dtype,
         device_map=device,
-        max_inference_batch_size=4,
-        max_new_tokens=512,
+        max_inference_batch_size=options["max_inference_batch_size"],
+        max_new_tokens=options["max_new_tokens"],
         forced_aligner=aligner,
         forced_aligner_kwargs={"dtype": dtype, "device_map": device},
     )
@@ -672,20 +831,33 @@ def _transcribe_qwen(audio_path: str, language: str | None, model_id: str) -> di
     results = _asr.transcribe(
         audio=audio_path,
         language=qwen_language,
-        return_time_stamps=True,
+        return_time_stamps=options["return_time_stamps"],
     )
     first = results[0] if results else None
     text = str(getattr(first, "text", "") or "").strip()
     stamps = getattr(first, "time_stamps", None) if first is not None else None
     items = list(stamps) if stamps is not None else []
-    chunks = _aggregate_qwen_chunks(items)
+    chunks = _aggregate_qwen_chunks(items) if options["return_time_stamps"] else []
     if not chunks and text:
         chunks = [{"start": 0.0, "end": 0.0, "text": text}]
+    words: list[dict[str, Any]] = []
+    if options["timestamps"] == "word":
+        for item in items:
+            word = str(getattr(item, "text", "") or "")
+            if not word:
+                continue
+            start = float(getattr(item, "start_time", 0.0) or 0.0)
+            end = float(getattr(item, "end_time", start) or start)
+            words.append({"start": start, "end": end, "text": word})
     detected = _iso_from_qwen(getattr(first, "language", None) if first is not None else None)
     return {
         "text": text or "".join(c["text"] for c in chunks).strip(),
         "chunks": chunks,
+        "words": words,
         "language": detected or (language or None),
+        "language_probability": None,
+        "duration": None,
+        "duration_after_vad": None,
         "model": "qwen3-asr-1.7b",
     }
 
@@ -843,7 +1015,7 @@ def _install_dac_stub() -> None:
     quantize = types.ModuleType("dac.nn.quantize")
     quantize.__spec__ = importlib.machinery.ModuleSpec("dac.nn.quantize", loader=None)
 
-    class VectorQuantize:  # noqa: D401
+    class VectorQuantize:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise RuntimeError("dac 未安装；当前 VC 模型不需要 vector_quantize")
 
@@ -879,12 +1051,11 @@ def _load_seedvc_models(device: str) -> dict[str, Any]:
     _ensure_seedvc_compat()
     import torch
     import yaml
-    from transformers import AutoFeatureExtractor, WhisperModel
-
     from modules.audio import mel_spectrogram
     from modules.bigvgan import bigvgan
     from modules.campplus.DTDNN import CAMPPlus
     from modules.commons import build_model, load_checkpoint, recursive_munch
+    from transformers import AutoFeatureExtractor, WhisperModel
 
     dirs = _seedvc_dirs()
     model_dir = dirs["model"]
@@ -1024,7 +1195,11 @@ def _load_vc(model_id: str, device: str) -> dict[str, Any]:
 
 
 def _normalize_segments(
-    segments: list[dict[str, Any]] | None, duration: float
+    segments: list[dict[str, Any]] | None,
+    duration: float,
+    *,
+    merge_gap: float = 0.05,
+    min_segment: float = 0.02,
 ) -> list[tuple[float, float]]:
     if segments is None:
         return [(0.0, duration)]
@@ -1042,12 +1217,12 @@ def _normalize_segments(
             end = max(0.0, min(duration, float(end)))
         except (TypeError, ValueError):
             continue
-        if end - start >= 0.02:
+        if end - start >= min_segment:
             raw.append((start, end))
     raw.sort()
     merged: list[tuple[float, float]] = []
     for start, end in raw:
-        if merged and start - merged[-1][1] < 0.05:
+        if merged and start - merged[-1][1] < merge_gap:
             merged[-1] = (merged[-1][0], max(merged[-1][1], end))
         else:
             merged.append((start, end))
@@ -1058,22 +1233,26 @@ def _split_segment(start: float, end: float, max_window: float) -> list[tuple[fl
     length = end - start
     if length <= max_window:
         return [(start, end)]
-    count = max(2, int(math.ceil(length / max_window)))
+    count = max(2, math.ceil(length / max_window))
     step = length / count
     return [(start + index * step, start + (index + 1) * step) for index in range(count)]
 
 
 def _plan_windows(
-    segments: list[tuple[float, float]], duration: float
+    segments: list[tuple[float, float]],
+    duration: float,
+    *,
+    max_window: float = _VC_MAX_WINDOW_S,
+    context: float = _VC_CONTEXT_S,
 ) -> list[tuple[float, float, float, float]]:
     """返回 (窗口起点, 窗口终点, 写回起点, 写回终点)。"""
     windows: list[tuple[float, float, float, float]] = []
     for index, (start, end) in enumerate(segments):
         left = segments[index - 1][1] if index > 0 else 0.0
         right = segments[index + 1][0] if index + 1 < len(segments) else duration
-        for piece_start, piece_end in _split_segment(start, end, _VC_MAX_WINDOW_S):
-            win_start = max(piece_start - _VC_CONTEXT_S, left, 0.0)
-            win_end = min(piece_end + _VC_CONTEXT_S, right, duration)
+        for piece_start, piece_end in _split_segment(start, end, max_window):
+            win_start = max(piece_start - context, left, 0.0)
+            win_end = min(piece_end + context, right, duration)
             if win_end - win_start >= 0.02:
                 windows.append((win_start, win_end, piece_start, piece_end))
     return windows
@@ -1097,10 +1276,10 @@ def _fit_length(audio: Any, length: int) -> Any:
     return np.pad(audio, (0, length - len(audio))).astype(np.float32)
 
 
-def _fade_edges(audio: Any, sample_rate: int) -> None:
+def _fade_edges(audio: Any, sample_rate: int, fade_seconds: float = _VC_FADE_S) -> None:
     import numpy as np
 
-    fade = min(int(_VC_FADE_S * sample_rate), len(audio) // 2)
+    fade = min(int(fade_seconds * sample_rate), len(audio) // 2)
     if fade <= 0:
         return
     ramp = (np.cos(np.linspace(np.pi, 0, fade)) + 1.0) / 2.0
@@ -1132,7 +1311,16 @@ def _chatterbox_convert(vc: dict[str, Any], window_path: Path) -> tuple[Any, int
 
 
 def _seedvc_convert(
-    window_path: Path, prompt: str, models: dict[str, Any]
+    window_path: Path,
+    prompt: str,
+    models: dict[str, Any],
+    *,
+    diffusion_steps: int = 10,
+    inference_cfg_rate: float = 0.7,
+    n_quantizers: int = 3,
+    temperature: float = 1.0,
+    length_adjust: float = 1.0,
+    overlap_frame_len: int = 16,
 ) -> tuple[Any, int]:
     import librosa
     import numpy as np
@@ -1163,7 +1351,9 @@ def _seedvc_convert(
     mel_fn = models["to_mel"]
     mel = mel_fn(source.float())
     mel2 = mel_fn(reference.float())
-    target_lengths = torch.LongTensor([int(mel.size(2) * 1.0)]).to(mel.device)
+    target_lengths = torch.LongTensor(
+        [max(1, int(mel.size(2) * length_adjust))]
+    ).to(mel.device)
     target2_lengths = torch.LongTensor([mel2.size(2)]).to(mel2.device)
 
     feat2 = torchaudio.compliance.kaldi.fbank(
@@ -1178,14 +1368,13 @@ def _seedvc_convert(
 
     model = models["model"]
     cond, _, _, _, _ = model.length_regulator(
-        s_alt, ylens=target_lengths, n_quantizers=3, f0=None
+        s_alt, ylens=target_lengths, n_quantizers=n_quantizers, f0=None
     )
     prompt_condition, _, _, _, _ = model.length_regulator(
-        s_ori, ylens=target2_lengths, n_quantizers=3, f0=None
+        s_ori, ylens=target2_lengths, n_quantizers=n_quantizers, f0=None
     )
 
     max_context_window = sr // hop_length * 30
-    overlap_frame_len = 16
     overlap_wave_len = overlap_frame_len * hop_length
     max_source_window = max_context_window - mel2.size(2)
     if max_source_window <= 0:
@@ -1210,8 +1399,9 @@ def _seedvc_convert(
                 mel2,
                 style2,
                 None,
-                10,
-                inference_cfg_rate=0.7,
+                diffusion_steps,
+                temperature=temperature,
+                inference_cfg_rate=inference_cfg_rate,
             )
             vc_target = vc_target[:, :, mel2.size(-1):]
         with torch.no_grad():
@@ -1247,12 +1437,75 @@ def _seedvc_convert(
     return audio, sr
 
 
+def _pad_segments(
+    segments: list[tuple[float, float]], duration: float, padding: float
+) -> list[tuple[float, float]]:
+    if padding <= 0:
+        return segments
+    padded = [
+        {"start": max(0.0, start - padding), "end": min(duration, end + padding)}
+        for start, end in segments
+    ]
+    return _normalize_segments(padded, duration, merge_gap=0.0, min_segment=0.0)
+
+
+def _prepare_reference(
+    prompt: Path,
+    *,
+    ref_start: float,
+    ref_duration: float,
+    ref_max_len: float | None,
+    temp_dir: Path,
+) -> Path:
+    import librosa
+    import soundfile as sf
+
+    audio, sample_rate = librosa.load(str(prompt), sr=None, mono=True)
+    if not len(audio) or sample_rate <= 0:
+        raise ValueError("参考音频为空")
+    total = len(audio) / float(sample_rate)
+    start = max(0.0, min(ref_start, total))
+    duration = ref_duration if ref_duration > 0 else max(0.0, total - start)
+    if ref_max_len is not None:
+        duration = min(duration, ref_max_len)
+    if start <= 0 and duration >= total:
+        return prompt
+    end = min(total, start + duration)
+    if end <= start:
+        raise ValueError("参考音频切片为空")
+    target = temp_dir / f"reference{Path(prompt).suffix or '.wav'}"
+    sf.write(
+        target,
+        audio[int(start * sample_rate) : int(end * sample_rate)],
+        sample_rate,
+        subtype="PCM_16",
+    )
+    return target
+
+
 def convert(
     source: str,
     *,
     model: str | None,
     prompt: str | None,
     segments: list[dict[str, Any]] | None,
+    convert_all: bool = False,
+    segment_padding: float = 0.0,
+    merge_gap: float = 0.05,
+    min_segment: float = 0.02,
+    ref_start: float = 0.0,
+    ref_duration: float = 0.0,
+    ref_max_len: float | None = None,
+    seed: int | None = None,
+    diffusion_steps: int = 10,
+    inference_cfg_rate: float = 0.7,
+    n_quantizers: int = 3,
+    temperature: float = 1.0,
+    max_window: float = _VC_MAX_WINDOW_S,
+    context: float = _VC_CONTEXT_S,
+    fade: float = _VC_FADE_S,
+    length_adjust: float = 1.0,
+    overlap_frame_len: int = 16,
 ) -> tuple[Any, int]:
     """按分段换音，未覆盖区间保留原始输入。返回 (音频数组, 采样率)。"""
     import librosa
@@ -1262,48 +1515,88 @@ def convert(
     model_id = resolve_vc_model(model)
     if not prompt or not Path(prompt).is_file():
         raise ValueError("参考音频不存在")
+    if convert_all:
+        if segments:
+            raise ValueError("convert_all=true 时不能同时传 segments")
+        segments = None
     audio, sample_rate = librosa.load(source, sr=None, mono=True)
     audio = np.asarray(audio, dtype=np.float32)
     if not len(audio):
         raise ValueError("源音频为空")
     duration = len(audio) / float(sample_rate)
-    normalized = _normalize_segments(segments, duration)
+    normalized = _normalize_segments(
+        segments, duration, merge_gap=merge_gap, min_segment=min_segment
+    )
+    normalized = _pad_segments(normalized, duration, segment_padding)
     if not normalized:
         raise ValueError("没有可用的换音分段")
-    windows = _plan_windows(normalized, duration)
+    windows = _plan_windows(normalized, duration, max_window=max_window, context=context)
     if not windows:
         raise ValueError("没有可用的换音分段")
 
     device = resolve_device()
+    reference_max = (
+        10.0 if model_id == "chatterbox" else (ref_max_len if ref_max_len is not None else 25.0)
+    )
     with _lock:
         _drop_tts()
         _drop_asr()
         try:
+            if seed is not None:
+                import torch
+
+                torch.manual_seed(int(seed))
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(int(seed))
             vc = _load_vc(model_id, device)
-            if model_id == "chatterbox":
-                vc["model"].set_target_voice(str(prompt))
-            output = audio.copy()
             with tempfile.TemporaryDirectory(prefix="liber-vc-") as temp:
                 temp_dir = Path(temp)
+                reference = _prepare_reference(
+                    Path(prompt),
+                    ref_start=ref_start,
+                    ref_duration=ref_duration,
+                    ref_max_len=reference_max,
+                    temp_dir=temp_dir,
+                )
+                if model_id == "chatterbox":
+                    vc["model"].set_target_voice(str(reference))
+                output = audio.copy()
                 for index, (win_start, win_end, seg_start, seg_end) in enumerate(windows):
                     window_path = temp_dir / f"window-{index:04d}.wav"
-                    start_sample = max(0, int(round(win_start * sample_rate)))
-                    end_sample = min(len(audio), int(round(win_end * sample_rate)))
-                    sf.write(window_path, audio[start_sample:end_sample], sample_rate, subtype="PCM_16")
+                    start_sample = max(0, round(win_start * sample_rate))
+                    end_sample = min(len(audio), round(win_end * sample_rate))
+                    sf.write(
+                        window_path,
+                        audio[start_sample:end_sample],
+                        sample_rate,
+                        subtype="PCM_16",
+                    )
                     if model_id == "chatterbox":
                         converted, converted_sr = _chatterbox_convert(vc, window_path)
                     else:
-                        converted, converted_sr = _seedvc_convert(window_path, str(prompt), vc)
-                    converted = _resample(np.asarray(converted, dtype=np.float32), converted_sr, sample_rate)
-                    window_len = max(0, int(round((win_end - win_start) * sample_rate)))
+                        converted, converted_sr = _seedvc_convert(
+                            window_path,
+                            str(reference),
+                            vc,
+                            diffusion_steps=diffusion_steps,
+                            inference_cfg_rate=inference_cfg_rate,
+                            n_quantizers=n_quantizers,
+                            temperature=temperature,
+                            length_adjust=length_adjust,
+                            overlap_frame_len=overlap_frame_len,
+                        )
+                    converted = _resample(
+                        np.asarray(converted, dtype=np.float32), converted_sr, sample_rate
+                    )
+                    window_len = max(0, round((win_end - win_start) * sample_rate))
                     converted = _fit_length(converted, window_len)
-                    crop_start = int(round((seg_start - win_start) * sample_rate))
-                    crop_end = int(round((seg_end - win_start) * sample_rate))
+                    crop_start = round((seg_start - win_start) * sample_rate)
+                    crop_end = round((seg_end - win_start) * sample_rate)
                     crop = converted[crop_start:crop_end]
-                    write_start = max(0, int(round(seg_start * sample_rate)))
-                    write_end = min(len(output), int(round(seg_end * sample_rate)))
+                    write_start = max(0, round(seg_start * sample_rate))
+                    write_end = min(len(output), round(seg_end * sample_rate))
                     crop = _fit_length(crop, write_end - write_start)
-                    _fade_edges(crop, sample_rate)
+                    _fade_edges(crop, sample_rate, fade)
                     output[write_start:write_end] = crop
             return output, sample_rate
         finally:
@@ -1313,7 +1606,6 @@ def convert(
 def separate(source: str) -> tuple[Any, Any, int]:
     """用 Demucs 分离 vocals / accompaniment，返回两个 [channels, samples] 数组。"""
     import numpy as np
-    import torch
     import torchaudio
     from demucs.apply import apply_model
     from demucs.pretrained import get_model

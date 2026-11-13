@@ -19,6 +19,7 @@ services:
       LIBER_SPEECH_TTS_MODEL: ${LIBER_SPEECH_TTS_MODEL:-multilingual_v3}
       # 换音：Chatterbox VC 默认；Seed-VC / Demucs 权重按 /models 下的固定目录读取
       LIBER_SPEECH_VC_MODEL: ${LIBER_SPEECH_VC_MODEL:-chatterbox}
+      LIBER_SPEECH_FILES_DIR: /data/files
       LIBER_SPEECH_SEEDVC_DIR: ${LIBER_SPEECH_SEEDVC_DIR:-/models/Seed-VC}
       LIBER_SPEECH_WHISPER_SMALL_DIR: ${LIBER_SPEECH_WHISPER_SMALL_DIR:-/models/whisper-small}
       LIBER_SPEECH_CAMPPLUS_DIR: ${LIBER_SPEECH_CAMPPLUS_DIR:-/models/campplus}
@@ -34,9 +35,15 @@ services:
       # 未设置时用命名卷；设成宿主机目录则直接挂载已有权重
       - ${LIBER_SPEECH_MODELS_DIR:-speech-models}:/models
       - speech-results:/data/results
+      - speech-files:/data/files
       # 接口代码挂载进容器，改模型列表接口时不用重新构建镜像
       - ./server.py:/app/server.py:ro
       - ./engine.py:/app/engine.py:ro
+      - ./params.py:/app/params.py:ro
+      - ./validation.py:/app/validation.py:ro
+      - ./files.py:/app/files.py:ro
+      - ./help_api.py:/app/help_api.py:ro
+      - ./postprocess.py:/app/postprocess.py:ro
       - ./third_party:/app/third_party:ro
       # 中文分词模型。宿主机已有 ~/.pkuseg 时挂进来，避免再从 GitHub 下载
       - ${PKUSEG_HOST_DIR:-pkuseg-home}:/root/.pkuseg
@@ -51,4 +58,5 @@ services:
 volumes:
   speech-models:
   speech-results:
+  speech-files:
   pkuseg-home:

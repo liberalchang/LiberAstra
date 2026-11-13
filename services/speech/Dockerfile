@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu124 \
     && pip uninstall -y torchvision
 
-COPY engine.py server.py ./
+COPY engine.py server.py params.py validation.py files.py help_api.py postprocess.py ./
 COPY third_party ./third_party
 EXPOSE 5555
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5555"]
