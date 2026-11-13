@@ -33,6 +33,7 @@ from liberastra.services.canvas_graph import (
     translate_prompt_slots,
 )
 from liberastra.services.characters import ensure_character_asset, expand_reference_paths, slot_path
+from liberastra.services.tts_tuning import supports_emotion_model, tts_options
 from liberastra.services.workflows import WorkflowPack, get_pack
 from liberastra.storage import resolve
 
@@ -999,6 +1000,8 @@ async def _execute_speech(
         language = str(data.get("language") or "").strip()
         if language:
             options["language"] = language
+        tts_model = str(data.get("model") or "")
+        options.update(tts_options(data.get("ttsTuning"), supports_emotion_model(tts_model)))
         fmt = str(data.get("format") or "mp3").strip() or "mp3"
         if fmt not in {"mp3", "wav", "ogg_opus"}:
             fmt = "mp3"

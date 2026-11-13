@@ -1,6 +1,7 @@
 """字幕导出与 TTS/ASR 适配器契约测试（MockTransport）。"""
 
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -204,6 +205,8 @@ def test_liber_speech_asr_model_passthrough(tmp_path) -> None:  # noqa: ANN001
     seen: list[bytes] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/help":
+            return httpx.Response(404)
         seen.append(request.content)
         return httpx.Response(
             200,
@@ -281,6 +284,8 @@ def test_liber_speech_default_asr_model(tmp_path) -> None:  # noqa: ANN001
     seen: list[bytes] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/help":
+            return httpx.Response(404)
         seen.append(request.content)
         return httpx.Response(200, json={"text": "你好", "chunks": [], "meta": {}})
 
@@ -480,3 +485,123 @@ def test_liber_speech_model_and_language() -> None:
         {"model": "not-a-pack", "language": "zh"},
         {"model": "multilingual_v3", "language": "en"},
     ]
+
+
+def test_liber_speech_v2_tts_and_asr(tmp_path) -> None:  # noqa: ANN001
+    audio = tmp_path / "a.wav"
+    audio.write_bytes(b"RIFFfake")
+    seen: dict[str, dict] = {}
+    uploads = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal uploads
+        if request.url.path == "/api/v2/help":
+            return httpx.Response(200, json={})
+        if request.url.path == "/api/v2/files":
+            uploads += 1
+            return httpx.Response(200, json={"file_id": f"f_audio_{uploads}"})
+        if request.url.path == "/api/v2/tts/synthesize":
+            seen["tts"] = json.loads(request.content)
+            return httpx.Response(200, json={"audio_url": "/api/v1/results/a.wav"})
+        if request.url.path == "/api/v2/asr/transcribe":
+            seen["asr"] = json.loads(request.content)
+            return httpx.Response(
+                200,
+                json={
+                    "text": "你好",
+                    "chunks": [{"start": 0.0, "end": 1.0, "text": "你好"}],
+                    "language": "zh",
+                },
+            )
+        if request.url.path == "/api/v1/results/a.wav":
+            return httpx.Response(200, content=b"wav")
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", "k", client=client)
+            audio_bytes = await adapter.synthesize(
+                text="你好",
+                voice="zh",
+                model="multilingual_v3",
+                fmt="wav",
+                speed=0.9,
+                exaggeration=0.7,
+            )
+            assert audio_bytes == b"wav"
+            result = await adapter.transcribe(
+                file_path=str(audio),
+                language="zh",
+                timestamps="word",
+                vad_filter=True,
+            )
+            assert result.text == "你好"
+
+    asyncio.run(run())
+    assert seen["tts"]["speed"] == 0.9
+    assert seen["tts"]["exaggeration"] == 0.7
+    assert "prompt_file_id" not in seen["tts"]
+    assert seen["asr"]["file_id"] == "f_audio_1"
+    assert seen["asr"]["timestamps"] == "word"
+    assert seen["asr"]["vad_filter"] is True
+
+
+def test_liber_speech_v2_vc(tmp_path) -> None:  # noqa: ANN001
+    source = tmp_path / "source.wav"
+    prompt = tmp_path / "prompt.wav"
+    source.write_bytes(b"RIFFsource")
+    prompt.write_bytes(b"RIFFprompt")
+    seen: dict = {}
+    uploads = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal uploads
+        if request.url.path == "/api/v2/help":
+            return httpx.Response(200, json={})
+        if request.url.path == "/api/v2/files":
+            uploads += 1
+            return httpx.Response(200, json={"file_id": f"f_{uploads}"})
+        if request.url.path == "/api/v2/vc/convert":
+            seen.update(json.loads(request.content))
+            return httpx.Response(200, json={"audio_url": "/api/v1/results/vc.wav"})
+        if request.url.path == "/api/v1/results/vc.wav":
+            return httpx.Response(200, content=b"vc-audio")
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", "k", client=client)
+            out = tmp_path / "out.wav"
+            await adapter.convert_voice(
+                file_path=str(source),
+                prompt_path=str(prompt),
+                out_path=str(out),
+                model="seed-vc",
+                segments=[{"start": 0.0, "end": 1.0}],
+                seed=42,
+                diffusion_steps=20,
+            )
+            assert out.read_bytes() == b"vc-audio"
+
+    asyncio.run(run())
+    assert seen["file_id"] == "f_1"
+    assert seen["prompt_file_id"] == "f_2"
+    assert seen["model"] == "seed-vc"
+    assert seen["segments"] == [{"start": 0.0, "end": 1.0}]
+    assert seen["seed"] == 42
+    assert seen["diffusion_steps"] == 20
+
+
+def test_liber_speech_v1_rejects_v2_options() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v2/help":
+            return httpx.Response(404)
+        return httpx.Response(404)
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            adapter = LiberSpeech("http://speech:5555", "k", client=client)
+            with pytest.raises(ProviderError, match="v1"):
+                await adapter.synthesize(text="你好", voice="zh", fmt="wav", speed=0.9)
+
+    asyncio.run(run())

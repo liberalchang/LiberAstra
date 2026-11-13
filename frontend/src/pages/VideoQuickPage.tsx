@@ -28,7 +28,14 @@ import {
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
+import { TtsTuning } from "@/components/TtsTuning";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
+import {
+  DEFAULT_TTS_TUNING,
+  supportsEmotionModel,
+  ttsOptions,
+  type TtsTuning as TtsTuningValue,
+} from "@/lib/ttsTuning";
 import { TemplateThumb } from "@/components/TemplateThumb";
 import { Button, submitButtonClass } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -338,6 +345,10 @@ export function VideoQuickPage() {
     if (character?.voice_record_id) setVoiceRecordId(character.voice_record_id);
   }, [character, characterId, setVoiceRecordId, voiceRecordId]);
   const [speechLang, setSpeechLang] = usePersistentState("video-quick:speech-lang", "zh");
+  const [ttsTuning, setTtsTuning] = usePersistentState<TtsTuningValue>(
+    "video-quick:tts-tuning",
+    DEFAULT_TTS_TUNING,
+  );
 
   // ---- ④ 背景音乐 ----
   const { data: bgmList } = useQuery({ queryKey: ["bgm"], queryFn: api.listBgm });
@@ -426,6 +437,10 @@ export function VideoQuickPage() {
       tts_inputs:
         ttsIsComfy
           ? Object.fromEntries(Object.entries(ttsExtra).filter(([, v]) => v !== ""))
+          : undefined,
+      tts_options:
+        !ttsIsComfy && (ttsProvider?.type === "liber_speech" || ttsProvider == null)
+          ? ttsOptions(ttsTuning, supportsEmotionModel(speechModel))
           : undefined,
       audio_mode: tpl?.type === "video" ? audioMode : "custom",
       audio_strategy: audioContinuitySupported ? audioContinuity.strategy : "native",
@@ -1038,6 +1053,11 @@ export function VideoQuickPage() {
                 </select>
               </Field>
               <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
+              <TtsTuning
+                value={ttsTuning}
+                onChange={setTtsTuning}
+                supportsEmotion={supportsEmotionModel(speechModel)}
+              />
             </div>
           ) : (
             <>

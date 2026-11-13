@@ -26,9 +26,16 @@ import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
 import { WorkflowInputs } from "@/components/WorkflowInputs";
 import { PackSelect, WorkflowPackControl } from "@/components/WorkflowPackHint";
 import { SearchSelect } from "@/components/ui/search-select";
+import { TtsTuning } from "@/components/TtsTuning";
 import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
+import {
+  DEFAULT_TTS_TUNING,
+  supportsEmotionModel,
+  ttsOptions,
+  type TtsTuning as TtsTuningValue,
+} from "@/lib/ttsTuning";
 
 export function TtsPage() {
   const tx = useTx();
@@ -74,6 +81,10 @@ export function TtsPage() {
   }, []);
   const speechModel = useDefaultSpeechModel();
   const chosenSpeechModel = ttsModel || speechModel;
+  const [tuning, setTuning] = usePersistentState<TtsTuningValue>(
+    "tts:tuning",
+    DEFAULT_TTS_TUNING,
+  );
   const { data: speechCatalog } = useQuery({
     queryKey: ["speech-catalog"],
     queryFn: api.getSpeechCatalog,
@@ -131,7 +142,12 @@ export function TtsPage() {
         text,
         format: isEdge ? "mp3" : format,
         model: isSpeech && ttsModel ? ttsModel : isOpenAi && openAiModel ? openAiModel : undefined,
-        options: isSpeech ? { language: spokenLanguage } : undefined,
+        options: isSpeech
+          ? {
+              language: spokenLanguage,
+              ...ttsOptions(tuning, supportsEmotionModel(chosenSpeechModel)),
+            }
+          : undefined,
         workflow: isComfy ? pack?.name : undefined,
         inputs: isComfy
           ? Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== ""))
@@ -327,11 +343,18 @@ export function TtsPage() {
             />
           )}
           {isSpeech && (
-            <SpeechLanguageSelect
-              value={speechLang}
-              onChange={setSpeechLang}
-              model={chosenSpeechModel}
-            />
+            <>
+              <SpeechLanguageSelect
+                value={speechLang}
+                onChange={setSpeechLang}
+                model={chosenSpeechModel}
+              />
+              <TtsTuning
+                value={tuning}
+                onChange={setTuning}
+                supportsEmotion={supportsEmotionModel(chosenSpeechModel)}
+              />
+            </>
           )}
           {isOpenAi && voiceRecordId === "" && (
             <Field label={tx("音色名")} hint={tx("来自该服务的音色列表，也可手动输入，例如 alloy。")}>

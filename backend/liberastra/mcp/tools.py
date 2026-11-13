@@ -34,13 +34,20 @@ def synthesize_speech(
     *,
     fmt: str = "mp3",
     provider_id: int | None = None,
+    options: dict[str, Any] | None = None,
     out_dir: Path | None = None,
 ) -> str:
     """文字转语音，返回保存路径。"""
     final = client.submit_and_wait(
         "POST",
         "/api/v1/tts",
-        json={"text": text, "voice": voice, "format": fmt, "provider_id": provider_id},
+        json={
+            "text": text,
+            "voice": voice,
+            "format": fmt,
+            "provider_id": provider_id,
+            "options": options or {},
+        },
     )
     saved = client.save_outputs(final, out_dir, default_name="speech", kind="audio")
     return str(saved[0])
@@ -183,6 +190,7 @@ def submit_speech(
     *,
     fmt: str = "mp3",
     provider_id: int | None = None,
+    options: dict[str, Any] | None = None,
 ) -> dict:
     return client.request(
         "POST",
@@ -192,6 +200,7 @@ def submit_speech(
             "voice": voice,
             "format": fmt,
             "provider_id": provider_id,
+            "options": options or {},
         },
     )  # type: ignore[no-any-return]
 

@@ -1923,4 +1923,19 @@ export const UI_EN: Record<string, string> = {
   "可用占位符：{job_name} {status} {progress} {elapsed} {error} {link} {outputs}":
     "Available placeholders: {job_name} {status} {progress} {elapsed} {error} {link} {outputs}",
   "消息包含输出数与任务链接": "Include output count and job link",
+  "语速": "Speed",
+  "相关调节": "Linked adjustment",
+  "表达强度": "Expressiveness",
+  "语气强度": "Expressiveness",
+  "节奏": "Pacing",
+  "平静": "Calm",
+  "自然": "Natural",
+  "播报": "Broadcast",
+  "激动": "Excited",
+  "展开语速、语气强度和节奏；关闭时使用服务默认值。":
+    "Reveal speed, expressiveness, and pacing; off uses service defaults.",
+  "开启后用一个表达强度滑杆同时调节语速、语气和节奏。":
+    "Use one expressiveness slider to adjust speed, tone, and pacing together.",
+  "当前模型只支持语速；语气和节奏请使用多语言或标准模型。":
+    "This model only supports speed; use a multilingual or standard model for tone and pacing.",
 };

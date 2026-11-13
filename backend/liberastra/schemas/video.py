@@ -41,6 +41,7 @@ class QuickVideoRequest(BaseModel):
     # comfyui 语音工作流（配音 Provider 为 comfyui 时必传）
     tts_workflow: str | None = None
     tts_inputs: dict[str, Any] = Field(default_factory=dict)
+    tts_options: dict[str, Any] = Field(default_factory=dict)
     # video_* 模板：逐镜视频工作流（视频 Provider 为 comfyui 时必传）
     video_workflow: str | None = None
     video_inputs: dict[str, Any] = Field(default_factory=dict)

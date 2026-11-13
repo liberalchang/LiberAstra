@@ -30,7 +30,14 @@ import {
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
+import { TtsTuning } from "@/components/TtsTuning";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
+import {
+  DEFAULT_TTS_TUNING,
+  supportsEmotionModel,
+  ttsOptions,
+  type TtsTuning as TtsTuningValue,
+} from "@/lib/ttsTuning";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Button, submitButtonClass } from "@/components/ui/button";
 import { SearchSelect } from "@/components/ui/search-select";
@@ -177,6 +184,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">(`video-${kind}:voice-record`, "");
   const [voiceName, setVoiceName] = usePersistentState(`video-${kind}:voice-name`, "");
   const [speechLang, setSpeechLang] = usePersistentState(`video-${kind}:speech-lang`, "zh");
+  const [ttsTuning, setTtsTuning] = usePersistentState<TtsTuningValue>(
+    `video-${kind}:tts-tuning`,
+    DEFAULT_TTS_TUNING,
+  );
   const [extra, setExtra] = usePersistentState<Record<string, string>>(
     `video-${kind}:extra:${pack?.name ?? "none"}`,
     () => modelDefaultsFromInputs(pack?.inputs, ["prompt", "image", "video", "audio", "mask"]),
@@ -288,6 +299,10 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
         }
         if (isLibraryVoice && !ttsIsComfy) {
           form.set("language", speechLanguage(speechLang, speechModel));
+          form.set(
+            "tts_options",
+            JSON.stringify(ttsOptions(ttsTuning, supportsEmotionModel(speechModel))),
+          );
         }
       }
       if (provider) form.set("provider_id", String(provider.id));
@@ -623,23 +638,30 @@ export function VideoPackPage({ kind }: { kind: PackVideoKind }) {
                   )}
                 </>
               ) : isLibraryVoice ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
-                    <select
-                      className={selectClass}
-                      value={voiceRecordId}
-                      onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                    >
-                      <option value="">{tx("使用默认声音…")}</option>
-                      {voices?.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
-                </div>
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
+                      <select
+                        className={selectClass}
+                        value={voiceRecordId}
+                        onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                      >
+                        <option value="">{tx("使用默认声音…")}</option>
+                        {voices?.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
+                  </div>
+                  <TtsTuning
+                    value={ttsTuning}
+                    onChange={setTtsTuning}
+                    supportsEmotion={supportsEmotionModel(speechModel)}
+                  />
+                </>
               ) : (
                 <>
                 {isOpenAiTts && (

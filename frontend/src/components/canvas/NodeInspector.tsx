@@ -43,7 +43,9 @@ import { AssetPicker } from "@/components/AssetPicker";
 import { ImagePaintEditor } from "@/components/canvas/ImagePaintEditor";
 import { ResultPreview } from "@/components/canvas/nodes";
 import { PromptField, type PromptVar } from "@/components/PromptField";
+import { TtsTuning } from "@/components/TtsTuning";
 import { CharacterInputPicker } from "@/components/canvas/CharacterInputPicker";
+import { DEFAULT_TTS_TUNING, supportsEmotionModel } from "@/lib/ttsTuning";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
@@ -1955,6 +1957,13 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             ))}
           </select>
         </Field>
+      )}
+      {ptype === "liber_speech" && (
+        <TtsTuning
+          value={d.ttsTuning ?? DEFAULT_TTS_TUNING}
+          onChange={(ttsTuning) => updateNodeData(node.id, { ttsTuning })}
+          supportsEmotion={supportsEmotionModel(d.model)}
+        />
       )}
     </section>
   );

@@ -887,6 +887,8 @@ async def _synthesize_avatar_line(
         ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp3"
         return ext, audio
     extra: dict[str, Any] = {}
+    if tts_provider.type == "liber_speech":
+        extra.update(params.get("tts_options") or {})
     if tts_provider.type == "liber_speech" and params.get("language"):
         extra["language"] = str(params["language"])
     if tts_provider.type == "liber_speech" and params.get("ref_audio"):
@@ -1212,6 +1214,8 @@ async def run_assets_job(db: Session, job: Job, ctx: JobContext) -> list[dict[st
             ext = filename.rsplit(".", 1)[-1] if "." in filename else "mp3"
         else:
             extra: dict[str, Any] = {}
+            if tts_provider.type == "liber_speech":
+                extra.update(params.get("tts_options") or {})
             if tts_provider.type == "liber_speech" and params.get("language"):
                 extra["language"] = str(params["language"])
             if tts_provider.type == "liber_speech" and params.get("ref_audio"):

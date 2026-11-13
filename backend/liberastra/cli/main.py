@@ -374,14 +374,32 @@ def tts(
     out: Path = typer.Option(Path("speech.mp3"), "-o", "--out"),
     provider_id: int | None = typer.Option(None, "--provider-id"),
     fmt: str = typer.Option("mp3", "--format"),
+    options: str | None = typer.Option(
+        None, "--options", help='JSON 参数对象，如 {"speed":0.9,"exaggeration":0.7}'
+    ),
     wait: bool = typer.Option(True, "--wait/--no-wait"),
 ) -> None:
     """文字转语音。"""
     def action() -> None:
+        parsed_options: dict[str, Any] = {}
+        if options:
+            try:
+                loaded = json.loads(options)
+            except json.JSONDecodeError as exc:
+                raise CliError(f"--options 不是合法 JSON: {exc}") from exc
+            if not isinstance(loaded, dict):
+                raise CliError("--options 必须是 JSON 对象")
+            parsed_options = loaded
         with _client() as client:
             job = client.request(
                 "POST", "/api/v1/tts",
-                json={"text": text, "voice": voice, "format": fmt, "provider_id": provider_id},
+                json={
+                    "text": text,
+                    "voice": voice,
+                    "format": fmt,
+                    "provider_id": provider_id,
+                    "options": parsed_options,
+                },
             )
             if not wait:
                 _emit(job)

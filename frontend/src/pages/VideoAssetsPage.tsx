@@ -31,7 +31,14 @@ import {
   speechLanguage,
   useDefaultSpeechModel,
 } from "@/components/SpeechLanguageSelect";
+import { TtsTuning } from "@/components/TtsTuning";
 import { supportsTtsPreview, TtsPreview } from "@/components/TtsPreview";
+import {
+  DEFAULT_TTS_TUNING,
+  supportsEmotionModel,
+  ttsOptions,
+  type TtsTuning as TtsTuningValue,
+} from "@/lib/ttsTuning";
 import { Button, submitButtonClass } from "@/components/ui/button";
 import { SearchSelect } from "@/components/ui/search-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -186,6 +193,10 @@ export function VideoAssetsPage() {
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("video-assets:voice-record", "");
   const [voiceName, setVoiceName] = usePersistentState("video-assets:voice-name", "");
   const [speechLang, setSpeechLang] = usePersistentState("video-assets:speech-lang", "zh");
+  const [ttsTuning, setTtsTuning] = usePersistentState<TtsTuningValue>(
+    "video-assets:tts-tuning",
+    DEFAULT_TTS_TUNING,
+  );
   /** 克隆服务（Liber Speech）用音色库；其余服务（edge_tts / 第三方 TTS）用服务自己的音色列表 */
   const speechModel = useDefaultSpeechModel();
   const isLibraryVoice = ttsProvider?.type === "liber_speech" || ttsProvider == null;
@@ -269,7 +280,13 @@ export function VideoAssetsPage() {
         if ((isLibraryVoice || isOpenAiTts) && voiceRecordId !== "") form.set("voice_record_id", String(voiceRecordId));
         else if (isLibraryVoice) form.set("voice", speechLanguage(speechLang, speechModel));
         else form.set("voice", voiceName);
-        if (isLibraryVoice) form.set("language", speechLanguage(speechLang, speechModel));
+        if (isLibraryVoice) {
+          form.set("language", speechLanguage(speechLang, speechModel));
+          form.set(
+            "tts_options",
+            JSON.stringify(ttsOptions(ttsTuning, supportsEmotionModel(speechModel))),
+          );
+        }
       }
       if (ttsProvider) form.set("tts_provider_id", String(ttsProvider.id));
       form.set("audio_mode", (animate && hasImage) || hasVideo ? audioMode : "custom");
@@ -713,24 +730,31 @@ export function VideoAssetsPage() {
               )}
             </>
           ) : isLibraryVoice ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
-                <select
-                  className={selectClass}
-                  value={voiceRecordId}
-                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">{tx("使用默认声音…")}</option>
-                  {voices?.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                      {v.is_default ? tx("（默认）") : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
+                  <select
+                    className={selectClass}
+                    value={voiceRecordId}
+                    onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">{tx("使用默认声音…")}</option>
+                    {voices?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                        {v.is_default ? tx("（默认）") : ""}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
+              </div>
+              <TtsTuning
+                value={ttsTuning}
+                onChange={setTtsTuning}
+                supportsEmotion={supportsEmotionModel(speechModel)}
+              />
+            </>
           ) : (
             <>
             {isOpenAiTts && (

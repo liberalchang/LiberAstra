@@ -5,6 +5,8 @@
  */
 import type { Edge, Node } from "@xyflow/react";
 
+import { normalizeTtsTuning, type TtsTuning } from "../lib/ttsTuning.ts";
+
 export type MediaKind = "image" | "video" | "audio" | "text" | "character";
 export type CanvasNodeKind = "input" | "function" | "concat" | "speech";
 export type ConcatMediaKind = "image" | "audio" | "video";
@@ -147,6 +149,8 @@ export interface SpeechNodeData extends Record<string, unknown> {
   language?: string;
   /** tts: mp3 / wav / ogg_opus。asr: txt / json / srt / vtt，空为自动。vc: mp3 / wav。 */
   format?: string;
+  /** tts: 高级参数与相关调节 */
+  ttsTuning?: TtsTuning;
   /** vc: 连入视频时输出视频，否则输出音频；由上游连线解析。 */
   outputKind?: MediaKind | null;
   /** vc: 是否分离背景音 */
@@ -307,6 +311,7 @@ export function normalizeNodeData(kind: CanvasNodeKind, raw: unknown): CanvasNod
       workflow: typeof data.workflow === "string" ? data.workflow : "",
       language: typeof data.language === "string" ? data.language : "",
       format: typeof data.format === "string" ? data.format : "",
+      ttsTuning: normalizeTtsTuning(data.ttsTuning),
       outputKind: (data.outputKind as MediaKind | null) ?? null,
       separateBgm: Boolean(data.separateBgm),
       subtitleAssetId: data.subtitleAssetId == null ? null : Number(data.subtitleAssetId),

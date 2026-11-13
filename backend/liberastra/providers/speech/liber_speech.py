@@ -19,6 +19,46 @@ from liberastra.storage.local import resolve
 
 # Liber Speech API 直接支持的容器格式。mp3 由本进程用 ffmpeg 从 wav 转出。
 _DIRECT_FORMATS = {"wav": "wav", "ogg": "ogg_opus", "ogg_opus": "ogg_opus", "opus": "ogg_opus"}
+# v1 不接受的参数。v1 服务收到这些参数时直接报错，避免静默丢参数。
+_V2_ONLY_PARAMS = {
+    "speed",
+    "normalize_loudness",
+    "target_lufs",
+    "exaggeration",
+    "cfg_weight",
+    "temperature",
+    "repetition_penalty",
+    "min_p",
+    "top_p",
+    "top_k",
+    "norm_loudness",
+    "ref_start",
+    "ref_duration",
+    "timestamps",
+    "initial_prompt",
+    "hotwords",
+    "vad_filter",
+    "vad_parameters",
+    "beam_size",
+    "best_of",
+    "condition_on_previous_text",
+    "seed",
+    "diffusion_steps",
+    "inference_cfg_rate",
+    "n_quantizers",
+    "max_window",
+    "context",
+    "fade",
+    "ref_max_len",
+    "length_adjust",
+    "overlap_frame_len",
+    "convert_all",
+    "segment_padding",
+    "merge_gap",
+    "min_segment",
+    "denoise",
+    "output_sample_rate",
+}
 # Chatterbox multilingual 接受的 language_id。短字符串不一定是语言，例如音色编号 1。
 _LANG_CODES = (
     "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko",
@@ -149,6 +189,14 @@ def speech_language(model: str, voice: str, explicit: str | None = None) -> str:
     return language_from_voice(voice, explicit)
 
 
+def _origin_from_base(base_url: str) -> str:
+    root = (base_url or "http://127.0.0.1:5555").rstrip("/")
+    for suffix in ("/api/v2", "/api/v1"):
+        if root.endswith(suffix):
+            return root[: -len(suffix)]
+    return root
+
+
 def _api_root(base_url: str) -> str:
     root = base_url.rstrip("/")
     if root.endswith("/api/v1"):
@@ -191,12 +239,15 @@ class LiberSpeech:
         timeout: float = 300.0,
         default_asr_model: str = "",
     ) -> None:
-        self.api_root = _api_root(base_url or "http://127.0.0.1:5555")
+        self.origin = _origin_from_base(base_url or "http://127.0.0.1:5555")
+        self.api_root = f"{self.origin}/api/v1"
+        self.api_v2_root = f"{self.origin}/api/v2"
         self.api_key = api_key
         self.default_model = default_model or "multilingual_v3"
         self.default_asr_model = canonical_asr_model(default_asr_model)
         self._client = client
         self._timeout = timeout
+        self._api_version: str | None = None
 
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
@@ -231,6 +282,35 @@ class LiberSpeech:
             detail = resp.text[:500]
             raise ProviderError(f"Liber Speech API HTTP {resp.status_code} {url}: {detail}")
         return resp
+
+    async def _use_v2(self) -> bool:
+        if self._api_version is not None:
+            return self._api_version == "v2"
+        try:
+            await self._request("GET", f"{self.api_v2_root}/help", timeout=10)
+            self._api_version = "v2"
+        except ProviderError:
+            self._api_version = "v1"
+        return self._api_version == "v2"
+
+    def _ensure_v1_compatible(self, params: dict[str, Any]) -> None:
+        extra = sorted(set(params) & _V2_ONLY_PARAMS)
+        if extra:
+            raise ProviderError(
+                f"当前语音服务是 v1，不支持参数 {', '.join(extra)}；请升级语音服务"
+            )
+
+    async def _upload_v2(self, path: Path) -> str:
+        with path.open("rb") as fh:
+            resp = await self._request(
+                "POST",
+                f"{self.api_v2_root}/files",
+                files={"file": (path.name, fh, "application/octet-stream")},
+            )
+        file_id = str(resp.json().get("file_id") or "")
+        if not file_id:
+            raise ProviderError("Liber Speech API 未返回 file_id")
+        return file_id
 
     async def test(self) -> str:
         resp = await self._request("GET", f"{self.api_root}/health")
@@ -312,13 +392,47 @@ class LiberSpeech:
         speech_fmt = _DIRECT_FORMATS.get(fmt, "wav")
         chosen = speech_form_model(model or self.default_model)
         language = speech_language(chosen, voice, params.get("language"))
+        ref_audio = str(params.get("ref_audio") or "").strip()
+        extra = {
+            key: value
+            for key, value in params.items()
+            if key not in {"language", "ref_audio"} and value is not None
+        }
+
+        if await self._use_v2():
+            payload = {
+                "text": text,
+                "model": chosen,
+                "language": language,
+                "format": speech_fmt,
+                **extra,
+            }
+            if ref_audio:
+                path = resolve(ref_audio)
+                if not path.is_file():
+                    raise ProviderError(f"参考音频不存在: {path.name}")
+                payload["prompt_file_id"] = await self._upload_v2(path)
+            resp = await self._request(
+                "POST", f"{self.api_v2_root}/tts/synthesize", json=payload
+            )
+            data = resp.json()
+            audio_url = str(data.get("audio_url") or "")
+            if not audio_url:
+                raise ProviderError("Liber Speech API 未返回 audio_url")
+            if audio_url.startswith("/"):
+                audio_url = urljoin(self.origin + "/", audio_url.lstrip("/"))
+            audio = (await self._request("GET", audio_url)).content
+            if fmt == "mp3" and speech_fmt == "wav":
+                return await _wav_to_mp3(audio)
+            return audio
+
+        self._ensure_v1_compatible(extra)
         form = {
             "text": text,
             "model": chosen,
             "language": language,
             "format": speech_fmt,
         }
-        ref_audio = str(params.get("ref_audio") or "").strip()
         if ref_audio:
             path = resolve(ref_audio)
             if not path.is_file():
@@ -337,7 +451,7 @@ class LiberSpeech:
         if not audio_url:
             raise ProviderError("Liber Speech API 未返回 audio_url")
         if audio_url.startswith("/"):
-            audio_url = urljoin(_origin(self.api_root) + "/", audio_url.lstrip("/"))
+            audio_url = urljoin(self.origin + "/", audio_url.lstrip("/"))
         audio = (await self._request("GET", audio_url)).content
         if fmt == "mp3" and speech_fmt == "wav":
             return await _wav_to_mp3(audio)
@@ -362,6 +476,21 @@ class LiberSpeech:
             chosen = self.default_asr_model
         if chosen:
             data["model"] = chosen
+
+        if await self._use_v2():
+            data["file_id"] = await self._upload_v2(path)
+            resp = await self._request(
+                "POST", f"{self.api_v2_root}/asr/transcribe", json=data
+            )
+            payload = resp.json()
+            segments = [_segment(chunk) for chunk in payload.get("chunks") or []]
+            return ASRResult(
+                text=str(payload.get("text", "")).strip(),
+                segments=segments,
+                language=payload.get("language") or language,
+            )
+
+        self._ensure_v1_compatible(params)
         with path.open("rb") as fh:
             resp = await self._request(
                 "POST",
@@ -406,6 +535,7 @@ class LiberSpeech:
         model: str | None = None,
         segments: list[dict[str, Any]] | None = None,
         timeout: float = 1800.0,
+        **params: Any,
     ) -> None:
         """上传源音频和参考音频，把换音结果下载到 out_path。"""
         source = Path(file_path)
@@ -414,8 +544,33 @@ class LiberSpeech:
             raise ProviderError(f"换音源音频不存在: {source.name}")
         if not prompt.is_file():
             raise ProviderError(f"换音参考音频不存在: {prompt.name}")
-        data: dict[str, Any] = {}
         chosen = canonical_vc_model(model or "")
+
+        if await self._use_v2():
+            payload: dict[str, Any] = dict(params)
+            if chosen:
+                payload["model"] = chosen
+            if segments is not None:
+                payload["segments"] = segments
+            payload["file_id"] = await self._upload_v2(source)
+            payload["prompt_file_id"] = await self._upload_v2(prompt)
+            resp = await self._request(
+                "POST",
+                f"{self.api_v2_root}/vc/convert",
+                json=payload,
+                timeout=timeout,
+            )
+            result = resp.json()
+            audio_url = str(result.get("audio_url") or "")
+            if not audio_url:
+                raise ProviderError("Liber Speech API 未返回换音 audio_url")
+            if audio_url.startswith("/"):
+                audio_url = urljoin(self.origin + "/", audio_url.lstrip("/"))
+            await self._download(audio_url, Path(out_path), timeout=timeout)
+            return
+
+        self._ensure_v1_compatible(params)
+        data: dict[str, Any] = {}
         if chosen:
             data["model"] = chosen
         if segments is not None:
@@ -436,7 +591,7 @@ class LiberSpeech:
         if not audio_url:
             raise ProviderError("Liber Speech API 未返回换音 audio_url")
         if audio_url.startswith("/"):
-            audio_url = urljoin(_origin(self.api_root) + "/", audio_url.lstrip("/"))
+            audio_url = urljoin(self.origin + "/", audio_url.lstrip("/"))
         await self._download(audio_url, Path(out_path), timeout=timeout)
 
     async def separate(
