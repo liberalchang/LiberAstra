@@ -21,17 +21,29 @@ ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG PIP_DEFAULT_TIMEOUT=120
 ARG PIP_RETRIES=10
 
+# Playwright 浏览器包默认走 cdn.playwright.dev，国内可切 npmmirror。
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
+
 ENV PYTHONUNBUFFERED=1 \
     LIBERASTRA_DATA_DIR=/data \
     LIBERASTRA_STATIC_DIR=/app/static \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT} \
     PIP_RETRIES=${PIP_RETRIES}
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk libatomic1 \
-    && rm -rf /var/lib/apt/lists/*
+# Debian 官方源在部分网络下极慢；构建时切到国内镜像（可用环境变量覆盖）。
+ARG APT_MIRROR=mirrors.aliyun.com
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i "s/deb.debian.org/${APT_MIRROR}/g; s/security.debian.org/${APT_MIRROR}/g" /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+      sed -i "s/deb.debian.org/${APT_MIRROR}/g; s/security.debian.org/${APT_MIRROR}/g" /etc/apt/sources.list; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk libatomic1; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY backend/ ./backend/
