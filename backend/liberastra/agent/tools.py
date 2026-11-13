@@ -224,7 +224,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "asr",
         "把音频资产转成文字。",
-        {"asset_id": _INT, "language": _STR, "provider_id": _INT},
+        {"asset_id": _INT, "language": _STR, "provider_id": _INT, "options": _OBJ},
         ["asset_id"],
     ),
     _fn(
@@ -820,6 +820,7 @@ async def run_server_tool(
                 "file_path": asset.path,
                 "language": args.get("language"),
                 "task": "transcribe",
+                "options": dict(args.get("options") or {}),
             },
             provider_id=provider.id,
         )

@@ -34,8 +34,8 @@ Replace `command` with the absolute `astra` path if it is not on PATH. Credentia
 | Tool | Main parameters | Returns |
 | --- | --- | --- |
 | `generate_image` | `prompt`, `width`, `height`, `workflow` | Local file path |
-| `synthesize_speech` | `text`, `voice`, `fmt`, `provider_id` | Local file path |
-| `transcribe` | `file_path`, `language`, `model`, `formats` | Transcript text |
+| `synthesize_speech` | `text`, `voice`, `fmt`, `provider_id`, `options` | Local file path |
+| `transcribe` | `file_path`, `language`, `model`, `formats`, `options` | Transcript text |
 | `create_video` | `topic` or `script`, `voice`, `aspect` | Local file path |
 | `get_job` | `job_id` | Job object |
 
@@ -46,8 +46,8 @@ Replace `command` with the absolute `astra` path if it is not on PATH. Credentia
 | Tool | Main parameters |
 | --- | --- |
 | `submit_image` | `prompt`, `width`, `height`, `workflow`, `provider_id` |
-| `submit_speech` | `text`, `voice`, `fmt`, `provider_id` |
-| `submit_transcription` | `file_path`, `language`, `model`, `formats` |
+| `submit_speech` | `text`, `voice`, `fmt`, `provider_id`, `options` |
+| `submit_transcription` | `file_path`, `language`, `model`, `formats`, `options` |
 | `submit_video` | `voice`, `topic` or `script`, `aspect` |
 
 ### Discovery and job control

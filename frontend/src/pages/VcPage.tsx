@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/api/client";
 import { AssetPickButton } from "@/components/AssetPickButton";
 import { GenerateButton } from "@/components/GenerateButton";
+import { VcTuning } from "@/components/VcTuning";
 import { PageHeader } from "@/components/PageShell";
 import { ResultPanel } from "@/components/ResultPanel";
 import { SPEECH_LANGUAGES } from "@/components/SpeechLanguageSelect";
@@ -18,6 +19,11 @@ import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
 import { assetAsFile } from "@/lib/assets";
+import {
+  DEFAULT_VC_TUNING,
+  vcOptions,
+  type VcTuning as VcTuningValue,
+} from "@/lib/vcTuning";
 
 const VIDEO_EXT = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
 
@@ -43,6 +49,10 @@ export function VcPage() {
 
   const [voiceRecordId, setVoiceRecordId] = usePersistentState<number | "">("vc:voice-record", "");
   const [model, setModel] = usePersistentState("vc:model", "");
+  const [tuning, setTuning] = usePersistentState<VcTuningValue>(
+    "vc:tuning",
+    DEFAULT_VC_TUNING,
+  );
   const [format, setFormat] = usePersistentState("vc:format", "mp3");
   const [language, setLanguage] = usePersistentState("vc:language", "");
   const [separateBgm, setSeparateBgm] = usePersistentState("vc:separate-bgm", false);
@@ -60,6 +70,7 @@ export function VcPage() {
   const noVcModels = speechCatalog !== undefined && vcModels.length === 0;
   const isVideo = isVideoFile(file);
   const defaultModel = prefs?.default_vc_model || "";
+  const chosenModel = model || defaultModel;
   const running = job && (job.status === "pending" || job.status === "running");
 
   const submit = useMutation({
@@ -74,6 +85,9 @@ export function VcPage() {
       form.set("format", format === "wav" ? "wav" : "mp3");
       form.set("separate_bgm", separateBgm ? "true" : "false");
       if (language) form.set("language", language);
+      if (provider?.type === "liber_speech") {
+        form.set("options", JSON.stringify(vcOptions(tuning, chosenModel)));
+      }
       if (isVideo) {
         form.set("burn_subtitles", burnSubtitles ? "true" : "false");
         form.set("subtitle_size", String(subtitleSize || 0));
@@ -205,6 +219,10 @@ export function VcPage() {
                   )}
                 </Field>
               </div>
+
+              {provider?.type === "liber_speech" && (
+                <VcTuning value={tuning} onChange={setTuning} model={chosenModel} />
+              )}
 
               <Field
                 label={tx("换音素材")}

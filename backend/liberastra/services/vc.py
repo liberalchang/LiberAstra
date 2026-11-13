@@ -33,6 +33,18 @@ def _auto_subtitle_size(height: int) -> float:
     return max(8.0, round(height * 0.045, 1) / 3)
 
 
+def _convert_call(
+    model: str,
+    segments: list[dict[str, float]],
+    options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    call: dict[str, Any] = {"model": model or None, "segments": segments}
+    call.update(options or {})
+    if call.get("convert_all"):
+        call.pop("segments", None)
+    return call
+
+
 def _voice(db: Session, job: Job) -> Voice:
     voice_id = job.params.get("voice_record_id")
     if not voice_id:
@@ -143,14 +155,16 @@ async def run_vc_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, A
 
     ctx.report(db, job, progress=0.35, step="convert")
     converted_path = work / "converted.wav"
+    convert_call = _convert_call(
+        model,
+        [{"start": segment.start, "end": segment.end} for segment in asr_result.segments],
+        params.get("options") if provider.type == "liber_speech" else None,
+    )
     await adapter.convert_voice(
         file_path=str(vocals_path),
         prompt_path=str(resolve(voice.ref_audio_path)),
         out_path=str(converted_path),
-        model=model or None,
-        segments=[
-            {"start": segment.start, "end": segment.end} for segment in asr_result.segments
-        ],
+        **convert_call,
     )
     if ctx.cancelled():
         return []

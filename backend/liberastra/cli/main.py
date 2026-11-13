@@ -419,12 +419,24 @@ def asr(
     out: Path | None = typer.Option(None, "-o", "--out"),
     language: str | None = typer.Option(None, "--language"),
     provider_id: int | None = typer.Option(None, "--provider-id"),
+    options: str | None = typer.Option(
+        None, "--options", help='JSON 参数对象，如 {"vad_filter":true,"hotwords":"LiberAstra"}'
+    ),
     wait: bool = typer.Option(True, "--wait/--no-wait"),
 ) -> None:
     """语音转文字。"""
     def action() -> None:
         if not file.exists():
             raise CliError(f"文件不存在: {file}")
+        parsed_options: dict[str, Any] = {}
+        if options:
+            try:
+                loaded = json.loads(options)
+            except json.JSONDecodeError as exc:
+                raise CliError(f"--options 不是合法 JSON: {exc}") from exc
+            if not isinstance(loaded, dict):
+                raise CliError("--options 必须是 JSON 对象")
+            parsed_options = loaded
         with _client() as client:
             with file.open("rb") as fh:
                 job = client.request(
@@ -432,6 +444,7 @@ def asr(
                     files={"file": (file.name, fh)},
                     data={
                         "formats": fmt,
+                        "options": json.dumps(parsed_options),
                         **({"language": language} if language else {}),
                         **({"provider_id": str(provider_id)} if provider_id else {}),
                     },

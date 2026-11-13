@@ -3,6 +3,7 @@ import { Mic, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
+import { AsrTuning } from "@/components/AsrTuning";
 import { AssetPickButton } from "@/components/AssetPickButton";
 import { GenerateButton } from "@/components/GenerateButton";
 import { PageHeader } from "@/components/PageShell";
@@ -18,6 +19,11 @@ import { useTrackedJob } from "@/hooks/useJob";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { useTx } from "@/i18n/tx";
 import { assetAsFile } from "@/lib/assets";
+import {
+  DEFAULT_ASR_TUNING,
+  asrOptions,
+  type AsrTuning as AsrTuningValue,
+} from "@/lib/asrTuning";
 
 /** 输出类型：空串 = 自动（后端按 txt → json → srt → vtt 优先级取第一个可用格式）。 */
 const FORMAT_OPTIONS = [
@@ -59,7 +65,13 @@ export function AsrPage() {
   const [customLanguage, setCustomLanguage] = usePersistentState("asr:language-custom", "");
   const [format, setFormat] = usePersistentState("asr:format", "");
   const [asrModel, setAsrModel] = usePersistentState("asr:model", "");
+  const [tuning, setTuning] = usePersistentState<AsrTuningValue>(
+    "asr:tuning",
+    DEFAULT_ASR_TUNING,
+  );
   const effectiveLanguage = language === CUSTOM_LANG ? customLanguage.trim() : language;
+  // 只有 Liber Speech 才回退系统设置。OpenAI 兼容留空则用该服务自己的默认模型。
+  const chosenModel = isSpeech ? asrModel || prefs?.default_asr_model || "" : asrModel;
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { job, setJobId } = useTrackedJob("asr");
@@ -108,9 +120,8 @@ export function AsrPage() {
       if (provider) form.set("provider_id", String(provider.id));
       if (effectiveLanguage) form.set("language", effectiveLanguage);
       if (format) form.set("formats", format);
-      // 只有 Liber Speech 才回退系统设置。OpenAI 兼容留空则用该服务自己的默认模型。
-      const chosenModel = isSpeech ? (asrModel || prefs?.default_asr_model || "") : asrModel;
       if (chosenModel) form.set("model", chosenModel);
+      if (isSpeech) form.set("options", JSON.stringify(asrOptions(tuning, chosenModel)));
       return api.submitAsr(form);
     },
     onSuccess: (j) => {
@@ -121,9 +132,7 @@ export function AsrPage() {
   });
 
   const running = job && (job.status === "pending" || job.status === "running");
-  const modelLabel = isSpeech
-    ? (asrModel || prefs?.default_asr_model || tx("系统设置"))
-    : (asrModel || "whisper-1");
+  const modelLabel = isSpeech ? chosenModel || tx("系统设置") : asrModel || "whisper-1";
 
   return (
     <div className="flex flex-col gap-6">
@@ -211,6 +220,9 @@ export function AsrPage() {
               </select>
             </Field>
           </div>
+          {isSpeech && (
+            <AsrTuning value={tuning} onChange={setTuning} model={chosenModel} />
+          )}
           {language === CUSTOM_LANG && (
             <Field label={tx("自定义语言代码")} hint={tx("例如 zh、en、pt，需识别服务支持。")}>
               <Input

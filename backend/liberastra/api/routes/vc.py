@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
@@ -21,6 +22,22 @@ router = APIRouter(prefix="/vc", tags=["vc"])
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # 200MB
 MAX_SUBTITLE_BYTES = 2 * 1024 * 1024  # 2MB
+
+
+def _parse_options(raw: str) -> dict[str, Any]:
+    if not raw.strip():
+        return {}
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="options 不是合法 JSON"
+        ) from exc
+    if not isinstance(loaded, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="options 必须是 JSON 对象"
+        )
+    return loaded
 
 
 def _remove(rel_path: str | None) -> None:
@@ -48,6 +65,7 @@ async def convert(
     burn_subtitles: Annotated[bool, Form()] = False,
     subtitle_size: Annotated[float, Form(ge=0, le=200)] = 0,
     subtitle_color: Annotated[str, Form(max_length=16)] = "",
+    options: Annotated[str, Form()] = "{}",
     wait: bool = False,
 ) -> Job:
     content = await file.read()
@@ -55,6 +73,7 @@ async def convert(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="空文件")
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="文件过大")
+    parsed_options = _parse_options(options)
 
     provider = pick_provider(db, "vc", provider_id)
     record = db.get(Voice, voice_record_id)
@@ -112,6 +131,7 @@ async def convert(
         "burn_subtitles": burn_subtitles,
         "subtitle_size": subtitle_size,
         "subtitle_color": subtitle_color,
+        "options": parsed_options,
     }
     job = request.app.state.jobs.submit(
         db,

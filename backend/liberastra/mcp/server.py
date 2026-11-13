@@ -84,13 +84,19 @@ def create_mcp() -> Any:
         voice: str,
         fmt: str = "mp3",
         provider_id: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """文字转语音。voice 为音色名（如 zh-CN-XiaoxiaoNeural）。返回本地文件路径。"""
 
         def run() -> Any:
             with _client() as client:
                 return tools.synthesize_speech(
-                    client, text, voice, fmt=fmt, provider_id=provider_id
+                    client,
+                    text,
+                    voice,
+                    fmt=fmt,
+                    provider_id=provider_id,
+                    options=options,
                 )
 
         return _call(run)
@@ -101,6 +107,7 @@ def create_mcp() -> Any:
         language: str | None = None,
         model: str | None = None,
         formats: str = "txt",
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """语音转文字。返回转写文本。"""
 
@@ -112,6 +119,7 @@ def create_mcp() -> Any:
                     language=language,
                     model=model,
                     formats=formats,
+                    options=options,
                 )
 
         return _call(run)
@@ -183,13 +191,19 @@ def create_mcp() -> Any:
         voice: str,
         fmt: str = "mp3",
         provider_id: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """提交文字转语音任务，立即返回 job。用 wait_job 跟进。"""
 
         def run() -> Any:
             with _client() as client:
                 return tools.submit_speech(
-                    client, text, voice, fmt=fmt, provider_id=provider_id
+                    client,
+                    text,
+                    voice,
+                    fmt=fmt,
+                    provider_id=provider_id,
+                    options=options,
                 )
 
         return _call(run)
@@ -200,6 +214,7 @@ def create_mcp() -> Any:
         language: str | None = None,
         model: str | None = None,
         formats: str = "txt",
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """提交语音转文字任务，立即返回 job。用 wait_job 跟进。"""
 
@@ -211,6 +226,7 @@ def create_mcp() -> Any:
                     language=language,
                     model=model,
                     formats=formats,
+                    options=options,
                 )
 
         return _call(run)

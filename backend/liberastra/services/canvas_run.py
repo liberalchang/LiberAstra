@@ -23,6 +23,7 @@ from liberastra.jobs.manager import JobManager
 from liberastra.models import Asset, Canvas, CanvasNodeRun, Character, Job, Voice, utcnow
 from liberastra.models.job import TERMINAL_STATUSES
 from liberastra.providers.base import ProviderError
+from liberastra.services.asr_tuning import asr_options
 from liberastra.services.canvas_audio import AudioPlanRuntime, validate_audio_plan
 from liberastra.services.canvas_graph import (
     canonical_fingerprint,
@@ -34,6 +35,7 @@ from liberastra.services.canvas_graph import (
 )
 from liberastra.services.characters import ensure_character_asset, expand_reference_paths, slot_path
 from liberastra.services.tts_tuning import supports_emotion_model, tts_options
+from liberastra.services.vc_tuning import vc_options
 from liberastra.services.workflows import WorkflowPack, get_pack
 from liberastra.storage import resolve
 
@@ -1037,6 +1039,7 @@ async def _execute_speech(
             "task": "transcribe",
             "language": str(data.get("language") or "") or None,
             "formats": [asr_format] if asr_format else None,
+            "options": asr_options(data.get("asrTuning"), model),
         }
         fingerprint = canonical_fingerprint(
             {"mode": mode, "provider": provider_id, "model": model, **params}
@@ -1090,6 +1093,7 @@ async def _execute_speech(
             "burn_subtitles": burn,
             "subtitle_size": data.get("subtitleSize") or 0,
             "subtitle_color": str(data.get("subtitleColor") or ""),
+            "options": vc_options(data.get("vcTuning"), model),
             "source_asset_id": source_asset.id,
             "subtitle_asset_id": int(subtitle_asset_id) if subtitle_asset_id else None,
         }

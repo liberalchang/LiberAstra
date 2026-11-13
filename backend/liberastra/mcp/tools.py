@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -60,10 +61,11 @@ def transcribe(
     language: str | None = None,
     model: str | None = None,
     formats: str = "txt",
+    options: dict[str, Any] | None = None,
 ) -> str:
     """语音转文字，返回文本。"""
     path = Path(file_path)
-    data = {"formats": formats}
+    data = {"formats": formats, "options": json.dumps(options or {})}
     if language:
         data["language"] = language
     if model:
@@ -212,9 +214,10 @@ def submit_transcription(
     language: str | None = None,
     model: str | None = None,
     formats: str = "txt",
+    options: dict[str, Any] | None = None,
 ) -> dict:
     path = Path(file_path)
-    data = {"formats": formats}
+    data = {"formats": formats, "options": json.dumps(options or {})}
     if language:
         data["language"] = language
     if model:

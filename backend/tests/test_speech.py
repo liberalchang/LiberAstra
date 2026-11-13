@@ -171,6 +171,68 @@ def test_asr_job_format_priority(
     assert asset_outputs[0]["kind"] == "text"
 
 
+def test_asr_options_reach_liber_speech(
+    client: TestClient,
+    auth_header: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created = client.post(
+        "/api/v1/providers",
+        json={"name": "speech-asr", "type": "liber_speech", "base_url": "http://speech:5555"},
+        headers=auth_header,
+    )
+    assert created.status_code == 201
+    captured: dict = {}
+
+    class _CaptureASR:
+        async def transcribe(self, *, file_path: str, **kwargs) -> ASRResult:
+            captured.update(kwargs)
+            return ASRResult(text="你好", segments=[], language="zh")
+
+    from liberastra.services import asr as asr_service
+
+    monkeypatch.setattr(
+        asr_service, "build_asr_adapter", lambda record, **_kwargs: _CaptureASR()
+    )
+
+    resp = client.post(
+        "/api/v1/asr?wait=true",
+        files={"file": ("a.wav", b"RIFFfake-audio", "audio/wav")},
+        data={
+            "provider_id": str(created.json()["id"]),
+            "options": '{"vad_filter": true, "timestamps": "word"}',
+        },
+        headers=auth_header,
+    )
+    job = resp.json()
+    assert job["status"] == "succeeded", job["error"]
+    assert captured["vad_filter"] is True
+    assert captured["timestamps"] == "word"
+    assert job["params"]["options"] == {"vad_filter": True, "timestamps": "word"}
+
+
+def test_asr_and_vc_reject_invalid_options(
+    client: TestClient, auth_header: dict[str, str]
+) -> None:
+    asr = client.post(
+        "/api/v1/asr",
+        files={"file": ("a.wav", b"RIFFfake-audio", "audio/wav")},
+        data={"options": "[]"},
+        headers=auth_header,
+    )
+    assert asr.status_code == 400
+    assert "JSON 对象" in asr.json()["detail"]
+
+    vc = client.post(
+        "/api/v1/vc",
+        files={"file": ("a.wav", b"RIFFfake-audio", "audio/wav")},
+        data={"voice_record_id": "1", "options": "{oops"},
+        headers=auth_header,
+    )
+    assert vc.status_code == 400
+    assert "JSON" in vc.json()["detail"]
+
+
 def test_openai_compat_speech(
     client: TestClient,
     auth_header: dict[str, str],

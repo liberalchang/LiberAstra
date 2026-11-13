@@ -44,13 +44,16 @@ astra provider models 1
 
 ```bash
 astra tts "你好" --voice zh-CN-XiaoxiaoNeural -o hello.mp3
+astra tts "你好" --voice zh-CN-XiaoxiaoNeural --options '{"speed":0.9,"exaggeration":0.7}' -o hello.mp3
 astra tts "你好" --voice zh-CN-XiaoxiaoNeural --no-wait
 astra asr ./talk.wav -f srt -o talk.srt --language zh
-astra asr ./talk.mp4 -f txt
+astra asr ./talk.mp4 -f txt --options '{"vad_filter":true,"hotwords":"LiberAstra 张三"}'
 ```
 
-`tts` flags: `--voice`, `--format`, `--provider-id`, `--wait/--no-wait`, `-o/--out`.
-`asr` flags: `-f/--format` (`txt`/`srt`/`vtt`/`json`), `--language`, `--provider-id`, `--wait/--no-wait`, `-o/--out`.
+`tts` flags: `--voice`, `--format`, `--provider-id`, `--options` (JSON), `--wait/--no-wait`, `-o/--out`.
+`asr` flags: `-f/--format` (`txt`/`srt`/`vtt`/`json`), `--language`, `--provider-id`, `--options` (JSON), `--wait/--no-wait`, `-o/--out`.
+
+`--options` passes model-specific speech parameters through to a Liber Speech provider. Unknown or unsupported keys are rejected by the speech service with a structured error.
 
 ## Image
 

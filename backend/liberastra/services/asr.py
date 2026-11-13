@@ -35,12 +35,14 @@ async def run_asr_job(db: Session, job: Job, ctx: JobContext) -> list[dict[str, 
 
     ctx.report(db, job, progress=0.1, step="transcribe")
     started = time.monotonic()
-    result = await adapter.transcribe(
-        file_path=str(resolve(params["file_path"])),
-        language=params.get("language"),
-        task=params.get("task", "transcribe"),
-        model=job.model,
-    )
+    call: dict[str, Any] = {
+        "language": params.get("language"),
+        "task": params.get("task", "transcribe"),
+        "model": job.model,
+    }
+    if provider.type == "liber_speech":
+        call.update(params.get("options") or {})
+    result = await adapter.transcribe(file_path=str(resolve(params["file_path"])), **call)
     if ctx.cancelled():
         return []
 

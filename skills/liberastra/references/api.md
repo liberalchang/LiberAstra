@@ -38,8 +38,8 @@ Poll `GET /api/v1/jobs/{id}` until `status` is `succeeded`, `failed`, or `cancel
 | `POST` | `/api/v1/images/generate` | Text-to-image |
 | `POST` | `/api/v1/images/edit` | Image-to-image / multi-reference (multipart, field `images`) |
 | `POST` | `/api/v1/images/depth` | Depth map |
-| `POST` | `/api/v1/tts` | Text-to-speech |
-| `POST` | `/api/v1/asr` | Speech-to-text (multipart, field `file`) |
+| `POST` | `/api/v1/tts` | Text-to-speech (`options` JSON object) |
+| `POST` | `/api/v1/asr` | Speech-to-text (multipart, field `file`, optional `options` JSON) |
 | `POST` | `/api/v1/videos/quick` | Quick video |
 | `POST` | `/api/v1/videos/i2v` | Image-to-video (multipart) |
 | `POST` | `/api/v1/videos/avatar` | Digital human |
@@ -59,7 +59,7 @@ Poll `GET /api/v1/jobs/{id}` until `status` is `succeeded`, `failed`, or `cancel
 | `GET` | `/api/v1/canvases` | List canvases |
 | `POST` | `/api/v1/canvases` | Create canvas |
 | `POST` | `/api/v1/tools/concat` | Concatenate media |
-| `POST` | `/api/v1/vc` | Voice conversion |
+| `POST` | `/api/v1/vc` | Voice conversion (multipart, optional `options` JSON) |
 
 ## Examples
 
@@ -91,6 +91,8 @@ curl -s http://127.0.0.1:8000/api/v1/asr \
   -F formats=srt \
   -F language=zh
 ```
+
+Speech `options` (TTS JSON body, ASR/VC multipart field) are model-specific and only supported by `liber_speech` providers. Examples: TTS `{"speed":0.9,"exaggeration":0.7}`; ASR `{"timestamps":"word","vad_filter":true,"hotwords":"LiberAstra 张三"}`; VC `{"convert_all":true,"denoise":true,"diffusion_steps":10}`. The speech service validates keys, ranges, and model support, and returns structured `invalid_parameters` errors.
 
 ## Notes
 

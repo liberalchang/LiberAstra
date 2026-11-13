@@ -39,13 +39,17 @@ import {
   type SpeechNodeData,
 } from "@/canvas/types";
 import { AccelControl, defaultAccelState, hasAccel, type AccelState } from "@/components/AccelControl";
+import { AsrTuning } from "@/components/AsrTuning";
 import { AssetPicker } from "@/components/AssetPicker";
 import { ImagePaintEditor } from "@/components/canvas/ImagePaintEditor";
 import { ResultPreview } from "@/components/canvas/nodes";
 import { PromptField, type PromptVar } from "@/components/PromptField";
 import { TtsTuning } from "@/components/TtsTuning";
+import { VcTuning } from "@/components/VcTuning";
 import { CharacterInputPicker } from "@/components/canvas/CharacterInputPicker";
+import { DEFAULT_ASR_TUNING } from "@/lib/asrTuning";
 import { DEFAULT_TTS_TUNING, supportsEmotionModel } from "@/lib/ttsTuning";
+import { DEFAULT_VC_TUNING } from "@/lib/vcTuning";
 import { AdvancedPanel } from "@/components/ui/advanced-panel";
 import { Button } from "@/components/ui/button";
 import { Field, areaClass, selectClass } from "@/components/ui/field";
@@ -1687,6 +1691,13 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             <option value="vtt">vtt</option>
           </select>
         </Field>
+        {ptype === "liber_speech" && (
+          <AsrTuning
+            value={d.asrTuning ?? DEFAULT_ASR_TUNING}
+            onChange={(asrTuning) => updateNodeData(node.id, { asrTuning })}
+            model={d.model}
+          />
+        )}
       </section>
     );
   }
@@ -1782,6 +1793,13 @@ function SpeechInspector({ node }: { node: CanvasFlowNode }) {
             </p>
           )}
         </Field>
+        {ptype === "liber_speech" && (
+          <VcTuning
+            value={d.vcTuning ?? DEFAULT_VC_TUNING}
+            onChange={(vcTuning) => updateNodeData(node.id, { vcTuning })}
+            model={d.model}
+          />
+        )}
         <AdvancedPanel summary={tx("字幕样式、语言与输出格式")}>
           {languageSelect}
           {isVideoInput && (

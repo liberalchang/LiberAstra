@@ -34,8 +34,8 @@ Windows 安装包没有把 `astra` 自动加到 PATH 时，在安装目录执行
 # 文字转语音
 astra tts "你好，世界" --voice zh-CN-XiaoxiaoNeural -o hello.mp3
 
-# 语音转文字
-astra asr input.wav -f srt -o out.srt --language zh
+# 语音转文字（--options 传 VAD、热词、时间戳等高级参数）
+astra asr input.wav -f srt -o out.srt --language zh --options '{"vad_filter":true,"hotwords":"LiberAstra"}'
 
 # 文生图
 astra image gen --prompt "一只橘猫，逆光" --workflow qwen_image_21 -o ./out
