@@ -1036,29 +1036,31 @@ export function VideoQuickPage() {
               )}
             </>
           ) : isLibraryVoice ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
-                <select
-                  className={selectClass}
-                  value={voiceRecordId}
-                  onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">{tx("使用默认声音…")}</option>
-                  {voices?.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                      {v.is_default ? tx("（默认）") : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={tx("音色")} hint={tx("选自音色库会克隆这条参考音频。不选则用模型自带的默认声音。")}>
+                  <select
+                    className={selectClass}
+                    value={voiceRecordId}
+                    onChange={(e) => setVoiceRecordId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">{tx("使用默认声音…")}</option>
+                    {voices?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                        {v.is_default ? tx("（默认）") : ""}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <SpeechLanguageSelect value={speechLang} onChange={setSpeechLang} model={speechModel} />
+              </div>
               <TtsTuning
                 value={ttsTuning}
                 onChange={setTtsTuning}
                 supportsEmotion={supportsEmotionModel(speechModel)}
               />
-            </div>
+            </>
           ) : (
             <>
             {isOpenAiTts && (
