@@ -26,6 +26,8 @@ def test_seedvr2_video_pack() -> None:
     assert pack.inputs["batch_size"]["default"] == 5
     assert pack.inputs["batch_size"]["step"] == 4
     assert pack.workflow["2"]["class_type"] == "GetVideoComponents"
+    assert pack.workflow["4"]["inputs"]["decode_tiled"] is True
+    assert pack.workflow["4"]["inputs"]["decode_tile_size"] == 768
     assert pack.workflow["5"]["class_type"] == "SeedVR2VideoUpscaler"
     assert pack.workflow["5"]["inputs"]["batch_size"] == 5
     assert pack.workflow["6"]["class_type"] == "VHS_VideoCombine"
