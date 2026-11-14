@@ -41,7 +41,7 @@ export function durationRuleFor(
       note: "用 clips_json 的 duration 控制每段时长；单段不超过模型上限，总时长可超过单段上限。",
     };
   }
-  if (cap === "upscale" || cap === "analysis") {
+  if (cap === "upscale" || cap === "v2v" || cap === "video_upscale" || cap === "analysis") {
     return {
       mode: "source",
       lengthIgnored: true,

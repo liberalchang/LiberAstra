@@ -28,7 +28,7 @@ test("连续生成用 clips_json，按片段时长控制", () => {
 });
 
 test("普通视频节点手动 length 只是单段上限", () => {
-  for (const capability of ["t2v", "i2v", "v2v"]) {
+  for (const capability of ["t2v", "i2v"]) {
     const rule = durationRuleFor(capability, false);
     assert.equal(rule.mode, "manual");
     assert.equal(rule.lengthIgnored, false);
@@ -39,7 +39,7 @@ test("普通视频节点手动 length 只是单段上限", () => {
 });
 
 test("修复放大和视频理解跟随输入视频", () => {
-  for (const capability of ["upscale", "analysis"]) {
+  for (const capability of ["upscale", "v2v", "video_upscale", "analysis"]) {
     const rule = durationRuleFor(capability, false);
     assert.equal(rule.mode, "source");
     assert.equal(rule.lengthIgnored, true);

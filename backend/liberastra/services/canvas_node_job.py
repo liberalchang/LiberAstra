@@ -34,7 +34,7 @@ from liberastra.services.workflows import WorkflowPack, get_pack
 from liberastra.storage import create_asset, resolve, save_bytes
 
 IMAGE_CAPS = ("t2i", "i2i", "upscale")
-VIDEO_CAPS = ("t2v", "i2v", "avatar", "motion")
+VIDEO_CAPS = ("t2v", "i2v", "v2v", "avatar", "motion")
 
 
 def _canvas_meta(job: Job, extra: dict[str, Any]) -> dict[str, Any]:

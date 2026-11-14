@@ -32,3 +32,10 @@ def test_seedvr2_video_pack() -> None:
     assert pack.workflow["6"]["inputs"]["frame_rate"] == ["2", 2]
     assert pack.workflow["6"]["inputs"]["audio"] == ["2", 1]
     assert pack_sub_capability(pack.name, pack.capability, 0) == "video_upscale"
+
+
+def test_seedvr2_video_pack_is_runnable_on_canvas() -> None:
+    from liberastra.services.canvas_node_job import VIDEO_CAPS
+
+    pack = get_pack("seedvr2_3b_video_restore")
+    assert pack.capability in VIDEO_CAPS
