@@ -5,6 +5,18 @@ $ErrorActionPreference = "Stop"
 # robocopy 用 0–7 表示成功，不能当成失败。
 $PSNativeCommandUseErrorActionPreference = $false
 
+# Windows PowerShell 5.1 会把原生程序的 stderr 当成终止错误；构建期间改为按退出码判断。
+function Invoke-Native {
+    param([scriptblock]$Command)
+    $Previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Command 2>&1 | ForEach-Object { Write-Host $_ }
+    } finally {
+        $ErrorActionPreference = $Previous
+    }
+}
+
 $Here = $PSScriptRoot
 $Repo = (Resolve-Path (Join-Path $Here "..\..")).Path
 $Stage = Join-Path $Here "stage"
@@ -38,9 +50,9 @@ if (-not $Uv) { throw "未找到 uv.exe" }
 Write-Host "运行后端检查"
 Push-Location (Join-Path $Repo "backend")
 try {
-    & $Uv run --frozen --extra dev ruff check .
+    Invoke-Native { & $Uv run --frozen --extra dev ruff check . }
     if ($LASTEXITCODE -ne 0) { throw "ruff 检查失败" }
-    & $Uv run --frozen --extra dev pytest -q
+    Invoke-Native { & $Uv run --frozen --extra dev pytest -q }
     if ($LASTEXITCODE -ne 0) { throw "pytest 失败" }
 } finally {
     Pop-Location
@@ -48,8 +60,9 @@ try {
 
 Write-Host "构建前端"
 Push-Location (Join-Path $Repo "frontend")
-if (-not (Test-Path "node_modules")) { npm install }
-npm run build
+if (-not (Test-Path "node_modules")) { Invoke-Native { & npm install } }
+Invoke-Native { & npm run build }
+if ($LASTEXITCODE -ne 0) { throw "前端构建失败" }
 Pop-Location
 if (-not (Test-Path (Join-Path $Repo "frontend\dist\index.html"))) {
     throw "frontend/dist 不存在"
@@ -76,9 +89,9 @@ import site
 Get-File "https://bootstrap.pypa.io/get-pip.py" (Join-Path $Cache "get-pip.py")
 Copy-Item (Join-Path $Cache "get-pip.py") (Join-Path $Runtime "get-pip.py")
 $Python = Join-Path $Runtime "python.exe"
-& $Python (Join-Path $Runtime "get-pip.py")
+Invoke-Native { & $Python (Join-Path $Runtime "get-pip.py") }
 if ($LASTEXITCODE -ne 0) { throw "get-pip 失败" }
-& $Python -m pip install --upgrade pip
+Invoke-Native { & $Python -m pip install --upgrade pip }
 if ($LASTEXITCODE -ne 0) { throw "升级 pip 失败" }
 
 # backend/pyproject.toml 是依赖和版本号的唯一来源，避免打包清单漂移。
@@ -89,12 +102,12 @@ if ($InitVersion -ne $Version) { throw "版本号不一致：pyproject=$Version 
 $DepsFile = Join-Path $Stage "requirements.build.txt"
 Push-Location (Join-Path $Repo "backend")
 try {
-    & $Uv export --frozen --no-dev --no-emit-project --no-hashes -o $DepsFile
+    Invoke-Native { & $Uv export --frozen --no-dev --no-emit-project --no-hashes -o $DepsFile }
     if ($LASTEXITCODE -ne 0) { throw "生成锁定依赖失败" }
 } finally {
     Pop-Location
 }
-& $Python -m pip install -r $DepsFile
+Invoke-Native { & $Python -m pip install -r $DepsFile }
 if ($LASTEXITCODE -ne 0) { throw "安装 Python 依赖失败" }
 Remove-Item $DepsFile -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $Runtime "get-pip.py") -ErrorAction SilentlyContinue
@@ -128,12 +141,12 @@ using System.Reflection;
 [assembly: AssemblyVersion("$Version4")]
 [assembly: AssemblyFileVersion("$Version4")]
 "@ | Set-Content -Path $VersionInfo -Encoding utf8
-& $Csc /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"$Icon" /out:"$(Join-Path $Stage 'LiberAstra.exe')" /r:System.dll /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Launcher" "$LogForm" "$VersionInfo"
+Invoke-Native { & $Csc /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"$Icon" /out:"$(Join-Path $Stage 'LiberAstra.exe')" /r:System.dll /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll "$Launcher" "$LogForm" "$VersionInfo" }
 if ($LASTEXITCODE -ne 0) { throw "编译启动器失败" }
 Remove-Item $VersionInfo -ErrorAction SilentlyContinue
 
 $env:LIBERASTRA_DATA_DIR = Join-Path $env:TEMP "la-build-check"
-& $Python -c "import liberastra.main; from pathlib import Path; import liberastra; root = Path(liberastra.__file__).resolve().parents[1]; assert (root / 'workflows' / 'qwen_image_21' / 'manifest.yaml').exists(), root; from liberastra.core.config import Settings; static = Settings().resolved_static_dir; assert static and (static / 'index.html').exists(), static"
+Invoke-Native { & $Python -c "import liberastra.main; from pathlib import Path; import liberastra; root = Path(liberastra.__file__).resolve().parents[1]; assert (root / 'workflows' / 'qwen_image_21' / 'manifest.yaml').exists(), root; from liberastra.core.config import Settings; static = Settings().resolved_static_dir; assert static and (static / 'index.html').exists(), static" }
 if ($LASTEXITCODE -ne 0) { throw "嵌入式 Python 无法导入 liberastra.main、工作流或前端页面" }
 
 $Iscc = @(
@@ -144,7 +157,7 @@ $Iscc = @(
 
 if (-not $Iscc) {
     Write-Host "未找到 Inno Setup，尝试用 winget 安装"
-    winget install --id JRSoftware.InnoSetup -e --accept-package-agreements --accept-source-agreements
+    Invoke-Native { winget install --id JRSoftware.InnoSetup -e --accept-package-agreements --accept-source-agreements }
     $Iscc = @(
         "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
         "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe",
@@ -155,5 +168,6 @@ if (-not $Iscc) {
 if (-not $Iscc) { throw "未找到 ISCC.exe。请安装 Inno Setup 6 后重跑本脚本。" }
 
 Write-Host "编译安装包 $Version"
-& $Iscc "/DMyAppVersion=$Version" (Join-Path $Here "LiberAstra.iss")
+Invoke-Native { & $Iscc "/DMyAppVersion=$Version" (Join-Path $Here "LiberAstra.iss") }
+if ($LASTEXITCODE -ne 0) { throw "编译安装包失败" }
 Write-Host "完成：$(Join-Path $Output 'LiberAstra-Setup.exe')"
