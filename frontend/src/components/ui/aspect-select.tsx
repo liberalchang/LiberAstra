@@ -160,7 +160,7 @@ export function AspectSelect({ label = "宽高比", value, onChange, options }: 
             const selected = isSelected(o);
             return (
               <button
-                key={`${o.ratio}-${o.width}`}
+                key={`${o.ratio}-${o.width}x${o.height}`}
                 type="button"
                 role="option"
                 aria-selected={selected}

@@ -23,7 +23,7 @@ const CATEGORIES = [
 export function CanvasMenuSettings() {
   const tx = useTx();
   const queryClient = useQueryClient();
-  const { data } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
+  const { data, isError } = useQuery({ queryKey: ["canvas-menu"], queryFn: api.getCanvasMenu });
   const { data: specs } = useQuery({ queryKey: ["execution-specs"], queryFn: () => api.executionSpecs() });
   const [items, setItems] = useState<CanvasMenuItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +42,15 @@ export function CanvasMenuSettings() {
     },
     onError: (err: Error) => setMessage(err.message),
   });
+
+  // 未拿到菜单前不能编辑：否则新加项会把整份菜单覆盖成只有这一项。
+  if (!data) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {tx(isError ? "菜单加载失败，请刷新重试" : "加载中…")}
+      </p>
+    );
+  }
 
   const update = (id: string, patch: Partial<CanvasMenuItem>) => {
     setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));

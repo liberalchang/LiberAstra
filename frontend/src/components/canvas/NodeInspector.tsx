@@ -861,6 +861,12 @@ function FunctionInspector({
     d.accel?.enabled && pack?.accel
       ? applyAccelPreset(d.values, pack.accel, pack.inputs)
       : d.values;
+  // 一次改多个参数（宽高比、吸附）时，后一次要用已写入 store 的值，不能复用本帧的 d.values。
+  const updateValues = (patch: Record<string, string>) => {
+    const latest = useCanvasStore.getState().nodes.find((row) => row.id === node.id);
+    const current = latest?.data.kind === "function" ? latest.data.values : d.values;
+    store.updateNodeData(node.id, { values: { ...current, ...patch } });
+  };
   // 菜单绑包时如果还没拿到工作流列表，加速开关会丢。列表到达后补上默认值。
   useEffect(() => {
     if (!pack || !hasAccel(pack.accel) || d.accel) return;
@@ -1001,7 +1007,7 @@ function FunctionInspector({
                   durationLimits={pack.duration_limits}
                   singleColumn
                   onChange={(key, value) =>
-                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                    updateValues({ [key]: value })
                   }
                 />
               </>
@@ -1020,7 +1026,7 @@ function FunctionInspector({
                       singleColumn
                       part="aspect"
                       onChange={(key, value) =>
-                        store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                        updateValues({ [key]: value })
                       }
                     />
                   </>
@@ -1043,9 +1049,7 @@ function FunctionInspector({
                         singleColumn
                         onChange={(next) => store.updateNodeData(node.id, { accel: next })}
                         inputs={pack.inputs}
-                        onApplyPreset={(patch) =>
-                          store.updateNodeData(node.id, { values: { ...d.values, ...patch } })
-                        }
+                        onApplyPreset={(patch) => updateValues(patch)}
                       />
                     )}
                     {pack.capability === "motion" && (
@@ -1119,7 +1123,7 @@ function FunctionInspector({
                       singleColumn
                       part={pack.capability === "t2i" ? "rest" : "all"}
                       onChange={(key, value) =>
-                        store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                        updateValues({ [key]: value })
                       }
                     />
                   </AdvancedPanel>
@@ -1167,7 +1171,7 @@ function FunctionInspector({
               providerId={d.providerId ?? undefined}
               singleColumn
               onChange={(key, value) =>
-                store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                updateValues({ [key]: value })
               }
             />
           </section>
@@ -1184,7 +1188,7 @@ function FunctionInspector({
                   singleColumn
                   part="aspect"
                   onChange={(key, value) =>
-                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                    updateValues({ [key]: value })
                   }
                 />
               </section>
@@ -1199,7 +1203,7 @@ function FunctionInspector({
                   singleColumn
                   part={d.subCapability === "t2i" ? "rest" : "all"}
                   onChange={(key, value) =>
-                    store.updateNodeData(node.id, { values: { ...d.values, [key]: value } })
+                    updateValues({ [key]: value })
                   }
                 />
               </AdvancedPanel>

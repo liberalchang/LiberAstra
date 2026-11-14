@@ -244,6 +244,8 @@ export function WorkflowInputs({
   part = "all",
 }: Props) {
   const tx = useTx();
+  // 宽高比标记只存在控件里：当前宽高仍匹配预设时，点「自定义」不能马上被预设抢回去。
+  const [customAspect, setCustomAspect] = useState(false);
   // 帧数对齐：有效帧数 = align_base × k + align_offset（如 MiniMax 的 17k+5、Wan 的 4k+1）
   const snapFrames = (n: number, spec: WorkflowInputSpec) =>
     snapFramesCeil(n, {
@@ -304,7 +306,10 @@ export function WorkflowInputs({
         const scale = long / Math.max(o.width, o.height);
         return { ratio: o.ratio, width: snapSide(o.width * scale), height: snapSide(o.height * scale) };
       }),
-    ];
+    ].filter(
+      // 缩放后不同比例可能落到同一像素尺寸（如两个 1:1），只保留第一个。
+      (o, index, rows) => rows.findIndex((row) => row.width === o.width && row.height === o.height) === index,
+    );
     const curW = intValueOf(values.width, widthSpec);
     const curH = intValueOf(values.height, heightSpec);
     const matched = ratioOptions.find((o) => o.width === curW && o.height === curH);
@@ -313,8 +318,9 @@ export function WorkflowInputs({
         <AspectSelect
           label={tx("宽高比")}
           options={ratioOptions}
-          value={matched ?? { ratio: CUSTOM_RATIO, width: curW, height: curH }}
+          value={matched && !customAspect ? matched : { ratio: CUSTOM_RATIO, width: curW, height: curH }}
           onChange={(o) => {
+            setCustomAspect(o.ratio === CUSTOM_RATIO);
             onChange("width", String(snapSide(o.width)));
             onChange("height", String(snapSide(o.height)));
           }}
