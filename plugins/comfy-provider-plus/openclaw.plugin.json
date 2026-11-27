@@ -14,7 +14,7 @@
       "configSignals": [
         {
           "rootPath": "plugins.entries.comfy-plus.config",
-          "required": ["baseUrl", "workflows", "nodeBindings"]
+          "required": ["baseUrl", "workflows"]
         }
       ]
     }

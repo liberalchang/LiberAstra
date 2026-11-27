@@ -33,15 +33,34 @@ const CN_DIGITS: Record<string, number> = {
   九: 9,
 };
 
+/** 解析中文数字；无法解析但含百/千等大数时返回超界哨兵以触发拒绝 */
 function parseChineseNumber(token: string): number | null {
   const t = token.trim();
   if (!t) return null;
   if (/^\d+$/.test(t)) return Number(t);
-  if (t === "十") return 10;
+
+  // 一百 / 一百零X / X百 / X百Y十Z
+  if (/[百千万]/.test(t)) {
+    const mBai = t.match(/^([一二两三四五六七八九])?百(?:零?([一二三四五六七八九]))?(?:([一二三四五六七八九])?十([一二三四五六七八九])?)?$/);
+    if (mBai) {
+      const hundreds = mBai[1] ? CN_DIGITS[mBai[1]] : 1;
+      let n = hundreds * 100;
+      if (mBai[2]) n += CN_DIGITS[mBai[2]];
+      if (mBai[3] || mBai[4]) {
+        n += (mBai[3] ? CN_DIGITS[mBai[3]] : 1) * 10;
+        if (mBai[4]) n += CN_DIGITS[mBai[4]];
+      }
+      return n;
+    }
+    // 无法精确解析的大数 → 哨兵，保证越界拒绝
+    return 100;
+  }
+
+  if (t === "十" || t === "一十") return 10;
   if (t.length === 1 && t in CN_DIGITS) return CN_DIGITS[t];
   const m1 = t.match(/^十([一二三四五六七八九])?$/);
   if (m1) return 10 + (m1[1] ? CN_DIGITS[m1[1]] : 0);
-  const m2 = t.match(/^([二三四五六七八九])十([一二三四五六七八九])?$/);
+  const m2 = t.match(/^([一二两三四五六七八九])十([一二三四五六七八九])?$/);
   if (m2) return CN_DIGITS[m2[1]] * 10 + (m2[2] ? CN_DIGITS[m2[2]] : 0);
   return null;
 }
@@ -76,17 +95,20 @@ function formatSlot(n: number, template: string): string {
   return template.replace("{n}", String(n)).replace("{N}", String(n));
 }
 
-/** 保护：尺寸、比例、步数、CFG、普通数量词等 */
+/** 保护：尺寸、比例、步数、CFG、普通数量词等（中文后不用 ASCII \b） */
 const PROTECT_PATTERNS: RegExp[] = [
   /\b\d{3,5}\s*[x×]\s*\d{3,5}\b/gi,
-  /\b\d{3,5}\s*(?:px|宽|高|宽度|高度)\b/gi,
+  /\b\d{3,5}\s*(?:px\b|宽度?|高度?|宽|高)/gi,
   /\b(?:CFG|cfg)\s*[:=]?\s*\d+(?:\.\d+)?\b/g,
-  /\b\d+\s*(?:步|steps?)\b/gi,
+  /\b\d+\s*(?:steps?\b|步)/gi,
   /\b\d+\s*:\s*\d+\b/g,
-  /[一二两三四五六七八九十百]+(?:个|只|位|人|名|条|天|小时|分钟|秒)/g,
-  /第[一二两三四五六七八九十百\d]+\s*张\s*(?:桌子|椅子|床|纸|票)/g,
+  /[一二两三四五六七八九十百]+(?:个人|个人|个|只|位|人|名|条|天|小时|分钟|秒)/g,
+  /第[一二两三四五六七八九十百\d]+\s*张\s*(?:桌子|椅子|床|纸|票|嘴|脸|卡|钞票|画纸|沙发)/g,
   /\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|persons|cats|dogs|men|women)\b/gi,
 ];
+
+const NON_IMAGE_OBJECT =
+  /^(?:桌子|椅子|床|纸|票|嘴|脸|卡|钞票|画纸|沙发)/;
 
 const FUZZY_HINT =
   /左边那张|右边那张|上面那张|下面那张|中间那张|衣服那张|背景那张|那张图|那张照片|\bthe\s+left\s+(?:one|image)\b|\bthe\s+right\s+(?:one|image)\b/gi;
@@ -137,18 +159,40 @@ function collectExplicitHits(masked: string): MatchHit[] {
     if (Number.isFinite(n)) push(m.index, m.index + m[0].length, n);
   }
 
-  const reCnPrefix = /(?:参考)?(?:图|图片|照片|图像)\s*([0-9一二两三四五六七八九十百]+)/g;
+  // 图一百 / 图片2 / 参考图4（中文数字含百）
+  const reCnPrefix =
+    /(?:参考)?(?:图|图片|照片|图像)\s*([0-9一二两三四五六七八九十百零〇]+)/g;
   while ((m = reCnPrefix.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n != null) push(m.index, m.index + m[0].length, n);
   }
 
-  // 必须带图片语义后置词，避免「第一张桌子」；后置词保持短匹配以免吞句
-  const reOrdinalCn =
-    /第\s*([0-9一二两三四五六七八九十百]+)\s*张\s*(?:参考)?(?:图|图片|照片|图像|人物|人像|主体|角色|衣服|服装|背景|姿态|姿势)/g;
-  while ((m = reOrdinalCn.exec(masked)) !== null) {
+  // 第X张 + 图片本体词：整体替换（含「图」）
+  const reOrdinalMedia =
+    /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张\s*(?:参考)?(?:图|图片|照片|图像)/g;
+  while ((m = reOrdinalMedia.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n == null) continue;
+    push(m.index, m.index + m[0].length, n);
+  }
+
+  // 第X张 + 内容属性词：仅替换「第X张」，保留「人物/衣服」等（正向先行）
+  const reOrdinalAttr =
+    /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张(?=\s*(?:人物|人像|主体|角色|衣服|服装|背景|姿态|姿势))/g;
+  while ((m = reOrdinalAttr.exec(masked)) !== null) {
+    const n = parseChineseNumber(m[1]);
+    if (n == null) continue;
+    push(m.index, m.index + m[0].length, n);
+  }
+
+  // 独立「第X张」：后面不是非图物体量词
+  const reOrdinalBare = /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张/g;
+  while ((m = reOrdinalBare.exec(masked)) !== null) {
+    const n = parseChineseNumber(m[1]);
+    if (n == null) continue;
+    const after = masked.slice(m.index + m[0].length);
+    if (NON_IMAGE_OBJECT.test(after.trimStart())) continue;
+    // 若已被更长匹配覆盖，后续去重叠会处理
     push(m.index, m.index + m[0].length, n);
   }
 
@@ -184,10 +228,23 @@ export function normalizePromptSlots(params: NormalizeSlotsParams): NormalizeSlo
 
   let working = originalPrompt;
   if (params.imageRoles?.length) {
-    // 长角色名优先，避免短名误伤；中文角色按子串替换（调用方显式提供，非猜测）
+    if (params.imageRoles.length > actualImageCount) {
+      // 超界角色表：若提示词命中超界角色则拒绝
+      for (let i = actualImageCount; i < params.imageRoles.length; i += 1) {
+        const role = params.imageRoles[i]?.trim();
+        if (role && working.includes(role)) {
+          throw Object.assign(
+            new Error(
+              `imageRoles 第 ${i + 1} 项「${role}」超出实际图片数 ${actualImageCount}`,
+            ),
+            { code: "VALIDATION_FAILED" as const },
+          );
+        }
+      }
+    }
     const roleEntries = params.imageRoles
       .map((role, i) => ({ role: role?.trim() ?? "", index: i + 1 }))
-      .filter((e) => e.role)
+      .filter((e) => e.role && e.index <= Math.max(actualImageCount, 0))
       .sort((a, b) => b.role.length - a.role.length);
     for (const entry of roleEntries) {
       if (!working.includes(entry.role)) continue;

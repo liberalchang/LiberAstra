@@ -1,17 +1,43 @@
 import type { ComfyErrorCode, ComfyPlusError } from "../types.js";
 
 const PATH_RE =
-  /(?:[A-Za-z]:\\|\\\\|\/(?:Users|home|root|var|tmp|private)\/)[^\s"'`]+/g;
-const SECRET_RE =
-  /(?:api[_-]?key|token|authorization|bearer|secret|password)\s*[:=]\s*["']?[^\s"',}]+/gi;
+  /(?:[A-Za-z]:[\\/][^\s"'`,}\]]+|\\\\[^\s"'`,}\]]+|\/(?:Users|home|root|var|tmp|private|etc|opt|srv|mnt|Volumes)\/[^\s"'`,}\]]+)/g;
+
+const AUTH_BEARER_RE = /Authorization\s*:\s*Bearer\s+\S+/gi;
+const BARE_BEARER_RE = /\bBearer\s+\S+/gi;
+const URL_CRED_RE = /:\/\/[^/\s:@]+:[^/\s@]+@/gi;
+const SECRET_KV_RE =
+  /(?:api[_-]?key|token|secret|password|authorization)\s*[:=]\s*["']?[^\s"',}\]]+/gi;
+
+const SENSITIVE_KEY_RE = /^(?:api[_-]?key|token|secret|password|authorization|bearer|auth)$/i;
 
 /** 剥离密钥、Token、本机绝对路径与堆栈噪声 */
 export function redactSensitive(text: string): string {
   return text
-    .replace(SECRET_RE, "[REDACTED_SECRET]")
+    .replace(AUTH_BEARER_RE, "[REDACTED_SECRET]")
+    .replace(BARE_BEARER_RE, "[REDACTED_SECRET]")
+    .replace(URL_CRED_RE, "://[REDACTED_SECRET]@")
+    .replace(SECRET_KV_RE, "[REDACTED_SECRET]")
     .replace(PATH_RE, "[REDACTED_PATH]")
     .replace(/\n\s*at\s+[^\n]+/g, "")
     .trim();
+}
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") return redactSensitive(value);
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (SENSITIVE_KEY_RE.test(k)) {
+        out[k] = "[REDACTED_SECRET]";
+      } else {
+        out[k] = redactValue(v);
+      }
+    }
+    return out;
+  }
+  return value;
 }
 
 export function createComfyError(
@@ -22,14 +48,35 @@ export function createComfyError(
   const err = new Error(redactSensitive(message)) as ComfyPlusError;
   err.code = code;
   if (details) {
-    err.details = JSON.parse(redactSensitive(JSON.stringify(details))) as Record<string, unknown>;
+    err.details = redactValue(details) as Record<string, unknown>;
   }
   return err;
 }
 
-export function classifyFetchFailure(err: unknown, context: string): ComfyPlusError {
+export function classifyFetchFailure(
+  err: unknown,
+  context: string,
+  extras?: { index?: number; preferUpload?: boolean },
+): ComfyPlusError {
   const msg = err instanceof Error ? err.message : String(err);
+  const name = err instanceof Error ? err.name : "";
   const lower = msg.toLowerCase();
+  const details = extras?.index != null ? { index: extras.index } : undefined;
+
+  if (
+    name === "TimeoutError" ||
+    name === "AbortError" ||
+    lower.includes("aborted") ||
+    lower.includes("timeout") ||
+    lower.includes("timed out")
+  ) {
+    return createComfyError(
+      "EXECUTION_TIMEOUT",
+      `${context} 超时: ${msg}`,
+      details,
+    );
+  }
+
   if (
     lower.includes("econnrefused") ||
     lower.includes("enotfound") ||
@@ -38,9 +85,14 @@ export function classifyFetchFailure(err: unknown, context: string): ComfyPlusEr
     lower.includes("unreachable") ||
     lower.includes("econnreset")
   ) {
-    return createComfyError("COMFY_UNREACHABLE", `ComfyUI 不可达（${context}）: ${msg}`);
+    return createComfyError("COMFY_UNREACHABLE", `ComfyUI 不可达（${context}）: ${msg}`, details);
   }
-  return createComfyError("EXECUTION_FAILED", `${context}: ${msg}`);
+
+  if (extras?.preferUpload) {
+    return createComfyError("UPLOAD_FAILED", `${context}: ${msg}`, details);
+  }
+
+  return createComfyError("EXECUTION_FAILED", `${context}: ${msg}`, details);
 }
 
 export function formatExecutionError(payload: unknown): string {

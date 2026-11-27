@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ComfyClient } from "./comfy/client.js";
-import { createComfyError } from "./comfy/errors.js";
+import { createComfyError, redactSensitive } from "./comfy/errors.js";
 import {
   DEFAULT_COMFY_PLUS_MODEL,
   MAX_INPUT_IMAGES,
@@ -31,6 +31,7 @@ export type GenerateImageRequestLike = {
   cfg?: unknown;
   timeoutMs?: number;
   size?: string;
+  signal?: AbortSignal;
   inputImages?: Array<{
     buffer?: Buffer;
     mimeType?: string;
@@ -60,7 +61,8 @@ function readOverrides(req: GenerateImageRequestLike): ProviderOptionOverrides {
     : undefined;
 
   return {
-    operation: str(po.operation),
+    // 保留原始 operation（含非字符串），交给 routeOperation 严格校验
+    operation: po.operation,
     steps: num(po.steps),
     cfg: num(po.cfg),
     negativePrompt: str(po.negativePrompt),
@@ -84,13 +86,12 @@ async function resolveExistingWorkflowPath(
   bundledName: string,
 ): Promise<string> {
   const home = process.env.HOME || process.env.USERPROFILE || "";
-  const candidates = [
-    configured.replace(/^~\//, `${home}/`),
-    configured,
-    path.join(BUNDLED_WORKFLOWS, bundledName),
-  ];
+  const expanded = configured.replace(/^~\//, `${home}/`);
+  const candidates = [expanded, configured, path.join(BUNDLED_WORKFLOWS, bundledName)];
   const fs = await import("node:fs/promises");
+  const tried: string[] = [];
   for (const c of candidates) {
+    tried.push(c);
     try {
       await fs.access(c);
       return c;
@@ -98,7 +99,22 @@ async function resolveExistingWorkflowPath(
       /* try next */
     }
   }
-  return path.join(BUNDLED_WORKFLOWS, bundledName);
+  throw createComfyError(
+    "VALIDATION_FAILED",
+    `工作流文件不存在（已尝试 ${tried.length} 个候选路径）`,
+    { bundledName },
+  );
+}
+
+/** 规范化返回 model，避免 comfy-plus/comfy-plus/workflow */
+export function normalizeProviderModel(model: string | undefined): string {
+  const raw = (model || DEFAULT_COMFY_PLUS_MODEL).trim();
+  const prefix = `${PROVIDER_ID}/`;
+  if (raw.startsWith(prefix)) return raw;
+  if (raw === DEFAULT_COMFY_PLUS_MODEL || !raw.includes("/")) {
+    return `${prefix}${raw || DEFAULT_COMFY_PLUS_MODEL}`;
+  }
+  return raw;
 }
 
 export async function generateComfyPlusImage(req: GenerateImageRequestLike): Promise<{
@@ -106,7 +122,24 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
   model: string;
   metadata: Record<string, unknown>;
 }> {
-  const config = parseComfyPlusConfig(getComfyPlusPluginConfig(req.cfg));
+  try {
+    return await generateComfyPlusImageInner(req);
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err) throw err;
+    throw createComfyError(
+      "EXECUTION_FAILED",
+      redactSensitive(err instanceof Error ? err.message : String(err)),
+    );
+  }
+}
+
+async function generateComfyPlusImageInner(req: GenerateImageRequestLike): Promise<{
+  images: Array<{ buffer: Buffer; mimeType: string; fileName: string }>;
+  model: string;
+  metadata: Record<string, unknown>;
+}> {
+  const pluginRaw = getComfyPlusPluginConfig(req.cfg);
+  const config = parseComfyPlusConfig(pluginRaw);
   const overrides = readOverrides(req);
   const inputImages: InputImage[] = (req.inputImages ?? []).map((img, i) => {
     if (!img.buffer || !img.mimeType) {
@@ -134,7 +167,6 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
   });
 
   if (route.workflowKey === "colorGrade" || route.workflowKey === "pose") {
-    // 门禁已在 router；此处防御
     throw createComfyError("VALIDATION_FAILED", "该操作工作流未验证");
   }
 
@@ -156,14 +188,15 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
   const template = await loadWorkflowTemplate(workflowPath);
   assertBindingsExist(template, bindings);
 
+  const mode = route.operation === "t2i" ? "t2i" : "edit";
   const client = new ComfyClient({
     baseUrl: config.baseUrl,
     timeoutMs: req.timeoutMs ?? config.timeoutMs,
     pollIntervalMs: config.pollIntervalMs,
     maxUploadBytes: config.maxUploadBytes,
+    signal: req.signal,
   });
 
-  // 预检在上传前；T2I 无上传
   client.preflightImages(inputImages);
 
   let uploadedNames: string[] = [];
@@ -173,7 +206,7 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
   }
 
   const loraEnabled = overrides.loraEnabled ?? config.defaults.loraEnabled;
-  const promptGraph = injectWorkflowParams({
+  const { workflow: promptGraph, resolvedSeed } = injectWorkflowParams({
     workflow: template,
     bindings,
     defaults: config.defaults,
@@ -181,7 +214,7 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
     prompt: norm.normalizedPrompt,
     uploadedFilenames: uploadedNames,
     loraEnabled,
-    mode: route.operation === "t2i" ? "t2i" : "edit",
+    mode,
   });
 
   const slotMap: SlotMapEntry[] = uploadedNames.map((comfyFilename, i) => ({
@@ -200,7 +233,7 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
 
   const promptId = await client.submitPrompt(promptGraph);
   const history = await client.waitForHistory(promptId);
-  const files = client.extractImages(history, bindings.output.nodeId);
+  const files = client.extractImages(history, bindings.output.nodeId, bindings.output.outputKey);
   if (files.length === 0) {
     throw createComfyError("EXECUTION_FAILED", `工作流 ${promptId} 完成但无图片输出`);
   }
@@ -223,6 +256,8 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
         overrides,
         loraEnabled,
         prompt: norm.normalizedPrompt,
+        seed: resolvedSeed,
+        mode,
       }),
       promptAudit: audit,
       outputNodeIds: [...new Set(files.map((f) => f.nodeId))],
@@ -232,9 +267,25 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
 
 export function isComfyPlusConfigured(cfg: unknown): boolean {
   try {
-    const config = parseComfyPlusConfig(getComfyPlusPluginConfig(cfg));
-    return Boolean(config.baseUrl && config.workflows.t2i && config.workflows.edit);
+    if (!isRecord(cfg)) return false;
+    const plugins = cfg.plugins;
+    if (!isRecord(plugins)) return false;
+    const entries = plugins.entries;
+    if (!isRecord(entries)) return false;
+    const entry = entries["comfy-plus"];
+    if (!isRecord(entry)) return false;
+    if (entry.enabled === false) return false;
+    const config = entry.config;
+    if (!isRecord(config)) return false;
+    if (typeof config.baseUrl !== "string" || !config.baseUrl.trim()) return false;
+    if (!isRecord(config.workflows)) return false;
+    parseComfyPlusConfig(config);
+    return true;
   } catch {
     return false;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createComfyError } from "../comfy/errors.js";
 import type { ComfyPrompt, WorkflowNodeBindings } from "../types.js";
 
 function expandUserPath(input: string): string {
@@ -34,17 +35,30 @@ export function isComfyPrompt(value: unknown): value is ComfyPrompt {
 
 export async function loadWorkflowTemplate(workflowPath: string): Promise<ComfyPrompt> {
   const resolved = expandUserPath(workflowPath);
-  const raw = await fs.readFile(resolved, "utf8");
-  const parsed = JSON.parse(raw) as unknown;
-  if (!isComfyPrompt(parsed)) {
-    throw new Error(`工作流必须是 ComfyUI API Prompt JSON 对象: ${resolved}`);
+  try {
+    const raw = await fs.readFile(resolved, "utf8");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      throw createComfyError("VALIDATION_FAILED", "工作流 JSON 解析失败");
+    }
+    if (!isComfyPrompt(parsed)) {
+      throw createComfyError("VALIDATION_FAILED", "工作流必须是 ComfyUI API Prompt JSON 对象");
+    }
+    return structuredClone(stripDocKeys(parsed as Record<string, unknown>)) as ComfyPrompt;
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err) throw err;
+    throw createComfyError(
+      "VALIDATION_FAILED",
+      `无法读取工作流模板: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
-  return structuredClone(stripDocKeys(parsed as Record<string, unknown>)) as ComfyPrompt;
 }
 
 export function loadWorkflowFromObject(workflow: unknown): ComfyPrompt {
   if (!isComfyPrompt(workflow)) {
-    throw new Error("工作流必须是 ComfyUI API Prompt JSON 对象");
+    throw createComfyError("VALIDATION_FAILED", "工作流必须是 ComfyUI API Prompt JSON 对象");
   }
   return structuredClone(stripDocKeys(workflow as Record<string, unknown>)) as ComfyPrompt;
 }
@@ -79,6 +93,9 @@ export function assertBindingsExist(
 
   const missing = [...requiredIds].filter((id) => !workflow[id]);
   if (missing.length > 0 && !options?.allowMissingImageLoads) {
-    throw new Error(`工作流缺少配置声明的节点: ${missing.join(", ")}`);
+    throw createComfyError(
+      "VALIDATION_FAILED",
+      `工作流缺少配置声明的节点: ${missing.join(", ")}`,
+    );
   }
 }

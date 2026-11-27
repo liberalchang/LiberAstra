@@ -115,7 +115,8 @@ export type ComfyPlusConfig = {
 };
 
 export type ProviderOptionOverrides = {
-  operation?: OperationKind | string;
+  /** 原始 operation（可为非法类型，由 router 校验） */
+  operation?: unknown;
   steps?: number;
   cfg?: number;
   negativePrompt?: string;

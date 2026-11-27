@@ -33,10 +33,24 @@ export type InjectParams = {
   mode: "t2i" | "edit";
 };
 
+export type InjectResult = {
+  workflow: ComfyPrompt;
+  resolvedSeed: number;
+};
+
+function resolveSeed(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const truncated = Math.trunc(raw);
+    // 负 seed（含 -1）约定为随机，避免 ComfyUI KSampler 拒收
+    if (truncated >= 0) return truncated;
+  }
+  return Math.floor(Math.random() * (2 ** 48 - 1));
+}
+
 /**
  * 仅通过 nodeId + inputName 写入参数；Edit 按 N 动态创建 LoadImage 并接线。
  */
-export function injectWorkflowParams(params: InjectParams): ComfyPrompt {
+export function injectWorkflowParams(params: InjectParams): InjectResult {
   const wf = structuredClone(params.workflow);
   const b = params.bindings;
   const d = params.defaults;
@@ -58,10 +72,7 @@ export function injectWorkflowParams(params: InjectParams): ComfyPrompt {
     setInput(wf, b.resolution.nodeId, b.resolution.inputName, o.resolution ?? d.resolution);
   }
 
-  const seed =
-    typeof o.seed === "number" && Number.isFinite(o.seed)
-      ? Math.trunc(o.seed)
-      : Math.floor(Math.random() * (2 ** 48 - 1));
+  const seed = resolveSeed(o.seed);
   setInput(wf, b.seed.nodeId, b.seed.inputName, seed);
   setInput(wf, b.steps.nodeId, b.steps.inputName, o.steps ?? d.steps);
   setInput(wf, b.cfg.nodeId, b.cfg.inputName, o.cfg ?? d.cfg);
@@ -104,7 +115,7 @@ export function injectWorkflowParams(params: InjectParams): ComfyPrompt {
         }
       }
     }
-    return wf;
+    return { workflow: wf, resolvedSeed: seed };
   }
 
   // Edit：动态 LoadImage + images.image_N
@@ -146,7 +157,7 @@ export function injectWorkflowParams(params: InjectParams): ComfyPrompt {
     ]);
   }
 
-  return wf;
+  return { workflow: wf, resolvedSeed: seed };
 }
 
 /** 供元数据回显的已应用参数快照 */
@@ -155,17 +166,16 @@ export function buildAppliedParamsMetadata(params: {
   overrides: ProviderOptionOverrides;
   loraEnabled: boolean;
   prompt: string;
-  seed?: number;
+  seed: number;
+  mode: "t2i" | "edit";
 }): Record<string, unknown> {
   const d = params.defaults;
   const o = params.overrides;
-  return {
+  const base: Record<string, unknown> = {
     prompt: params.prompt,
     negativePrompt: o.negativePrompt ?? d.negativePrompt,
     steps: o.steps ?? d.steps,
     cfg: o.cfg ?? d.cfg,
-    width: o.width ?? d.width,
-    height: o.height ?? d.height,
     resolution: o.resolution ?? d.resolution,
     unetName: o.unetName ?? d.unetName,
     clipName: o.clipName ?? d.clipName,
@@ -175,4 +185,10 @@ export function buildAppliedParamsMetadata(params: {
     loraStrength: o.loraStrength ?? d.loraStrength,
     seed: params.seed,
   };
+  // Edit 跟随首图比例，不上报未生效的 width/height
+  if (params.mode === "t2i") {
+    base.width = o.width ?? d.width;
+    base.height = o.height ?? d.height;
+  }
+  return base;
 }

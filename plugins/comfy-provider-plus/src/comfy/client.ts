@@ -13,6 +13,8 @@ export type ComfyClientOptions = {
   /** 可注入时钟，便于 600s 超时单测 */
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** 宿主取消信号 */
+  signal?: AbortSignal;
 };
 
 export type UploadResult = {
@@ -22,20 +24,23 @@ export type UploadResult = {
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 const JPEG_SIG = Buffer.from([0xff, 0xd8, 0xff]);
+const GIF_SIG = Buffer.from("GIF");
+const RIFF_SIG = Buffer.from("RIFF");
 const WEBP_SIG = Buffer.from("WEBP");
 
-function detectImageExt(buffer: Buffer, mimeType: string, fileName?: string): string {
+/** 仅认魔数；禁止纯文本冒充 MIME 通过 */
+function detectImageExt(buffer: Buffer, _mimeType: string, _fileName?: string): string {
   if (buffer.length >= 4 && buffer.subarray(0, 4).equals(PNG_SIG)) return "png";
   if (buffer.length >= 3 && buffer.subarray(0, 3).equals(JPEG_SIG)) return "jpg";
-  if (buffer.length >= 12 && buffer.subarray(8, 12).equals(WEBP_SIG)) return "webp";
-  if (mimeType.includes("png")) return "png";
-  if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "jpg";
-  if (mimeType.includes("webp")) return "webp";
-  const fromName = fileName?.split(".").pop()?.toLowerCase();
-  if (fromName && ["png", "jpg", "jpeg", "webp", "gif", "webp"].includes(fromName)) {
-    return fromName === "jpeg" ? "jpg" : fromName;
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).equals(RIFF_SIG) &&
+    buffer.subarray(8, 12).equals(WEBP_SIG)
+  ) {
+    return "webp";
   }
-  throw createComfyError("UPLOAD_FAILED", "不支持的图片格式（魔数/MIME 校验失败）", {
+  if (buffer.length >= 3 && buffer.subarray(0, 3).equals(GIF_SIG)) return "gif";
+  throw createComfyError("UPLOAD_FAILED", "不支持的图片格式（魔数校验失败）", {
     index: 0,
   });
 }
@@ -54,6 +59,7 @@ export class ComfyClient {
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly signal?: AbortSignal;
 
   constructor(opts: ComfyClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
@@ -64,6 +70,16 @@ export class ComfyClient {
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.now = opts.now ?? Date.now;
     this.sleep = opts.sleep ?? sleep;
+    this.signal = opts.signal;
+  }
+
+  private combineSignal(timeoutMs: number): AbortSignal {
+    const timeout = AbortSignal.timeout(timeoutMs);
+    if (!this.signal) return timeout;
+    if (typeof AbortSignal.any === "function") {
+      return AbortSignal.any([this.signal, timeout]);
+    }
+    return this.signal.aborted ? this.signal : timeout;
   }
 
   /** 本地全量预检：任一张失败则不发网络请求 */
@@ -116,7 +132,7 @@ export class ComfyClient {
         const res = await this.fetchImpl(`${this.baseUrl}/upload/image`, {
           method: "POST",
           body: form,
-          signal: AbortSignal.timeout(Math.min(this.timeoutMs, 120_000)),
+          signal: this.combineSignal(Math.min(this.timeoutMs, 120_000)),
         });
         if (!res.ok) {
           const body = redactSensitive(await res.text().catch(() => ""));
@@ -136,7 +152,10 @@ export class ComfyClient {
         out.push({ filename: uploaded, index });
       } catch (err) {
         if (err && typeof err === "object" && "code" in err) throw err;
-        throw classifyFetchFailure(err, `第 ${index} 张上传`);
+        throw classifyFetchFailure(err, `第 ${index} 张上传`, {
+          index,
+          preferUpload: true,
+        });
       }
     }
     return out;
@@ -148,7 +167,7 @@ export class ComfyClient {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
-        signal: AbortSignal.timeout(Math.min(this.timeoutMs, 60_000)),
+        signal: this.combineSignal(Math.min(this.timeoutMs, 60_000)),
       });
       if (!res.ok) {
         const body = redactSensitive(await res.text().catch(() => ""));
@@ -176,7 +195,7 @@ export class ComfyClient {
       try {
         const res = await this.fetchImpl(`${this.baseUrl}/history/${promptId}`, {
           method: "GET",
-          signal: AbortSignal.timeout(Math.min(this.pollRequestTimeoutMs, remaining)),
+          signal: this.combineSignal(Math.min(this.pollRequestTimeoutMs, remaining)),
         });
         if (!res.ok) {
           // 瞬时失败：重试至总 deadline
@@ -229,7 +248,7 @@ export class ComfyClient {
     try {
       const res = await this.fetchImpl(`${this.baseUrl}/view?${query}`, {
         method: "GET",
-        signal: AbortSignal.timeout(Math.min(this.timeoutMs, 120_000)),
+        signal: this.combineSignal(Math.min(this.timeoutMs, 120_000)),
       });
       if (!res.ok) {
         throw createComfyError("EXECUTION_FAILED", `下载输出失败: HTTP ${res.status}`);
@@ -246,13 +265,14 @@ export class ComfyClient {
   extractImages(
     historyEntry: Record<string, unknown>,
     outputNodeId?: string,
+    outputKey = "images",
   ): Array<{ filename?: string; name?: string; subfolder?: string; type?: string; nodeId: string }> {
     const outputs = historyEntry.outputs as Record<string, Record<string, unknown>> | undefined;
     if (!outputs) return [];
     const nodeIds = outputNodeId ? [outputNodeId] : Object.keys(outputs);
     const files: Array<{ filename?: string; name?: string; subfolder?: string; type?: string; nodeId: string }> = [];
     for (const nodeId of nodeIds) {
-      const bucket = outputs[nodeId]?.images;
+      const bucket = outputs[nodeId]?.[outputKey];
       if (!Array.isArray(bucket)) continue;
       for (const file of bucket) {
         if (file && typeof file === "object") {
@@ -274,7 +294,19 @@ export class ComfyClient {
     } catch {
       /* 尽力清理 */
     }
+    // 仅当 promptId 仍在 queue_running 时 interrupt，避免误伤共享服务器其他任务
     try {
+      const qRes = await this.fetchImpl(`${this.baseUrl}/queue`, {
+        method: "GET",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!qRes.ok) return;
+      const queue = (await qRes.json()) as {
+        queue_running?: Array<[unknown, string, ...unknown[]]>;
+      };
+      const running = Array.isArray(queue.queue_running) ? queue.queue_running : [];
+      const mine = running.some((item) => Array.isArray(item) && item[1] === promptId);
+      if (!mine) return;
       await this.fetchImpl(`${this.baseUrl}/interrupt`, {
         method: "POST",
         signal: AbortSignal.timeout(5_000),

@@ -5,7 +5,11 @@ import {
   PLUGIN_ID,
   PROVIDER_ID,
 } from "./src/config/defaults.js";
-import { generateComfyPlusImage, isComfyPlusConfigured } from "./src/provider-runtime.js";
+import {
+  generateComfyPlusImage,
+  isComfyPlusConfigured,
+  normalizeProviderModel,
+} from "./src/provider-runtime.js";
 
 /**
  * OpenClaw 宿主若提供 `openclaw/plugin-sdk/plugin-entry`，可在安装环境替换本 shim。
@@ -36,7 +40,7 @@ const comfyPlusPlugin = definePluginEntry({
           enabled: true,
           maxCount: 1,
           maxInputImages: MAX_INPUT_IMAGES,
-          supportsSize: true,
+          supportsSize: false,
           supportsAspectRatio: false,
           supportsResolution: false,
         },
@@ -47,13 +51,14 @@ const comfyPlusPlugin = definePluginEntry({
         cfg?: unknown;
         timeoutMs?: number;
         size?: string;
+        signal?: AbortSignal;
         inputImages?: Array<{ buffer?: Buffer; mimeType?: string; fileName?: string }>;
         providerOptions?: Record<string, unknown>;
       }) {
         const result = await generateComfyPlusImage(req);
         return {
           images: result.images,
-          model: `${PROVIDER_ID}/${result.model}`,
+          model: normalizeProviderModel(result.model),
           metadata: result.metadata,
         };
       },
