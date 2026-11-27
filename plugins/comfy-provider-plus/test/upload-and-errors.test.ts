@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { ComfyClient } from "../src/comfy/client.js";
-import { createComfyError, redactSensitive } from "../src/comfy/errors.js";
+import { createComfyError, isComfyPlusError, redactSensitive } from "../src/comfy/errors.js";
 import { routeOperation } from "../src/router/operation-router.js";
+import { loadWorkflowTemplate } from "../src/workflow/loader.js";
 import { DEFAULT_COMFY_PLUS_CONFIG } from "../src/config/defaults.js";
 
 describe("upload-and-errors", () => {
@@ -98,30 +99,57 @@ describe("upload-and-errors", () => {
     expect(calls).toBe(2);
   });
 
-  it("四类错误码与脱敏（Bearer/路径/JSON details）", () => {
+  it("四类错误码与脱敏（Bearer/Basic/路径/URL 保留）", () => {
     expect(createComfyError("COMFY_UNREACHABLE", "down").code).toBe("COMFY_UNREACHABLE");
     expect(createComfyError("UPLOAD_FAILED", "u", { index: 1 }).code).toBe("UPLOAD_FAILED");
     expect(createComfyError("EXECUTION_FAILED", "e").code).toBe("EXECUTION_FAILED");
     expect(createComfyError("EXECUTION_TIMEOUT", "t").code).toBe("EXECUTION_TIMEOUT");
+    expect(isComfyPlusError(createComfyError("VALIDATION_FAILED", "v"))).toBe(true);
+    expect(isComfyPlusError(Object.assign(new Error("ENOENT"), { code: "ENOENT" }))).toBe(false);
 
     const redacted = redactSensitive(
-      "Authorization: Bearer sk-live-999999 and Bearer sk-raw-888888 and C:/Users/liber/secret.png and D:/foo/bar.png and C:\\Users\\Administrator\\secret\\file.png /home/ps/workspace/x http://u:p@host/x",
+      "Authorization: Bearer sk-live-999999 and Bearer sk-raw-888888 and Authorization: Basic YWRtaW46c2VjcmV0 and access_token=tok-abc and C:/Users/liber/secret.png and D:/foo/bar.png and C:\\Users\\Administrator\\secret\\file.png /home/ps/workspace/x",
     );
     expect(redacted).not.toMatch(/sk-live-999999/);
     expect(redacted).not.toMatch(/sk-raw-888888/);
     expect(redacted).not.toMatch(/Bearer sk-/i);
+    expect(redacted).not.toMatch(/YWRtaW46c2VjcmV0/);
+    expect(redacted).not.toMatch(/tok-abc/);
     expect(redacted).not.toMatch(/C:\/Users\/liber/);
     expect(redacted).not.toMatch(/D:\/foo/);
     expect(redacted).not.toMatch(/C:\\Users\\Administrator/);
     expect(redacted).not.toMatch(/\/home\/ps\//);
-    expect(redacted).not.toMatch(/u:p@/);
+
+    // PATH_RE 不得误伤 http(s)://
+    const urlKept = redactSensitive("fetch failed http://10.10.12.140:8188/prompt");
+    expect(urlKept).toContain("http://10.10.12.140:8188/prompt");
+    expect(urlKept).not.toMatch(/htt\[REDACTED_PATH\]/);
+    const credUrl = redactSensitive("http://u:p@10.10.12.140:8188/prompt");
+    expect(credUrl).toContain("http://[REDACTED_SECRET]@10.10.12.140:8188/prompt");
+    expect(credUrl).not.toMatch(/htt\[REDACTED_PATH\]/);
 
     const err = createComfyError("EXECUTION_FAILED", "x", {
       msg: 'api_key="sk-123"',
       api_key: "sk-456",
+      access_token: "tok-789",
     });
     expect(err.details?.msg).not.toMatch(/sk-123/);
     expect(err.details?.api_key).toBe("[REDACTED_SECRET]");
+    expect(err.details?.access_token).toBe("[REDACTED_SECRET]");
+  });
+
+  it("loadWorkflowTemplate ENOENT 不泄露本机绝对路径", async () => {
+    await expect(
+      loadWorkflowTemplate("D:/nonexistent/secret-dir/wf.json"),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    try {
+      await loadWorkflowTemplate("D:/nonexistent/secret-dir/wf.json");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      expect(msg).not.toMatch(/D:[\\/]nonexistent/);
+      expect(msg).not.toMatch(/secret-dir/);
+      expect(isComfyPlusError(e)).toBe(true);
+    }
   });
 
   it("调色/换姿关闭时不可调用", () => {

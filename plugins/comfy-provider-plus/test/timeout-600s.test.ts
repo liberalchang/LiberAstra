@@ -37,4 +37,44 @@ describe("timeout-600s", () => {
     });
     expect(now).toBeGreaterThanOrEqual(600_000);
   });
+
+  it("waitForHistory 响应 AbortSignal，立即中止且 history 轮询 ≤ 2", async () => {
+    const ac = new AbortController();
+    let historyFetches = 0;
+    let sleeps = 0;
+    const fetchImpl = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/history/")) {
+        historyFetches += 1;
+        return new Response(
+          JSON.stringify({ "prompt-abort": { status: { completed: false } } }),
+          { status: 200 },
+        );
+      }
+      // tryCleanup 的 /queue /interrupt
+      return new Response(JSON.stringify({ queue_running: [] }), { status: 200 });
+    };
+
+    const client = new ComfyClient({
+      baseUrl: "http://example.invalid",
+      timeoutMs: 600_000,
+      pollIntervalMs: 1_000,
+      maxUploadBytes: 1024,
+      pollRequestTimeoutMs: 5_000,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      signal: ac.signal,
+      sleep: async () => {
+        sleeps += 1;
+        ac.abort();
+        throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      },
+    });
+
+    await expect(client.waitForHistory("prompt-abort")).rejects.toMatchObject({
+      code: "EXECUTION_TIMEOUT",
+      message: expect.stringMatching(/取消|aborted/),
+    });
+    expect(historyFetches).toBeLessThanOrEqual(2);
+    expect(sleeps).toBeLessThanOrEqual(2);
+  });
 });

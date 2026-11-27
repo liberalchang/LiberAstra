@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ComfyClient } from "./comfy/client.js";
-import { createComfyError, redactSensitive } from "./comfy/errors.js";
+import { createComfyError, isComfyPlusError, redactSensitive } from "./comfy/errors.js";
 import {
   DEFAULT_COMFY_PLUS_MODEL,
   MAX_INPUT_IMAGES,
@@ -125,7 +125,7 @@ export async function generateComfyPlusImage(req: GenerateImageRequestLike): Pro
   try {
     return await generateComfyPlusImageInner(req);
   } catch (err) {
-    if (err && typeof err === "object" && "code" in err) throw err;
+    if (isComfyPlusError(err)) throw err;
     throw createComfyError(
       "EXECUTION_FAILED",
       redactSensitive(err instanceof Error ? err.message : String(err)),

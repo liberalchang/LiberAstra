@@ -23,10 +23,13 @@ describe("slot-normalizer", () => {
     ).toThrow(/image_20|不存在的图片槽位/);
   });
 
-  it("图一百越界拒绝", () => {
+  it("图一百/图一千越界拒绝", () => {
     expect(() =>
       normalizePromptSlots({ prompt: "用图一百的风格", actualImageCount: 16 }),
     ).toThrow(/image_100|不存在的图片槽位/);
+    expect(() =>
+      normalizePromptSlots({ prompt: "用图一千的风格", actualImageCount: 16 }),
+    ).toThrow(/不存在的图片槽位|image_/);
   });
 
   it("图3 仅传 2 张被拒绝", () => {

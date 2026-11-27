@@ -1,21 +1,41 @@
 import type { ComfyErrorCode, ComfyPlusError } from "../types.js";
 
-const PATH_RE =
-  /(?:[A-Za-z]:[\\/][^\s"'`,}\]]+|\\\\[^\s"'`,}\]]+|\/(?:Users|home|root|var|tmp|private|etc|opt|srv|mnt|Volumes)\/[^\s"'`,}\]]+)/g;
+const COMFY_ERROR_CODES = new Set<ComfyErrorCode>([
+  "COMFY_UNREACHABLE",
+  "UPLOAD_FAILED",
+  "EXECUTION_FAILED",
+  "EXECUTION_TIMEOUT",
+  "VALIDATION_FAILED",
+]);
 
-const AUTH_BEARER_RE = /Authorization\s*:\s*Bearer\s+\S+/gi;
-const BARE_BEARER_RE = /\bBearer\s+\S+/gi;
+/**
+ * Windows 盘符：排除 `http://` / `https://` / `ws://`（`:` 后不能是 `//`）。
+ * 另覆盖 UNC 与常见 Unix 根路径。
+ */
+const PATH_RE =
+  /(?:(?<![A-Za-z0-9_])[A-Za-z]:(?:\\|\/(?!\/))[^\s"'`,}\]]+|\\\\[^\s"'`,}\]]+|\/(?:Users|home|root|var|tmp|private|etc|opt|srv|mnt|Volumes)\/[^\s"'`,}\]]+)/g;
+
+const AUTH_SCHEME_RE = /Authorization\s*:\s*(?:Bearer|Basic|Token)\s+\S+/gi;
+const BARE_AUTH_RE = /\b(?:Bearer|Basic|Token)\s+[A-Za-z0-9._\-+/=]{8,}/gi;
 const URL_CRED_RE = /:\/\/[^/\s:@]+:[^/\s@]+@/gi;
 const SECRET_KV_RE =
-  /(?:api[_-]?key|token|secret|password|authorization)\s*[:=]\s*["']?[^\s"',}\]]+/gi;
+  /(?:api[_-]?key|x-api-key|access[_-]?token|client[_-]?secret|token|secret|password|authorization)\s*[:=]\s*["']?[^\s"',}\]]+/gi;
 
-const SENSITIVE_KEY_RE = /^(?:api[_-]?key|token|secret|password|authorization|bearer|auth)$/i;
+const SENSITIVE_KEY_RE =
+  /^(?:api[_-]?key|x-api-key|access[_-]?token|client[_-]?secret|token|secret|password|authorization|bearer|auth)$/i;
 
-/** 剥离密钥、Token、本机绝对路径与堆栈噪声 */
+/** 仅识别本插件错误码，避免把 Node ENOENT 等误判为本插件错误 */
+export function isComfyPlusError(err: unknown): err is ComfyPlusError {
+  if (!err || typeof err !== "object") return false;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === "string" && COMFY_ERROR_CODES.has(code as ComfyErrorCode);
+}
+
+/** 剥离密钥、Token、本机绝对路径与堆栈噪声（不误伤 http(s):// URL） */
 export function redactSensitive(text: string): string {
   return text
-    .replace(AUTH_BEARER_RE, "[REDACTED_SECRET]")
-    .replace(BARE_BEARER_RE, "[REDACTED_SECRET]")
+    .replace(AUTH_SCHEME_RE, "[REDACTED_SECRET]")
+    .replace(BARE_AUTH_RE, "[REDACTED_SECRET]")
     .replace(URL_CRED_RE, "://[REDACTED_SECRET]@")
     .replace(SECRET_KV_RE, "[REDACTED_SECRET]")
     .replace(PATH_RE, "[REDACTED_PATH]")
@@ -70,11 +90,7 @@ export function classifyFetchFailure(
     lower.includes("timeout") ||
     lower.includes("timed out")
   ) {
-    return createComfyError(
-      "EXECUTION_TIMEOUT",
-      `${context} 超时: ${msg}`,
-      details,
-    );
+    return createComfyError("EXECUTION_TIMEOUT", `${context} 超时: ${msg}`, details);
   }
 
   if (

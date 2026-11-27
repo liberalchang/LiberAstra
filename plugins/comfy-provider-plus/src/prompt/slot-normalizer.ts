@@ -102,7 +102,7 @@ const PROTECT_PATTERNS: RegExp[] = [
   /\b(?:CFG|cfg)\s*[:=]?\s*\d+(?:\.\d+)?\b/g,
   /\b\d+\s*(?:steps?\b|步)/gi,
   /\b\d+\s*:\s*\d+\b/g,
-  /[一二两三四五六七八九十百]+(?:个人|个人|个|只|位|人|名|条|天|小时|分钟|秒)/g,
+  /[一二两三四五六七八九十百千万]+(?:个人|个|只|位|人|名|条|天|小时|分钟|秒)/g,
   /第[一二两三四五六七八九十百\d]+\s*张\s*(?:桌子|椅子|床|纸|票|嘴|脸|卡|钞票|画纸|沙发)/g,
   /\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:people|persons|cats|dogs|men|women)\b/gi,
 ];
@@ -161,7 +161,7 @@ function collectExplicitHits(masked: string): MatchHit[] {
 
   // 图一百 / 图片2 / 参考图4（中文数字含百）
   const reCnPrefix =
-    /(?:参考)?(?:图|图片|照片|图像)\s*([0-9一二两三四五六七八九十百零〇]+)/g;
+    /(?:参考)?(?:图|图片|照片|图像)\s*([0-9一二两三四五六七八九十百千万零〇]+)/g;
   while ((m = reCnPrefix.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n != null) push(m.index, m.index + m[0].length, n);
@@ -169,7 +169,7 @@ function collectExplicitHits(masked: string): MatchHit[] {
 
   // 第X张 + 图片本体词：整体替换（含「图」）
   const reOrdinalMedia =
-    /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张\s*(?:参考)?(?:图|图片|照片|图像)/g;
+    /第\s*([0-9一二两三四五六七八九十百千万零〇]+)\s*张\s*(?:参考)?(?:图|图片|照片|图像)/g;
   while ((m = reOrdinalMedia.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n == null) continue;
@@ -178,7 +178,7 @@ function collectExplicitHits(masked: string): MatchHit[] {
 
   // 第X张 + 内容属性词：仅替换「第X张」，保留「人物/衣服」等（正向先行）
   const reOrdinalAttr =
-    /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张(?=\s*(?:人物|人像|主体|角色|衣服|服装|背景|姿态|姿势))/g;
+    /第\s*([0-9一二两三四五六七八九十百千万零〇]+)\s*张(?=\s*(?:人物|人像|主体|角色|衣服|服装|背景|姿态|姿势))/g;
   while ((m = reOrdinalAttr.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n == null) continue;
@@ -186,7 +186,7 @@ function collectExplicitHits(masked: string): MatchHit[] {
   }
 
   // 独立「第X张」：后面不是非图物体量词
-  const reOrdinalBare = /第\s*([0-9一二两三四五六七八九十百零〇]+)\s*张/g;
+  const reOrdinalBare = /第\s*([0-9一二两三四五六七八九十百千万零〇]+)\s*张/g;
   while ((m = reOrdinalBare.exec(masked)) !== null) {
     const n = parseChineseNumber(m[1]);
     if (n == null) continue;

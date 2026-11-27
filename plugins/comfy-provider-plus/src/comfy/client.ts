@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { createComfyError, classifyFetchFailure, formatExecutionError, redactSensitive } from "./errors.js";
+import {
+  createComfyError,
+  classifyFetchFailure,
+  formatExecutionError,
+  isComfyPlusError,
+  redactSensitive,
+} from "./errors.js";
 import type { ComfyPrompt, InputImage } from "../types.js";
 
 export type ComfyClientOptions = {
@@ -69,7 +75,7 @@ export class ComfyClient {
     this.pollRequestTimeoutMs = opts.pollRequestTimeoutMs ?? 20_000;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.now = opts.now ?? Date.now;
-    this.sleep = opts.sleep ?? sleep;
+    this.sleep = opts.sleep ?? ((ms) => sleep(ms, opts.signal));
     this.signal = opts.signal;
   }
 
@@ -80,6 +86,35 @@ export class ComfyClient {
       return AbortSignal.any([this.signal, timeout]);
     }
     return this.signal.aborted ? this.signal : timeout;
+  }
+
+  private throwIfAborted(promptId?: string): never {
+    throw createComfyError("EXECUTION_TIMEOUT", "请求已被取消（aborted）", {
+      ...(promptId ? { promptId } : {}),
+    });
+  }
+
+  private assertNotAborted(promptId?: string): void {
+    if (!this.signal?.aborted) return;
+    this.throwIfAborted(promptId);
+  }
+
+  private isHostAborted(): boolean {
+    // 仅认宿主 AbortSignal；勿把 AbortSignal.timeout 的 AbortError 当作用户取消
+    return Boolean(this.signal?.aborted);
+  }
+
+  private async sleepOrAbort(ms: number, promptId: string): Promise<void> {
+    try {
+      await this.sleep(ms);
+    } catch (err) {
+      if (this.isHostAborted()) {
+        await this.tryCleanup(promptId);
+        this.throwIfAborted(promptId);
+      }
+      throw err;
+    }
+    this.assertNotAborted(promptId);
   }
 
   /** 本地全量预检：任一张失败则不发网络请求 */
@@ -151,7 +186,7 @@ export class ComfyClient {
         }
         out.push({ filename: uploaded, index });
       } catch (err) {
-        if (err && typeof err === "object" && "code" in err) throw err;
+        if (isComfyPlusError(err)) throw err;
         throw classifyFetchFailure(err, `第 ${index} 张上传`, {
           index,
           preferUpload: true,
@@ -182,7 +217,7 @@ export class ComfyClient {
       }
       return payload.prompt_id;
     } catch (err) {
-      if (err && typeof err === "object" && "code" in err) throw err;
+      if (isComfyPlusError(err)) throw err;
       throw classifyFetchFailure(err, "提交工作流");
     }
   }
@@ -190,6 +225,7 @@ export class ComfyClient {
   async waitForHistory(promptId: string): Promise<Record<string, unknown>> {
     const deadline = this.now() + this.timeoutMs;
     while (this.now() < deadline) {
+      this.assertNotAborted(promptId);
       const remaining = deadline - this.now();
       if (remaining <= 0) break;
       try {
@@ -198,8 +234,8 @@ export class ComfyClient {
           signal: this.combineSignal(Math.min(this.pollRequestTimeoutMs, remaining)),
         });
         if (!res.ok) {
-          // 瞬时失败：重试至总 deadline
-          await this.sleep(Math.min(this.pollIntervalMs, remaining));
+          this.assertNotAborted(promptId);
+          await this.sleepOrAbort(Math.min(this.pollIntervalMs, remaining), promptId);
           continue;
         }
         const history = (await res.json()) as Record<string, unknown>;
@@ -220,12 +256,22 @@ export class ComfyClient {
           return entry;
         }
       } catch (err) {
-        if (err && typeof err === "object" && "code" in err) throw err;
-        // 瞬时网络/超时：继续直到总 deadline
+        if (isComfyPlusError(err)) throw err;
+        // 宿主 AbortSignal：立即停止，勿空转至 600s
+        if (this.isHostAborted()) {
+          await this.tryCleanup(promptId);
+          this.throwIfAborted(promptId);
+        }
+        // 瞬时网络/读超时（含 poll AbortSignal.timeout）：继续直到总 deadline
       }
+      this.assertNotAborted(promptId);
       const remainingAfter = deadline - this.now();
       if (remainingAfter <= 0) break;
-      await this.sleep(Math.min(this.pollIntervalMs, remainingAfter));
+      await this.sleepOrAbort(Math.min(this.pollIntervalMs, remainingAfter), promptId);
+    }
+    if (this.signal?.aborted) {
+      await this.tryCleanup(promptId);
+      this.throwIfAborted(promptId);
     }
     await this.tryCleanup(promptId);
     throw createComfyError(
@@ -257,7 +303,7 @@ export class ComfyClient {
       const ab = await res.arrayBuffer();
       return { buffer: Buffer.from(ab), mimeType, fileName };
     } catch (err) {
-      if (err && typeof err === "object" && "code" in err) throw err;
+      if (isComfyPlusError(err)) throw err;
       throw classifyFetchFailure(err, "下载输出");
     }
   }
@@ -317,6 +363,21 @@ export class ComfyClient {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }

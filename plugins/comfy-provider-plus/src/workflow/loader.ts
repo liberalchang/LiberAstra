@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createComfyError } from "../comfy/errors.js";
+import { createComfyError, isComfyPlusError } from "../comfy/errors.js";
 import type { ComfyPrompt, WorkflowNodeBindings } from "../types.js";
 
 function expandUserPath(input: string): string {
@@ -48,7 +48,7 @@ export async function loadWorkflowTemplate(workflowPath: string): Promise<ComfyP
     }
     return structuredClone(stripDocKeys(parsed as Record<string, unknown>)) as ComfyPrompt;
   } catch (err) {
-    if (err && typeof err === "object" && "code" in err) throw err;
+    if (isComfyPlusError(err)) throw err;
     throw createComfyError(
       "VALIDATION_FAILED",
       `无法读取工作流模板: ${err instanceof Error ? err.message : String(err)}`,
