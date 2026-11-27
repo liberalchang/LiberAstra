@@ -1,0 +1,260 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen-image-2.1-UC-int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "200": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "lora_name": "qwen-image-2.1-uncensored-lora.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "40": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": "a red apple on a white table, studio photo"
+    }
+  },
+  "41": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": ""
+    }
+  },
+  "30": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": ""
+    }
+  },
+  "33": {
+    "class_type": "StringConcatenate",
+    "inputs": {
+      "string_a": "/home/ps/workspace/ComfyUI/input/",
+      "string_b": [
+        "30",
+        0
+      ],
+      "delimiter": ""
+    }
+  },
+  "31": {
+    "class_type": "StringLength",
+    "inputs": {
+      "string": [
+        "30",
+        0
+      ]
+    }
+  },
+  "32": {
+    "class_type": "easy compare",
+    "inputs": {
+      "a": [
+        "31",
+        0
+      ],
+      "comparison": "a > 0"
+    }
+  },
+  "10": {
+    "class_type": "VHS_LoadImagePath",
+    "inputs": {
+      "image": [
+        "33",
+        0
+      ],
+      "custom_width": 0,
+      "custom_height": 0
+    },
+    "is_changed": [
+      "input"
+    ]
+  },
+  "5": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "prompt": [
+        "40",
+        0
+      ],
+      "negative_prompt": [
+        "41",
+        0
+      ],
+      "resolution": 1024
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "15": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "prompt": [
+        "40",
+        0
+      ],
+      "negative_prompt": [
+        "41",
+        0
+      ],
+      "resolution": 1024,
+      "images.image_1": [
+        "10",
+        0
+      ]
+    }
+  },
+  "50": {
+    "class_type": "LazySwitchKJ",
+    "inputs": {
+      "switch": [
+        "32",
+        0
+      ],
+      "on_false": [
+        "5",
+        0
+      ],
+      "on_true": [
+        "15",
+        0
+      ]
+    }
+  },
+  "51": {
+    "class_type": "LazySwitchKJ",
+    "inputs": {
+      "switch": [
+        "32",
+        0
+      ],
+      "on_false": [
+        "5",
+        1
+      ],
+      "on_true": [
+        "15",
+        1
+      ]
+    }
+  },
+  "52": {
+    "class_type": "LazySwitchKJ",
+    "inputs": {
+      "switch": [
+        "32",
+        0
+      ],
+      "on_false": [
+        "6",
+        0
+      ],
+      "on_true": [
+        "15",
+        2
+      ]
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 1,
+      "steps": 25,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "200",
+        0
+      ],
+      "positive": [
+        "50",
+        0
+      ],
+      "negative": [
+        "51",
+        0
+      ],
+      "latent_image": [
+        "52",
+        0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "qwen-image-uc",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

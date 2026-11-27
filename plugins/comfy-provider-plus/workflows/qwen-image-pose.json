@@ -1,0 +1,97 @@
+{
+  "_meta": {
+    "status": "phase5-evaluation-only",
+    "enabled": false,
+    "warning": "槽位反序：image_1=姿态图，image_2=人物原图；需透明底压白与尺寸防护。未经 140 实测归档不得启用。",
+    "slotOrder": {
+      "image_1": "pose_reference",
+      "image_2": "character_photo"
+    }
+  },
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen-image-2.1-UC-int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["1", 0],
+      "lora_name": "VNCCS_QI2_PoseStudioV1.1.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "3": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": ["2", 0],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "4": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "5": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "pose.png" }
+  },
+  "7": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "character.png" }
+  },
+  "8": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": ["4", 0],
+      "vae": ["5", 0],
+      "prompt": "Draw character from image_2",
+      "negative_prompt": "",
+      "resolution": 1024,
+      "images.image_1": ["6", 0],
+      "images.image_2": ["7", 0]
+    }
+  },
+  "11": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": ["3", 0],
+      "positive": ["8", 0],
+      "negative": ["8", 1],
+      "latent_image": ["8", 2]
+    }
+  },
+  "12": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["11", 0],
+      "vae": ["5", 0]
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "comfy-plus-pose-UNEVALUATED",
+      "images": ["12", 0]
+    }
+  }
+}

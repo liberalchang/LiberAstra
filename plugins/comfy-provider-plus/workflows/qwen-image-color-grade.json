@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "status": "phase5-evaluation-only",
+    "enabled": false,
+    "warning": "QIE-2511-Color-Grade-Transfer-LoRA 属于 Qwen-Image-Edit-2511 家族，与 Qwen-Image 2.1 UC 三件套不兼容。未经 140 实测归档不得启用。"
+  },
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_edit_2511_fp8mixed.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["1", 0],
+      "lora_name": "QIE-2511-Color-Grade-Transfer-LoRA.safetensors",
+      "strength_model": 1.0
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "example.png" }
+  },
+  "11": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "example.png" }
+  },
+  "20": {
+    "class_type": "ColorMatch",
+    "inputs": {
+      "image_ref": ["11", 0],
+      "image_target": ["10", 0],
+      "method": "mkl"
+    }
+  },
+  "99": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "comfy-plus-color-grade-UNEVALUATED",
+      "images": ["20", 0]
+    }
+  }
+}
