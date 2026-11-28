@@ -19,6 +19,12 @@ npm run build
 | **P0-3** `waitForHistory` 响应 AbortSignal | **已修** | 循环/`catch`/`sleepOrAbort` 检查宿主 `signal.aborted`；`sleep` 监听 abort；`timeout-600s.test.ts`：「waitForHistory 响应 AbortSignal」history 轮询 ≤2、立即抛取消 |
 | **附带** slot `千万` | **已修** | 正则字符类含 `千万`；「图一千」越界单测 |
 
+## CI（PR #5）
+
+- backend / frontend / docker：全部 SUCCESS（run `46085368184`）
+- mergeable：MERGEABLE
+- head：`d17e408`（fix attempt 2）
+
 ## 保持
 
 - P0-2 / P1-1..P1-3 / Phase5 `enabled:false` 未回退
