@@ -1,0 +1,1 @@
+["flux3-image-klein-int8-convrot.safetensors", "minimax_h3_fl2va_pruned_int8_convrot.safetensors", "minimax_h3_ref2va_pruned_int8_convrot.safetensors", "qwen-image-2.1-UC-int8_convrot.safetensors", "qwen_image_2.1_bf16.safetensors", "qwen_image_2.1_int8_convrot.safetensors", "qwen_image_edit_2511_fp8mixed.safetensors", "wan-fusionx/WanT2V_MasterModel.safetensors"]

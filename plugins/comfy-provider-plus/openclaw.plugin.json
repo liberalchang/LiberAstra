@@ -1,0 +1,77 @@
+{
+  "id": "comfy-plus",
+  "categories": ["media"],
+  "activation": {
+    "onStartup": false
+  },
+  "enabledByDefault": false,
+  "providers": ["comfy-plus"],
+  "contracts": {
+    "imageGenerationProviders": ["comfy-plus"]
+  },
+  "imageGenerationProviderMetadata": {
+    "comfy-plus": {
+      "configSignals": [
+        {
+          "rootPath": "plugins.entries.comfy-plus.config",
+          "required": ["baseUrl", "workflows"]
+        }
+      ]
+    }
+  },
+  "configGroups": [
+    {
+      "id": "comfy-plus-connection",
+      "title": "Comfy Plus connection",
+      "order": 10,
+      "properties": ["mode", "baseUrl", "timeoutMs", "pollIntervalMs", "maxUploadBytes", "allowPrivateNetwork"]
+    },
+    {
+      "id": "comfy-plus-workflows",
+      "title": "Workflows",
+      "order": 20,
+      "properties": ["workflows", "operations", "defaults", "nodeBindings"]
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mode": { "type": "string", "enum": ["local"] },
+      "baseUrl": { "type": "string" },
+      "timeoutMs": { "type": "integer", "minimum": 1000, "default": 600000 },
+      "pollIntervalMs": { "type": "integer", "minimum": 100 },
+      "maxUploadBytes": { "type": "integer", "minimum": 1024 },
+      "allowPrivateNetwork": { "type": "boolean" },
+      "workflows": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "t2i": { "type": "string" },
+          "edit": { "type": "string" },
+          "colorGrade": { "type": "string" },
+          "pose": { "type": "string" }
+        },
+        "required": ["t2i", "edit"]
+      },
+      "operations": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "colorGrade": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "enabled": { "type": "boolean", "default": false } }
+          },
+          "pose": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "enabled": { "type": "boolean", "default": false } }
+          }
+        }
+      },
+      "defaults": { "type": "object" },
+      "nodeBindings": { "type": "object" }
+    }
+  }
+}
